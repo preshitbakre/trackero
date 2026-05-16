@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import { DataSource } from 'typeorm';
 import { createTestApp, clearDatabase } from './setup';
 
 describe('Auth Module (e2e)', () => {
@@ -148,7 +149,6 @@ describe('Auth Module (e2e)', () => {
 
     it('rejects deactivated account -> F-L-0008 (403)', async () => {
       // Deactivate the user directly in DB
-      const { DataSource } = await import('typeorm');
       const dataSource = app.get(DataSource);
       await dataSource.query(
         `UPDATE users SET is_active = false WHERE email = $1`,
@@ -388,9 +388,8 @@ describe('Auth Module (e2e)', () => {
 
   describe('Seed Admin', () => {
     it('creates admin user on fresh database from env vars', async () => {
-      // After clearDatabase, the seed should run on next app bootstrap
-      // We'll test by logging in with the admin credentials from env
-      // The seed runs at module init, so we need to create a fresh app
+      // Clear DB to ensure no users exist, then create a fresh app that will seed
+      await clearDatabase(app);
       const { createTestApp: createFresh } = await import('./setup');
       const freshApp = await createFresh();
 
