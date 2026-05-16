@@ -53,7 +53,26 @@ export class SprintsService {
     if (limit !== -1) {
       qb.skip((page - 1) * limit).take(limit);
     }
-    const data = await qb.getMany();
+    const sprints = await qb.getMany();
+
+    const data = await Promise.all(sprints.map(async (sprint) => {
+      const stats = await this.dataSource.query(`
+        SELECT
+          COUNT(*)::int as task_count,
+          COALESCE(SUM(story_points), 0)::int as total_points,
+          COALESCE(SUM(story_points) FILTER (WHERE completed_at IS NOT NULL), 0)::int as completed_points
+        FROM tasks
+        WHERE sprint_id = $1 AND parent_id IS NULL
+      `, [sprint.id]);
+
+      return {
+        ...sprint,
+        taskCount: parseInt(stats[0].task_count),
+        totalPoints: parseInt(stats[0].total_points),
+        completedPoints: parseInt(stats[0].completed_points),
+      };
+    }));
+
     return new PaginatedResponse(data, total, page, limit);
   }
 

@@ -1,6 +1,6 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { Epic } from './entities/epic.entity';
 import { AppLogicException } from '../common/exceptions/app-exceptions';
 import { PaginatedResponse } from '../common/dto/paginated-response.dto';
@@ -13,6 +13,7 @@ export class EpicsService {
   constructor(
     @InjectRepository(Epic)
     private readonly epicRepo: Repository<Epic>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(projectId: number, dto: CreateEpicDto, userId: number) {
@@ -40,7 +41,33 @@ export class EpicsService {
     if (limit !== -1) {
       qb.skip((page - 1) * limit).take(limit);
     }
-    const data = await qb.getMany();
+    const epics = await qb.getMany();
+
+    const data = await Promise.all(epics.map(async (epic) => {
+      const stats = await this.dataSource.query(`
+        SELECT
+          COUNT(*)::int as total_tasks,
+          COUNT(*) FILTER (WHERE ps.category = 'done')::int as completed_tasks,
+          COALESCE(SUM(t.story_points), 0)::int as total_points,
+          COALESCE(SUM(t.story_points) FILTER (WHERE ps.category = 'done'), 0)::int as completed_points
+        FROM tasks t
+        JOIN project_statuses ps ON t.status_id = ps.id
+        WHERE t.epic_id = $1 AND t.parent_id IS NULL
+      `, [epic.id]);
+
+      const totalTasks = parseInt(stats[0].total_tasks);
+      const completedTasks = parseInt(stats[0].completed_tasks);
+
+      return {
+        ...epic,
+        totalTasks,
+        completedTasks,
+        totalPoints: parseInt(stats[0].total_points),
+        completedPoints: parseInt(stats[0].completed_points),
+        progressPercent: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+      };
+    }));
+
     return new PaginatedResponse(data, total, page, limit);
   }
 
