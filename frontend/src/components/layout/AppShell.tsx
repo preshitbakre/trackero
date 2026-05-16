@@ -3,6 +3,8 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { CommandPalette } from '../common/CommandPalette';
+import { ShortcutsHelp } from '../common/ShortcutsHelp';
+import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { apiClient } from '../../api/client';
 import { connectSocket, disconnectSocket, joinProject, leaveProject } from '../../lib/socket';
 
@@ -14,6 +16,13 @@ export function AppShell() {
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const location = useLocation();
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(null);
+
+  useKeyboardShortcuts({
+    onOpenSearch: () => setShowCommandPalette(true),
+    onCreateTask: () => {
+      document.dispatchEvent(new CustomEvent('shortcut-create-task'));
+    },
+  });
 
   useEffect(() => {
     connectSocket();
@@ -70,6 +79,7 @@ export function AppShell() {
         </main>
       </div>
       {showCommandPalette && <CommandPalette onClose={() => setShowCommandPalette(false)} />}
+      <ShortcutsHelp />
     </div>
   );
 }

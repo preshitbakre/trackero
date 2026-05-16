@@ -11,6 +11,7 @@ import { TasksPage } from './pages/TasksPage';
 import { BoardPage } from './pages/BoardPage';
 import { ChartsPage } from './pages/ChartsPage';
 import { RetroPage } from './pages/RetroPage';
+import { BacklogPage } from './pages/BacklogPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AppShell } from './components/layout/AppShell';
 import { useEffect } from 'react';
@@ -44,7 +45,7 @@ export function App() {
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/projects/:id/board" element={<BoardPage />} />
             <Route path="/projects/:id/tasks" element={<TasksPage />} />
-            <Route path="/projects/:id/backlog" element={<div className="p-6"><h1 className="text-xl font-bold">Backlog (Phase 10)</h1></div>} />
+            <Route path="/projects/:id/backlog" element={<BacklogPage />} />
             <Route path="/projects/:id/sprints" element={<SprintsPage />} />
             <Route path="/projects/:id/epics" element={<EpicsPage />} />
             <Route path="/projects/:id/charts" element={<ChartsPage />} />
