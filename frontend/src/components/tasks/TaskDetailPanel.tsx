@@ -1,7 +1,25 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../api/client';
 
-interface Task {
+interface Subtask {
+  id: number;
+  taskNumber: number;
+  title: string;
+  statusId: number;
+  completedAt: string | null;
+  checklistItems?: { id: number; title: string; isCompleted: boolean }[];
+}
+
+interface Dependency {
+  id: number;
+  dependsOnTaskId?: number;
+  taskId?: number;
+  dependencyType: string;
+  task?: { id: number; taskNumber: number; title: string };
+  dependsOnTask?: { id: number; taskNumber: number; title: string };
+}
+
+interface TaskDetail {
   id: number;
   taskNumber: number;
   title: string;
@@ -16,6 +34,10 @@ interface Task {
   dueDate: string | null;
   completedAt: string | null;
   createdAt: string;
+  subtasks?: Subtask[];
+  blockedBy?: Dependency[];
+  blocks?: Dependency[];
+  subtaskCount?: number;
 }
 
 interface TaskDetailPanelProps {
@@ -27,9 +49,11 @@ interface TaskDetailPanelProps {
 }
 
 export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onUpdated }: TaskDetailPanelProps) {
-  const [task, setTask] = useState<Task | null>(null);
+  const [task, setTask] = useState<TaskDetail | null>(null);
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState('');
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [showAddSubtask, setShowAddSubtask] = useState(false);
 
   useEffect(() => {
     loadTask();
@@ -56,7 +80,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
     setEditing(false);
   };
 
-  const handleFieldChange = async (field: string, value: any) => {
+  const handleFieldChange = async (field: string, value: unknown) => {
     try {
       await apiClient.put(`/projects/${projectId}/tasks/${taskId}`, { [field]: value });
       await loadTask();
@@ -64,6 +88,16 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
     } catch {}
   };
 
+  const handleAddSubtask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSubtaskTitle.trim()) return;
+    try {
+      await apiClient.post(`/projects/${projectId}/tasks/${taskId}/subtasks`, { title: newSubtaskTitle });
+      setNewSubtaskTitle('');
+      setShowAddSubtask(false);
+      await loadTask();
+    } catch {}
+  };
 
   if (!task) {
     return (
@@ -73,7 +107,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
     );
   }
 
-  const taskKey = `${projectPrefix}-${task.taskNumber}`;
+  const taskKey = projectPrefix ? `${projectPrefix}-${task.taskNumber}` : `#${task.taskNumber}`;
 
   const priorityColors: Record<string, string> = {
     urgent: 'text-red-600',
@@ -169,13 +203,90 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
             )}
           </div>
 
-          {/* Description placeholder */}
+          {/* Description */}
           <div>
             <h3 className="text-sm font-medium text-gray-500 mb-2">Description</h3>
             <div className="text-sm text-gray-700 dark:text-gray-300 min-h-[60px] p-3 rounded border border-gray-200 dark:border-gray-800">
               {task.description || <span className="text-gray-400 italic">No description</span>}
             </div>
           </div>
+
+          {/* Subtasks */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-gray-500">
+                Subtasks {task.subtasks && task.subtasks.length > 0 && `(${task.subtasks.length})`}
+              </h3>
+            </div>
+            {task.subtasks && task.subtasks.length > 0 && (
+              <div className="space-y-1 mb-2">
+                {task.subtasks.map((st) => (
+                  <div key={st.id} className="flex items-center gap-2 text-sm py-1 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-900">
+                    <span className={st.completedAt ? 'text-green-500' : 'text-gray-400'}>
+                      {st.completedAt ? '☑' : '☐'}
+                    </span>
+                    <span className={`flex-1 ${st.completedAt ? 'line-through text-gray-400' : 'text-gray-900 dark:text-gray-50'}`}>
+                      {st.title}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {showAddSubtask ? (
+              <form onSubmit={handleAddSubtask} className="flex gap-1">
+                <input
+                  type="text"
+                  value={newSubtaskTitle}
+                  onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                  placeholder="Subtask title..."
+                  autoFocus
+                  className="flex-1 text-sm px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-transparent"
+                />
+                <button type="submit" className="text-xs px-2 py-1 bg-brand text-white rounded">Add</button>
+                <button type="button" onClick={() => setShowAddSubtask(false)} className="text-xs px-2 py-1 text-gray-500">Cancel</button>
+              </form>
+            ) : (
+              <button
+                onClick={() => setShowAddSubtask(true)}
+                className="text-xs text-gray-400 hover:text-brand"
+              >
+                + Add subtask
+              </button>
+            )}
+          </div>
+
+          {/* Dependencies */}
+          {((task.blockedBy && task.blockedBy.length > 0) || (task.blocks && task.blocks.length > 0)) && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-500 mb-2">Dependencies</h3>
+              {task.blockedBy && task.blockedBy.length > 0 && (
+                <div className="mb-2">
+                  <span className="text-xs text-gray-400 uppercase">Blocked by:</span>
+                  {task.blockedBy.map((dep) => (
+                    <div key={dep.id} className="flex items-center gap-2 text-sm py-1 px-2">
+                      <span className="text-red-500">🔒</span>
+                      <span className="text-gray-700 dark:text-gray-300">
+                        #{dep.dependsOnTask?.taskNumber} {dep.dependsOnTask?.title}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {task.blocks && task.blocks.length > 0 && (
+                <div>
+                  <span className="text-xs text-gray-400 uppercase">Blocks:</span>
+                  {task.blocks.map((dep) => (
+                    <div key={dep.id} className="flex items-center gap-2 text-sm py-1 px-2">
+                      <span className="text-amber-500">⏳</span>
+                      <span className="text-gray-700 dark:text-gray-300">
+                        #{dep.task?.taskNumber} {dep.task?.title}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </>

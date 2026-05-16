@@ -83,8 +83,12 @@ export class TasksService {
       .where('t.projectId = :projectId', { projectId })
       .andWhere('t.parentId IS NULL'); // Don't list subtasks in main list
 
-    if (filters.search) {
-      qb.andWhere('t.title ILIKE :search', { search: `%${filters.search}%` });
+    if (filters.search && filters.search.length >= 2) {
+      qb.andWhere(
+        `t.search_vector @@ plainto_tsquery('english', :search)`,
+        { search: filters.search },
+      );
+      qb.addOrderBy(`ts_rank(t.search_vector, plainto_tsquery('english', :search))`, 'DESC');
     }
     if (filters.status) {
       const statusIds = filters.status.split(',').map(Number);
