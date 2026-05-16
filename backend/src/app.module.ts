@@ -11,6 +11,7 @@ import { EpicsModule } from './epics/epics.module';
 import { SprintsModule } from './sprints/sprints.module';
 import { TasksModule } from './tasks/tasks.module';
 import { BoardModule } from './board/board.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { BoardModule } from './board/board.module';
     SprintsModule,
     TasksModule,
     BoardModule,
+    HealthModule,
   ],
 })
 export class AppModule {}

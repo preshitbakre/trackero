@@ -278,7 +278,14 @@ export class ProjectsService {
       }
     }
 
-    // TODO: Check if status has tasks assigned (STATUS_IN_USE) - will be enforced in Phase 5
+    // Check if status has tasks assigned
+    const taskCount = await this.dataSource.query(
+      'SELECT COUNT(*)::int as count FROM tasks WHERE status_id = $1',
+      [statusId],
+    );
+    if (parseInt(taskCount[0].count) > 0) {
+      throw new AppLogicException('STATUS_IN_USE', HttpStatus.CONFLICT);
+    }
 
     await this.statusRepo.remove(status);
   }

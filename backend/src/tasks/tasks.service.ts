@@ -1,6 +1,7 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Task } from './entities/task.entity';
 import { ChecklistItem } from './entities/checklist-item.entity';
 import { TaskDependency } from './entities/task-dependency.entity';
@@ -23,6 +24,7 @@ export class TasksService {
     @InjectRepository(TaskDependency)
     private readonly depRepo: Repository<TaskDependency>,
     private readonly dataSource: DataSource,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(projectId: number, dto: CreateTaskDto, userId: number) {
@@ -62,6 +64,18 @@ export class TasksService {
       statusId,
       reporterId: userId,
     });
+
+    // Check if adding to active sprint -> set addedMidSprint
+    if (dto.sprintId) {
+      const [sprintRow] = await this.dataSource.query(
+        'SELECT status FROM sprints WHERE id = $1',
+        [dto.sprintId],
+      );
+      if (sprintRow?.status === 'active') {
+        task.addedMidSprint = true;
+      }
+    }
+
     const saved = await this.taskRepo.save(task);
 
     if (dto.labelIds && dto.labelIds.length > 0) {
@@ -70,6 +84,16 @@ export class TasksService {
         [saved.id, dto.labelIds],
       );
     }
+
+    // Create SprintScopeChange if added to active sprint
+    if (dto.sprintId && task.addedMidSprint) {
+      await this.dataSource.query(
+        `INSERT INTO sprint_scope_changes (sprint_id, task_id, action, story_points) VALUES ($1, $2, 'added', $3)`,
+        [dto.sprintId, saved.id, dto.storyPoints ?? null],
+      );
+    }
+
+    this.eventEmitter.emit('task.created', { taskId: saved.id, projectId, actorId: userId });
 
     const list = await this.listTasks(projectId, {});
     return PaginatedMutationResponse.forPaginated(saved, list);
@@ -160,6 +184,7 @@ export class TasksService {
     if (dto.dueDate !== undefined) task.dueDate = dto.dueDate;
 
     const saved = await this.taskRepo.save(task);
+    this.eventEmitter.emit('task.updated', { taskId: saved.id, projectId, actorId: saved.reporterId });
     const list = await this.listTasks(projectId, {});
     return PaginatedMutationResponse.forPaginated(saved, list);
   }
@@ -174,6 +199,7 @@ export class TasksService {
       }
     }
 
+    this.eventEmitter.emit('task.deleted', { taskId, projectId, actorId: userId });
     await this.taskRepo.remove(task);
     const list = await this.listTasks(projectId, {});
     return PaginatedMutationResponse.forPaginated(null, list);
@@ -219,8 +245,10 @@ export class TasksService {
       }
     }
 
+    const oldStatusId = task.statusId;
     task.statusId = statusId;
     const saved = await this.taskRepo.save(task);
+    this.eventEmitter.emit('task.status_changed', { taskId: saved.id, projectId, oldStatusId, newStatusId: statusId });
     const list = await this.listTasks(projectId, {});
     return PaginatedMutationResponse.forPaginated(saved, list);
   }
@@ -229,6 +257,7 @@ export class TasksService {
     const task = await this.findOne(projectId, taskId);
     task.assigneeId = assigneeId;
     const saved = await this.taskRepo.save(task);
+    this.eventEmitter.emit('task.assigned', { taskId: saved.id, projectId, assigneeId });
     const list = await this.listTasks(projectId, {});
     return PaginatedMutationResponse.forPaginated(saved, list);
   }

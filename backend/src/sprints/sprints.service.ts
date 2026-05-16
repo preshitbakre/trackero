@@ -1,6 +1,7 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Sprint } from './entities/sprint.entity';
 import { SprintScopeChange } from './entities/sprint-scope-change.entity';
 import { AppLogicException } from '../common/exceptions/app-exceptions';
@@ -17,6 +18,7 @@ export class SprintsService {
     @InjectRepository(SprintScopeChange)
     private readonly scopeChangeRepo: Repository<SprintScopeChange>,
     private readonly dataSource: DataSource,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(projectId: number, dto: CreateSprintDto, userId: number) {
@@ -137,6 +139,8 @@ export class SprintsService {
     sprint.status = 'active';
     const saved = await this.sprintRepo.save(sprint);
 
+    this.eventEmitter.emit('sprint.started', { sprintId, projectId });
+
     // Record initial scope
     const tasks = await this.dataSource.query(
       `SELECT id, story_points FROM tasks WHERE sprint_id = $1`,
@@ -167,6 +171,8 @@ export class SprintsService {
     sprint.completedAt = new Date();
     await this.sprintRepo.save(sprint);
 
+    this.eventEmitter.emit('sprint.completed', { sprintId, projectId });
+
     // Find incomplete tasks (status category NOT done/cancelled)
     const incompleteTasks = await this.dataSource.query(
       `SELECT t.id FROM tasks t
@@ -177,6 +183,22 @@ export class SprintsService {
 
     let movedTo = 'Backlog';
     let movedTasks = incompleteTasks.length;
+
+    // Create SprintScopeChange 'removed' records for tasks leaving this sprint
+    for (const task of incompleteTasks) {
+      const [taskData] = await this.dataSource.query(
+        'SELECT story_points FROM tasks WHERE id = $1',
+        [task.id],
+      );
+      await this.scopeChangeRepo.save(
+        this.scopeChangeRepo.create({
+          sprintId,
+          taskId: task.id,
+          action: 'removed',
+          storyPoints: taskData?.story_points ?? null,
+        }),
+      );
+    }
 
     if (movedTasks > 0) {
       // Find next planning sprint
@@ -214,6 +236,8 @@ export class SprintsService {
 
     sprint.status = 'cancelled';
     await this.sprintRepo.save(sprint);
+
+    this.eventEmitter.emit('sprint.cancelled', { sprintId, projectId });
 
     // Move ALL tasks to backlog
     await this.dataSource.query(

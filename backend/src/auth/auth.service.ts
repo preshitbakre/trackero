@@ -207,15 +207,41 @@ export class AuthService implements OnModuleInit {
     const user = await this.userRepo.findOne({ where: { email } });
     if (!user) return;
 
-    // TODO: Send reset email when SMTP is configured
     const resetToken = crypto.randomBytes(32).toString('hex');
-    console.log(`Password reset token for ${email}: ${resetToken}`);
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+
+    user.passwordResetToken = hashedToken;
+    user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    await this.userRepo.save(user);
+
+    // Send email or log to console
+    const appUrl = this.configService.get<string>('APP_URL', 'http://localhost:5173');
+    const resetUrl = `${appUrl}/reset-password?token=${resetToken}`;
+    console.log(`[PASSWORD RESET] ${email}: ${resetUrl}`);
   }
 
   async resetPassword(token: string, newPassword: string) {
-    // TODO: Implement token storage and validation
-    // For now, this is a placeholder
-    throw new AppLogicException('TOKEN_INVALID', HttpStatus.UNAUTHORIZED);
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    const user = await this.userRepo.findOne({
+      where: { passwordResetToken: hashedToken },
+    });
+
+    if (!user || !user.passwordResetExpires || user.passwordResetExpires < new Date()) {
+      throw new AppLogicException('TOKEN_EXPIRED', HttpStatus.UNAUTHORIZED);
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, 12);
+    user.tokenVersion += 1;
+    user.passwordResetToken = null;
+    user.passwordResetExpires = null;
+    await this.userRepo.save(user);
+
+    // Revoke all refresh tokens
+    await this.refreshTokenRepo.update(
+      { userId: user.id, isRevoked: false },
+      { isRevoked: true },
+    );
   }
 
   async validateJwtPayload(payload: JwtPayload): Promise<User | null> {
