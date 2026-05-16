@@ -1,6 +1,7 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Task } from '../tasks/entities/task.entity';
 import { ProjectStatus } from '../projects/entities/project-status.entity';
 import { TaskDependency } from '../tasks/entities/task-dependency.entity';
@@ -16,6 +17,7 @@ export class BoardService {
     @InjectRepository(TaskDependency)
     private readonly depRepo: Repository<TaskDependency>,
     private readonly dataSource: DataSource,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async getBoard(projectId: number, filters: { sprintId?: number; assigneeId?: number; priority?: string; epicId?: number }) {
@@ -95,7 +97,7 @@ export class BoardService {
     return { columns };
   }
 
-  async moveCard(projectId: number, taskId: number, statusId: number, sortOrder: string) {
+  async moveCard(projectId: number, taskId: number, statusId: number, sortOrder: string, userId: number) {
     const task = await this.taskRepo.findOne({ where: { id: taskId, projectId } });
     if (!task) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
@@ -135,6 +137,15 @@ export class BoardService {
     task.statusId = statusId;
     task.sortOrder = sortOrder;
     await this.taskRepo.save(task);
+
+    this.eventEmitter.emit('board.moved', {
+      projectId,
+      taskId: task.id,
+      statusId,
+      sortOrder,
+      completedAt: task.completedAt,
+      actorId: userId,
+    });
 
     // Return lightweight response
     return {

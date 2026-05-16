@@ -61,11 +61,14 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server?.to(`project:${payload.projectId}`).emit('task:deleted', { taskId: payload.taskId });
   }
 
-  @OnEvent('task.status_changed')
-  onBoardMoved(payload: { taskId: number; projectId: number; newStatusId: number }) {
+  @OnEvent('board.moved')
+  onBoardMoved(payload: { projectId: number; taskId: number; statusId: number; sortOrder: string; completedAt: Date | null; actorId: number }) {
     this.server?.to(`project:${payload.projectId}`).emit('board:moved', {
       taskId: payload.taskId,
-      statusId: payload.newStatusId,
+      statusId: payload.statusId,
+      sortOrder: payload.sortOrder,
+      completedAt: payload.completedAt,
+      actorId: payload.actorId,
     });
   }
 

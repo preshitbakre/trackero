@@ -13,6 +13,7 @@ import {
 } from '@dnd-kit/core';
 import { apiClient } from '../../api/client';
 import { getSocket } from '../../lib/socket';
+import { useAuthStore } from '../../store/auth.store';
 import { StatusColumn } from './StatusColumn';
 import { TaskCard } from './TaskCard';
 import { TaskDetailPanel } from '../tasks/TaskDetailPanel';
@@ -63,7 +64,11 @@ export function KanbanBoard() {
   useEffect(() => {
     const socket = getSocket();
 
-    const handleBoardMoved = (data: { taskId: number; statusId: number }) => {
+    const currentUserId = useAuthStore.getState().user?.id;
+
+    const handleBoardMoved = (data: { taskId: number; statusId: number; actorId?: number }) => {
+      // Skip if this is our own optimistic update
+      if (data.actorId === currentUserId) return;
       setColumns((prev) => {
         const newCols = prev.map((col) => ({
           ...col,

@@ -6,8 +6,10 @@ import { BoardService } from './board.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { ProjectAccessGuard } from '../common/guards/project-access.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ResponseCode } from '../common/decorators/response-code.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
+import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 import { BoardMoveDto } from './dto/board-move.dto';
 
 @Controller('projects/:projectId/board')
@@ -34,7 +36,8 @@ export class BoardController {
   async moveCard(
     @Param('projectId', ParseIntPipe) projectId: number,
     @Body() dto: BoardMoveDto,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.boardService.moveCard(projectId, dto.taskId, dto.statusId, dto.sortOrder);
+    return this.boardService.moveCard(projectId, dto.taskId, dto.statusId, dto.sortOrder, user.userId);
   }
 }
