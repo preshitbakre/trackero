@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Geist', system-ui, -apple-system, sans-serif;
+  --color-brand: #6366F1;
+  --color-brand-accent: #8B5CF6;
+}
