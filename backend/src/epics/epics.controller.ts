@@ -14,7 +14,7 @@ import { CreateEpicDto } from './dto/create-epic.dto';
 import { UpdateEpicDto } from './dto/update-epic.dto';
 
 @Controller('projects/:projectId/epics')
-@UseGuards(JwtAuthGuard, RolesGuard, ProjectAccessGuard)
+@UseGuards(JwtAuthGuard, ProjectAccessGuard, RolesGuard)
 export class EpicsController {
   constructor(private readonly epicsService: EpicsService) {}
 

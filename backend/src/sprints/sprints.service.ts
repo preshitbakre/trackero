@@ -139,7 +139,7 @@ export class SprintsService {
     sprint.status = 'active';
     const saved = await this.sprintRepo.save(sprint);
 
-    this.eventEmitter.emit('sprint.started', { sprintId, projectId });
+    this.eventEmitter.emit('sprint.started', { sprintId, projectId, actorId: 1 });
 
     // Record initial scope
     const tasks = await this.dataSource.query(
@@ -171,7 +171,7 @@ export class SprintsService {
     sprint.completedAt = new Date();
     await this.sprintRepo.save(sprint);
 
-    this.eventEmitter.emit('sprint.completed', { sprintId, projectId });
+    this.eventEmitter.emit('sprint.completed', { sprintId, projectId, actorId: 1 });
 
     // Find incomplete tasks (status category NOT done/cancelled)
     const incompleteTasks = await this.dataSource.query(
@@ -237,7 +237,7 @@ export class SprintsService {
     sprint.status = 'cancelled';
     await this.sprintRepo.save(sprint);
 
-    this.eventEmitter.emit('sprint.cancelled', { sprintId, projectId });
+    this.eventEmitter.emit('sprint.cancelled', { sprintId, projectId, actorId: 1 });
 
     // Move ALL tasks to backlog
     await this.dataSource.query(

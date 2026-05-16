@@ -248,7 +248,7 @@ export class TasksService {
     const oldStatusId = task.statusId;
     task.statusId = statusId;
     const saved = await this.taskRepo.save(task);
-    this.eventEmitter.emit('task.status_changed', { taskId: saved.id, projectId, oldStatusId, newStatusId: statusId });
+    this.eventEmitter.emit('task.status_changed', { taskId: saved.id, projectId, actorId: 1, oldStatusId, newStatusId: statusId });
     const list = await this.listTasks(projectId, {});
     return PaginatedMutationResponse.forPaginated(saved, list);
   }
@@ -257,7 +257,7 @@ export class TasksService {
     const task = await this.findOne(projectId, taskId);
     task.assigneeId = assigneeId;
     const saved = await this.taskRepo.save(task);
-    this.eventEmitter.emit('task.assigned', { taskId: saved.id, projectId, assigneeId });
+    this.eventEmitter.emit('task.assigned', { taskId: saved.id, projectId, actorId: 1, assigneeId });
     const list = await this.listTasks(projectId, {});
     return PaginatedMutationResponse.forPaginated(saved, list);
   }

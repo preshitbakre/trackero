@@ -12,6 +12,10 @@ import { SprintsModule } from './sprints/sprints.module';
 import { TasksModule } from './tasks/tasks.module';
 import { BoardModule } from './board/board.module';
 import { HealthModule } from './health/health.module';
+import { FileStorageModule } from './file-storage/file-storage.module';
+import { CommentsModule } from './comments/comments.module';
+import { AttachmentsModule } from './attachments/attachments.module';
+import { ActivityModule } from './activity/activity.module';
 
 @Module({
   imports: [
@@ -43,6 +47,10 @@ import { HealthModule } from './health/health.module';
     TasksModule,
     BoardModule,
     HealthModule,
+    FileStorageModule,
+    CommentsModule,
+    AttachmentsModule,
+    ActivityModule,
   ],
 })
 export class AppModule {}

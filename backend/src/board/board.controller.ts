@@ -11,7 +11,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { BoardMoveDto } from './dto/board-move.dto';
 
 @Controller('projects/:projectId/board')
-@UseGuards(JwtAuthGuard, RolesGuard, ProjectAccessGuard)
+@UseGuards(JwtAuthGuard, ProjectAccessGuard, RolesGuard)
 export class BoardController {
   constructor(private readonly boardService: BoardService) {}
 

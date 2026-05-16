@@ -14,14 +14,19 @@ export class RolesGuard implements CanActivate {
     ]);
     if (!requiredRoles || requiredRoles.length === 0) return true;
 
-    const { user } = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest();
+    const { user } = request;
     if (!user) {
       throw new AppLogicException('UNAUTHORIZED', HttpStatus.UNAUTHORIZED);
     }
 
+    // Admin always passes
     if (user.role === 'admin') return true;
 
-    if (!requiredRoles.includes(user.role)) {
+    // Use project-level role if available (set by ProjectAccessGuard)
+    const effectiveRole = request.projectRole || user.role;
+
+    if (!requiredRoles.includes(effectiveRole)) {
       throw new AppLogicException('FORBIDDEN', HttpStatus.FORBIDDEN);
     }
     return true;

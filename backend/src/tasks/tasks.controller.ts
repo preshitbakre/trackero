@@ -18,7 +18,7 @@ import { CreateChecklistItemDto } from './dto/create-checklist-item.dto';
 import { UpdateChecklistItemDto } from './dto/update-checklist-item.dto';
 
 @Controller('projects/:projectId/tasks')
-@UseGuards(JwtAuthGuard, RolesGuard, ProjectAccessGuard)
+@UseGuards(JwtAuthGuard, ProjectAccessGuard, RolesGuard)
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 

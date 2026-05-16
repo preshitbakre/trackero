@@ -14,7 +14,7 @@ import { CreateSprintDto } from './dto/create-sprint.dto';
 import { UpdateSprintDto } from './dto/update-sprint.dto';
 
 @Controller('projects/:projectId/sprints')
-@UseGuards(JwtAuthGuard, RolesGuard, ProjectAccessGuard)
+@UseGuards(JwtAuthGuard, ProjectAccessGuard, RolesGuard)
 export class SprintsController {
   constructor(private readonly sprintsService: SprintsService) {}
 
