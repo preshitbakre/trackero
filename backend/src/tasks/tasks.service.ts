@@ -118,6 +118,13 @@ export class TasksService {
       qb.andWhere('t.type = :type', { type: filters.type });
     }
 
+    qb.leftJoinAndSelect('t.status', 'status')
+      .leftJoin('t.assignee', 'assignee')
+      .addSelect(['assignee.id', 'assignee.displayName', 'assignee.avatarUrl'])
+      .leftJoin('t.reporter', 'reporter')
+      .addSelect(['reporter.id', 'reporter.displayName', 'reporter.avatarUrl'])
+      .leftJoinAndSelect('t.labels', 'labels');
+
     qb.orderBy('t.createdAt', 'DESC');
 
     const total = await qb.getCount();

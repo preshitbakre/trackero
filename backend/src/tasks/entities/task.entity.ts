@@ -5,6 +5,7 @@ import {
 import { Project } from '../../projects/entities/project.entity';
 import { ProjectStatus } from '../../projects/entities/project-status.entity';
 import { Label } from '../../projects/entities/label.entity';
+import { User } from '../../users/entities/user.entity';
 
 @Entity('tasks')
 @Index('IDX_task_project', ['projectId'])
@@ -82,6 +83,14 @@ export class Task {
   @ManyToOne(() => ProjectStatus, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'status_id' })
   status: ProjectStatus;
+
+  @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'assignee_id' })
+  assignee: User | null;
+
+  @ManyToOne(() => User, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'reporter_id' })
+  reporter: User;
 
   @ManyToMany(() => Label)
   @JoinTable({

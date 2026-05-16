@@ -44,6 +44,10 @@ export class BoardService {
         qb.andWhere('t.epicId = :epicId', { epicId: filters.epicId });
       }
 
+      qb.leftJoin('t.assignee', 'assignee')
+        .addSelect(['assignee.id', 'assignee.displayName', 'assignee.avatarUrl'])
+        .leftJoinAndSelect('t.labels', 'labels');
+
       qb.orderBy('t.sortOrder', 'ASC');
 
       const tasks = await qb.getMany();
@@ -65,6 +69,8 @@ export class BoardService {
           type: t.type,
           priority: t.priority,
           assigneeId: t.assigneeId,
+          assignee: (t as any).assignee ? { id: (t as any).assignee.id, displayName: (t as any).assignee.displayName, avatarUrl: (t as any).assignee.avatarUrl } : null,
+          labels: (t as any).labels || [],
           storyPoints: t.storyPoints,
           sortOrder: t.sortOrder,
           epicId: t.epicId,
