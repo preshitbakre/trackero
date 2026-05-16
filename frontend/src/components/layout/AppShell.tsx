@@ -12,6 +12,7 @@ export function AppShell() {
   const [collapsed, setCollapsed] = useState(() => {
     return localStorage.getItem('sidebar_collapsed') === 'true';
   });
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [projects, setProjects] = useState<any[]>([]);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const location = useLocation();
@@ -21,6 +22,9 @@ export function AppShell() {
     onOpenSearch: () => setShowCommandPalette(true),
     onCreateTask: () => {
       document.dispatchEvent(new CustomEvent('shortcut-create-task'));
+    },
+    onAssignToMe: () => {
+      document.dispatchEvent(new CustomEvent('shortcut-assign-to-me'));
     },
   });
 
@@ -69,11 +73,38 @@ export function AppShell() {
     });
   };
 
+  const handleMenuToggle = () => {
+    if (window.innerWidth < 768) {
+      setMobileOpen((v) => !v);
+    } else {
+      setCollapsed((prev) => {
+        localStorage.setItem('sidebar_collapsed', String(!prev));
+        return !prev;
+      });
+    }
+  };
+
   return (
     <div className="flex h-screen bg-white dark:bg-gray-950">
-      <Sidebar projects={projects} collapsed={collapsed} onToggle={toggleSidebar} />
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-20 bg-black/50 md:hidden" onClick={() => setMobileOpen(false)} />
+      )}
+
+      {/* Sidebar wrapper */}
+      <div className={`
+        fixed inset-y-0 left-0 z-30 transition-transform duration-200
+        md:relative md:z-0 md:translate-x-0
+        ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        <Sidebar projects={projects} collapsed={collapsed} onToggle={() => {
+          if (window.innerWidth < 768) setMobileOpen(false);
+          else toggleSidebar();
+        }} onNavigate={() => setMobileOpen(false)} />
+      </div>
+
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar onMenuToggle={toggleSidebar} onSearchClick={() => setShowCommandPalette(true)} />
+        <TopBar onMenuToggle={handleMenuToggle} onSearchClick={() => setShowCommandPalette(true)} />
         <main className="flex-1 overflow-auto">
           <Outlet />
         </main>

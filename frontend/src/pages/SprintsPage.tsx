@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
 
 interface Sprint {
@@ -108,6 +108,14 @@ export function SprintsPage() {
                   <span className={`text-xs px-2 py-0.5 rounded ${statusColors[sprint.status]}`}>
                     {sprint.status}
                   </span>
+                  {sprint.status === 'planning' && (
+                    <Link
+                      to={`/projects/${projectId}/sprints/${sprint.id}/planning`}
+                      className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded hover:bg-blue-200"
+                    >
+                      Plan
+                    </Link>
+                  )}
                   {sprint.status === 'planning' && (
                     <button
                       onClick={() => handleStart(sprint.id)}

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../api/client';
+import { useAuthStore } from '../../store/auth.store';
 
 interface Subtask {
   id: number;
@@ -58,6 +59,20 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
   useEffect(() => {
     loadTask();
   }, [taskId]);
+
+  useEffect(() => {
+    const handler = async () => {
+      const currentUser = useAuthStore.getState().user;
+      if (!currentUser || !task) return;
+      try {
+        await apiClient.put(`/projects/${projectId}/tasks/${taskId}/assign`, { assigneeId: currentUser.id });
+        await loadTask();
+        onUpdated?.();
+      } catch {}
+    };
+    document.addEventListener('shortcut-assign-to-me', handler as EventListener);
+    return () => document.removeEventListener('shortcut-assign-to-me', handler as EventListener);
+  }, [projectId, taskId, task]);
 
   const loadTask = async () => {
     try {

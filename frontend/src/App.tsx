@@ -6,11 +6,13 @@ import { RegisterPage } from './pages/RegisterPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { EpicsPage } from './pages/EpicsPage';
+import { EpicBoardPage } from './pages/EpicBoardPage';
 import { SprintsPage } from './pages/SprintsPage';
 import { TasksPage } from './pages/TasksPage';
 import { BoardPage } from './pages/BoardPage';
 import { ChartsPage } from './pages/ChartsPage';
 import { RetroPage } from './pages/RetroPage';
+import { SprintPlanningPage } from './pages/SprintPlanningPage';
 import { BacklogPage } from './pages/BacklogPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AppShell } from './components/layout/AppShell';
@@ -48,8 +50,10 @@ export function App() {
             <Route path="/projects/:id/backlog" element={<BacklogPage />} />
             <Route path="/projects/:id/sprints" element={<SprintsPage />} />
             <Route path="/projects/:id/epics" element={<EpicsPage />} />
+            <Route path="/projects/:id/epics/:epicId/board" element={<EpicBoardPage />} />
             <Route path="/projects/:id/charts" element={<ChartsPage />} />
             <Route path="/projects/:id/sprints/:sprintId/retro" element={<RetroPage />} />
+            <Route path="/projects/:id/sprints/:sprintId/planning" element={<SprintPlanningPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>

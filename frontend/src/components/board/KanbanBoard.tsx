@@ -17,6 +17,8 @@ import { useAuthStore } from '../../store/auth.store';
 import { StatusColumn } from './StatusColumn';
 import { TaskCard } from './TaskCard';
 import { TaskDetailPanel } from '../tasks/TaskDetailPanel';
+import { CardSkeleton } from '../common/Skeleton';
+import { ErrorState } from '../common/ErrorState';
 
 interface BoardTask {
   id: number;
@@ -36,12 +38,14 @@ interface BoardColumn {
   taskCount: number;
 }
 
-export function KanbanBoard() {
+export function KanbanBoard({ epicFilter }: { epicFilter?: number } = {}) {
   const { id: projectId } = useParams();
   const [columns, setColumns] = useState<BoardColumn[]>([]);
   const [activeTask, setActiveTask] = useState<BoardTask | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [sprintId, setSprintId] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -49,13 +53,19 @@ export function KanbanBoard() {
 
   const loadBoard = useCallback(async () => {
     if (!projectId) return;
+    setLoading(true);
+    setError(false);
     try {
       const params = new URLSearchParams();
       if (sprintId) params.set('sprintId', sprintId);
+      if (epicFilter) params.set('epicId', String(epicFilter));
       const { data } = await apiClient.get(`/projects/${projectId}/board?${params}`);
       setColumns(data.data.columns || []);
-    } catch {}
-  }, [projectId, sprintId]);
+    } catch {
+      setError(true);
+    }
+    setLoading(false);
+  }, [projectId, sprintId, epicFilter]);
 
   useEffect(() => {
     loadBoard();
@@ -182,6 +192,25 @@ export function KanbanBoard() {
           <option value="">All tasks (no sprint filter)</option>
         </select>
       </div>
+
+      {/* Loading skeleton */}
+      {loading && columns.length === 0 && !error && (
+        <div className="flex-1 p-4">
+          <div className="flex gap-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="w-[280px] space-y-2 p-2">
+                <div className="h-6 w-24 bg-gray-200 dark:bg-gray-800 rounded animate-pulse mb-3" />
+                <CardSkeleton />
+                <CardSkeleton />
+                <CardSkeleton />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Error state */}
+      {error && <ErrorState message="Failed to load board" onRetry={loadBoard} />}
 
       {/* Board */}
       <div className="flex-1 overflow-x-auto p-4">

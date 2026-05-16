@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
 
 interface Epic {
@@ -77,6 +77,13 @@ export function EpicsPage() {
               <span className={`text-xs px-2 py-0.5 rounded ${statusColors[epic.status]}`}>
                 {epic.status.replace('_', ' ')}
               </span>
+              <Link
+                to={`/projects/${projectId}/epics/${epic.id}/board`}
+                className="text-xs text-brand hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Board &rarr;
+              </Link>
             </div>
           ))}
         </div>

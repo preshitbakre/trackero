@@ -3,11 +3,13 @@ import { useParams } from 'react-router-dom';
 import {
   DndContext, DragEndEvent, closestCorners, PointerSensor, useSensor, useSensors, useDroppable,
 } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/auth.store';
 import { TaskDetailPanel } from '../components/tasks/TaskDetailPanel';
+import { RowSkeleton } from '../components/common/Skeleton';
+import { ErrorState } from '../components/common/ErrorState';
 
 interface BacklogTask {
   id: number;
@@ -90,12 +92,16 @@ export function BacklogPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const user = useAuthStore((s) => s.user);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const loadData = useCallback(async () => {
     if (!projectId) return;
+    setLoading(true);
+    setError(false);
     try {
       const { data: taskData } = await apiClient.get(`/projects/${projectId}/tasks?limit=-1`);
       const backlogTasks = (taskData.data.list || []).filter((t: any) => !t.sprintId);
@@ -104,10 +110,19 @@ export function BacklogPage() {
       const { data: sprintData } = await apiClient.get(`/projects/${projectId}/sprints?limit=-1`);
       const planSprints = (sprintData.data.list || []).filter((s: any) => s.status === 'planning' || s.status === 'active');
       setSprints(planSprints);
-    } catch { /* ignore */ }
+    } catch {
+      setError(true);
+    }
+    setLoading(false);
   }, [projectId]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    const handler = () => setShowCreate(true);
+    document.addEventListener('shortcut-create-task', handler as EventListener);
+    return () => document.removeEventListener('shortcut-create-task', handler as EventListener);
+  }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,11 +138,47 @@ export function BacklogPage() {
     if (!over || !projectId) return;
 
     const overId = String(over.id);
+
+    // Dropped on a sprint target
     if (overId.startsWith('sprint-')) {
       const sprintId = parseInt(overId.replace('sprint-', ''));
       const taskId = active.id as number;
       await apiClient.put(`/projects/${projectId}/tasks/${taskId}/move`, { sprintId });
       loadData();
+      return;
+    }
+
+    // Reorder within backlog list
+    const activeId = active.id as number;
+    const overIdNum = parseInt(overId);
+    if (activeId === overIdNum) return;
+
+    const oldIndex = tasks.findIndex((t) => t.id === activeId);
+    const newIndex = tasks.findIndex((t) => t.id === overIdNum);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    // Optimistic reorder
+    const reordered = arrayMove(tasks, oldIndex, newIndex);
+    setTasks(reordered);
+
+    // Calculate new sortOrder using midpoint of neighbors
+    const above = newIndex > 0 ? reordered[newIndex - 1].sortOrder : null;
+    const below = newIndex < reordered.length - 1 ? reordered[newIndex + 1].sortOrder : null;
+
+    // Simple midpoint: if between 'a' and 'c', use 'b'. If no neighbors, use 'n'.
+    let newSortOrder: string;
+    if (!above && !below) newSortOrder = 'n';
+    else if (!above) newSortOrder = String.fromCharCode(below!.charCodeAt(0) - 1) || 'a';
+    else if (!below) newSortOrder = String.fromCharCode(above.charCodeAt(0) + 1) || 'z';
+    else newSortOrder = above + 'n'; // append to create between
+
+    // Call API
+    try {
+      await apiClient.put(`/projects/${projectId}/tasks/reorder`, {
+        reorders: [{ taskId: activeId, sortOrder: newSortOrder }],
+      });
+    } catch {
+      loadData(); // Revert on failure
     }
   };
 
@@ -193,6 +244,14 @@ export function BacklogPage() {
             <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-brand rounded-md">Add</button>
             <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm text-gray-500">Cancel</button>
           </form>
+        )}
+
+        {error && <ErrorState message="Failed to load backlog" onRetry={loadData} />}
+
+        {loading && tasks.length === 0 && !error && (
+          <div className="space-y-2">
+            {[1,2,3,4,5].map((i) => <RowSkeleton key={i} />)}
+          </div>
         )}
 
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>

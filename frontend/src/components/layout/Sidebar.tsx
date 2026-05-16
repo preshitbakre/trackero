@@ -11,9 +11,10 @@ interface SidebarProps {
   projects: Project[];
   collapsed: boolean;
   onToggle: () => void;
+  onNavigate?: () => void;
 }
 
-export function Sidebar({ projects, collapsed, onToggle }: SidebarProps) {
+export function Sidebar({ projects, collapsed, onToggle, onNavigate }: SidebarProps) {
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'admin';
@@ -41,6 +42,7 @@ export function Sidebar({ projects, collapsed, onToggle }: SidebarProps) {
             <Link
               key={project.id}
               to={`/projects/${project.id}/board`}
+              onClick={() => onNavigate?.()}
               className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm ${
                 isActive
                   ? 'bg-brand/10 text-brand font-medium'
@@ -61,6 +63,7 @@ export function Sidebar({ projects, collapsed, onToggle }: SidebarProps) {
             </div>
             <Link
               to="/settings"
+              onClick={() => onNavigate?.()}
               className="flex items-center gap-2 px-2 py-1.5 rounded text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
             >
               {!collapsed && <span>Settings</span>}
