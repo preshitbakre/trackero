@@ -5,6 +5,8 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ProjectsPage } from './pages/ProjectsPage';
+import { EpicsPage } from './pages/EpicsPage';
+import { SprintsPage } from './pages/SprintsPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AppShell } from './components/layout/AppShell';
 import { useEffect } from 'react';
@@ -38,8 +40,8 @@ export function App() {
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/projects/:id/board" element={<div className="p-6"><h1 className="text-xl font-bold">Board (Phase 6)</h1></div>} />
             <Route path="/projects/:id/backlog" element={<div className="p-6"><h1 className="text-xl font-bold">Backlog (Phase 10)</h1></div>} />
-            <Route path="/projects/:id/sprints" element={<div className="p-6"><h1 className="text-xl font-bold">Sprints (Phase 4)</h1></div>} />
-            <Route path="/projects/:id/epics" element={<div className="p-6"><h1 className="text-xl font-bold">Epics (Phase 4)</h1></div>} />
+            <Route path="/projects/:id/sprints" element={<SprintsPage />} />
+            <Route path="/projects/:id/epics" element={<EpicsPage />} />
             <Route path="/projects/:id/charts" element={<div className="p-6"><h1 className="text-xl font-bold">Charts (Phase 9)</h1></div>} />
           </Route>
           <Route path="*" element={<Navigate to="/login" replace />} />

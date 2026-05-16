@@ -7,6 +7,9 @@ import { getDatabaseConfig } from './config/database.config';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ProjectsModule } from './projects/projects.module';
+import { EpicsModule } from './epics/epics.module';
+import { SprintsModule } from './sprints/sprints.module';
+import { TasksModule } from './tasks/tasks.module';
 
 @Module({
   imports: [
@@ -33,6 +36,9 @@ import { ProjectsModule } from './projects/projects.module';
     AuthModule,
     UsersModule,
     ProjectsModule,
+    EpicsModule,
+    SprintsModule,
+    TasksModule,
   ],
 })
 export class AppModule {}
