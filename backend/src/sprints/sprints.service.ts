@@ -205,6 +205,18 @@ export class SprintsService {
     return sprint;
   }
 
+  async remove(projectId: number, sprintId: number) {
+    const sprint = await this.findOne(projectId, sprintId);
+    // Move tasks to backlog before deleting
+    await this.dataSource.query(
+      `UPDATE tasks SET sprint_id = NULL WHERE sprint_id = $1`,
+      [sprintId],
+    );
+    await this.sprintRepo.remove(sprint);
+    const list = await this.listSprints(projectId);
+    return PaginatedMutationResponse.forPaginated(null, list);
+  }
+
   async getBurndown(projectId: number, sprintId: number) {
     const sprint = await this.findOne(projectId, sprintId);
 
@@ -218,12 +230,49 @@ export class SprintsService {
     );
     const totalPoints = parseInt(totalPointsResult[0].total);
 
+    // Calculate daily data points
+    const startDate = new Date(sprint.startDate);
+    const endDate = new Date(sprint.endDate);
+    const today = new Date();
+    const effectiveEnd = today < endDate ? today : endDate;
+    const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    const dataPoints = [];
+    const current = new Date(startDate);
+    let dayIndex = 0;
+
+    while (current <= effectiveEnd) {
+      const dateStr = current.toISOString().split('T')[0];
+      const ideal = totalPoints * (1 - dayIndex / totalDays);
+
+      // Get scope changes up to this date
+      const scopeResult = await this.dataSource.query(
+        `SELECT COALESCE(SUM(CASE WHEN action = 'added' THEN COALESCE(story_points, 0) ELSE -COALESCE(story_points, 0) END), 0) as scope_delta
+         FROM sprint_scope_changes WHERE sprint_id = $1 AND created_at <= $2::date + interval '1 day'`,
+        [sprintId, dateStr],
+      );
+      const scope = totalPoints + parseInt(scopeResult[0].scope_delta || '0');
+
+      // Get completed points by this date
+      const completedResult = await this.dataSource.query(
+        `SELECT COALESCE(SUM(story_points), 0) as completed FROM tasks
+         WHERE sprint_id = $1 AND completed_at IS NOT NULL AND completed_at <= $2::date + interval '1 day'`,
+        [sprintId, dateStr],
+      );
+      const actual = scope - parseInt(completedResult[0].completed || '0');
+
+      dataPoints.push({ date: dateStr, ideal: Math.round(ideal * 10) / 10, actual, scope });
+
+      current.setDate(current.getDate() + 1);
+      dayIndex++;
+    }
+
     return {
       sprintName: sprint.name,
       startDate: sprint.startDate,
       endDate: sprint.endDate,
       totalPoints,
-      dataPoints: [],
+      dataPoints,
     };
   }
 }

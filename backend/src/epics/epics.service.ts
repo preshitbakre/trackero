@@ -73,4 +73,10 @@ export class EpicsService {
     const list = await this.listEpics(projectId);
     return PaginatedMutationResponse.forPaginated(null, list);
   }
+
+  async reorderEpics(projectId: number, reorders: { epicId: number; sortOrder: string }[]) {
+    for (const { epicId, sortOrder } of reorders) {
+      await this.epicRepo.update({ id: epicId, projectId }, { sortOrder });
+    }
+  }
 }

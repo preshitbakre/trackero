@@ -10,6 +10,9 @@ interface BoardTask {
   storyPoints: number | null;
   sortOrder: string;
   epicId: number | null;
+  subtaskCount?: number;
+  subtaskDoneCount?: number;
+  hasBlockers?: boolean;
 }
 
 interface TaskCardProps {
@@ -55,15 +58,25 @@ export function TaskCard({ task, isDragging, onClick }: TaskCardProps) {
       }`}
     >
       <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1">
-        <span>{typeIcons[task.type] || '○'}</span>
+        <span className={task.type === 'bug' ? 'text-red-500' : task.type === 'story' ? 'text-violet-500' : ''}>
+          {typeIcons[task.type] || '○'}
+        </span>
         <span className="font-mono">#{task.taskNumber}</span>
+        {task.hasBlockers && (
+          <span className="text-red-500 ml-auto" title="Blocked">🔒</span>
+        )}
       </div>
       <p className="text-sm font-medium text-gray-900 dark:text-gray-50 line-clamp-2">{task.title}</p>
       <div className="flex items-center gap-2 mt-2">
         <span className={`w-2 h-2 rounded-full ${priorityColors[task.priority]}`} />
-        {task.storyPoints && (
+        {task.storyPoints != null && task.storyPoints > 0 && (
           <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
-            {task.storyPoints}
+            {task.storyPoints}pts
+          </span>
+        )}
+        {task.subtaskCount != null && task.subtaskCount > 0 && (
+          <span className="text-xs text-gray-400">
+            ☑ {task.subtaskDoneCount}/{task.subtaskCount}
           </span>
         )}
       </div>

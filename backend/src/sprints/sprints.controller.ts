@@ -62,6 +62,16 @@ export class SprintsController {
     return this.sprintsService.update(projectId, sprintId, dto);
   }
 
+  @Delete(':sprintId')
+  @Roles('admin', 'project_manager')
+  @ResponseCode('SPRINT_DELETED')
+  async remove(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('sprintId', ParseIntPipe) sprintId: number,
+  ) {
+    return this.sprintsService.remove(projectId, sprintId);
+  }
+
   @Post(':sprintId/start')
   @Roles('admin', 'project_manager')
   @HttpCode(HttpStatus.OK)

@@ -41,6 +41,17 @@ export class EpicsController {
     return this.epicsService.listEpics(projectId, page || 1, limit || 20);
   }
 
+  @Put('reorder')
+  @Roles('admin', 'project_manager', 'member')
+  @ResponseCode('EPICS_REORDERED')
+  async reorder(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Body() body: { reorders: { epicId: number; sortOrder: string }[] },
+  ) {
+    await this.epicsService.reorderEpics(projectId, body.reorders);
+    return null;
+  }
+
   @Get(':epicId')
   @Roles('admin', 'project_manager', 'member', 'viewer')
   @ResponseCode('EPIC_FETCHED')

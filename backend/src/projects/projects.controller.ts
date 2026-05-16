@@ -71,6 +71,17 @@ export class ProjectsController {
     return this.projectsService.remove(projectId, user.userId, user.role);
   }
 
+  @Post(':projectId/archive')
+  @Roles('admin', 'project_manager')
+  @UseGuards(ProjectAccessGuard)
+  @ResponseCode('PROJECT_ARCHIVED')
+  async archive(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.projectsService.archive(projectId, user.userId, user.role);
+  }
+
   // --- Members ---
 
   @Post(':projectId/members')
@@ -105,6 +116,18 @@ export class ProjectsController {
     return this.projectsService.removeMember(projectId, userId);
   }
 
+  @Put(':projectId/members/:userId')
+  @Roles('admin', 'project_manager')
+  @UseGuards(ProjectAccessGuard)
+  @ResponseCode('PROJECT_MEMBER_UPDATED')
+  async updateMemberRole(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('userId', ParseIntPipe) userId: number,
+    @Body() dto: AddMemberDto,
+  ) {
+    return this.projectsService.updateMemberRole(projectId, userId, dto.role);
+  }
+
   // --- Statuses ---
 
   @Get(':projectId/statuses')
@@ -125,6 +148,29 @@ export class ProjectsController {
     @Body() dto: CreateStatusDto,
   ) {
     return this.projectsService.createStatus(projectId, dto);
+  }
+
+  @Put(':projectId/statuses/reorder')
+  @Roles('admin', 'project_manager')
+  @UseGuards(ProjectAccessGuard)
+  @ResponseCode('STATUSES_REORDERED')
+  async reorderStatuses(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Body() body: { statusIds: number[] },
+  ) {
+    return this.projectsService.reorderStatuses(projectId, body.statusIds);
+  }
+
+  @Put(':projectId/statuses/:statusId')
+  @Roles('admin', 'project_manager')
+  @UseGuards(ProjectAccessGuard)
+  @ResponseCode('STATUS_UPDATED')
+  async updateStatus(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('statusId', ParseIntPipe) statusId: number,
+    @Body() dto: CreateStatusDto,
+  ) {
+    return this.projectsService.updateStatus(projectId, statusId, dto);
   }
 
   @Delete(':projectId/statuses/:statusId')

@@ -54,6 +54,17 @@ export class TasksController {
     });
   }
 
+  @Put('reorder')
+  @Roles('admin', 'project_manager', 'member')
+  @ResponseCode('TASKS_REORDERED')
+  async reorder(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Body() body: { reorders: { taskId: number; sortOrder: string }[] },
+  ) {
+    await this.tasksService.reorderTasks(projectId, body.reorders);
+    return null;
+  }
+
   @Get(':taskId')
   @Roles('admin', 'project_manager', 'member', 'viewer')
   @ResponseCode('TASK_FETCHED')
@@ -61,7 +72,7 @@ export class TasksController {
     @Param('projectId', ParseIntPipe) projectId: number,
     @Param('taskId', ParseIntPipe) taskId: number,
   ) {
-    return this.tasksService.findOne(projectId, taskId);
+    return this.tasksService.getTaskDetail(projectId, taskId);
   }
 
   @Put(':taskId')
@@ -97,6 +108,28 @@ export class TasksController {
     @Body() dto: ChangeStatusDto,
   ) {
     return this.tasksService.changeStatus(projectId, taskId, dto.statusId);
+  }
+
+  @Put(':taskId/assign')
+  @Roles('admin', 'project_manager', 'member')
+  @ResponseCode('TASK_ASSIGNED')
+  async assign(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('taskId', ParseIntPipe) taskId: number,
+    @Body() body: { assigneeId: number | null },
+  ) {
+    return this.tasksService.assign(projectId, taskId, body.assigneeId);
+  }
+
+  @Put(':taskId/move')
+  @Roles('admin', 'project_manager', 'member')
+  @ResponseCode('TASK_MOVED')
+  async moveTask(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('taskId', ParseIntPipe) taskId: number,
+    @Body() body: { sprintId?: number | null; epicId?: number | null },
+  ) {
+    return this.tasksService.moveTask(projectId, taskId, body.sprintId !== undefined ? body.sprintId : undefined, body.epicId !== undefined ? body.epicId : undefined);
   }
 
   // --- Subtasks ---

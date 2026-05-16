@@ -207,6 +207,98 @@ export class TasksService {
     return PaginatedMutationResponse.forPaginated(saved, list);
   }
 
+  async assign(projectId: number, taskId: number, assigneeId: number | null) {
+    const task = await this.findOne(projectId, taskId);
+    task.assigneeId = assigneeId;
+    const saved = await this.taskRepo.save(task);
+    const list = await this.listTasks(projectId, {});
+    return PaginatedMutationResponse.forPaginated(saved, list);
+  }
+
+  async moveTask(projectId: number, taskId: number, sprintId?: number | null, epicId?: number | null) {
+    const task = await this.findOne(projectId, taskId);
+
+    if (sprintId !== undefined) {
+      // Check if adding to active sprint -> set addedMidSprint
+      if (sprintId !== null) {
+        const sprint = await this.dataSource.query(
+          `SELECT status FROM sprints WHERE id = $1`, [sprintId]
+        );
+        if (sprint[0]?.status === 'active') {
+          task.addedMidSprint = true;
+        } else {
+          task.addedMidSprint = false;
+        }
+      }
+      task.sprintId = sprintId;
+    }
+    if (epicId !== undefined) {
+      task.epicId = epicId;
+    }
+
+    const saved = await this.taskRepo.save(task);
+    const list = await this.listTasks(projectId, {});
+    return PaginatedMutationResponse.forPaginated(saved, list);
+  }
+
+  async reorderTasks(projectId: number, reorders: { taskId: number; sortOrder: string }[]) {
+    for (const { taskId, sortOrder } of reorders) {
+      await this.taskRepo.update({ id: taskId, projectId }, { sortOrder });
+    }
+  }
+
+  async getTaskDetail(projectId: number, taskId: number) {
+    const task = await this.findOne(projectId, taskId);
+
+    // Get subtasks
+    const subtasks = await this.taskRepo.find({
+      where: { projectId, parentId: taskId },
+      order: { createdAt: 'ASC' },
+    });
+
+    // Get checklist items for subtasks
+    const subtasksWithChecklist = await Promise.all(
+      subtasks.map(async (st) => {
+        const checklistItems = await this.checklistRepo.find({
+          where: { taskId: st.id },
+          order: { sortOrder: 'ASC' },
+        });
+        return { ...st, checklistItems };
+      })
+    );
+
+    // Get dependencies
+    const blockedBy = await this.depRepo.find({
+      where: { taskId, dependencyType: 'blocks' },
+      relations: ['dependsOnTask'],
+    });
+    const blocks = await this.depRepo.find({
+      where: { dependsOnTaskId: taskId, dependencyType: 'blocks' },
+      relations: ['task'],
+    });
+    const relatesTo = await this.depRepo.find({
+      where: [
+        { taskId, dependencyType: 'relates_to' },
+        { dependsOnTaskId: taskId, dependencyType: 'relates_to' },
+      ],
+    });
+
+    // Get counts
+    const commentCount = 0; // Will be populated in Phase 7
+    const attachmentCount = 0; // Will be populated in Phase 7
+
+    return {
+      ...task,
+      subtasks: subtasksWithChecklist,
+      blockedBy,
+      blocks,
+      relatesTo,
+      subtaskCount: subtasks.length,
+      commentCount,
+      attachmentCount,
+    };
+  }
+
   // --- Subtasks ---
 
   async createSubtask(projectId: number, parentId: number, dto: CreateTaskDto, userId: number) {

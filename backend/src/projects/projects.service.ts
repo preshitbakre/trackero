@@ -121,6 +121,22 @@ export class ProjectsService {
     return PaginatedMutationResponse.forPaginated(null, list);
   }
 
+  async archive(id: number, userId: number, role: string) {
+    const project = await this.findOne(id);
+    project.status = 'archived';
+    const saved = await this.projectRepo.save(project);
+    const list = await this.listProjects(userId, role, 1, 20);
+    return PaginatedMutationResponse.forPaginated(saved, list);
+  }
+
+  async unarchive(id: number, userId: number, role: string) {
+    const project = await this.findOne(id);
+    project.status = 'active';
+    const saved = await this.projectRepo.save(project);
+    const list = await this.listProjects(userId, role, 1, 20);
+    return PaginatedMutationResponse.forPaginated(saved, list);
+  }
+
   // --- Members ---
 
   async addMember(projectId: number, dto: AddMemberDto, addedBy: number) {
@@ -164,6 +180,17 @@ export class ProjectsService {
     return PaginatedMutationResponse.forPaginated(null, list);
   }
 
+  async updateMemberRole(projectId: number, userId: number, role: 'project_manager' | 'member' | 'viewer') {
+    const member = await this.memberRepo.findOne({ where: { projectId, userId } });
+    if (!member) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    member.role = role;
+    const saved = await this.memberRepo.save(member);
+    const list = await this.listMembers(projectId);
+    return PaginatedMutationResponse.forPaginated(saved, list);
+  }
+
   // --- Statuses ---
 
   async listStatuses(projectId: number) {
@@ -190,6 +217,24 @@ export class ProjectsService {
       sortOrder: (maxOrder?.max ?? -1) + 1,
     });
     return this.statusRepo.save(status);
+  }
+
+  async updateStatus(projectId: number, statusId: number, dto: { name?: string; color?: string; category?: string }) {
+    const status = await this.statusRepo.findOne({ where: { id: statusId, projectId } });
+    if (!status) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    if (dto.name !== undefined) status.name = dto.name;
+    if (dto.color !== undefined) status.color = dto.color;
+    if (dto.category !== undefined) status.category = dto.category as any;
+    return this.statusRepo.save(status);
+  }
+
+  async reorderStatuses(projectId: number, statusIds: number[]) {
+    for (let i = 0; i < statusIds.length; i++) {
+      await this.statusRepo.update({ id: statusIds[i], projectId }, { sortOrder: i });
+    }
+    return this.listStatuses(projectId);
   }
 
   async deleteStatus(projectId: number, statusId: number) {

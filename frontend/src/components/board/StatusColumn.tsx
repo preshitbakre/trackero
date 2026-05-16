@@ -33,7 +33,16 @@ export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId,
     e.preventDefault();
     if (!quickTitle.trim()) return;
     try {
-      await apiClient.post(`/projects/${projectId}/tasks`, { title: quickTitle });
+      const res = await apiClient.post(`/projects/${projectId}/tasks`, { title: quickTitle });
+      const taskId = res.data.data.item.id;
+      // Move to this column's status if not the default
+      if (taskId && res.data.data.item.statusId !== status.id) {
+        await apiClient.put(`/projects/${projectId}/board/move`, {
+          taskId,
+          statusId: status.id,
+          sortOrder: 'n',
+        });
+      }
       setQuickTitle('');
       setShowQuickAdd(false);
       onTaskCreated();

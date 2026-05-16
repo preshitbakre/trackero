@@ -49,14 +49,16 @@ export class BoardService {
       const tasks = await qb.getMany();
       const taskCount = tasks.length;
 
-      columns.push({
-        status: {
-          id: status.id,
-          name: status.name,
-          category: status.category,
-          color: status.color,
-        },
-        tasks: tasks.map((t) => ({
+      // Enrich tasks with counts and blocker info
+      const enrichedTasks = await Promise.all(tasks.map(async (t) => {
+        const subtaskCount = await this.taskRepo.count({ where: { parentId: t.id } });
+        const subtaskDoneCount = await this.dataSource.query(
+          `SELECT COUNT(*) as count FROM tasks t JOIN project_statuses ps ON t.status_id = ps.id WHERE t.parent_id = $1 AND ps.category = 'done'`,
+          [t.id],
+        );
+        const hasBlockers = await this.depRepo.count({ where: { taskId: t.id, dependencyType: 'blocks' } }) > 0;
+
+        return {
           id: t.id,
           taskNumber: t.taskNumber,
           title: t.title,
@@ -66,7 +68,20 @@ export class BoardService {
           storyPoints: t.storyPoints,
           sortOrder: t.sortOrder,
           epicId: t.epicId,
-        })),
+          subtaskCount,
+          subtaskDoneCount: parseInt(subtaskDoneCount[0]?.count || '0'),
+          hasBlockers,
+        };
+      }));
+
+      columns.push({
+        status: {
+          id: status.id,
+          name: status.name,
+          category: status.category,
+          color: status.color,
+        },
+        tasks: enrichedTasks,
         taskCount,
       });
     }
