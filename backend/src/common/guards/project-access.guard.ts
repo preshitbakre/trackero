@@ -12,18 +12,37 @@ export class ProjectAccessGuard implements CanActivate {
     const projectId = parseInt(request.params.projectId, 10);
 
     if (!projectId || isNaN(projectId)) return true;
-    if (user.role === 'admin') return true;
 
-    const member = await this.dataSource.query(
-      'SELECT role FROM project_members WHERE user_id = $1 AND project_id = $2',
-      [user.userId, projectId],
-    );
+    // Check membership (admin bypasses)
+    if (user.role !== 'admin') {
+      const member = await this.dataSource.query(
+        'SELECT role FROM project_members WHERE user_id = $1 AND project_id = $2',
+        [user.userId, projectId],
+      );
 
-    if (!member || member.length === 0) {
-      throw new AppLogicException('FORBIDDEN', HttpStatus.FORBIDDEN);
+      if (!member || member.length === 0) {
+        throw new AppLogicException('FORBIDDEN', HttpStatus.FORBIDDEN);
+      }
+
+      request.projectRole = member[0].role;
     }
 
-    request.projectRole = member[0].role;
+    // Block mutations on archived projects (POST, PUT, DELETE — not GET)
+    const method = request.method;
+    if (method !== 'GET') {
+      const [project] = await this.dataSource.query(
+        'SELECT status FROM projects WHERE id = $1',
+        [projectId],
+      );
+      if (project?.status === 'archived') {
+        // Allow archive/unarchive endpoints through
+        const url = request.url || '';
+        if (!url.includes('/archive') && !url.includes('/unarchive')) {
+          throw new AppLogicException('PROJECT_ARCHIVED_ERROR', HttpStatus.FORBIDDEN);
+        }
+      }
+    }
+
     return true;
   }
 }
