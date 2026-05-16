@@ -19,6 +19,9 @@ import { AttachmentsModule } from './attachments/attachments.module';
 import { ActivityModule } from './activity/activity.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { GatewayModule } from './gateway/gateway.module';
+import { RetrospectivesModule } from './retrospectives/retrospectives.module';
+import { ChartsModule } from './charts/charts.module';
+import { SearchModule } from './search/search.module';
 
 @Module({
   imports: [
@@ -57,6 +60,9 @@ import { GatewayModule } from './gateway/gateway.module';
     ActivityModule,
     NotificationsModule,
     GatewayModule,
+    RetrospectivesModule,
+    ChartsModule,
+    SearchModule,
   ],
 })
 export class AppModule {}

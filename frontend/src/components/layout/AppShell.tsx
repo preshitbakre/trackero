@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
+import { CommandPalette } from '../common/CommandPalette';
 import { apiClient } from '../../api/client';
 import { connectSocket, disconnectSocket, joinProject, leaveProject } from '../../lib/socket';
 
@@ -10,12 +11,28 @@ export function AppShell() {
     return localStorage.getItem('sidebar_collapsed') === 'true';
   });
   const [projects, setProjects] = useState<any[]>([]);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
   const location = useLocation();
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(null);
 
   useEffect(() => {
     connectSocket();
     return () => disconnectSocket();
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setShowCommandPalette((v) => !v);
+      }
+      if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
+        e.preventDefault();
+        setShowCommandPalette(true);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
   }, []);
 
   useEffect(() => {
@@ -52,6 +69,7 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+      {showCommandPalette && <CommandPalette onClose={() => setShowCommandPalette(false)} />}
     </div>
   );
 }
