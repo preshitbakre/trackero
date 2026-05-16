@@ -10,6 +10,7 @@ import { ProjectsModule } from './projects/projects.module';
 import { EpicsModule } from './epics/epics.module';
 import { SprintsModule } from './sprints/sprints.module';
 import { TasksModule } from './tasks/tasks.module';
+import { BoardModule } from './board/board.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { TasksModule } from './tasks/tasks.module';
     EpicsModule,
     SprintsModule,
     TasksModule,
+    BoardModule,
   ],
 })
 export class AppModule {}

@@ -8,6 +8,7 @@ import { ProjectsPage } from './pages/ProjectsPage';
 import { EpicsPage } from './pages/EpicsPage';
 import { SprintsPage } from './pages/SprintsPage';
 import { TasksPage } from './pages/TasksPage';
+import { BoardPage } from './pages/BoardPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AppShell } from './components/layout/AppShell';
 import { useEffect } from 'react';
@@ -39,7 +40,7 @@ export function App() {
           >
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
-            <Route path="/projects/:id/board" element={<div className="p-6"><h1 className="text-xl font-bold">Board (Phase 6)</h1></div>} />
+            <Route path="/projects/:id/board" element={<BoardPage />} />
             <Route path="/projects/:id/tasks" element={<TasksPage />} />
             <Route path="/projects/:id/backlog" element={<div className="p-6"><h1 className="text-xl font-bold">Backlog (Phase 10)</h1></div>} />
             <Route path="/projects/:id/sprints" element={<SprintsPage />} />
