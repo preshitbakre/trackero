@@ -16,6 +16,8 @@ import { FileStorageModule } from './file-storage/file-storage.module';
 import { CommentsModule } from './comments/comments.module';
 import { AttachmentsModule } from './attachments/attachments.module';
 import { ActivityModule } from './activity/activity.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { GatewayModule } from './gateway/gateway.module';
 
 @Module({
   imports: [
@@ -51,6 +53,8 @@ import { ActivityModule } from './activity/activity.module';
     CommentsModule,
     AttachmentsModule,
     ActivityModule,
+    NotificationsModule,
+    GatewayModule,
   ],
 })
 export class AppModule {}

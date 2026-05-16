@@ -36,6 +36,8 @@ export async function createTestApp(): Promise<INestApplication> {
 }
 
 export async function clearDatabase(app: INestApplication): Promise<void> {
+  // Small delay to let async event handlers finish from previous test
+  await new Promise((r) => setTimeout(r, 50));
   const dataSource = app.get(DataSource);
   const entities = dataSource.entityMetadatas;
   for (const entity of entities) {
