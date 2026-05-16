@@ -205,7 +205,7 @@ export class TasksService {
     return PaginatedMutationResponse.forPaginated(null, list);
   }
 
-  async changeStatus(projectId: number, taskId: number, statusId: number) {
+  async changeStatus(projectId: number, taskId: number, statusId: number, userId?: number) {
     const task = await this.findOne(projectId, taskId);
 
     // Check if moving to done category
@@ -235,6 +235,9 @@ export class TasksService {
       }
 
       task.completedAt = new Date();
+
+      // Emit blocker resolved for all tasks blocked by this one
+      this.eventEmitter.emit('blocker.resolved', { blockerTaskId: taskId, projectId, actorId: userId ?? 1 });
     } else {
       // Moving out of done
       const currentStatus = await this.dataSource.query(
@@ -248,7 +251,7 @@ export class TasksService {
     const oldStatusId = task.statusId;
     task.statusId = statusId;
     const saved = await this.taskRepo.save(task);
-    this.eventEmitter.emit('task.status_changed', { taskId: saved.id, projectId, actorId: 1, oldStatusId, newStatusId: statusId });
+    this.eventEmitter.emit('task.status_changed', { taskId: saved.id, projectId, actorId: userId ?? 1, oldStatusId, newStatusId: statusId });
     const list = await this.listTasks(projectId, {});
     return PaginatedMutationResponse.forPaginated(saved, list);
   }

@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, MoreThan } from 'typeorm';
-import { OnEvent } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { Notification } from './entities/notification.entity';
 import { PaginatedResponse } from '../common/dto/paginated-response.dto';
+import { EmailService } from '../common/services/email.service';
 
 @Injectable()
 export class NotificationsService {
@@ -11,6 +12,8 @@ export class NotificationsService {
     @InjectRepository(Notification)
     private readonly notifRepo: Repository<Notification>,
     private readonly dataSource: DataSource,
+    private readonly eventEmitter: EventEmitter2,
+    private readonly emailService: EmailService,
   ) {}
 
   async list(userId: number, page: number = 1, limit: number = 20, isRead?: boolean) {
@@ -89,6 +92,19 @@ export class NotificationsService {
       body: body || null,
     });
     await this.notifRepo.save(notif);
+
+    // Emit to gateway for real-time delivery
+    this.eventEmitter.emit('notification.created', { notification: notif });
+
+    // Send email for certain notification types
+    if (['task_assigned', 'sprint_starting', 'task_due_soon', 'task_overdue'].includes(type)) {
+      const [userEmail] = await this.dataSource.query(
+        'SELECT email FROM users WHERE id = $1', [userId],
+      );
+      if (userEmail?.email) {
+        this.emailService.sendEmail(userEmail.email, title, body || title).catch(() => {});
+      }
+    }
   }
 
   // --- Event Listeners ---
@@ -166,6 +182,93 @@ export class NotificationsService {
         payload.taskId,
         `New comment on ${taskKey}`,
         task.title,
+      );
+    }
+  }
+
+  @OnEvent('blocker.resolved')
+  async onBlockerResolved(payload: { blockerTaskId: number; projectId: number; actorId: number }) {
+    // Find all tasks blocked by this one
+    const blockedTasks = await this.dataSource.query(
+      `SELECT td.task_id, t.assignee_id, t.task_number
+       FROM task_dependencies td
+       JOIN tasks t ON t.id = td.task_id
+       WHERE td.depends_on_task_id = $1 AND td.dependency_type = 'blocks'`,
+      [payload.blockerTaskId],
+    );
+
+    const [project] = await this.dataSource.query(
+      'SELECT prefix FROM projects WHERE id = $1', [payload.projectId],
+    );
+
+    for (const blocked of blockedTasks) {
+      if (!blocked.assignee_id) continue;
+      const taskKey = `${project?.prefix || ''}-${blocked.task_number}`;
+      await this.createNotification(
+        blocked.assignee_id,
+        payload.actorId,
+        'blocker_resolved',
+        'task',
+        blocked.task_id,
+        `Blocker resolved for ${taskKey}`,
+        null,
+      );
+    }
+  }
+
+  @OnEvent('project.member_added')
+  async onMemberAdded(payload: { userId: number; projectId: number; actorId: number; projectName: string }) {
+    await this.createNotification(
+      payload.userId,
+      payload.actorId,
+      'added_to_project',
+      'project',
+      payload.projectId,
+      `You were added to ${payload.projectName}`,
+      null,
+    );
+  }
+
+  @OnEvent('comment.mentioned')
+  async onMentioned(payload: { userId: number; actorId: number; taskId: number; projectId: number; commentId: number }) {
+    const [task] = await this.dataSource.query(
+      'SELECT task_number, title FROM tasks WHERE id = $1', [payload.taskId],
+    );
+    const [project] = await this.dataSource.query(
+      'SELECT prefix FROM projects WHERE id = $1', [payload.projectId],
+    );
+    const taskKey = `${project?.prefix || ''}-${task?.task_number || ''}`;
+
+    await this.createNotification(
+      payload.userId,
+      payload.actorId,
+      'mentioned',
+      'comment',
+      payload.commentId,
+      `You were mentioned in ${taskKey}`,
+      task?.title || null,
+    );
+  }
+
+  @OnEvent('sprint.started')
+  async onSprintStarted(payload: { sprintId: number; projectId: number; actorId: number }) {
+    const [sprint] = await this.dataSource.query(
+      'SELECT name FROM sprints WHERE id = $1', [payload.sprintId],
+    );
+    const members = await this.dataSource.query(
+      'SELECT user_id FROM project_members WHERE project_id = $1',
+      [payload.projectId],
+    );
+
+    for (const member of members) {
+      await this.createNotification(
+        member.user_id,
+        payload.actorId,
+        'sprint_starting',
+        'sprint',
+        payload.sprintId,
+        `Sprint "${sprint?.name || ''}" has started`,
+        null,
       );
     }
   }

@@ -1,6 +1,7 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Project } from './entities/project.entity';
 import { ProjectMember } from './entities/project-member.entity';
 import { ProjectStatus } from './entities/project-status.entity';
@@ -36,6 +37,7 @@ export class ProjectsService {
     @InjectRepository(Label)
     private readonly labelRepo: Repository<Label>,
     private readonly dataSource: DataSource,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(dto: CreateProjectDto, userId: number) {
@@ -165,7 +167,7 @@ export class ProjectsService {
   // --- Members ---
 
   async addMember(projectId: number, dto: AddMemberDto, addedBy: number) {
-    await this.findOne(projectId);
+    const project = await this.findOne(projectId);
 
     const existing = await this.memberRepo.findOne({
       where: { projectId, userId: dto.userId },
@@ -181,6 +183,8 @@ export class ProjectsService {
       addedBy,
     });
     const saved = await this.memberRepo.save(member);
+
+    this.eventEmitter.emit('project.member_added', { userId: dto.userId, projectId, actorId: addedBy, projectName: project.name });
 
     const list = await this.listMembers(projectId);
     return PaginatedMutationResponse.forPaginated(saved, list);

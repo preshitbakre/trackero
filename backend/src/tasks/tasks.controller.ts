@@ -106,8 +106,9 @@ export class TasksController {
     @Param('projectId', ParseIntPipe) projectId: number,
     @Param('taskId', ParseIntPipe) taskId: number,
     @Body() dto: ChangeStatusDto,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.tasksService.changeStatus(projectId, taskId, dto.statusId);
+    return this.tasksService.changeStatus(projectId, taskId, dto.statusId, user.userId);
   }
 
   @Put(':taskId/assign')

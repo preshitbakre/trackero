@@ -83,4 +83,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   onCommentAdded(payload: { taskId: number; projectId: number; commentId: number }) {
     this.server?.to(`project:${payload.projectId}`).emit('comment:added', { taskId: payload.taskId, commentId: payload.commentId });
   }
+
+  @OnEvent('notification.created')
+  onNotificationCreated(payload: { notification: any }) {
+    this.server?.to(`user:${payload.notification.userId}`).emit('notification:new', payload.notification);
+  }
 }

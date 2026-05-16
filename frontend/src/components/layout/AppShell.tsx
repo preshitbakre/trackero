@@ -1,14 +1,34 @@
 import { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { apiClient } from '../../api/client';
+import { connectSocket, disconnectSocket, joinProject, leaveProject } from '../../lib/socket';
 
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(() => {
     return localStorage.getItem('sidebar_collapsed') === 'true';
   });
   const [projects, setProjects] = useState<any[]>([]);
+  const location = useLocation();
+  const [currentProjectId, setCurrentProjectId] = useState<number | null>(null);
+
+  useEffect(() => {
+    connectSocket();
+    return () => disconnectSocket();
+  }, []);
+
+  useEffect(() => {
+    // Extract project ID from URL
+    const match = location.pathname.match(/\/projects\/(\d+)/);
+    const newProjectId = match ? parseInt(match[1]) : null;
+
+    if (newProjectId !== currentProjectId) {
+      if (currentProjectId) leaveProject(currentProjectId);
+      if (newProjectId) joinProject(newProjectId);
+      setCurrentProjectId(newProjectId);
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     apiClient.get('/projects?limit=-1').then((res) => {

@@ -1,5 +1,6 @@
 import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
+import { NotificationBell } from '../notifications/NotificationBell';
 
 interface TopBarProps {
   onMenuToggle: () => void;
@@ -30,6 +31,7 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
 
       <div className="flex items-center gap-3">
         <ThemeToggle />
+        <NotificationBell />
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-full bg-brand/20 flex items-center justify-center text-sm font-medium text-brand">
             {user?.displayName?.charAt(0)?.toUpperCase() || '?'}

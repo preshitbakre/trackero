@@ -12,6 +12,7 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { apiClient } from '../../api/client';
+import { getSocket } from '../../lib/socket';
 import { StatusColumn } from './StatusColumn';
 import { TaskCard } from './TaskCard';
 import { TaskDetailPanel } from '../tasks/TaskDetailPanel';
@@ -57,6 +58,46 @@ export function KanbanBoard() {
 
   useEffect(() => {
     loadBoard();
+  }, [loadBoard]);
+
+  useEffect(() => {
+    const socket = getSocket();
+
+    const handleBoardMoved = (data: { taskId: number; statusId: number }) => {
+      setColumns((prev) => {
+        const newCols = prev.map((col) => ({
+          ...col,
+          tasks: col.tasks.filter((t) => t.id !== data.taskId),
+        }));
+        const targetCol = newCols.find((c) => c.status.id === data.statusId);
+        // Find the task in old columns
+        const task = prev.flatMap((c) => c.tasks).find((t) => t.id === data.taskId);
+        if (targetCol && task) {
+          targetCol.tasks.push(task);
+          targetCol.taskCount = targetCol.tasks.length;
+        }
+        return newCols;
+      });
+    };
+
+    const handleTaskCreated = () => loadBoard();
+    const handleTaskDeleted = (data: { taskId: number }) => {
+      setColumns((prev) => prev.map((col) => ({
+        ...col,
+        tasks: col.tasks.filter((t) => t.id !== data.taskId),
+        taskCount: col.tasks.filter((t) => t.id !== data.taskId).length,
+      })));
+    };
+
+    socket.on('board:moved', handleBoardMoved);
+    socket.on('task:created', handleTaskCreated);
+    socket.on('task:deleted', handleTaskDeleted);
+
+    return () => {
+      socket.off('board:moved', handleBoardMoved);
+      socket.off('task:created', handleTaskCreated);
+      socket.off('task:deleted', handleTaskDeleted);
+    };
   }, [loadBoard]);
 
   const handleDragStart = (event: DragStartEvent) => {
