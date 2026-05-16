@@ -1,6 +1,6 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { Project } from './entities/project.entity';
 import { ProjectMember } from './entities/project-member.entity';
 import { ProjectStatus } from './entities/project-status.entity';
@@ -35,6 +35,7 @@ export class ProjectsService {
     private readonly statusRepo: Repository<ProjectStatus>,
     @InjectRepository(Label)
     private readonly labelRepo: Repository<Label>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(dto: CreateProjectDto, userId: number) {
@@ -70,7 +71,7 @@ export class ProjectsService {
     return PaginatedMutationResponse.forPaginated(saved, list);
   }
 
-  async listProjects(userId: number, role: string, page: number = 1, limit: number = 20) {
+  async listProjects(userId: number, role: string, page: number = 1, limit: number = 20, filters?: { status?: string; search?: string }) {
     const qb = this.projectRepo.createQueryBuilder('p')
       .leftJoin('p.lead', 'lead')
       .addSelect(['lead.id', 'lead.displayName', 'lead.avatarUrl']);
@@ -79,13 +80,37 @@ export class ProjectsService {
       qb.innerJoin('p.members', 'pm', 'pm.userId = :userId', { userId });
     }
 
+    if (filters?.status) {
+      qb.andWhere('p.status = :pstatus', { pstatus: filters.status });
+    }
+    if (filters?.search) {
+      qb.andWhere('p.name ILIKE :psearch', { psearch: `%${filters.search}%` });
+    }
+
     qb.orderBy('p.createdAt', 'DESC');
 
     const total = await qb.getCount();
     if (limit !== -1) {
       qb.skip((page - 1) * limit).take(limit);
     }
-    const data = await qb.getMany();
+    const entities = await qb.getMany();
+
+    // Batch-load computed fields
+    const data = await Promise.all(entities.map(async (project) => {
+      const [memberCountRow] = await this.dataSource.query(
+        'SELECT COUNT(*) as count FROM project_members WHERE project_id = $1',
+        [project.id],
+      );
+      const [taskCountRow] = await this.dataSource.query(
+        'SELECT COUNT(*) as count FROM tasks WHERE project_id = $1 AND parent_id IS NULL',
+        [project.id],
+      );
+      return {
+        ...project,
+        memberCount: parseInt(memberCountRow.count),
+        taskCount: parseInt(taskCountRow.count),
+      };
+    }));
 
     return new PaginatedResponse(data, total, page, limit);
   }

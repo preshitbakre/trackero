@@ -37,8 +37,10 @@ export class ProjectsController {
     @CurrentUser() user: JwtPayload,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
   ) {
-    return this.projectsService.listProjects(user.userId, user.role, page || 1, limit || 20);
+    return this.projectsService.listProjects(user.userId, user.role, page || 1, limit || 20, { status, search });
   }
 
   @Get(':projectId')
@@ -80,6 +82,17 @@ export class ProjectsController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.projectsService.archive(projectId, user.userId, user.role);
+  }
+
+  @Post(':projectId/unarchive')
+  @Roles('admin', 'project_manager')
+  @UseGuards(ProjectAccessGuard)
+  @ResponseCode('PROJECT_UPDATED')
+  async unarchive(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.projectsService.unarchive(projectId, user.userId, user.role);
   }
 
   // --- Members ---
