@@ -28,10 +28,15 @@ export class RetrospectivesService {
   }
 
   async findBySprintId(projectId: number, sprintId: number) {
-    const retro = await this.retroRepo.findOne({
-      where: { projectId, sprintId },
-      relations: ['cards'],
-    });
+    const retro = await this.retroRepo
+      .createQueryBuilder('retro')
+      .leftJoinAndSelect('retro.cards', 'card')
+      .where('retro.projectId = :projectId AND retro.sprintId = :sprintId', { projectId, sprintId })
+      .orderBy('card.column', 'ASC')
+      .addOrderBy('card.votes', 'DESC')
+      .addOrderBy('card.createdAt', 'ASC')
+      .getOne();
+
     if (!retro) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }

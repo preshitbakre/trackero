@@ -26,10 +26,12 @@ export class SearchService {
       SELECT t.id, t.task_number, t.title, t.project_id as "projectId",
         ps.name as "statusName", ps.color as "statusColor",
         p.name as "projectName", p.prefix,
+        assignee.id as "assigneeId", assignee.display_name as "assigneeDisplayName",
         ts_rank(t.search_vector, plainto_tsquery('english', $1)) as "relevanceScore"
       FROM tasks t
       JOIN projects p ON p.id = t.project_id
       JOIN project_statuses ps ON ps.id = t.status_id
+      LEFT JOIN users assignee ON assignee.id = t.assignee_id
       WHERE t.search_vector @@ plainto_tsquery('english', $1)
         AND t.parent_id IS NULL
         AND p.status = 'active'
@@ -44,6 +46,7 @@ export class SearchService {
         taskKey: `${r.prefix}-${r.task_number}`,
         title: r.title,
         status: { name: r.statusName, color: r.statusColor },
+        assignee: r.assigneeId ? { id: r.assigneeId, displayName: r.assigneeDisplayName } : null,
         projectId: r.projectId,
         projectName: r.projectName,
         relevanceScore: parseFloat(r.relevanceScore),

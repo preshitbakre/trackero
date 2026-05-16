@@ -16,6 +16,7 @@ export function RetroPage() {
   const [retroId, setRetroId] = useState<number | null>(null);
   const [cards, setCards] = useState<RetroCard[]>([]);
   const [newCard, setNewCard] = useState<{ column: string; content: string } | null>(null);
+  const [editingCard, setEditingCard] = useState<{ id: number; content: string } | null>(null);
 
   useEffect(() => {
     loadRetro();
@@ -44,6 +45,23 @@ export function RetroPage() {
         content: newCard.content,
       });
       setNewCard(null);
+      loadRetro();
+    } catch {}
+  };
+
+  const handleEditCard = async (cardId: number, content: string) => {
+    if (!retroId || !content.trim()) return;
+    try {
+      await apiClient.put(`/projects/${projectId}/retro/${retroId}/cards/${cardId}`, { content });
+      setEditingCard(null);
+      loadRetro();
+    } catch {}
+  };
+
+  const handleDeleteCard = async (cardId: number) => {
+    if (!retroId) return;
+    try {
+      await apiClient.delete(`/projects/${projectId}/retro/${retroId}/cards/${cardId}`);
       loadRetro();
     } catch {}
   };
@@ -79,7 +97,23 @@ export function RetroPage() {
               <div className="space-y-2 mb-3">
                 {colCards.map((card) => (
                   <div key={card.id} className="bg-white dark:bg-gray-900 rounded p-3 shadow-sm border border-gray-200 dark:border-gray-700">
-                    <p className="text-sm text-gray-800 dark:text-gray-200">{card.content}</p>
+                    {editingCard?.id === card.id ? (
+                      <div>
+                        <textarea
+                          value={editingCard.content}
+                          onChange={(e) => setEditingCard({ ...editingCard, content: e.target.value })}
+                          autoFocus
+                          rows={3}
+                          className="w-full text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-2"
+                        />
+                        <div className="flex gap-1 mt-1">
+                          <button onClick={() => handleEditCard(card.id, editingCard.content)} className="text-xs px-2 py-1 bg-brand text-white rounded">Save</button>
+                          <button onClick={() => setEditingCard(null)} className="text-xs px-2 py-1 text-gray-500">Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-800 dark:text-gray-200">{card.content}</p>
+                    )}
                     <div className="flex items-center justify-between mt-2">
                       <button
                         onClick={() => handleVote(card.id)}
@@ -87,6 +121,10 @@ export function RetroPage() {
                       >
                         👍 {card.votes}
                       </button>
+                      <div className="flex gap-1">
+                        <button onClick={() => setEditingCard({ id: card.id, content: card.content })} className="text-xs text-gray-400 hover:text-gray-600">Edit</button>
+                        <button onClick={() => handleDeleteCard(card.id)} className="text-xs text-gray-400 hover:text-red-500">Delete</button>
+                      </div>
                     </div>
                   </div>
                 ))}

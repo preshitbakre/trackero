@@ -23,25 +23,39 @@ export class ChartsService {
   }
 
   async getCumulativeFlow(projectId: number) {
-    // Tasks by status category over last 30 days
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const startDate = thirtyDaysAgo.toISOString().split('T')[0];
 
     const data = await this.dataSource.query(`
       SELECT
-        d::date as date,
-        (SELECT COUNT(*) FROM tasks t JOIN project_statuses ps ON ps.id = t.status_id
-         WHERE t.project_id = $1 AND t.parent_id IS NULL AND ps.category = 'backlog' AND t.created_at <= d + interval '1 day')::int as backlog,
-        (SELECT COUNT(*) FROM tasks t JOIN project_statuses ps ON ps.id = t.status_id
-         WHERE t.project_id = $1 AND t.parent_id IS NULL AND ps.category = 'todo' AND t.created_at <= d + interval '1 day')::int as todo,
-        (SELECT COUNT(*) FROM tasks t JOIN project_statuses ps ON ps.id = t.status_id
-         WHERE t.project_id = $1 AND t.parent_id IS NULL AND ps.category = 'in_progress' AND t.created_at <= d + interval '1 day')::int as in_progress,
-        (SELECT COUNT(*) FROM tasks t JOIN project_statuses ps ON ps.id = t.status_id
-         WHERE t.project_id = $1 AND t.parent_id IS NULL AND ps.category = 'in_review' AND t.created_at <= d + interval '1 day')::int as in_review,
-        (SELECT COUNT(*) FROM tasks t JOIN project_statuses ps ON ps.id = t.status_id
-         WHERE t.project_id = $1 AND t.parent_id IS NULL AND ps.category = 'done' AND t.created_at <= d + interval '1 day')::int as done
-      FROM generate_series($2::date, CURRENT_DATE, '1 day') d
-    `, [projectId, thirtyDaysAgo.toISOString().split('T')[0]]);
+        d.date::text as date,
+        COALESCE(SUM(CASE WHEN ps.category = 'backlog' THEN 1 ELSE 0 END), 0)::int as backlog,
+        COALESCE(SUM(CASE WHEN ps.category = 'todo' THEN 1 ELSE 0 END), 0)::int as todo,
+        COALESCE(SUM(CASE WHEN ps.category = 'in_progress' THEN 1 ELSE 0 END), 0)::int as in_progress,
+        COALESCE(SUM(CASE WHEN ps.category = 'in_review' THEN 1 ELSE 0 END), 0)::int as in_review,
+        COALESCE(SUM(CASE WHEN ps.category = 'done' THEN 1 ELSE 0 END), 0)::int as done
+      FROM generate_series($2::date, CURRENT_DATE, '1 day') AS d(date)
+      LEFT JOIN LATERAL (
+        SELECT t.id,
+          COALESCE(
+            (SELECT CAST(al.new_value AS INTEGER)
+             FROM activity_logs al
+             WHERE al.task_id = t.id
+               AND al.field_changed = 'status'
+               AND al.created_at <= d.date + INTERVAL '1 day'
+             ORDER BY al.created_at DESC LIMIT 1),
+            t.status_id
+          ) as effective_status_id
+        FROM tasks t
+        WHERE t.project_id = $1
+          AND t.parent_id IS NULL
+          AND t.created_at <= d.date + INTERVAL '1 day'
+      ) task_on_date ON true
+      LEFT JOIN project_statuses ps ON ps.id = task_on_date.effective_status_id
+      GROUP BY d.date
+      ORDER BY d.date
+    `, [projectId, startDate]);
 
     return data;
   }

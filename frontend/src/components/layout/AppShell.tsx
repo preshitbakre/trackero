@@ -64,7 +64,7 @@ export function AppShell() {
     <div className="flex h-screen bg-white dark:bg-gray-950">
       <Sidebar projects={projects} collapsed={collapsed} onToggle={toggleSidebar} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar onMenuToggle={toggleSidebar} />
+        <TopBar onMenuToggle={toggleSidebar} onSearchClick={() => setShowCommandPalette(true)} />
         <main className="flex-1 overflow-auto">
           <Outlet />
         </main>
