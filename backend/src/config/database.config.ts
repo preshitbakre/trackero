@@ -6,10 +6,9 @@ export const getDatabaseConfig = (configService: ConfigService): TypeOrmModuleOp
   host: configService.getOrThrow<string>('DATABASE_HOST'),
   port: configService.get<number>('DATABASE_PORT', 5432),
   username: configService.getOrThrow<string>('DATABASE_USERNAME'),
-  password: configService.getOrThrow<string>('DATABASE_PASSWORD'),
+  password: configService.get<string>('DATABASE_PASSWORD', ''),
   database: configService.getOrThrow<string>('DATABASE_NAME'),
-  entities: [__dirname + '/../**/*.entity{.ts,.js}'],
-  migrations: [__dirname + '/../../migrations/*{.ts,.js}'],
+  autoLoadEntities: true,
   synchronize: false,
   logging: configService.get<string>('NODE_ENV') === 'development',
 });

@@ -1,0 +1,409 @@
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { INestApplication } from '@nestjs/common';
+import request from 'supertest';
+import { createTestApp, clearDatabase } from './setup';
+
+describe('Auth Module (e2e)', () => {
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    app = await createTestApp();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await clearDatabase(app);
+  });
+
+  describe('POST /api/auth/register', () => {
+    it('registers with valid data -> 201 + user + tokens', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({
+          email: 'test@example.com',
+          password: 'password123',
+          displayName: 'Test User',
+        })
+        .expect(201);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.code).toBe('S-0002');
+      expect(res.body.data.user).toBeDefined();
+      expect(res.body.data.user.email).toBe('test@example.com');
+      expect(res.body.data.user.displayName).toBe('Test User');
+      expect(res.body.data.user.role).toBe('member');
+      expect(res.body.data.user.id).toBeDefined();
+      expect(res.body.data.accessToken).toBeDefined();
+      expect(res.body.data.refreshToken).toBeDefined();
+      // Should not expose password hash
+      expect(res.body.data.user.passwordHash).toBeUndefined();
+    });
+
+    it('rejects duplicate email -> F-L-0010 (409)', async () => {
+      await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({
+          email: 'dup@example.com',
+          password: 'password123',
+          displayName: 'First User',
+        })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({
+          email: 'dup@example.com',
+          password: 'password456',
+          displayName: 'Second User',
+        })
+        .expect(409);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('F-L-0010');
+    });
+
+    it('rejects weak password (< 8 chars) -> F-V-0001 (400)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({
+          email: 'test@example.com',
+          password: 'short',
+          displayName: 'Test User',
+        })
+        .expect(400);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('F-V-0001');
+      expect(res.body.validationErrors).toBeDefined();
+      expect(res.body.validationErrors.length).toBeGreaterThan(0);
+    });
+
+    it('rejects missing required fields -> F-V-0001 (400)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({})
+        .expect(400);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('F-V-0001');
+      expect(res.body.validationErrors.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('POST /api/auth/login', () => {
+    beforeEach(async () => {
+      await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({
+          email: 'login@example.com',
+          password: 'password123',
+          displayName: 'Login User',
+        });
+    });
+
+    it('logs in with valid credentials -> 200 + tokens', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .send({
+          email: 'login@example.com',
+          password: 'password123',
+        })
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.code).toBe('S-0001');
+      expect(res.body.data.user.email).toBe('login@example.com');
+      expect(res.body.data.accessToken).toBeDefined();
+      expect(res.body.data.refreshToken).toBeDefined();
+    });
+
+    it('rejects wrong password -> F-L-0005 (401)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .send({
+          email: 'login@example.com',
+          password: 'wrongpassword',
+        })
+        .expect(401);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('F-L-0005');
+    });
+
+    it('rejects non-existent email -> F-L-0005 (401)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .send({
+          email: 'nobody@example.com',
+          password: 'password123',
+        })
+        .expect(401);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('F-L-0005');
+    });
+
+    it('rejects deactivated account -> F-L-0008 (403)', async () => {
+      // Deactivate the user directly in DB
+      const { DataSource } = await import('typeorm');
+      const dataSource = app.get(DataSource);
+      await dataSource.query(
+        `UPDATE users SET is_active = false WHERE email = $1`,
+        ['login@example.com'],
+      );
+
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .send({
+          email: 'login@example.com',
+          password: 'password123',
+        })
+        .expect(403);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('F-L-0008');
+    });
+  });
+
+  describe('GET /api/auth/me', () => {
+    it('rejects without token -> 401', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .expect(401);
+
+      expect(res.body.success).toBe(false);
+    });
+
+    it('returns user profile with valid token -> 200', async () => {
+      const registerRes = await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({
+          email: 'me@example.com',
+          password: 'password123',
+          displayName: 'Me User',
+        });
+
+      const token = registerRes.body.data.accessToken;
+
+      const res = await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.code).toBe('S-0005');
+      expect(res.body.data.email).toBe('me@example.com');
+      expect(res.body.data.displayName).toBe('Me User');
+    });
+  });
+
+  describe('POST /api/auth/refresh', () => {
+    it('refreshes with valid token -> new tokens', async () => {
+      const registerRes = await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({
+          email: 'refresh@example.com',
+          password: 'password123',
+          displayName: 'Refresh User',
+        });
+
+      const refreshToken = registerRes.body.data.refreshToken;
+
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .send({ refreshToken })
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.code).toBe('S-0004');
+      expect(res.body.data.accessToken).toBeDefined();
+      expect(res.body.data.refreshToken).toBeDefined();
+      // New refresh token should be different (rotation)
+      expect(res.body.data.refreshToken).not.toBe(refreshToken);
+    });
+
+    it('rejects invalid token -> F-L-0007 (401)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .send({ refreshToken: 'invalid-token-here' })
+        .expect(401);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('F-L-0007');
+    });
+
+    it('rejects already-used token (rotation) -> F-L-0007 (401)', async () => {
+      const registerRes = await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({
+          email: 'rotate@example.com',
+          password: 'password123',
+          displayName: 'Rotate User',
+        });
+
+      const refreshToken = registerRes.body.data.refreshToken;
+
+      // Use it once
+      await request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .send({ refreshToken })
+        .expect(200);
+
+      // Use it again - should fail (revoked after first use)
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .send({ refreshToken })
+        .expect(401);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('F-L-0007');
+    });
+  });
+
+  describe('POST /api/auth/logout', () => {
+    it('logs out successfully -> 200', async () => {
+      const registerRes = await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({
+          email: 'logout@example.com',
+          password: 'password123',
+          displayName: 'Logout User',
+        });
+
+      const { accessToken, refreshToken } = registerRes.body.data;
+
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/logout')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ refreshToken })
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.code).toBe('S-0003');
+
+      // Refresh token should no longer work
+      await request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .send({ refreshToken })
+        .expect(401);
+    });
+  });
+
+  describe('PUT /api/auth/me/password', () => {
+    it('changes password and invalidates old tokens', async () => {
+      const registerRes = await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({
+          email: 'pwchange@example.com',
+          password: 'oldpassword1',
+          displayName: 'PW User',
+        });
+
+      const { accessToken } = registerRes.body.data;
+
+      // Change password
+      const res = await request(app.getHttpServer())
+        .put('/api/auth/me/password')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          currentPassword: 'oldpassword1',
+          newPassword: 'newpassword1',
+        })
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.code).toBe('S-0007');
+
+      // Old token should be invalidated (tokenVersion incremented)
+      await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(401);
+
+      // Login with new password should work
+      const loginRes = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .send({
+          email: 'pwchange@example.com',
+          password: 'newpassword1',
+        })
+        .expect(200);
+
+      expect(loginRes.body.data.accessToken).toBeDefined();
+    });
+
+    it('rejects wrong current password -> 401', async () => {
+      const registerRes = await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({
+          email: 'pwfail@example.com',
+          password: 'password123',
+          displayName: 'PW Fail User',
+        });
+
+      const { accessToken } = registerRes.body.data;
+
+      const res = await request(app.getHttpServer())
+        .put('/api/auth/me/password')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          currentPassword: 'wrongcurrent',
+          newPassword: 'newpassword1',
+        })
+        .expect(401);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('F-L-0005');
+    });
+  });
+
+  describe('PUT /api/auth/me', () => {
+    it('updates profile -> 200', async () => {
+      const registerRes = await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({
+          email: 'profile@example.com',
+          password: 'password123',
+          displayName: 'Original Name',
+        });
+
+      const { accessToken } = registerRes.body.data;
+
+      const res = await request(app.getHttpServer())
+        .put('/api/auth/me')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          displayName: 'Updated Name',
+        })
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.code).toBe('S-0006');
+      expect(res.body.data.displayName).toBe('Updated Name');
+    });
+  });
+
+  describe('Seed Admin', () => {
+    it('creates admin user on fresh database from env vars', async () => {
+      // After clearDatabase, the seed should run on next app bootstrap
+      // We'll test by logging in with the admin credentials from env
+      // The seed runs at module init, so we need to create a fresh app
+      const { createTestApp: createFresh } = await import('./setup');
+      const freshApp = await createFresh();
+
+      const res = await request(freshApp.getHttpServer())
+        .post('/api/auth/login')
+        .send({
+          email: process.env.ADMIN_EMAIL || 'admin@example.com',
+          password: process.env.ADMIN_PASSWORD || 'changeme123',
+        })
+        .expect(200);
+
+      expect(res.body.data.user.role).toBe('admin');
+      await freshApp.close();
+    });
+  });
+});
