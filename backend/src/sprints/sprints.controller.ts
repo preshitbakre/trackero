@@ -79,8 +79,9 @@ export class SprintsController {
   async start(
     @Param('projectId', ParseIntPipe) projectId: number,
     @Param('sprintId', ParseIntPipe) sprintId: number,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.sprintsService.start(projectId, sprintId);
+    return this.sprintsService.start(projectId, sprintId, user.userId);
   }
 
   @Post(':sprintId/complete')
@@ -90,8 +91,9 @@ export class SprintsController {
   async complete(
     @Param('projectId', ParseIntPipe) projectId: number,
     @Param('sprintId', ParseIntPipe) sprintId: number,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.sprintsService.complete(projectId, sprintId);
+    return this.sprintsService.complete(projectId, sprintId, user.userId);
   }
 
   @Post(':sprintId/cancel')
@@ -101,8 +103,9 @@ export class SprintsController {
   async cancel(
     @Param('projectId', ParseIntPipe) projectId: number,
     @Param('sprintId', ParseIntPipe) sprintId: number,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.sprintsService.cancel(projectId, sprintId);
+    return this.sprintsService.cancel(projectId, sprintId, user.userId);
   }
 
   @Get(':sprintId/burndown')

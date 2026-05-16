@@ -8,6 +8,7 @@ interface NotificationItem {
   type: string;
   referenceType: string;
   referenceId: number;
+  projectId: number | null;
   title: string;
   body: string | null;
   isRead: boolean;
@@ -73,15 +74,27 @@ export function NotificationBell() {
   };
 
   const handleClick = async (notif: NotificationItem) => {
-    // Mark as read
     if (!notif.isRead) {
       await apiClient.put(`/notifications/${notif.id}/read`).catch(() => {});
       setUnreadCount((c) => Math.max(0, c - 1));
     }
     setShowDropdown(false);
-    // Navigate based on reference type
-    if (notif.referenceType === 'task') {
-      navigate(`/dashboard`); // TODO: navigate to task detail when route is ready
+
+    switch (notif.referenceType) {
+      case 'task':
+        if (notif.projectId) navigate(`/projects/${notif.projectId}/board`);
+        break;
+      case 'sprint':
+        if (notif.projectId) navigate(`/projects/${notif.projectId}/sprints`);
+        break;
+      case 'comment':
+        if (notif.projectId) navigate(`/projects/${notif.projectId}/board`);
+        break;
+      case 'project':
+        navigate(`/projects/${notif.referenceId}/board`);
+        break;
+      default:
+        navigate('/dashboard');
     }
   };
 

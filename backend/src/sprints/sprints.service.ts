@@ -98,7 +98,7 @@ export class SprintsService {
     return PaginatedMutationResponse.forPaginated(saved, list);
   }
 
-  async start(projectId: number, sprintId: number) {
+  async start(projectId: number, sprintId: number, userId: number) {
     const sprint = await this.findOne(projectId, sprintId);
 
     if (sprint.status !== 'planning') {
@@ -139,7 +139,7 @@ export class SprintsService {
     sprint.status = 'active';
     const saved = await this.sprintRepo.save(sprint);
 
-    this.eventEmitter.emit('sprint.started', { sprintId, projectId, actorId: 1 });
+    this.eventEmitter.emit('sprint.started', { sprintId, projectId, actorId: userId });
 
     // Record initial scope
     const tasks = await this.dataSource.query(
@@ -160,7 +160,7 @@ export class SprintsService {
     return saved;
   }
 
-  async complete(projectId: number, sprintId: number) {
+  async complete(projectId: number, sprintId: number, userId: number) {
     const sprint = await this.findOne(projectId, sprintId);
 
     if (sprint.status !== 'active') {
@@ -171,7 +171,7 @@ export class SprintsService {
     sprint.completedAt = new Date();
     await this.sprintRepo.save(sprint);
 
-    this.eventEmitter.emit('sprint.completed', { sprintId, projectId, actorId: 1 });
+    this.eventEmitter.emit('sprint.completed', { sprintId, projectId, actorId: userId });
 
     // Find incomplete tasks (status category NOT done/cancelled)
     const incompleteTasks = await this.dataSource.query(
@@ -227,7 +227,7 @@ export class SprintsService {
     return { sprint, movedTasks, movedTo };
   }
 
-  async cancel(projectId: number, sprintId: number) {
+  async cancel(projectId: number, sprintId: number, userId: number) {
     const sprint = await this.findOne(projectId, sprintId);
 
     if (sprint.status !== 'planning' && sprint.status !== 'active') {
@@ -237,7 +237,7 @@ export class SprintsService {
     sprint.status = 'cancelled';
     await this.sprintRepo.save(sprint);
 
-    this.eventEmitter.emit('sprint.cancelled', { sprintId, projectId, actorId: 1 });
+    this.eventEmitter.emit('sprint.cancelled', { sprintId, projectId, actorId: userId });
 
     // Move ALL tasks to backlog
     await this.dataSource.query(

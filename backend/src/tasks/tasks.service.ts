@@ -256,11 +256,11 @@ export class TasksService {
     return PaginatedMutationResponse.forPaginated(saved, list);
   }
 
-  async assign(projectId: number, taskId: number, assigneeId: number | null) {
+  async assign(projectId: number, taskId: number, assigneeId: number | null, userId: number) {
     const task = await this.findOne(projectId, taskId);
     task.assigneeId = assigneeId;
     const saved = await this.taskRepo.save(task);
-    this.eventEmitter.emit('task.assigned', { taskId: saved.id, projectId, actorId: 1, assigneeId });
+    this.eventEmitter.emit('task.assigned', { taskId: saved.id, projectId, actorId: userId, assigneeId });
     const list = await this.listTasks(projectId, {});
     return PaginatedMutationResponse.forPaginated(saved, list);
   }

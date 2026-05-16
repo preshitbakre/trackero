@@ -23,6 +23,9 @@ export class Notification {
   @Column({ name: 'reference_id', type: 'int' })
   referenceId: number;
 
+  @Column({ name: 'project_id', type: 'int', nullable: true })
+  projectId: number | null;
+
   @Column({ type: 'varchar', length: 255 })
   title: string;
 

@@ -118,8 +118,9 @@ export class TasksController {
     @Param('projectId', ParseIntPipe) projectId: number,
     @Param('taskId', ParseIntPipe) taskId: number,
     @Body() body: { assigneeId: number | null },
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.tasksService.assign(projectId, taskId, body.assigneeId);
+    return this.tasksService.assign(projectId, taskId, body.assigneeId, user.userId);
   }
 
   @Put(':taskId/move')

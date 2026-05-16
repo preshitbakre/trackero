@@ -61,6 +61,7 @@ export class NotificationsService {
     referenceId: number,
     title: string,
     body?: string | null,
+    projectId?: number | null,
   ) {
     // Suppression: never notify the actor
     if (userId === actorId) return;
@@ -90,6 +91,7 @@ export class NotificationsService {
       referenceId,
       title,
       body: body || null,
+      projectId: projectId || null,
     });
     await this.notifRepo.save(notif);
 
@@ -129,6 +131,7 @@ export class NotificationsService {
       payload.taskId,
       `You were assigned to ${taskKey}`,
       task?.title || null,
+      payload.projectId,
     );
   }
 
@@ -153,6 +156,7 @@ export class NotificationsService {
       payload.taskId,
       `Status changed on ${taskKey}`,
       task.title,
+      payload.projectId,
     );
   }
 
@@ -182,6 +186,7 @@ export class NotificationsService {
         payload.taskId,
         `New comment on ${taskKey}`,
         task.title,
+        payload.projectId,
       );
     }
   }
@@ -212,6 +217,7 @@ export class NotificationsService {
         blocked.task_id,
         `Blocker resolved for ${taskKey}`,
         null,
+        payload.projectId,
       );
     }
   }
@@ -226,6 +232,7 @@ export class NotificationsService {
       payload.projectId,
       `You were added to ${payload.projectName}`,
       null,
+      payload.projectId,
     );
   }
 
@@ -247,6 +254,7 @@ export class NotificationsService {
       payload.commentId,
       `You were mentioned in ${taskKey}`,
       task?.title || null,
+      payload.projectId,
     );
   }
 
@@ -269,6 +277,7 @@ export class NotificationsService {
         payload.sprintId,
         `Sprint "${sprint?.name || ''}" has started`,
         null,
+        payload.projectId,
       );
     }
   }
