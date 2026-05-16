@@ -1,9 +1,10 @@
 import {
   Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn,
-  ManyToOne, JoinColumn, Index,
+  ManyToOne, JoinColumn, Index, ManyToMany, JoinTable,
 } from 'typeorm';
 import { Project } from '../../projects/entities/project.entity';
 import { ProjectStatus } from '../../projects/entities/project-status.entity';
+import { Label } from '../../projects/entities/label.entity';
 
 @Entity('tasks')
 @Index('IDX_task_project', ['projectId'])
@@ -81,4 +82,12 @@ export class Task {
   @ManyToOne(() => ProjectStatus, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'status_id' })
   status: ProjectStatus;
+
+  @ManyToMany(() => Label)
+  @JoinTable({
+    name: 'task_labels',
+    joinColumn: { name: 'task_id' },
+    inverseJoinColumn: { name: 'label_id' },
+  })
+  labels: Label[];
 }

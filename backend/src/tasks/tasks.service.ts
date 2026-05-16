@@ -64,6 +64,13 @@ export class TasksService {
     });
     const saved = await this.taskRepo.save(task);
 
+    if (dto.labelIds && dto.labelIds.length > 0) {
+      await this.dataSource.query(
+        `INSERT INTO task_labels (task_id, label_id) SELECT $1, unnest($2::int[])`,
+        [saved.id, dto.labelIds],
+      );
+    }
+
     const list = await this.listTasks(projectId, {});
     return PaginatedMutationResponse.forPaginated(saved, list);
   }
@@ -287,12 +294,19 @@ export class TasksService {
       ],
     });
 
+    // Get labels
+    const labels = await this.dataSource.query(
+      `SELECT l.* FROM labels l JOIN task_labels tl ON tl.label_id = l.id WHERE tl.task_id = $1`,
+      [taskId],
+    );
+
     // Get counts
     const commentCount = 0; // Will be populated in Phase 7
     const attachmentCount = 0; // Will be populated in Phase 7
 
     return {
       ...task,
+      labels,
       subtasks: subtasksWithChecklist,
       blockedBy,
       blocks,
