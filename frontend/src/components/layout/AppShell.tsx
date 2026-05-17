@@ -3,12 +3,23 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { apiClient } from '../../api/client';
+import { useAuthStore } from '../../store/auth.store';
 import { connectSocket, disconnectSocket, joinProject, leaveProject } from '../../lib/socket';
 
 export function AppShell() {
   const [projects, setProjects] = useState<any[]>([]);
   const location = useLocation();
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(null);
+  const user = useAuthStore((s) => s.user);
+
+  // Ensure user is loaded
+  useEffect(() => {
+    if (!user) {
+      apiClient.get('/auth/me').then((res) => {
+        useAuthStore.getState().setUser(res.data.data);
+      }).catch(() => {});
+    }
+  }, [user]);
 
   useEffect(() => {
     connectSocket();

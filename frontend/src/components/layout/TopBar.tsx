@@ -1,36 +1,73 @@
+import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../../store/auth.store';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { NotificationBell } from '../notifications/NotificationBell';
 
 export function TopBar() {
-  const user = useAuthStore((s) => s.user);
-  const logout = useAuthStore((s) => s.logout);
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
   return (
     <header className="h-14 border-b border-neutral-200 dark:border-dneutral-200 bg-neutral-50 dark:bg-dneutral-50 flex items-center justify-end px-4">
       <div className="flex items-center gap-3">
         <ThemeToggle />
         <NotificationBell />
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-sm font-medium text-primary-500">
-            {user?.displayName?.charAt(0)?.toUpperCase() || '?'}
+        <AvatarMenu />
+      </div>
+    </header>
+  );
+}
+
+function AvatarMenu() {
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const handleLogout = () => {
+    setOpen(false);
+    logout();
+    navigate('/login');
+  };
+
+  const initial = user?.displayName?.charAt(0)?.toUpperCase() || '?';
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-8 h-8 rounded-full bg-primary-100 dark:bg-dprimary-100 flex items-center justify-center text-sm font-medium text-primary-500 dark:text-dprimary-500 hover:ring-2 hover:ring-primary-400/40"
+      >
+        {initial}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 mt-2 w-48 rounded-lg border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-100 shadow-lg z-50 overflow-hidden">
+          <div className="px-4 py-3 border-b border-neutral-200 dark:border-dneutral-200">
+            <p className="text-sm font-medium text-neutral-700 dark:text-dneutral-700 truncate">{user?.displayName}</p>
+            <p className="text-sm text-neutral-400 dark:text-dneutral-500 truncate">{user?.email}</p>
           </div>
-          <Link to="/profile" className="text-sm text-neutral-400 dark:text-dneutral-500 hover:text-neutral-700 dark:hover:text-dneutral-700">Profile</Link>
+          <button
+            onClick={() => { setOpen(false); navigate('/profile'); }}
+            className="w-full text-left px-4 py-2.5 text-sm text-neutral-600 dark:text-dneutral-600 hover:bg-neutral-100 dark:hover:bg-dneutral-200"
+          >
+            Profile
+          </button>
           <button
             onClick={handleLogout}
-            className="text-sm text-neutral-400 dark:text-dneutral-500 hover:text-neutral-700 dark:hover:text-dneutral-700"
+            className="w-full text-left px-4 py-2.5 text-sm text-danger hover:bg-danger/10"
           >
             Logout
           </button>
         </div>
-      </div>
-    </header>
+      )}
+    </div>
   );
 }
 
