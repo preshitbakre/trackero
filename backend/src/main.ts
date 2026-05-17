@@ -70,9 +70,9 @@ async function bootstrap() {
   if (config.get<string>('NODE_ENV') === 'production') {
     const publicPath = join(__dirname, '..', 'public');
     app.useStaticAssets(publicPath);
-    // SPA fallback: serve index.html for non-API routes
+    // SPA fallback: serve index.html for non-API GET requests
     app.use((req: any, res: any, next: any) => {
-      if (!req.path.startsWith('/api') && !req.path.startsWith('/socket.io')) {
+      if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/socket.io')) {
         res.sendFile(join(publicPath, 'index.html'));
       } else {
         next();

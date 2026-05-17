@@ -41,6 +41,13 @@ export class UsersController {
     return this.usersService.deactivate(id);
   }
 
+  @Get('invitations')
+  @Roles('admin')
+  @ResponseCode('USERS_LISTED')
+  async listInvitations() {
+    return this.usersService.listInvitations();
+  }
+
   @Post('invite')
   @Roles('admin')
   @HttpCode(HttpStatus.CREATED)
