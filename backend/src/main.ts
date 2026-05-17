@@ -4,7 +4,10 @@ import { Reflector } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
+import { DataSource } from 'typeorm';
+import { join } from 'path';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { ResponseEnvelopeInterceptor } from './common/interceptors/response-envelope.interceptor';
@@ -12,7 +15,7 @@ import { AppValidationException } from './common/exceptions/app-exceptions';
 import { flattenValidationErrors } from './common/helpers/validation-errors.helper';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // 1. Global prefix
   app.setGlobalPrefix('api');
@@ -63,7 +66,31 @@ async function bootstrap() {
     swaggerOptions: { persistAuthorization: true },
   });
 
-  // 8. Start
+  // 8. Serve frontend static files in production
+  if (config.get<string>('NODE_ENV') === 'production') {
+    const publicPath = join(__dirname, '..', 'public');
+    app.useStaticAssets(publicPath);
+    // SPA fallback: serve index.html for non-API routes
+    app.use((req: any, res: any, next: any) => {
+      if (!req.path.startsWith('/api') && !req.path.startsWith('/socket.io')) {
+        res.sendFile(join(publicPath, 'index.html'));
+      } else {
+        next();
+      }
+    });
+  }
+
+  // Auto-run migrations
+  if (process.env.NODE_ENV !== 'test') {
+    const dataSource = app.get(DataSource);
+    dataSource.setOptions({
+      migrations: [__dirname + '/../migrations/*{.ts,.js}'],
+    });
+    await dataSource.runMigrations();
+    console.log('Migrations completed');
+  }
+
+  // Start
   const port = config.get<number>('PORT', 3001);
   await app.listen(port);
   console.log(`Trackero running on port ${port}`);

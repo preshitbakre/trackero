@@ -1,5 +1,5 @@
 import { useAuthStore } from '../../store/auth.store';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { NotificationBell } from '../notifications/NotificationBell';
 
 interface TopBarProps {
@@ -47,6 +47,7 @@ export function TopBar({ onMenuToggle, onSearchClick }: TopBarProps) {
           <div className="w-8 h-8 rounded-full bg-brand/20 flex items-center justify-center text-sm font-medium text-brand">
             {user?.displayName?.charAt(0)?.toUpperCase() || '?'}
           </div>
+          <Link to="/profile" className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100">Profile</Link>
           <button
             onClick={handleLogout}
             className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"

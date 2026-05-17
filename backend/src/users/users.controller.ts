@@ -1,6 +1,6 @@
 import {
-  Controller, Get, Put, Param, Body, Query,
-  UseGuards, ParseIntPipe,
+  Controller, Get, Put, Post, Param, Body, Query,
+  UseGuards, ParseIntPipe, HttpCode, HttpStatus,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -39,5 +39,16 @@ export class UsersController {
   @ResponseCode('USER_DEACTIVATED')
   async deactivate(@Param('id', ParseIntPipe) id: number) {
     return this.usersService.deactivate(id);
+  }
+
+  @Post('invite')
+  @Roles('admin')
+  @HttpCode(HttpStatus.CREATED)
+  @ResponseCode('INVITATION_SENT')
+  async invite(
+    @Body() body: { email: string; role: string; projectId?: number },
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.usersService.invite(body.email, body.role, user.userId, body.projectId);
   }
 }

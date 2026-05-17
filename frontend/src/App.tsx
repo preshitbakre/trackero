@@ -14,6 +14,8 @@ import { ChartsPage } from './pages/ChartsPage';
 import { RetroPage } from './pages/RetroPage';
 import { SprintPlanningPage } from './pages/SprintPlanningPage';
 import { BacklogPage } from './pages/BacklogPage';
+import { ProfilePage } from './pages/ProfilePage';
+import { SettingsPage } from './pages/SettingsPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AppShell } from './components/layout/AppShell';
 import { useEffect } from 'react';
@@ -54,6 +56,8 @@ export function App() {
             <Route path="/projects/:id/charts" element={<ChartsPage />} />
             <Route path="/projects/:id/sprints/:sprintId/retro" element={<RetroPage />} />
             <Route path="/projects/:id/sprints/:sprintId/planning" element={<SprintPlanningPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>

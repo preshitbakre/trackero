@@ -22,6 +22,7 @@ import { GatewayModule } from './gateway/gateway.module';
 import { RetrospectivesModule } from './retrospectives/retrospectives.module';
 import { ChartsModule } from './charts/charts.module';
 import { SearchModule } from './search/search.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { SearchModule } from './search/search.module';
     RetrospectivesModule,
     ChartsModule,
     SearchModule,
+    SettingsModule,
   ],
 })
 export class AppModule {}
