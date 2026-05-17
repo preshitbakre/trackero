@@ -65,11 +65,20 @@ export class UsersService {
     );
   }
 
-  async deactivate(id: number) {
+  async deactivate(id: number, actorId: number) {
     const user = await this.userRepo.findOne({ where: { id } });
     if (!user) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
+
+    // Cannot deactivate last admin
+    if (user.role === 'admin') {
+      const adminCount = await this.userRepo.count({ where: { role: 'admin', isActive: true } });
+      if (adminCount <= 1) {
+        throw new AppLogicException('LAST_ADMIN', HttpStatus.CONFLICT);
+      }
+    }
+
     user.isActive = false;
     const saved = await this.userRepo.save(user);
 

@@ -54,17 +54,19 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
-  // 7. Swagger
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Trackero API')
-    .setVersion('1.0')
-    .setDescription('Open-source agile project management')
-    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'JWT')
-    .build();
-  const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/api-docs', app, swaggerDocument, {
-    swaggerOptions: { persistAuthorization: true },
-  });
+  // 7. Swagger (not in production)
+  if (config.get<string>('NODE_ENV') !== 'production') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Trackero API')
+      .setVersion('1.0')
+      .setDescription('Open-source agile project management')
+      .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'JWT')
+      .build();
+    const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/api-docs', app, swaggerDocument, {
+      swaggerOptions: { persistAuthorization: true },
+    });
+  }
 
   // 8. Serve frontend static files in production
   if (config.get<string>('NODE_ENV') === 'production') {

@@ -37,8 +37,8 @@ export class UsersController {
   @Put(':id/deactivate')
   @Roles('admin')
   @ResponseCode('USER_DEACTIVATED')
-  async deactivate(@Param('id', ParseIntPipe) id: number) {
-    return this.usersService.deactivate(id);
+  async deactivate(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+    return this.usersService.deactivate(id, user.userId);
   }
 
   @Get('invitations')

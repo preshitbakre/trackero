@@ -8,15 +8,22 @@ import {
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { OnEvent } from '@nestjs/event-emitter';
+import { DataSource } from 'typeorm';
 
 @WebSocketGateway({
-  cors: { origin: '*' },
+  cors: {
+    origin: process.env.APP_URL || 'http://localhost:5173',
+    credentials: true,
+  },
 })
 export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly dataSource: DataSource,
+  ) {}
 
   async handleConnection(client: Socket) {
     try {
@@ -35,7 +42,25 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('join:project')
-  handleJoinProject(client: Socket, payload: { projectId: number }) {
+  async handleJoinProject(client: Socket, payload: { projectId: number }) {
+    const userId = client.data.userId;
+    if (!userId) return;
+
+    // Verify membership (admin can access all)
+    const [user] = await this.dataSource.query(
+      'SELECT role FROM users WHERE id = $1', [userId]
+    );
+    if (user?.role !== 'admin') {
+      const [member] = await this.dataSource.query(
+        'SELECT id FROM project_members WHERE user_id = $1 AND project_id = $2',
+        [userId, payload.projectId]
+      );
+      if (!member) {
+        client.emit('error', { message: 'Not authorized for this project' });
+        return;
+      }
+    }
+
     client.join(`project:${payload.projectId}`);
   }
 

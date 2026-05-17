@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -26,6 +27,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
+  @Throttle({ default: { limit: parseInt(process.env.AUTH_THROTTLE_LIMIT || '5', 10), ttl: parseInt(process.env.AUTH_THROTTLE_TTL || '60000', 10) } })
   @HttpCode(HttpStatus.CREATED)
   @ResponseCode('AUTH_REGISTER')
   async register(@Body() dto: RegisterDto) {
@@ -33,6 +35,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Throttle({ default: { limit: parseInt(process.env.AUTH_THROTTLE_LIMIT || '5', 10), ttl: parseInt(process.env.AUTH_THROTTLE_TTL || '60000', 10) } })
   @HttpCode(HttpStatus.OK)
   @ResponseCode('AUTH_LOGIN')
   async login(@Body() dto: LoginDto) {
@@ -40,6 +43,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @Throttle({ default: { limit: parseInt(process.env.AUTH_THROTTLE_LIMIT || '5', 10), ttl: parseInt(process.env.AUTH_THROTTLE_TTL || '60000', 10) } })
   @HttpCode(HttpStatus.OK)
   @ResponseCode('AUTH_REFRESH')
   async refresh(@Body() dto: RefreshTokenDto) {
@@ -84,6 +88,7 @@ export class AuthController {
   }
 
   @Post('forgot-password')
+  @Throttle({ default: { limit: parseInt(process.env.AUTH_THROTTLE_LIMIT || '5', 10), ttl: parseInt(process.env.AUTH_THROTTLE_TTL || '60000', 10) } })
   @HttpCode(HttpStatus.OK)
   @ResponseCode('AUTH_PASSWORD_RESET_SENT')
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
@@ -92,6 +97,7 @@ export class AuthController {
   }
 
   @Post('reset-password')
+  @Throttle({ default: { limit: parseInt(process.env.AUTH_THROTTLE_LIMIT || '5', 10), ttl: parseInt(process.env.AUTH_THROTTLE_TTL || '60000', 10) } })
   @HttpCode(HttpStatus.OK)
   @ResponseCode('AUTH_PASSWORD_RESET')
   async resetPassword(@Body() dto: ResetPasswordDto) {

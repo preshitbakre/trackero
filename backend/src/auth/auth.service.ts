@@ -101,6 +101,8 @@ export class AuthService implements OnModuleInit {
   async login(dto: LoginDto) {
     const user = await this.userRepo.findOne({ where: { email: dto.email } });
     if (!user) {
+      // Constant-time: still run bcrypt to prevent timing-based user enumeration
+      await bcrypt.compare(dto.password, '$2b$12$000000000000000000000000000000000000000000000000000000');
       throw new AppLogicException('INVALID_CREDENTIALS', HttpStatus.UNAUTHORIZED);
     }
 
@@ -124,8 +126,9 @@ export class AuthService implements OnModuleInit {
   }
 
   async refresh(refreshTokenValue: string) {
+    const hashedToken = crypto.createHash('sha256').update(refreshTokenValue).digest('hex');
     const tokenRecord = await this.refreshTokenRepo.findOne({
-      where: { token: refreshTokenValue },
+      where: { token: hashedToken },
     });
 
     if (!tokenRecord || tokenRecord.isRevoked) {
@@ -150,8 +153,9 @@ export class AuthService implements OnModuleInit {
   }
 
   async logout(refreshTokenValue: string) {
+    const hashedToken = crypto.createHash('sha256').update(refreshTokenValue).digest('hex');
     const tokenRecord = await this.refreshTokenRepo.findOne({
-      where: { token: refreshTokenValue },
+      where: { token: hashedToken },
     });
     if (tokenRecord) {
       tokenRecord.isRevoked = true;
@@ -268,9 +272,10 @@ export class AuthService implements OnModuleInit {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
+    const hashedRefreshToken = crypto.createHash('sha256').update(refreshTokenValue).digest('hex');
     const refreshToken = this.refreshTokenRepo.create({
       userId: user.id,
-      token: refreshTokenValue,
+      token: hashedRefreshToken,
       expiresAt,
     });
     await this.refreshTokenRepo.save(refreshToken);
