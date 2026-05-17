@@ -13,18 +13,24 @@ export class FileStorageService {
 
   constructor(private readonly configService: ConfigService) {
     this.isTestMode = this.configService.get<string>('NODE_ENV') === 'test';
-    this.bucket = this.configService.get<string>('S3_BUCKET', 'trackero');
-    this.presignExpiry = parseInt(String(this.configService.get('S3_PRESIGN_EXPIRY', 3600)));
+    this.bucket = this.configService.get<string>('MINIO_BUCKET', 'trackero-files');
+    this.presignExpiry = parseInt(String(this.configService.get('PRESIGNED_URL_EXPIRY', 1800)));
 
     if (!this.isTestMode) {
+      const endpoint = this.configService.get<string>('MINIO_ENDPOINT');
+      const port = this.configService.get<number>('MINIO_PORT', 443);
+      const useSSL = this.configService.get<string>('MINIO_USE_SSL', 'true') === 'true';
+      const protocol = useSSL ? 'https' : 'http';
+
       this.s3 = new S3Client({
-        endpoint: this.configService.get<string>('S3_ENDPOINT'),
+        endpoint: `${protocol}://${endpoint}:${port}`,
         region: this.configService.get<string>('S3_REGION', 'us-east-1'),
         credentials: {
-          accessKeyId: this.configService.get<string>('S3_ACCESS_KEY', ''),
-          secretAccessKey: this.configService.get<string>('S3_SECRET_KEY', ''),
+          accessKeyId: this.configService.get<string>('MINIO_ACCESS_KEY', ''),
+          secretAccessKey: this.configService.get<string>('MINIO_SECRET_KEY', ''),
         },
         forcePathStyle: true,
+        tls: useSSL,
       });
     } else {
       this.s3 = null;
