@@ -6,7 +6,7 @@ export class CreateProjectDto {
   name: string;
 
   @IsString()
-  @Matches(/^[A-Z]{2,10}$/, { message: 'prefix must be 2-10 uppercase letters' })
+  @Matches(/^[A-Z0-9]{2,5}$/, { message: 'prefix must be 2-5 uppercase letters or digits' })
   prefix: string;
 
   @IsOptional()

@@ -6,9 +6,10 @@ import { Project } from './entities/project.entity';
 import { ProjectMember } from './entities/project-member.entity';
 import { ProjectStatus } from './entities/project-status.entity';
 import { Label } from './entities/label.entity';
+import { TaskType } from './entities/task-type.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Project, ProjectMember, ProjectStatus, Label])],
+  imports: [TypeOrmModule.forFeature([Project, ProjectMember, ProjectStatus, Label, TaskType])],
   controllers: [ProjectsController],
   providers: [ProjectsService],
   exports: [ProjectsService],

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/auth.store';
 
@@ -40,29 +40,29 @@ export function LoginPage() {
 
   if (isSetup === null) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
-        <div className="text-gray-400">Loading...</div>
+      <div className="flex min-h-screen items-center justify-center bg-neutral-50 dark:bg-dneutral-50">
+        <div className="text-neutral-400">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-neutral-50 dark:bg-dneutral-50 px-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Trackero</h1>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Sign in to your account</p>
+          <h1 className="text-2xl font-bold text-neutral-700 dark:text-dneutral-700">Trackero</h1>
+          <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">Sign in to your account</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-700 dark:text-red-400">
+            <div className="rounded-md bg-danger/10 dark:bg-danger/10 p-3 text-sm text-danger dark:text-danger">
               {error}
             </div>
           )}
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label htmlFor="email" className="block text-sm font-medium text-neutral-600 dark:text-dneutral-600">
               Email
             </label>
             <input
@@ -71,13 +71,13 @@ export function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-50 placeholder-gray-400 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+              className="mt-1 block w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-100 px-3 py-2 text-sm text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
               placeholder="you@example.com"
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label htmlFor="password" className="block text-sm font-medium text-neutral-600 dark:text-dneutral-600">
               Password
             </label>
             <input
@@ -86,20 +86,14 @@ export function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-50 placeholder-gray-400 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+              className="mt-1 block w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-100 px-3 py-2 text-sm text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
             />
-          </div>
-
-          <div className="flex justify-end">
-            <Link to="/forgot-password" className="text-sm text-brand hover:underline">
-              Forgot password?
-            </Link>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand/90 disabled:opacity-50"
+            className="w-full rounded-md bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
           >
             {loading ? 'Signing in...' : 'Sign in'}
           </button>

@@ -6,6 +6,8 @@ import { Comment } from './entities/comment.entity';
 import { AppLogicException } from '../common/exceptions/app-exceptions';
 import { PaginatedResponse } from '../common/dto/paginated-response.dto';
 import { PaginatedMutationResponse } from '../common/dto/paginated-mutation-response.dto';
+import { clampLimit } from '../common/helpers/pagination.helper';
+import { stripHtml } from '../common/helpers/sanitize.helper';
 
 @Injectable()
 export class CommentsService {
@@ -16,7 +18,19 @@ export class CommentsService {
     private readonly dataSource: DataSource,
   ) {}
 
+  private async verifyTaskInProject(projectId: number, taskId: number): Promise<void> {
+    const [task] = await this.dataSource.query(
+      'SELECT id FROM tasks WHERE id = $1 AND project_id = $2',
+      [taskId, projectId],
+    );
+    if (!task) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+  }
+
   async create(projectId: number, taskId: number, body: string, userId: number) {
+    await this.verifyTaskInProject(projectId, taskId);
+    body = stripHtml(body);
     const comment = this.commentRepo.create({
       taskId,
       authorId: userId,
@@ -52,11 +66,13 @@ export class CommentsService {
       }
     }
 
-    const list = await this.listComments(taskId);
+    const list = await this.listComments(projectId, taskId);
     return PaginatedMutationResponse.forPaginated(saved, list);
   }
 
-  async listComments(taskId: number, page: number = 1, limit: number = 20) {
+  async listComments(projectId: number, taskId: number, page: number = 1, limit: number = 20) {
+    await this.verifyTaskInProject(projectId, taskId);
+    limit = clampLimit(limit);
     const qb = this.commentRepo.createQueryBuilder('c')
       .leftJoin('c.author', 'author')
       .addSelect(['author.id', 'author.displayName', 'author.avatarUrl'])
@@ -64,14 +80,14 @@ export class CommentsService {
       .orderBy('c.createdAt', 'ASC');
 
     const total = await qb.getCount();
-    if (limit !== -1) {
-      qb.skip((page - 1) * limit).take(limit);
-    }
+    qb.skip((page - 1) * limit).take(limit);
     const data = await qb.getMany();
     return new PaginatedResponse(data, total, page, limit);
   }
 
-  async update(taskId: number, commentId: number, body: string, userId: number) {
+  async update(projectId: number, taskId: number, commentId: number, body: string, userId: number) {
+    await this.verifyTaskInProject(projectId, taskId);
+    body = stripHtml(body);
     const comment = await this.commentRepo.findOne({ where: { id: commentId, taskId } });
     if (!comment) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
@@ -84,7 +100,8 @@ export class CommentsService {
     return this.commentRepo.save(comment);
   }
 
-  async remove(taskId: number, commentId: number, userId: number, userRole: string) {
+  async remove(projectId: number, taskId: number, commentId: number, userId: number, userRole: string) {
+    await this.verifyTaskInProject(projectId, taskId);
     const comment = await this.commentRepo.findOne({ where: { id: commentId, taskId } });
     if (!comment) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);

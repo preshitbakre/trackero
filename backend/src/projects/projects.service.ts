@@ -6,6 +6,7 @@ import { Project } from './entities/project.entity';
 import { ProjectMember } from './entities/project-member.entity';
 import { ProjectStatus } from './entities/project-status.entity';
 import { Label } from './entities/label.entity';
+import { TaskType } from './entities/task-type.entity';
 import { AppLogicException } from '../common/exceptions/app-exceptions';
 import { PaginatedResponse } from '../common/dto/paginated-response.dto';
 import { PaginatedMutationResponse } from '../common/dto/paginated-mutation-response.dto';
@@ -15,14 +16,18 @@ import { AddMemberDto } from './dto/add-member.dto';
 import { CreateStatusDto } from './dto/create-status.dto';
 import { CreateLabelDto } from './dto/create-label.dto';
 import { UpdateLabelDto } from './dto/update-label.dto';
+import { clampLimit } from '../common/helpers/pagination.helper';
+
+const DEFAULT_TASK_TYPES = [
+  { name: 'Task', icon: 'circle-dot', color: '#6B7280', isBuiltin: true, sortOrder: 0 },
+  { name: 'Bug', icon: 'bug', color: '#EF4444', isBuiltin: true, sortOrder: 1 },
+  { name: 'Story', icon: 'book', color: '#8B5CF6', isBuiltin: true, sortOrder: 2 },
+];
 
 const DEFAULT_STATUSES = [
-  { name: 'Backlog', category: 'backlog' as const, sortOrder: 0, isDefault: true, color: '#6B7280' },
-  { name: 'Todo', category: 'todo' as const, sortOrder: 1, isDefault: false, color: '#3B82F6' },
-  { name: 'In Progress', category: 'in_progress' as const, sortOrder: 2, isDefault: false, color: '#F59E0B' },
-  { name: 'In Review', category: 'in_review' as const, sortOrder: 3, isDefault: false, color: '#8B5CF6' },
-  { name: 'Done', category: 'done' as const, sortOrder: 4, isDefault: false, color: '#22C55E' },
-  { name: 'Cancelled', category: 'cancelled' as const, sortOrder: 5, isDefault: false, color: '#EF4444' },
+  { name: 'Backlog', category: 'backlog' as const, sortOrder: 0, isDefault: true, color: '#6D7F8E', isFixed: true },
+  { name: 'In Progress', category: 'in_progress' as const, sortOrder: 1, isDefault: false, color: '#C4A882', isFixed: true },
+  { name: 'Done', category: 'done' as const, sortOrder: 2, isDefault: false, color: '#558A7A', isFixed: true },
 ];
 
 @Injectable()
@@ -36,6 +41,8 @@ export class ProjectsService {
     private readonly statusRepo: Repository<ProjectStatus>,
     @InjectRepository(Label)
     private readonly labelRepo: Repository<Label>,
+    @InjectRepository(TaskType)
+    private readonly taskTypeRepo: Repository<TaskType>,
     private readonly dataSource: DataSource,
     private readonly eventEmitter: EventEmitter2,
   ) {}
@@ -60,6 +67,12 @@ export class ProjectsService {
     );
     await this.statusRepo.save(statuses);
 
+    // Create default task types
+    const taskTypes = DEFAULT_TASK_TYPES.map((tt) =>
+      this.taskTypeRepo.create({ ...tt, projectId: saved.id }),
+    );
+    await this.taskTypeRepo.save(taskTypes);
+
     // Add creator as project_manager
     const member = this.memberRepo.create({
       projectId: saved.id,
@@ -74,6 +87,7 @@ export class ProjectsService {
   }
 
   async listProjects(userId: number, role: string, page: number = 1, limit: number = 20, filters?: { status?: string; search?: string }) {
+    limit = clampLimit(limit);
     const qb = this.projectRepo.createQueryBuilder('p')
       .leftJoin('p.lead', 'lead')
       .addSelect(['lead.id', 'lead.displayName', 'lead.avatarUrl']);
@@ -92,9 +106,7 @@ export class ProjectsService {
     qb.orderBy('p.createdAt', 'DESC');
 
     const total = await qb.getCount();
-    if (limit !== -1) {
-      qb.skip((page - 1) * limit).take(limit);
-    }
+    qb.skip((page - 1) * limit).take(limit);
     const entities = await qb.getMany();
 
     // Batch-load computed fields
@@ -134,7 +146,9 @@ export class ProjectsService {
     if (dto.name !== undefined) project.name = dto.name;
     if (dto.description !== undefined) project.description = dto.description;
     if (dto.leadId !== undefined) project.leadId = dto.leadId;
+    if (dto.defaultAssigneeId !== undefined) project.defaultAssigneeId = dto.defaultAssigneeId;
     if (dto.defaultSprintDuration !== undefined) project.defaultSprintDuration = dto.defaultSprintDuration;
+    if (dto.estimationScale !== undefined) project.estimationScale = dto.estimationScale;
 
     const saved = await this.projectRepo.save(project);
     const list = await this.listProjects(userId, role, 1, 20);
@@ -248,14 +262,21 @@ export class ProjectsService {
     return this.statusRepo.save(status);
   }
 
-  async updateStatus(projectId: number, statusId: number, dto: { name?: string; color?: string; category?: string }) {
+  async updateStatus(projectId: number, statusId: number, dto: { name?: string; color?: string; category?: string; wipLimit?: number }) {
     const status = await this.statusRepo.findOne({ where: { id: statusId, projectId } });
     if (!status) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
-    if (dto.name !== undefined) status.name = dto.name;
-    if (dto.color !== undefined) status.color = dto.color;
-    if (dto.category !== undefined) status.category = dto.category as any;
+    if (status.isFixed) {
+      // Fixed statuses: only allow color and wipLimit changes
+      if (dto.color !== undefined) status.color = dto.color;
+      if (dto.wipLimit !== undefined) status.wipLimit = dto.wipLimit;
+    } else {
+      if (dto.name !== undefined) status.name = dto.name;
+      if (dto.color !== undefined) status.color = dto.color;
+      if (dto.category !== undefined) status.category = dto.category as any;
+      if (dto.wipLimit !== undefined) status.wipLimit = dto.wipLimit;
+    }
     return this.statusRepo.save(status);
   }
 
@@ -272,14 +293,9 @@ export class ProjectsService {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
 
-    // Check if it's the last status in required categories
-    if (status.category === 'backlog' || status.category === 'done') {
-      const countInCategory = await this.statusRepo.count({
-        where: { projectId, category: status.category },
-      });
-      if (countInCategory <= 1) {
-        throw new AppLogicException('STATUS_CATEGORY_REQUIRED', HttpStatus.CONFLICT);
-      }
+    // Fixed statuses cannot be deleted
+    if (status.isFixed) {
+      throw new AppLogicException('FORBIDDEN', HttpStatus.FORBIDDEN);
     }
 
     // Check if status has tasks assigned
@@ -297,10 +313,14 @@ export class ProjectsService {
   // --- Labels ---
 
   async listLabels(projectId: number) {
-    return this.labelRepo.find({
-      where: { projectId },
-      order: { createdAt: 'ASC' },
-    });
+    const labels = await this.dataSource.query(`
+      SELECT l.id, l.name, l.color, l.created_at AS "createdAt",
+        COALESCE((SELECT COUNT(*)::int FROM task_labels tl WHERE tl.label_id = l.id), 0) AS "taskCount"
+      FROM labels l
+      WHERE l.project_id = $1
+      ORDER BY l.created_at ASC
+    `, [projectId]);
+    return labels;
   }
 
   async createLabel(projectId: number, dto: CreateLabelDto) {

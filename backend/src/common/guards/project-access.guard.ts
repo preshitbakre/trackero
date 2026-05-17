@@ -9,9 +9,15 @@ export class ProjectAccessGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
-    const projectId = parseInt(request.params.projectId, 10);
+    const projectIdParam = request.params.projectId;
 
-    if (!projectId || isNaN(projectId)) return true;
+    // Route doesn't have :projectId param — not a project-scoped route
+    if (projectIdParam === undefined) return true;
+
+    const projectId = parseInt(projectIdParam, 10);
+    if (isNaN(projectId)) {
+      throw new AppLogicException('FORBIDDEN', HttpStatus.BAD_REQUEST);
+    }
 
     // Check membership (admin bypasses)
     if (user.role !== 'admin') {

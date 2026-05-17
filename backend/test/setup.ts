@@ -33,6 +33,21 @@ export async function createTestApp(): Promise<INestApplication> {
   app.useGlobalFilters(new HttpExceptionFilter());
 
   await app.init();
+
+  // Ensure search_vector generated column and index exist (synchronize doesn't handle GENERATED columns)
+  const dataSource = app.get(DataSource);
+  await dataSource.query(`
+    DO $$ BEGIN
+      ALTER TABLE tasks ADD COLUMN search_vector tsvector
+      GENERATED ALWAYS AS (
+        setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
+        setweight(to_tsvector('english', coalesce(description, '')), 'B')
+      ) STORED;
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$
+  `);
+  await dataSource.query(`CREATE INDEX IF NOT EXISTS "IDX_task_search" ON tasks USING gin(search_vector)`);
+
   return app;
 }
 

@@ -75,14 +75,14 @@ export function RetroPage() {
   };
 
   const columns = [
-    { key: 'went_well', title: 'Went Well', color: 'border-green-400 bg-green-50 dark:bg-green-900/10' },
-    { key: 'to_improve', title: 'To Improve', color: 'border-amber-400 bg-amber-50 dark:bg-amber-900/10' },
-    { key: 'action_items', title: 'Action Items', color: 'border-blue-400 bg-blue-50 dark:bg-blue-900/10' },
+    { key: 'went_well', title: 'Went Well', color: 'border-secondary-400 bg-secondary-50 dark:bg-dsecondary-50' },
+    { key: 'to_improve', title: 'To Improve', color: 'border-accent-400 bg-accent-50 dark:bg-daccent-50' },
+    { key: 'action_items', title: 'Action Items', color: 'border-primary-400 bg-primary-50 dark:bg-dprimary-50' },
   ];
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50 mb-6">Retrospective</h1>
+      <h1 className="text-2xl font-bold text-neutral-700 dark:text-dneutral-700 mb-6">Retrospective</h1>
 
       <div className="grid grid-cols-3 gap-4">
         {columns.map((col) => {
@@ -92,11 +92,11 @@ export function RetroPage() {
 
           return (
             <div key={col.key} className={`rounded-lg border-t-4 p-4 ${col.color}`}>
-              <h2 className="font-medium text-gray-900 dark:text-gray-50 mb-3">{col.title}</h2>
+              <h2 className="font-medium text-neutral-700 dark:text-dneutral-700 mb-3">{col.title}</h2>
 
               <div className="space-y-2 mb-3">
                 {colCards.map((card) => (
-                  <div key={card.id} className="bg-white dark:bg-gray-900 rounded p-3 shadow-sm border border-gray-200 dark:border-gray-700">
+                  <div key={card.id} className="bg-neutral-50 dark:bg-dneutral-100 rounded p-3 shadow-sm border border-neutral-200 dark:border-dneutral-300">
                     {editingCard?.id === card.id ? (
                       <div>
                         <textarea
@@ -104,26 +104,26 @@ export function RetroPage() {
                           onChange={(e) => setEditingCard({ ...editingCard, content: e.target.value })}
                           autoFocus
                           rows={3}
-                          className="w-full text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-2"
+                          className="w-full text-sm rounded border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 p-2"
                         />
                         <div className="flex gap-1 mt-1">
-                          <button onClick={() => handleEditCard(card.id, editingCard.content)} className="text-xs px-2 py-1 bg-brand text-white rounded">Save</button>
-                          <button onClick={() => setEditingCard(null)} className="text-xs px-2 py-1 text-gray-500">Cancel</button>
+                          <button onClick={() => handleEditCard(card.id, editingCard.content)} className="text-sm px-2 py-1 bg-primary-500 text-white rounded">Save</button>
+                          <button onClick={() => setEditingCard(null)} className="text-sm px-2 py-1 text-neutral-400">Cancel</button>
                         </div>
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-800 dark:text-gray-200">{card.content}</p>
+                      <p className="text-sm text-neutral-600 dark:text-dneutral-600">{card.content}</p>
                     )}
                     <div className="flex items-center justify-between mt-2">
                       <button
                         onClick={() => handleVote(card.id)}
-                        className="text-xs flex items-center gap-1 text-gray-500 hover:text-brand"
+                        className="text-sm flex items-center gap-1 text-neutral-400 hover:text-primary-500"
                       >
                         👍 {card.votes}
                       </button>
                       <div className="flex gap-1">
-                        <button onClick={() => setEditingCard({ id: card.id, content: card.content })} className="text-xs text-gray-400 hover:text-gray-600">Edit</button>
-                        <button onClick={() => handleDeleteCard(card.id)} className="text-xs text-gray-400 hover:text-red-500">Delete</button>
+                        <button onClick={() => setEditingCard({ id: card.id, content: card.content })} className="text-sm text-neutral-400 hover:text-neutral-500">Edit</button>
+                        <button onClick={() => handleDeleteCard(card.id)} className="text-sm text-neutral-400 hover:text-danger">Delete</button>
                       </div>
                     </div>
                   </div>
@@ -138,17 +138,17 @@ export function RetroPage() {
                     placeholder="Add a card..."
                     autoFocus
                     rows={3}
-                    className="w-full text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-2"
+                    className="w-full text-sm rounded border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 p-2"
                   />
                   <div className="flex gap-1">
-                    <button onClick={() => handleAddCard(col.key)} className="text-xs px-2 py-1 bg-brand text-white rounded">Add</button>
-                    <button onClick={() => setNewCard(null)} className="text-xs px-2 py-1 text-gray-500">Cancel</button>
+                    <button onClick={() => handleAddCard(col.key)} className="text-sm px-2 py-1 bg-primary-500 text-white rounded">Add</button>
+                    <button onClick={() => setNewCard(null)} className="text-sm px-2 py-1 text-neutral-400">Cancel</button>
                   </div>
                 </div>
               ) : (
                 <button
                   onClick={() => setNewCard({ column: col.key, content: '' })}
-                  className="text-xs text-gray-400 hover:text-brand"
+                  className="text-sm text-neutral-400 hover:text-primary-500"
                 >
                   + Add card
                 </button>

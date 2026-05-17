@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { OnEvent } from '@nestjs/event-emitter';
 import { ActivityLog } from './entities/activity-log.entity';
 import { PaginatedResponse } from '../common/dto/paginated-response.dto';
+import { clampLimit } from '../common/helpers/pagination.helper';
 
 @Injectable()
 export class ActivityService {
@@ -13,6 +14,7 @@ export class ActivityService {
   ) {}
 
   async listProjectActivity(projectId: number, page: number = 1, limit: number = 20) {
+    limit = clampLimit(limit);
     const qb = this.activityRepo.createQueryBuilder('a')
       .leftJoin('a.user', 'user')
       .addSelect(['user.id', 'user.displayName', 'user.avatarUrl'])
@@ -20,14 +22,13 @@ export class ActivityService {
       .orderBy('a.createdAt', 'DESC');
 
     const total = await qb.getCount();
-    if (limit !== -1) {
-      qb.skip((page - 1) * limit).take(limit);
-    }
+    qb.skip((page - 1) * limit).take(limit);
     const data = await qb.getMany();
     return new PaginatedResponse(data, total, page, limit);
   }
 
   async listTaskActivity(projectId: number, taskId: number, page: number = 1, limit: number = 20) {
+    limit = clampLimit(limit);
     const qb = this.activityRepo.createQueryBuilder('a')
       .leftJoin('a.user', 'user')
       .addSelect(['user.id', 'user.displayName', 'user.avatarUrl'])
@@ -35,9 +36,7 @@ export class ActivityService {
       .orderBy('a.createdAt', 'DESC');
 
     const total = await qb.getCount();
-    if (limit !== -1) {
-      qb.skip((page - 1) * limit).take(limit);
-    }
+    qb.skip((page - 1) * limit).take(limit);
     const data = await qb.getMany();
     return new PaginatedResponse(data, total, page, limit);
   }

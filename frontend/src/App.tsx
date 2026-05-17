@@ -1,10 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/query-client';
+import { ToastProvider } from './components/common/Toast';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { DashboardPage } from './pages/DashboardPage';
-import { ProjectsPage } from './pages/ProjectsPage';
 import { EpicsPage } from './pages/EpicsPage';
 import { EpicBoardPage } from './pages/EpicBoardPage';
 import { SprintsPage } from './pages/SprintsPage';
@@ -16,6 +16,7 @@ import { SprintPlanningPage } from './pages/SprintPlanningPage';
 import { BacklogPage } from './pages/BacklogPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ProjectSettingsPage } from './pages/ProjectSettingsPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AppShell } from './components/layout/AppShell';
 import { useEffect } from 'react';
@@ -34,6 +35,7 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <InitTheme />
+      <ToastProvider />
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
@@ -46,7 +48,6 @@ export function App() {
             }
           >
             <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/projects/:id/board" element={<BoardPage />} />
             <Route path="/projects/:id/tasks" element={<TasksPage />} />
             <Route path="/projects/:id/backlog" element={<BacklogPage />} />
@@ -54,6 +55,7 @@ export function App() {
             <Route path="/projects/:id/epics" element={<EpicsPage />} />
             <Route path="/projects/:id/epics/:epicId/board" element={<EpicBoardPage />} />
             <Route path="/projects/:id/charts" element={<ChartsPage />} />
+            <Route path="/projects/:id/settings" element={<ProjectSettingsPage />} />
             <Route path="/projects/:id/sprints/:sprintId/retro" element={<RetroPage />} />
             <Route path="/projects/:id/sprints/:sprintId/planning" element={<SprintPlanningPage />} />
             <Route path="/profile" element={<ProfilePage />} />

@@ -76,7 +76,7 @@ describe('Charts, Retro, Search (e2e)', () => {
       const sprintRes = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 1' });
+        .send({ name: 'Sprint 1', startDate: '2026-05-18', endDate: '2026-06-01' });
       sprintId = sprintRes.body.data.item.id;
     });
 

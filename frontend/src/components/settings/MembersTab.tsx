@@ -1,0 +1,318 @@
+import { useState, useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
+import { createPortal } from 'react-dom';
+import { apiClient } from '../../api/client';
+import { toast } from '../common/Toast';
+import { useAuthStore } from '../../store/auth.store';
+import { Select } from '../ui/Select';
+import { ConfirmDialog } from '../common/ConfirmDialog';
+
+interface MemberRow {
+  id: number;
+  userId: number;
+  role: string;
+  user: {
+    id: number;
+    displayName: string;
+    email: string;
+    avatarUrl: string | null;
+    role: string;
+  };
+}
+
+interface SearchUser {
+  id: number;
+  displayName: string;
+  email: string;
+  avatarUrl: string | null;
+}
+
+export function MembersTab() {
+  const { id: projectId } = useParams();
+  const currentUser = useAuthStore((s) => s.user);
+  const isAdmin = currentUser?.role === 'admin';
+  const [members, setMembers] = useState<MemberRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [removingMember, setRemovingMember] = useState<MemberRow | null>(null);
+
+  const loadMembers = async () => {
+    try {
+      const { data } = await apiClient.get(`/projects/${projectId}/members`);
+      setMembers(data.data.list || []);
+    } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => { loadMembers(); }, [projectId]);
+
+  const handleRoleChange = async (userId: number, newRole: string) => {
+    try {
+      await apiClient.put(`/projects/${projectId}/members/${userId}`, { role: newRole });
+      loadMembers();
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to update role', 'error');
+    }
+  };
+
+  const handleRemove = async (member: MemberRow) => {
+    try {
+      await apiClient.delete(`/projects/${projectId}/members/${member.userId}`);
+      setRemovingMember(null);
+      loadMembers();
+      toast('Member removed');
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to remove member', 'error');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-3 animate-pulse">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-12 bg-neutral-200 dark:bg-dneutral-200 rounded" />
+        ))}
+      </div>
+    );
+  }
+
+  const roleOptions = isAdmin
+    ? [{ value: 'project_manager', label: 'Project Manager' }, { value: 'member', label: 'Member' }, { value: 'viewer', label: 'Viewer' }]
+    : [{ value: 'member', label: 'Member' }, { value: 'viewer', label: 'Viewer' }];
+
+  return (
+    <div className="max-w-3xl">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm font-semibold text-neutral-700 dark:text-dneutral-700">
+          Members ({members.length})
+        </h2>
+        <button
+          onClick={() => setShowAddDialog(true)}
+          className="px-3 py-1.5 text-sm font-medium text-white bg-primary-500 rounded-md hover:bg-primary-600"
+        >
+          + Add member
+        </button>
+      </div>
+
+      {members.length === 0 ? (
+        <div className="text-center py-8 text-neutral-400 dark:text-dneutral-500">
+          <p>No members yet. Add team members to start collaborating.</p>
+        </div>
+      ) : (
+        <div className="border border-neutral-200 dark:border-dneutral-200 rounded-lg overflow-hidden">
+          {members.map((m, i) => {
+            const isInstanceAdmin = m.user.role === 'admin';
+            const isSelf = m.userId === currentUser?.id;
+            const initial = m.user.displayName?.charAt(0)?.toUpperCase() || '?';
+
+            return (
+              <div
+                key={m.id}
+                className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? 'border-t border-neutral-100 dark:border-dneutral-200' : ''}`}
+              >
+                <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-dprimary-100 flex items-center justify-center text-sm font-medium text-primary-600 dark:text-dprimary-600 flex-shrink-0">
+                  {initial}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-neutral-700 dark:text-dneutral-700 truncate">{m.user.displayName}</p>
+                  <p className="text-sm text-neutral-400 dark:text-dneutral-500 truncate">{m.user.email}</p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {isInstanceAdmin ? (
+                    <span className="text-sm text-neutral-400 dark:text-dneutral-500 px-2 py-1 bg-neutral-100 dark:bg-dneutral-200 rounded">Admin (instance)</span>
+                  ) : (
+                    <Select
+                      value={m.role}
+                      onChange={(val) => handleRoleChange(m.userId, val)}
+                      options={roleOptions}
+                    />
+                  )}
+                  {!isInstanceAdmin && !isSelf && (
+                    <button
+                      onClick={() => setRemovingMember(m)}
+                      className="text-sm text-danger hover:text-danger/80 px-1"
+                      title="Remove from project"
+                    >
+                      &#x2715;
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {showAddDialog && (
+        <AddMemberDialog
+          projectId={projectId!}
+          isAdmin={isAdmin}
+          onClose={() => setShowAddDialog(false)}
+          onAdded={() => { setShowAddDialog(false); loadMembers(); toast('Member added'); }}
+        />
+      )}
+
+      {removingMember && (
+        <ConfirmDialog
+          title="Remove member"
+          message={`Remove ${removingMember.user.displayName} from this project?`}
+          confirmLabel="Remove"
+          danger
+          onConfirm={() => handleRemove(removingMember)}
+          onCancel={() => setRemovingMember(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function AddMemberDialog({ projectId, isAdmin, onClose, onAdded }: {
+  projectId: string;
+  isAdmin: boolean;
+  onClose: () => void;
+  onAdded: () => void;
+}) {
+  const [search, setSearch] = useState('');
+  const [results, setResults] = useState<SearchUser[]>([]);
+  const [selectedUser, setSelectedUser] = useState<SearchUser | null>(null);
+  const [role, setRole] = useState('member');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (search.length < 1) {
+      setResults([]);
+      setShowResults(false);
+      return;
+    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const { data } = await apiClient.get(`/users?exclude_project=${projectId}&search=${encodeURIComponent(search)}&limit=10`);
+        setResults(data.data.list || []);
+        setShowResults(true);
+      } catch {}
+      setSearching(false);
+    }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [search, projectId]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowResults(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const handleSubmit = async () => {
+    if (!selectedUser) return;
+    setError('');
+    setLoading(true);
+    try {
+      await apiClient.post(`/projects/${projectId}/members`, { userId: selectedUser.id, role });
+      onAdded();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to add member');
+    }
+    setLoading(false);
+  };
+
+  const roleOptions = isAdmin
+    ? [{ value: 'project_manager', label: 'Project Manager' }, { value: 'member', label: 'Member' }, { value: 'viewer', label: 'Viewer' }]
+    : [{ value: 'member', label: 'Member' }, { value: 'viewer', label: 'Viewer' }];
+
+  const inputClass = "w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 px-3 py-2 text-sm text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400";
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-700/50" onClick={onClose}>
+      <div className="bg-neutral-50 dark:bg-dneutral-100 rounded-lg p-6 w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-bold mb-4 text-neutral-700 dark:text-dneutral-700">Add member</h2>
+
+        {error && <div className="text-sm text-danger mb-3">{error}</div>}
+
+        <div className="space-y-4">
+          {/* User search */}
+          <div>
+            <label className="block text-sm font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Search user</label>
+            {selectedUser ? (
+              <div className="flex items-center gap-2 p-2 rounded-md border border-primary-500 bg-primary-50 dark:bg-dprimary-50">
+                <div className="w-6 h-6 rounded-full bg-primary-100 dark:bg-dprimary-100 flex items-center justify-center text-sm font-medium text-primary-600 dark:text-dprimary-600">
+                  {selectedUser.displayName?.charAt(0)?.toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm text-neutral-700 dark:text-dneutral-700">{selectedUser.displayName}</span>
+                  <span className="text-sm text-neutral-400 dark:text-dneutral-500 ml-2">{selectedUser.email}</span>
+                </div>
+                <button onClick={() => { setSelectedUser(null); setSearch(''); }} className="text-sm text-neutral-400 hover:text-neutral-600">&#x2715;</button>
+              </div>
+            ) : (
+              <div className="relative" ref={dropdownRef}>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onFocus={() => results.length > 0 && setShowResults(true)}
+                  placeholder="Search by name or email..."
+                  autoFocus
+                  className={inputClass}
+                />
+                {searching && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-neutral-400">...</span>}
+                {showResults && results.length > 0 && (
+                  <div className="absolute z-10 mt-1 w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 shadow-lg max-h-48 overflow-y-auto">
+                    {results.map((u) => (
+                      <button
+                        key={u.id}
+                        onClick={() => { setSelectedUser(u); setShowResults(false); setSearch(''); }}
+                        className="flex items-center gap-2 w-full text-left px-3 py-2 hover:bg-neutral-100 dark:hover:bg-dneutral-300"
+                      >
+                        <div className="w-6 h-6 rounded-full bg-primary-100 dark:bg-dprimary-100 flex items-center justify-center text-sm font-medium text-primary-600 dark:text-dprimary-600">
+                          {u.displayName?.charAt(0)?.toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm text-neutral-700 dark:text-dneutral-700 truncate">{u.displayName}</p>
+                          <p className="text-sm text-neutral-400 dark:text-dneutral-500 truncate">{u.email}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {showResults && results.length === 0 && search.length >= 1 && !searching && (
+                  <div className="absolute z-10 mt-1 w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 shadow-lg p-3 text-sm text-neutral-400 text-center">
+                    No users found
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Role selector */}
+          <div>
+            <label className="block text-sm font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Role</label>
+            <Select value={role} onChange={setRole} options={roleOptions} className="w-full" />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 mt-6">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-neutral-500 dark:text-dneutral-500 hover:text-neutral-700">Cancel</button>
+          <button
+            onClick={handleSubmit}
+            disabled={!selectedUser || loading}
+            className="px-4 py-2 text-sm font-medium text-white bg-primary-500 rounded-md hover:bg-primary-600 disabled:opacity-50"
+          >
+            {loading ? 'Adding...' : 'Add member'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}

@@ -18,6 +18,7 @@ import { StatusColumn } from './StatusColumn';
 import { TaskCard } from './TaskCard';
 import { TaskDetailPanel } from '../tasks/TaskDetailPanel';
 import { CardSkeleton } from '../common/Skeleton';
+import { Select } from '../ui/Select';
 import { ErrorState } from '../common/ErrorState';
 
 interface BoardTask {
@@ -30,6 +31,8 @@ interface BoardTask {
   storyPoints: number | null;
   sortOrder: string;
   epicId: number | null;
+  parentId?: number | null;
+  parentTaskNumber?: number | null;
 }
 
 interface BoardColumn {
@@ -44,8 +47,12 @@ export function KanbanBoard({ epicFilter }: { epicFilter?: number } = {}) {
   const [activeTask, setActiveTask] = useState<BoardTask | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [sprintId, setSprintId] = useState<string>('');
+  const [assignedToMe, setAssignedToMe] = useState(false);
+  const [sprints, setSprints] = useState<{ id: number; name: string; status: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const user = useAuthStore((s) => s.user);
+  const canEdit = user?.role !== 'viewer';
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -59,17 +66,25 @@ export function KanbanBoard({ epicFilter }: { epicFilter?: number } = {}) {
       const params = new URLSearchParams();
       if (sprintId) params.set('sprintId', sprintId);
       if (epicFilter) params.set('epicId', String(epicFilter));
+      if (assignedToMe && user) params.set('assigneeId', String(user.id));
       const { data } = await apiClient.get(`/projects/${projectId}/board?${params}`);
       setColumns(data.data.columns || []);
     } catch {
       setError(true);
     }
     setLoading(false);
-  }, [projectId, sprintId, epicFilter]);
+  }, [projectId, sprintId, epicFilter, assignedToMe, user]);
 
   useEffect(() => {
     loadBoard();
   }, [loadBoard]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    apiClient.get(`/projects/${projectId}/sprints?limit=100`).then((r) => {
+      setSprints((r.data.data.list || []).filter((s: any) => s.status === 'active' || s.status === 'planning'));
+    }).catch(() => {});
+  }, [projectId]);
 
   useEffect(() => {
     const socket = getSocket();
@@ -161,6 +176,8 @@ export function KanbanBoard({ epicFilter }: { epicFilter?: number } = {}) {
         statusId: targetStatusId,
         sortOrder: 'n',
       });
+      // Reload to update subtask counts, WIP counts, etc.
+      loadBoard();
     } catch (err: any) {
       // Revert on failure
       alert(err.response?.data?.message || 'Move failed');
@@ -183,14 +200,26 @@ export function KanbanBoard({ epicFilter }: { epicFilter?: number } = {}) {
   return (
     <div className="flex flex-col h-full">
       {/* Filter bar */}
-      <div className="flex items-center gap-3 px-6 py-3 border-b border-gray-200 dark:border-gray-800">
-        <select
+      <div className="flex items-center gap-3 px-6 py-3 border-b border-neutral-200 dark:border-dneutral-200">
+        <Select
           value={sprintId}
-          onChange={(e) => setSprintId(e.target.value)}
-          className="text-sm rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1"
+          onChange={setSprintId}
+          placeholder="All tasks (no sprint filter)"
+          options={[
+            { value: '', label: 'All tasks (no sprint filter)' },
+            ...sprints.map((s) => ({ value: String(s.id), label: `${s.name} (${s.status})` })),
+          ]}
+        />
+        <button
+          onClick={() => setAssignedToMe((v) => !v)}
+          className={`text-sm px-3 py-1 rounded-md border ${
+            assignedToMe
+              ? 'bg-primary-500 text-white border-primary-500'
+              : 'border-neutral-200 dark:border-dneutral-300 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-dneutral-200'
+          }`}
         >
-          <option value="">All tasks (no sprint filter)</option>
-        </select>
+          My tasks
+        </button>
       </div>
 
       {/* Loading skeleton */}
@@ -199,7 +228,7 @@ export function KanbanBoard({ epicFilter }: { epicFilter?: number } = {}) {
           <div className="flex gap-4">
             {[1, 2, 3].map((i) => (
               <div key={i} className="w-[280px] space-y-2 p-2">
-                <div className="h-6 w-24 bg-gray-200 dark:bg-gray-800 rounded animate-pulse mb-3" />
+                <div className="h-6 w-24 bg-neutral-200 dark:bg-dneutral-200 rounded animate-pulse mb-3" />
                 <CardSkeleton />
                 <CardSkeleton />
                 <CardSkeleton />
@@ -231,6 +260,7 @@ export function KanbanBoard({ epicFilter }: { epicFilter?: number } = {}) {
                 onTaskClick={(taskId) => setSelectedTaskId(taskId)}
                 projectId={parseInt(projectId || '0')}
                 onTaskCreated={loadBoard}
+                canEdit={canEdit}
               />
             ))}
           </div>
@@ -241,15 +271,35 @@ export function KanbanBoard({ epicFilter }: { epicFilter?: number } = {}) {
         </DndContext>
       </div>
 
-      {selectedTaskId && projectId && (
-        <TaskDetailPanel
-          projectId={parseInt(projectId)}
-          taskId={selectedTaskId}
-          projectPrefix=""
-          onClose={() => setSelectedTaskId(null)}
-          onUpdated={loadBoard}
-        />
-      )}
+      {selectedTaskId && projectId && (() => {
+        // Check if the selected task is a subtask
+        const selectedTask = columns.flatMap((c) => c.tasks).find((t) => t.id === selectedTaskId);
+        const parentId = selectedTask?.parentId;
+
+        if (parentId) {
+          // Subtask: open parent drawer + stacked subtask drawer
+          return (
+            <TaskDetailPanel
+              projectId={parseInt(projectId)}
+              taskId={parentId}
+              projectPrefix=""
+              onClose={() => setSelectedTaskId(null)}
+              onUpdated={loadBoard}
+              defaultSubtaskId={selectedTaskId}
+            />
+          );
+        }
+
+        return (
+          <TaskDetailPanel
+            projectId={parseInt(projectId)}
+            taskId={selectedTaskId}
+            projectPrefix=""
+            onClose={() => setSelectedTaskId(null)}
+            onUpdated={loadBoard}
+          />
+        );
+      })()}
     </div>
   );
 }

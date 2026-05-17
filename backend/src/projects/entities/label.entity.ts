@@ -14,7 +14,7 @@ export class Label {
   @Column({ name: 'project_id', type: 'int' })
   projectId: number;
 
-  @Column({ length: 50 })
+  @Column({ length: 15 })
   name: string;
 
   @Column({ length: 7 })

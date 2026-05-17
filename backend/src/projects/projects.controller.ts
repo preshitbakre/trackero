@@ -14,6 +14,7 @@ import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { AddMemberDto } from './dto/add-member.dto';
 import { CreateStatusDto } from './dto/create-status.dto';
+import { UpdateStatusDto } from './dto/update-status.dto';
 import { CreateLabelDto } from './dto/create-label.dto';
 import { UpdateLabelDto } from './dto/update-label.dto';
 
@@ -181,7 +182,7 @@ export class ProjectsController {
   async updateStatus(
     @Param('projectId', ParseIntPipe) projectId: number,
     @Param('statusId', ParseIntPipe) statusId: number,
-    @Body() dto: CreateStatusDto,
+    @Body() dto: UpdateStatusDto,
   ) {
     return this.projectsService.updateStatus(projectId, statusId, dto);
   }

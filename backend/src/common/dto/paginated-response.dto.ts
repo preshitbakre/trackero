@@ -3,13 +3,12 @@ export class PaginatedResponse<T> {
   meta: { total: number; page: number; limit: number; totalPages: number };
 
   constructor(data: T[], total: number, page: number, limit: number) {
-    const isAll = limit === -1;
     this.data = data;
     this.meta = {
       total,
-      page: isAll ? 1 : page,
-      limit: isAll ? total : limit,
-      totalPages: isAll ? 1 : Math.ceil(total / limit) || 1,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit) || 1,
     };
   }
 

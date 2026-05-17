@@ -14,7 +14,7 @@ export class Project {
   @Column({ length: 255 })
   name: string;
 
-  @Column({ length: 10, unique: true })
+  @Column({ length: 5, unique: true })
   prefix: string;
 
   @Column({ type: 'text', nullable: true })
@@ -34,6 +34,9 @@ export class Project {
 
   @Column({ name: 'default_sprint_duration', type: 'int', default: 14 })
   defaultSprintDuration: number;
+
+  @Column({ name: 'estimation_scale', type: 'varchar', length: 10, default: 'free' })
+  estimationScale: 'free' | 'fibonacci' | 'tshirt';
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

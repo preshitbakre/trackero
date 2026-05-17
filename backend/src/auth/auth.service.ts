@@ -1,6 +1,6 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
@@ -26,6 +26,7 @@ export class AuthService {
     private readonly invitationRepo: Repository<Invitation>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async getSetupStatus() {
@@ -34,47 +35,52 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto) {
-    const existing = await this.userRepo.findOne({ where: { email: dto.email } });
-    if (existing) {
-      throw new AppLogicException('EMAIL_ALREADY_REGISTERED', HttpStatus.CONFLICT);
-    }
-
-    const userCount = await this.userRepo.count();
-    let role: User['role'] = 'member';
-
-    if (userCount === 0) {
-      // First user ever → becomes admin (instance setup)
-      role = 'admin';
-    } else if (dto.inviteToken) {
-      // Invited user → validate token and use invited role
-      const invitation = await this.invitationRepo.findOne({
-        where: { token: dto.inviteToken, status: 'pending' },
-      });
-      if (!invitation) {
-        throw new AppLogicException('INVITATION_EXPIRED', HttpStatus.BAD_REQUEST);
-      }
-      if (new Date() > invitation.expiresAt) {
-        invitation.status = 'expired';
-        await this.invitationRepo.save(invitation);
-        throw new AppLogicException('INVITATION_EXPIRED', HttpStatus.BAD_REQUEST);
-      }
-      role = invitation.role;
-      invitation.status = 'accepted';
-      await this.invitationRepo.save(invitation);
-    } else {
-      // No invite token and not first user → registration closed
-      throw new AppLogicException('FORBIDDEN', HttpStatus.FORBIDDEN);
-    }
-
+    // Hash password outside transaction (CPU-intensive)
     const passwordHash = await bcrypt.hash(dto.password, 12);
-    const user = this.userRepo.create({
-      email: dto.email,
-      passwordHash,
-      displayName: dto.displayName,
-      role,
-      isActive: true,
+
+    const saved = await this.dataSource.transaction(async (manager) => {
+      const existing = await manager.findOne(User, { where: { email: dto.email } });
+      if (existing) {
+        throw new AppLogicException('EMAIL_ALREADY_REGISTERED', HttpStatus.CONFLICT);
+      }
+
+      const userCount = await manager.count(User);
+      let role: User['role'] = 'member';
+
+      if (userCount === 0) {
+        // First user ever → becomes admin (instance setup)
+        role = 'admin';
+      } else if (dto.inviteToken) {
+        // Invited user → validate token and use invited role
+        const hashedInviteToken = crypto.createHash('sha256').update(dto.inviteToken).digest('hex');
+        const invitation = await manager.findOne(Invitation, {
+          where: { token: hashedInviteToken, status: 'pending' },
+        });
+        if (!invitation) {
+          throw new AppLogicException('INVITATION_EXPIRED', HttpStatus.BAD_REQUEST);
+        }
+        if (new Date() > invitation.expiresAt) {
+          invitation.status = 'expired';
+          await manager.save(invitation);
+          throw new AppLogicException('INVITATION_EXPIRED', HttpStatus.BAD_REQUEST);
+        }
+        role = invitation.role;
+        invitation.status = 'accepted';
+        await manager.save(invitation);
+      } else {
+        // No invite token and not first user → registration closed
+        throw new AppLogicException('FORBIDDEN', HttpStatus.FORBIDDEN);
+      }
+
+      const user = manager.create(User, {
+        email: dto.email,
+        passwordHash,
+        displayName: dto.displayName,
+        role,
+        isActive: true,
+      });
+      return manager.save(user);
     });
-    const saved = await this.userRepo.save(user);
 
     const tokens = await this.generateTokens(saved);
     return {
@@ -84,7 +90,11 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const user = await this.userRepo.findOne({ where: { email: dto.email } });
+    const user = await this.userRepo
+      .createQueryBuilder('user')
+      .addSelect('user.passwordHash')
+      .where('user.email = :email', { email: dto.email })
+      .getOne();
     if (!user) {
       // Constant-time: still run bcrypt to prevent timing-based user enumeration
       await bcrypt.compare(dto.password, '$2b$12$000000000000000000000000000000000000000000000000000000');
@@ -112,6 +122,7 @@ export class AuthService {
 
   async refresh(refreshTokenValue: string) {
     const hashedToken = crypto.createHash('sha256').update(refreshTokenValue).digest('hex');
+
     const tokenRecord = await this.refreshTokenRepo.findOne({
       where: { token: hashedToken },
     });
@@ -124,9 +135,16 @@ export class AuthService {
       throw new AppLogicException('TOKEN_EXPIRED', HttpStatus.UNAUTHORIZED);
     }
 
-    // Revoke old token (rotation)
-    tokenRecord.isRevoked = true;
-    await this.refreshTokenRepo.save(tokenRecord);
+    // Atomic revocation — use updateResult to prevent race condition
+    const updateResult = await this.refreshTokenRepo.update(
+      { id: tokenRecord.id, isRevoked: false },
+      { isRevoked: true },
+    );
+
+    // If no rows updated, another request already revoked this token
+    if (updateResult.affected === 0) {
+      throw new AppLogicException('TOKEN_INVALID', HttpStatus.UNAUTHORIZED);
+    }
 
     const user = await this.userRepo.findOne({ where: { id: tokenRecord.userId } });
     if (!user || !user.isActive) {
@@ -170,7 +188,11 @@ export class AuthService {
   }
 
   async changePassword(userId: number, dto: ChangePasswordDto) {
-    const user = await this.userRepo.findOne({ where: { id: userId } });
+    const user = await this.userRepo
+      .createQueryBuilder('user')
+      .addSelect('user.passwordHash')
+      .where('user.id = :id', { id: userId })
+      .getOne();
     if (!user) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
@@ -193,7 +215,11 @@ export class AuthService {
 
   async forgotPassword(email: string) {
     // Always return success for security (don't reveal if email exists)
-    const user = await this.userRepo.findOne({ where: { email } });
+    const user = await this.userRepo
+      .createQueryBuilder('user')
+      .addSelect(['user.passwordResetToken', 'user.passwordResetExpires'])
+      .where('user.email = :email', { email })
+      .getOne();
     if (!user) return;
 
     const resetToken = crypto.randomBytes(32).toString('hex');
@@ -206,15 +232,19 @@ export class AuthService {
     // Send email or log to console
     const appUrl = this.configService.get<string>('APP_URL', 'http://localhost:5173');
     const resetUrl = `${appUrl}/reset-password?token=${resetToken}`;
-    console.log(`[PASSWORD RESET] ${email}: ${resetUrl}`);
+    if (this.configService.get<string>('NODE_ENV') !== 'production') {
+      console.log(`[PASSWORD RESET] ${email}: ${resetUrl}`);
+    }
   }
 
   async resetPassword(token: string, newPassword: string) {
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
-    const user = await this.userRepo.findOne({
-      where: { passwordResetToken: hashedToken },
-    });
+    const user = await this.userRepo
+      .createQueryBuilder('user')
+      .addSelect(['user.passwordResetToken', 'user.passwordResetExpires'])
+      .where('user.passwordResetToken = :hashedToken', { hashedToken })
+      .getOne();
 
     if (!user || !user.passwordResetExpires || user.passwordResetExpires < new Date()) {
       throw new AppLogicException('TOKEN_EXPIRED', HttpStatus.UNAUTHORIZED);
@@ -231,6 +261,20 @@ export class AuthService {
       { userId: user.id, isRevoked: false },
       { isRevoked: true },
     );
+  }
+
+  async getInviteInfo(token: string) {
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+    const invitation = await this.invitationRepo.findOne({
+      where: { token: hashedToken, status: 'pending' },
+    });
+    if (!invitation) {
+      throw new AppLogicException('INVITATION_EXPIRED', HttpStatus.BAD_REQUEST);
+    }
+    if (new Date() > invitation.expiresAt) {
+      throw new AppLogicException('INVITATION_EXPIRED', HttpStatus.BAD_REQUEST);
+    }
+    return { email: invitation.email, role: invitation.role };
   }
 
   async validateJwtPayload(payload: JwtPayload): Promise<User | null> {

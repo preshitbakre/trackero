@@ -13,6 +13,7 @@ import { UpdateTaskDto } from './dto/update-task.dto';
 import { CreateDependencyDto } from './dto/create-dependency.dto';
 import { CreateChecklistItemDto } from './dto/create-checklist-item.dto';
 import { UpdateChecklistItemDto } from './dto/update-checklist-item.dto';
+import { clampLimit } from '../common/helpers/pagination.helper';
 
 @Injectable()
 export class TasksService {
@@ -49,12 +50,32 @@ export class TasksService {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
 
+    // Resolve typeId — use provided, or default to first built-in type for this project
+    let typeId = dto.typeId ?? null;
+    if (!typeId) {
+      const [defaultType] = await this.dataSource.query(
+        `SELECT id FROM task_types WHERE project_id = $1 AND is_builtin = true ORDER BY sort_order ASC LIMIT 1`,
+        [projectId],
+      );
+      typeId = defaultType?.id ?? null;
+    } else {
+      // Validate typeId belongs to this project
+      const [validType] = await this.dataSource.query(
+        `SELECT id FROM task_types WHERE id = $1 AND project_id = $2`,
+        [typeId, projectId],
+      );
+      if (!validType) {
+        throw new AppLogicException('NOT_FOUND', HttpStatus.BAD_REQUEST);
+      }
+    }
+
     const task = this.taskRepo.create({
       projectId,
       taskNumber,
       title: dto.title,
       description: dto.description || null,
-      type: (dto.type as Task['type']) || 'task',
+      type: (dto.type as string) || 'task',
+      typeId,
       priority: (dto.priority as Task['priority']) || 'medium',
       storyPoints: dto.storyPoints ?? null,
       assigneeId: dto.assigneeId ?? null,
@@ -108,11 +129,10 @@ export class TasksService {
     },
   ) {
     const page = filters.page || 1;
-    const limit = filters.limit || 20;
+    const limit = clampLimit(filters.limit);
 
     const qb = this.taskRepo.createQueryBuilder('t')
-      .where('t.projectId = :projectId', { projectId })
-      .andWhere('t.parentId IS NULL'); // Don't list subtasks in main list
+      .where('t.projectId = :projectId', { projectId });
 
     if (filters.search && filters.search.length >= 2) {
       qb.andWhere(
@@ -147,14 +167,13 @@ export class TasksService {
       .addSelect(['assignee.id', 'assignee.displayName', 'assignee.avatarUrl'])
       .leftJoin('t.reporter', 'reporter')
       .addSelect(['reporter.id', 'reporter.displayName', 'reporter.avatarUrl'])
-      .leftJoinAndSelect('t.labels', 'labels');
+      .leftJoinAndSelect('t.labels', 'labels')
+      .leftJoinAndSelect('t.taskType', 'taskType');
 
     qb.orderBy('t.createdAt', 'DESC');
 
     const total = await qb.getCount();
-    if (limit !== -1) {
-      qb.skip((page - 1) * limit).take(limit);
-    }
+    qb.skip((page - 1) * limit).take(limit);
     const data = await qb.getMany();
 
     return new PaginatedResponse(data, total, page, limit);
@@ -234,6 +253,17 @@ export class TasksService {
         }
       }
 
+      // Check subtask completion
+      const [incompleteSubtasks] = await this.dataSource.query(
+        `SELECT COUNT(*)::int AS count FROM tasks t
+         JOIN project_statuses ps ON ps.id = t.status_id
+         WHERE t.parent_id = $1 AND ps.category != 'done'`,
+        [taskId],
+      );
+      if (incompleteSubtasks.count > 0) {
+        throw new AppLogicException('SUBTASKS_INCOMPLETE', HttpStatus.CONFLICT);
+      }
+
       task.completedAt = new Date();
 
       // Emit blocker resolved for all tasks blocked by this one
@@ -250,6 +280,7 @@ export class TasksService {
 
     const oldStatusId = task.statusId;
     task.statusId = statusId;
+    task.statusChangedAt = new Date();
     const saved = await this.taskRepo.save(task);
     this.eventEmitter.emit('task.status_changed', { taskId: saved.id, projectId, actorId: userId ?? 1, oldStatusId, newStatusId: statusId });
     const list = await this.listTasks(projectId, {});
@@ -298,7 +329,13 @@ export class TasksService {
   }
 
   async getTaskDetail(projectId: number, taskId: number) {
-    const task = await this.findOne(projectId, taskId);
+    const task = await this.taskRepo.findOne({
+      where: { id: taskId, projectId },
+      relations: ['status'],
+    });
+    if (!task) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
 
     // Get subtasks
     const subtasks = await this.taskRepo.find({
@@ -339,20 +376,39 @@ export class TasksService {
       [taskId],
     );
 
-    // Get counts
-    const commentCount = 0; // Will be populated in Phase 7
-    const attachmentCount = 0; // Will be populated in Phase 7
+    // Get checklist items for this task directly
+    const checklistItems = await this.checklistRepo.find({
+      where: { taskId },
+      order: { sortOrder: 'ASC' },
+    });
+
+    // Get parent info if this is a subtask
+    let parentInfo = null;
+    if (task.parentId) {
+      const [parent] = await this.dataSource.query(
+        `SELECT t.id, t.task_number, t.title, p.prefix
+         FROM tasks t JOIN projects p ON p.id = t.project_id
+         WHERE t.id = $1`, [task.parentId],
+      );
+      if (parent) {
+        parentInfo = {
+          id: parent.id,
+          taskKey: `${parent.prefix}-${parent.task_number}`,
+          title: parent.title,
+        };
+      }
+    }
 
     return {
       ...task,
       labels,
       subtasks: subtasksWithChecklist,
+      checklistItems,
+      parentInfo,
       blockedBy,
       blocks,
       relatesTo,
       subtaskCount: subtasks.length,
-      commentCount,
-      attachmentCount,
     };
   }
 
@@ -411,12 +467,7 @@ export class TasksService {
   // --- Checklist ---
 
   async createChecklistItem(projectId: number, taskId: number, dto: CreateChecklistItemDto) {
-    const task = await this.findOne(projectId, taskId);
-
-    // Must be a subtask
-    if (task.parentId === null) {
-      throw new AppLogicException('CHECKLIST_NOT_SUBTASK', HttpStatus.BAD_REQUEST);
-    }
+    await this.findOne(projectId, taskId);
 
     const maxOrder = await this.checklistRepo
       .createQueryBuilder('c')

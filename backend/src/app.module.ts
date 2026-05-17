@@ -24,6 +24,9 @@ import { RetrospectivesModule } from './retrospectives/retrospectives.module';
 import { ChartsModule } from './charts/charts.module';
 import { SearchModule } from './search/search.module';
 import { SettingsModule } from './settings/settings.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { TaskTypesModule } from './task-types/task-types.module';
+import { FiltersModule } from './filters/filters.module';
 
 @Module({
   imports: [
@@ -66,6 +69,9 @@ import { SettingsModule } from './settings/settings.module';
     ChartsModule,
     SearchModule,
     SettingsModule,
+    DashboardModule,
+    TaskTypesModule,
+    FiltersModule,
   ],
   providers: [
     {

@@ -34,28 +34,33 @@ export class AttachmentsController {
   @Get()
   @Roles('admin', 'project_manager', 'member', 'viewer')
   @ResponseCode('ATTACHMENTS_LISTED')
-  async findAll(@Param('taskId', ParseIntPipe) taskId: number) {
-    return this.attachmentsService.listAttachments(taskId);
+  async findAll(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('taskId', ParseIntPipe) taskId: number,
+  ) {
+    return this.attachmentsService.listAttachments(projectId, taskId);
   }
 
   @Get(':attachmentId/url')
   @Roles('admin', 'project_manager', 'member', 'viewer')
   @ResponseCode('ATTACHMENT_URL')
   async getUrl(
+    @Param('projectId', ParseIntPipe) projectId: number,
     @Param('taskId', ParseIntPipe) taskId: number,
     @Param('attachmentId', ParseIntPipe) attachmentId: number,
   ) {
-    return this.attachmentsService.getPresignedUrl(taskId, attachmentId);
+    return this.attachmentsService.getPresignedUrl(projectId, taskId, attachmentId);
   }
 
   @Delete(':attachmentId')
   @Roles('admin', 'project_manager', 'member')
   @ResponseCode('ATTACHMENT_DELETED')
   async remove(
+    @Param('projectId', ParseIntPipe) projectId: number,
     @Param('taskId', ParseIntPipe) taskId: number,
     @Param('attachmentId', ParseIntPipe) attachmentId: number,
   ) {
-    await this.attachmentsService.remove(taskId, attachmentId);
+    await this.attachmentsService.remove(projectId, taskId, attachmentId);
     return null;
   }
 }

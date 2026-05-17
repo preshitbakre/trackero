@@ -31,9 +31,7 @@ export class ChartsService {
       SELECT
         d.date::text as date,
         COALESCE(SUM(CASE WHEN ps.category = 'backlog' THEN 1 ELSE 0 END), 0)::int as backlog,
-        COALESCE(SUM(CASE WHEN ps.category = 'todo' THEN 1 ELSE 0 END), 0)::int as todo,
         COALESCE(SUM(CASE WHEN ps.category = 'in_progress' THEN 1 ELSE 0 END), 0)::int as in_progress,
-        COALESCE(SUM(CASE WHEN ps.category = 'in_review' THEN 1 ELSE 0 END), 0)::int as in_review,
         COALESCE(SUM(CASE WHEN ps.category = 'done' THEN 1 ELSE 0 END), 0)::int as done
       FROM generate_series($2::date, CURRENT_DATE, '1 day') AS d(date)
       LEFT JOIN LATERAL (

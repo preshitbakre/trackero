@@ -4,6 +4,7 @@ import {
 } from 'typeorm';
 import { Project } from '../../projects/entities/project.entity';
 import { ProjectStatus } from '../../projects/entities/project-status.entity';
+import { TaskType } from '../../projects/entities/task-type.entity';
 import { Label } from '../../projects/entities/label.entity';
 import { User } from '../../users/entities/user.entity';
 
@@ -41,7 +42,10 @@ export class Task {
   description: string | null;
 
   @Column({ type: 'varchar', length: 10, default: 'task' })
-  type: 'task' | 'bug' | 'story';
+  type: string;
+
+  @Column({ name: 'type_id', type: 'int', nullable: true })
+  typeId: number | null;
 
   @Column({ type: 'varchar', length: 10, default: 'medium' })
   priority: 'urgent' | 'high' | 'medium' | 'low' | 'none';
@@ -67,6 +71,9 @@ export class Task {
   @Column({ name: 'completed_at', type: 'timestamptz', nullable: true })
   completedAt: Date | null;
 
+  @Column({ name: 'status_changed_at', type: 'timestamptz', nullable: true })
+  statusChangedAt: Date | null;
+
   @Column({ name: 'added_mid_sprint', type: 'boolean', default: false })
   addedMidSprint: boolean;
 
@@ -83,6 +90,10 @@ export class Task {
   @ManyToOne(() => ProjectStatus, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'status_id' })
   status: ProjectStatus;
+
+  @ManyToOne(() => TaskType, { onDelete: 'RESTRICT', nullable: true })
+  @JoinColumn({ name: 'type_id' })
+  taskType: TaskType | null;
 
   @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'assignee_id' })

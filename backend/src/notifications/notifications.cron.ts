@@ -54,7 +54,7 @@ export class NotificationsCron {
        FROM tasks t JOIN projects p ON p.id = t.project_id
        JOIN project_statuses ps ON ps.id = t.status_id
        WHERE t.due_date = $1 AND t.assignee_id IS NOT NULL
-       AND ps.category NOT IN ('done', 'cancelled')`,
+       AND ps.category != 'done'`,
       [tomorrowStr],
     );
 
@@ -75,7 +75,7 @@ export class NotificationsCron {
        FROM tasks t JOIN projects p ON p.id = t.project_id
        JOIN project_statuses ps ON ps.id = t.status_id
        WHERE t.due_date < $1 AND t.assignee_id IS NOT NULL
-       AND ps.category NOT IN ('done', 'cancelled')`,
+       AND ps.category != 'done'`,
       [today],
     );
 

@@ -18,18 +18,18 @@ function DraggableTask({ task }: { task: PlanTask }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
   const typeIcons: Record<string, string> = { task: '\u25CB', bug: '\u25CF', story: '\u25C6' };
-  const priorityColors: Record<string, string> = { urgent: 'bg-red-500', high: 'bg-orange-400', medium: 'bg-yellow-400', low: 'bg-blue-400', none: 'bg-gray-300' };
+  const priorityColors: Record<string, string> = { urgent: 'bg-priority-urgent', high: 'bg-priority-high', medium: 'bg-priority-medium', low: 'bg-priority-low', none: 'bg-priority-none' };
 
   return (
     <div ref={setNodeRef} style={style} {...listeners} {...attributes}
-      className="flex items-center gap-2 px-3 py-2 rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 cursor-grab hover:border-gray-300"
+      className="flex items-center gap-2 px-3 py-2 rounded border border-neutral-200 dark:border-dneutral-200 bg-neutral-50 dark:bg-dneutral-100 cursor-grab hover:border-neutral-300"
     >
-      <span className="text-xs text-gray-400">{typeIcons[task.type] || '\u25CB'}</span>
-      <span className="text-xs font-mono text-gray-400">#{task.taskNumber}</span>
-      <span className="flex-1 text-sm truncate text-gray-900 dark:text-gray-50">{task.title}</span>
+      <span className="text-sm text-neutral-400">{typeIcons[task.type] || '\u25CB'}</span>
+      <span className="text-sm font-mono text-neutral-400">#{task.taskNumber}</span>
+      <span className="flex-1 text-sm truncate text-neutral-700 dark:text-dneutral-700">{task.title}</span>
       <span className={`w-2 h-2 rounded-full ${priorityColors[task.priority]}`} />
       {task.storyPoints != null && task.storyPoints > 0 && (
-        <span className="text-xs text-gray-400">{task.storyPoints}pts</span>
+        <span className="text-sm text-neutral-400">{task.storyPoints}pts</span>
       )}
     </div>
   );
@@ -38,8 +38,8 @@ function DraggableTask({ task }: { task: PlanTask }) {
 function DroppableZone({ id, children, label }: { id: string; children: React.ReactNode; label: string }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
-    <div ref={setNodeRef} className={`flex-1 min-h-[200px] rounded-lg border-2 border-dashed p-2 transition-colors ${isOver ? 'border-brand bg-brand/5' : 'border-gray-200 dark:border-gray-700'}`}>
-      <p className="text-xs text-gray-400 mb-2">{label}</p>
+    <div ref={setNodeRef} className={`flex-1 min-h-[200px] rounded-lg border-2 border-dashed p-2 transition-colors ${isOver ? 'border-primary-500 bg-primary-50' : 'border-neutral-200 dark:border-dneutral-300'}`}>
+      <p className="text-sm text-neutral-400 mb-2">{label}</p>
       <div className="space-y-2">{children}</div>
     </div>
   );
@@ -59,7 +59,7 @@ export function SprintPlanningPage() {
     try {
       const [sprintRes, tasksRes, velRes] = await Promise.all([
         apiClient.get(`/projects/${projectId}/sprints/${sprintId}`),
-        apiClient.get(`/projects/${projectId}/tasks?limit=-1`),
+        apiClient.get(`/projects/${projectId}/tasks?limit=100`),
         apiClient.get(`/projects/${projectId}/velocity`),
       ]);
       setSprint(sprintRes.data.data);
@@ -103,19 +103,19 @@ export function SprintPlanningPage() {
     <div className="p-6 h-full flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <Link to={`/projects/${projectId}/sprints`} className="text-sm text-gray-400 hover:text-gray-600">&larr; Sprints</Link>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">
+          <Link to={`/projects/${projectId}/sprints`} className="text-sm text-neutral-400 hover:text-neutral-500">&larr; Sprints</Link>
+          <h1 className="text-2xl font-bold text-neutral-700 dark:text-dneutral-700">
             Plan: {sprint?.name || 'Sprint'}
           </h1>
-          {sprint?.goal && <p className="text-sm text-gray-500 mt-1">{sprint.goal}</p>}
+          {sprint?.goal && <p className="text-sm text-neutral-400 mt-1">{sprint.goal}</p>}
         </div>
         {/* Capacity indicator */}
         <div className="text-right">
-          <p className="text-sm text-gray-500">Capacity</p>
-          <p className="text-lg font-bold text-gray-900 dark:text-gray-50">
+          <p className="text-sm text-neutral-400">Capacity</p>
+          <p className="text-lg font-bold text-neutral-700 dark:text-dneutral-700">
             {committedPoints} / {velocity || '?'} pts
           </p>
-          <div className="w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full mt-1">
+          <div className="w-32 h-2 bg-neutral-200 dark:bg-dneutral-300 rounded-full mt-1">
             <div
               className={`h-full rounded-full transition-all ${capacityPercent > 100 ? 'bg-red-500' : capacityPercent > 80 ? 'bg-amber-500' : 'bg-green-500'}`}
               style={{ width: `${Math.min(capacityPercent, 100)}%` }}
@@ -128,25 +128,25 @@ export function SprintPlanningPage() {
         <div className="flex-1 grid grid-cols-2 gap-4 min-h-0 overflow-hidden">
           {/* Left: Backlog */}
           <div className="overflow-y-auto">
-            <h2 className="text-sm font-medium text-gray-500 mb-2">Backlog ({backlogTasks.length} tasks)</h2>
+            <h2 className="text-sm font-medium text-neutral-400 mb-2">Backlog ({backlogTasks.length} tasks)</h2>
             <DroppableZone id="backlog-zone" label="Drop here to remove from sprint">
               <SortableContext items={backlogTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
                 {backlogTasks.map((task) => <DraggableTask key={task.id} task={task} />)}
               </SortableContext>
-              {backlogTasks.length === 0 && <p className="text-xs text-gray-400 text-center py-4">No backlog tasks</p>}
+              {backlogTasks.length === 0 && <p className="text-sm text-neutral-400 text-center py-4">No backlog tasks</p>}
             </DroppableZone>
           </div>
 
           {/* Right: Sprint */}
           <div className="overflow-y-auto">
-            <h2 className="text-sm font-medium text-gray-500 mb-2">
+            <h2 className="text-sm font-medium text-neutral-400 mb-2">
               {sprint?.name || 'Sprint'} ({sprintTasks.length} tasks, {committedPoints} pts)
             </h2>
             <DroppableZone id="sprint-zone" label="Drop here to add to sprint">
               <SortableContext items={sprintTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
                 {sprintTasks.map((task) => <DraggableTask key={task.id} task={task} />)}
               </SortableContext>
-              {sprintTasks.length === 0 && <p className="text-xs text-gray-400 text-center py-4">Drag tasks here</p>}
+              {sprintTasks.length === 0 && <p className="text-sm text-neutral-400 text-center py-4">Drag tasks here</p>}
             </DroppableZone>
           </div>
         </div>

@@ -29,6 +29,17 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       const token = client.handshake.auth?.token?.replace('Bearer ', '') || '';
       const payload = this.jwtService.verify(token);
+
+      // Verify user is active and tokenVersion matches
+      const [user] = await this.dataSource.query(
+        'SELECT is_active, token_version FROM users WHERE id = $1',
+        [payload.userId],
+      );
+      if (!user || !user.is_active || user.token_version !== payload.tokenVersion) {
+        client.disconnect();
+        return;
+      }
+
       client.data.userId = payload.userId;
       // Auto-join user room
       client.join(`user:${payload.userId}`);

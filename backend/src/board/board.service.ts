@@ -30,8 +30,7 @@ export class BoardService {
     for (const status of statuses) {
       const qb = this.taskRepo.createQueryBuilder('t')
         .where('t.projectId = :projectId', { projectId })
-        .andWhere('t.statusId = :statusId', { statusId: status.id })
-        .andWhere('t.parentId IS NULL');
+        .andWhere('t.statusId = :statusId', { statusId: status.id });
 
       if (filters.sprintId) {
         qb.andWhere('t.sprintId = :sprintId', { sprintId: filters.sprintId });
@@ -48,7 +47,8 @@ export class BoardService {
 
       qb.leftJoin('t.assignee', 'assignee')
         .addSelect(['assignee.id', 'assignee.displayName', 'assignee.avatarUrl'])
-        .leftJoinAndSelect('t.labels', 'labels');
+        .leftJoinAndSelect('t.labels', 'labels')
+        .leftJoinAndSelect('t.taskType', 'taskType');
 
       qb.orderBy('t.sortOrder', 'ASC');
 
@@ -64,11 +64,20 @@ export class BoardService {
         );
         const hasBlockers = await this.depRepo.count({ where: { taskId: t.id, dependencyType: 'blocks' } }) > 0;
 
+        // Get parent task number if this is a subtask
+        let parentTaskNumber: number | null = null;
+        if (t.parentId) {
+          const [parent] = await this.dataSource.query('SELECT task_number FROM tasks WHERE id = $1', [t.parentId]);
+          parentTaskNumber = parent?.task_number || null;
+        }
+
         return {
           id: t.id,
           taskNumber: t.taskNumber,
           title: t.title,
           type: t.type,
+          typeId: t.typeId,
+          taskType: (t as any).taskType ? { id: (t as any).taskType.id, name: (t as any).taskType.name, icon: (t as any).taskType.icon, color: (t as any).taskType.color } : null,
           priority: t.priority,
           assigneeId: t.assigneeId,
           assignee: (t as any).assignee ? { id: (t as any).assignee.id, displayName: (t as any).assignee.displayName, avatarUrl: (t as any).assignee.avatarUrl } : null,
@@ -76,6 +85,8 @@ export class BoardService {
           storyPoints: t.storyPoints,
           sortOrder: t.sortOrder,
           epicId: t.epicId,
+          parentId: t.parentId,
+          parentTaskNumber,
           subtaskCount,
           subtaskDoneCount: parseInt(subtaskDoneCount[0]?.count || '0'),
           hasBlockers,
@@ -88,6 +99,8 @@ export class BoardService {
           name: status.name,
           category: status.category,
           color: status.color,
+          wipLimit: status.wipLimit || 0,
+          isFixed: (status as any).isFixed || false,
         },
         tasks: enrichedTasks,
         taskCount,
@@ -125,6 +138,17 @@ export class BoardService {
         }
       }
 
+      // Check subtask completion
+      const [incompleteSubtasks] = await this.dataSource.query(
+        `SELECT COUNT(*)::int AS count FROM tasks t
+         JOIN project_statuses ps ON ps.id = t.status_id
+         WHERE t.parent_id = $1 AND ps.category != 'done'`,
+        [taskId],
+      );
+      if (incompleteSubtasks.count > 0) {
+        throw new AppLogicException('SUBTASKS_INCOMPLETE', HttpStatus.CONFLICT);
+      }
+
       task.completedAt = new Date();
     } else {
       // Moving out of done - clear completedAt
@@ -135,6 +159,7 @@ export class BoardService {
     }
 
     task.statusId = statusId;
+    task.statusChangedAt = new Date();
     task.sortOrder = sortOrder;
     await this.taskRepo.save(task);
 

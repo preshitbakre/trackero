@@ -31,18 +31,18 @@ export function ShortcutsHelp() {
 
   return (
     <>
-      <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setShow(false)} />
-      <div className="fixed top-[15%] left-1/2 -translate-x-1/2 z-50 w-full max-w-md bg-white dark:bg-gray-900 rounded-xl shadow-2xl p-6 border border-gray-200 dark:border-gray-700">
-        <h2 className="text-lg font-bold text-gray-900 dark:text-gray-50 mb-4">Keyboard Shortcuts</h2>
+      <div className="fixed inset-0 z-50 bg-neutral-700/50" onClick={() => setShow(false)} />
+      <div className="fixed top-[15%] left-1/2 -translate-x-1/2 z-50 w-full max-w-md bg-neutral-50 dark:bg-dneutral-100 rounded-xl shadow-2xl p-6 border border-neutral-200 dark:border-dneutral-300">
+        <h2 className="text-lg font-bold text-neutral-700 dark:text-dneutral-700 mb-4">Keyboard Shortcuts</h2>
         <div className="space-y-2">
           {shortcuts.map((s) => (
             <div key={s.key} className="flex items-center justify-between">
-              <span className="text-sm text-gray-600 dark:text-gray-300">{s.description}</span>
-              <kbd className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded font-mono text-gray-700 dark:text-gray-300">{s.key}</kbd>
+              <span className="text-sm text-neutral-500 dark:text-dneutral-600">{s.description}</span>
+              <kbd className="text-sm bg-neutral-100 dark:bg-dneutral-200 px-2 py-1 rounded font-mono text-neutral-600 dark:text-dneutral-600">{s.key}</kbd>
             </div>
           ))}
         </div>
-        <button onClick={() => setShow(false)} className="mt-4 w-full text-center text-sm text-gray-400 hover:text-gray-600">Press Esc to close</button>
+        <button onClick={() => setShow(false)} className="mt-4 w-full text-center text-sm text-neutral-400 hover:text-neutral-500">Press Esc to close</button>
       </div>
     </>
   );

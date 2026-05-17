@@ -16,7 +16,7 @@ export class User {
   @Column({ length: 255 })
   email: string;
 
-  @Column({ name: 'password_hash', length: 255 })
+  @Column({ name: 'password_hash', length: 255, select: false })
   passwordHash: string;
 
   @Column({ name: 'display_name', length: 255 })
@@ -35,10 +35,10 @@ export class User {
   @Column({ name: 'token_version', type: 'int', default: 0 })
   tokenVersion: number;
 
-  @Column({ name: 'password_reset_token', type: 'varchar', length: 255, nullable: true })
+  @Column({ name: 'password_reset_token', type: 'varchar', length: 255, nullable: true, select: false })
   passwordResetToken: string | null;
 
-  @Column({ name: 'password_reset_expires', type: 'timestamptz', nullable: true })
+  @Column({ name: 'password_reset_expires', type: 'timestamptz', nullable: true, select: false })
   passwordResetExpires: Date | null;
 
   @Column({ name: 'is_active', type: 'boolean', default: true })

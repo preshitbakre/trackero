@@ -3,7 +3,7 @@ import { IsString, MaxLength, Matches, IsOptional } from 'class-validator';
 export class UpdateLabelDto {
   @IsOptional()
   @IsString()
-  @MaxLength(50)
+  @MaxLength(15)
   name?: string;
 
   @IsOptional()

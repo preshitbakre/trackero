@@ -1,11 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, HttpStatus, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand,
+  CreateBucketCommand, HeadBucketCommand,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import * as crypto from 'crypto';
+import { AppLogicException } from '../common/exceptions/app-exceptions';
 
 @Injectable()
-export class FileStorageService {
+export class FileStorageService implements OnModuleInit {
   private readonly s3: S3Client | null;
   private readonly bucket: string;
   private readonly presignExpiry: number;
@@ -37,17 +41,37 @@ export class FileStorageService {
     }
   }
 
+  async onModuleInit() {
+    if (!this.s3) return;
+    try {
+      await this.s3.send(new HeadBucketCommand({ Bucket: this.bucket }));
+    } catch {
+      try {
+        await this.s3.send(new CreateBucketCommand({ Bucket: this.bucket }));
+        console.log(`[FileStorage] Created bucket: ${this.bucket}`);
+      } catch (err) {
+        console.error(`[FileStorage] Could not create bucket ${this.bucket}:`, err);
+      }
+    }
+  }
+
   async upload(projectId: number, taskId: number, originalFilename: string, buffer: Buffer, mimeType: string): Promise<string> {
     const uuid = crypto.randomUUID();
-    const key = `${projectId}/${taskId}/${uuid}-${originalFilename}`;
+    const safeName = originalFilename.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.{2,}/g, '.');
+    const key = `${projectId}/${taskId}/${uuid}-${safeName}`;
 
     if (this.s3) {
-      await this.s3.send(new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-        Body: buffer,
-        ContentType: mimeType,
-      }));
+      try {
+        await this.s3.send(new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+          Body: buffer,
+          ContentType: mimeType,
+        }));
+      } catch (err: any) {
+        console.error(`[FileStorage] Upload failed for ${key}:`, err?.message || err);
+        throw new AppLogicException('FORBIDDEN', HttpStatus.INTERNAL_SERVER_ERROR);
+      }
     }
 
     return key;

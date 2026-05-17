@@ -251,20 +251,18 @@ describe('Tasks Module (e2e)', () => {
       expect(res.body.code).toBe('S-0125');
     });
 
-    it('rejects checklist on top-level task -> 400', async () => {
+    it('allows checklist on top-level task -> 201', async () => {
       const taskRes = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/tasks`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ title: 'Top level' });
       const taskId = taskRes.body.data.item.id;
 
-      const res = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/tasks/${taskId}/checklist`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ title: 'Check item' })
-        .expect(400);
-
-      expect(res.body.code).toBe('F-L-0033');
+        .expect(201);
     });
   });
 

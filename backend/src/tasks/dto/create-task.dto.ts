@@ -15,6 +15,10 @@ export class CreateTaskDto {
   type?: string;
 
   @IsOptional()
+  @IsInt()
+  typeId?: number;
+
+  @IsOptional()
   @IsString()
   @IsIn(['urgent', 'high', 'medium', 'low', 'none'])
   priority?: string;

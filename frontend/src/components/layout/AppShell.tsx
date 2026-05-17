@@ -2,31 +2,13 @@ import { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
-import { CommandPalette } from '../common/CommandPalette';
-import { ShortcutsHelp } from '../common/ShortcutsHelp';
-import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { apiClient } from '../../api/client';
 import { connectSocket, disconnectSocket, joinProject, leaveProject } from '../../lib/socket';
 
 export function AppShell() {
-  const [collapsed, setCollapsed] = useState(() => {
-    return localStorage.getItem('sidebar_collapsed') === 'true';
-  });
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [projects, setProjects] = useState<any[]>([]);
-  const [showCommandPalette, setShowCommandPalette] = useState(false);
   const location = useLocation();
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(null);
-
-  useKeyboardShortcuts({
-    onOpenSearch: () => setShowCommandPalette(true),
-    onCreateTask: () => {
-      document.dispatchEvent(new CustomEvent('shortcut-create-task'));
-    },
-    onAssignToMe: () => {
-      document.dispatchEvent(new CustomEvent('shortcut-assign-to-me'));
-    },
-  });
 
   useEffect(() => {
     connectSocket();
@@ -34,22 +16,6 @@ export function AppShell() {
   }, []);
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        setShowCommandPalette((v) => !v);
-      }
-      if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
-        e.preventDefault();
-        setShowCommandPalette(true);
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
-
-  useEffect(() => {
-    // Extract project ID from URL
     const match = location.pathname.match(/\/projects\/(\d+)/);
     const newProjectId = match ? parseInt(match[1]) : null;
 
@@ -60,57 +26,33 @@ export function AppShell() {
     }
   }, [location.pathname]);
 
-  useEffect(() => {
-    apiClient.get('/projects?limit=-1').then((res) => {
+  const loadProjects = () => {
+    apiClient.get('/projects?limit=100').then((res) => {
       setProjects(res.data.data.list || []);
     }).catch(() => {});
+  };
+
+  useEffect(() => {
+    loadProjects();
   }, []);
 
-  const toggleSidebar = () => {
-    setCollapsed((prev) => {
-      localStorage.setItem('sidebar_collapsed', String(!prev));
-      return !prev;
-    });
-  };
-
-  const handleMenuToggle = () => {
-    if (window.innerWidth < 768) {
-      setMobileOpen((v) => !v);
-    } else {
-      setCollapsed((prev) => {
-        localStorage.setItem('sidebar_collapsed', String(!prev));
-        return !prev;
-      });
-    }
-  };
+  useEffect(() => {
+    const handler = () => loadProjects();
+    document.addEventListener('projects-updated', handler);
+    return () => document.removeEventListener('projects-updated', handler);
+  }, []);
 
   return (
-    <div className="flex h-screen bg-white dark:bg-gray-950">
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-20 bg-black/50 md:hidden" onClick={() => setMobileOpen(false)} />
-      )}
-
-      {/* Sidebar wrapper */}
-      <div className={`
-        fixed inset-y-0 left-0 z-30 transition-transform duration-200
-        md:relative md:z-0 md:translate-x-0
-        ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
-      `}>
-        <Sidebar projects={projects} collapsed={collapsed} onToggle={() => {
-          if (window.innerWidth < 768) setMobileOpen(false);
-          else toggleSidebar();
-        }} onNavigate={() => setMobileOpen(false)} />
-      </div>
+    <div className="flex h-screen bg-neutral-50 dark:bg-dneutral-50">
+      {/* Sidebar */}
+      <Sidebar projects={projects} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar onMenuToggle={handleMenuToggle} onSearchClick={() => setShowCommandPalette(true)} />
-        <main className="flex-1 overflow-auto">
+        <TopBar />
+        <main className="flex-1 min-h-0 overflow-auto">
           <Outlet />
         </main>
       </div>
-      {showCommandPalette && <CommandPalette onClose={() => setShowCommandPalette(false)} />}
-      <ShortcutsHelp />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { IsString, MaxLength, IsOptional, IsInt } from 'class-validator';
+import { IsString, MaxLength, IsOptional, IsInt, IsIn } from 'class-validator';
 
 export class UpdateProjectDto {
   @IsOptional()
@@ -16,5 +16,14 @@ export class UpdateProjectDto {
 
   @IsOptional()
   @IsInt()
+  defaultAssigneeId?: number;
+
+  @IsOptional()
+  @IsInt()
   defaultSprintDuration?: number;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['free', 'fibonacci', 'tshirt'])
+  estimationScale?: 'free' | 'fibonacci' | 'tshirt';
 }

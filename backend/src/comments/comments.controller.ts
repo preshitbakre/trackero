@@ -34,34 +34,37 @@ export class CommentsController {
   @Roles('admin', 'project_manager', 'member', 'viewer')
   @ResponseCode('COMMENTS_LISTED')
   async findAll(
+    @Param('projectId', ParseIntPipe) projectId: number,
     @Param('taskId', ParseIntPipe) taskId: number,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.commentsService.listComments(taskId, page || 1, limit || 20);
+    return this.commentsService.listComments(projectId, taskId, page || 1, limit || 20);
   }
 
   @Put(':commentId')
   @Roles('admin', 'project_manager', 'member')
   @ResponseCode('COMMENT_UPDATED')
   async update(
+    @Param('projectId', ParseIntPipe) projectId: number,
     @Param('taskId', ParseIntPipe) taskId: number,
     @Param('commentId', ParseIntPipe) commentId: number,
     @Body() dto: CreateCommentDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.commentsService.update(taskId, commentId, dto.body, user.userId);
+    return this.commentsService.update(projectId, taskId, commentId, dto.body, user.userId);
   }
 
   @Delete(':commentId')
   @Roles('admin', 'project_manager', 'member')
   @ResponseCode('COMMENT_DELETED')
   async remove(
+    @Param('projectId', ParseIntPipe) projectId: number,
     @Param('taskId', ParseIntPipe) taskId: number,
     @Param('commentId', ParseIntPipe) commentId: number,
     @CurrentUser() user: JwtPayload,
   ) {
-    await this.commentsService.remove(taskId, commentId, user.userId, user.role);
+    await this.commentsService.remove(projectId, taskId, commentId, user.userId, user.role);
     return null;
   }
 }

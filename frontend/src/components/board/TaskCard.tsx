@@ -1,4 +1,5 @@
 import { useDraggable } from '@dnd-kit/core';
+import { Tooltip } from '../common/Tooltip';
 
 interface BoardTask {
   id: number;
@@ -7,9 +8,12 @@ interface BoardTask {
   type: string;
   priority: string;
   assigneeId: number | null;
+  assignee?: { id: number; displayName: string; avatarUrl?: string | null } | null;
   storyPoints: number | null;
   sortOrder: string;
   epicId: number | null;
+  parentId?: number | null;
+  parentTaskNumber?: number | null;
   subtaskCount?: number;
   subtaskDoneCount?: number;
   hasBlockers?: boolean;
@@ -31,11 +35,11 @@ export function TaskCard({ task, isDragging, onClick }: TaskCardProps) {
     : undefined;
 
   const priorityColors: Record<string, string> = {
-    urgent: 'bg-red-500',
-    high: 'bg-orange-400',
-    medium: 'bg-yellow-400',
-    low: 'bg-blue-400',
-    none: 'bg-gray-300',
+    urgent: 'bg-priority-urgent',
+    high: 'bg-priority-high',
+    medium: 'bg-priority-medium',
+    low: 'bg-priority-low',
+    none: 'bg-priority-none',
   };
 
   const typeIcons: Record<string, string> = {
@@ -51,33 +55,49 @@ export function TaskCard({ task, isDragging, onClick }: TaskCardProps) {
       {...listeners}
       {...attributes}
       onClick={onClick}
-      className={`p-3 rounded-lg border bg-white dark:bg-gray-900 cursor-pointer transition-shadow ${
+      className={`p-3 rounded-lg border bg-neutral-50 dark:bg-dneutral-100 cursor-pointer transition-shadow ${
         isDragging
-          ? 'shadow-lg border-brand opacity-90'
-          : 'border-gray-200 dark:border-gray-700 hover:shadow-md hover:border-gray-300 dark:hover:border-gray-600'
+          ? 'shadow-lg border-primary-500 opacity-90'
+          : 'border-neutral-200 dark:border-dneutral-300 hover:shadow-md hover:border-neutral-200 dark:hover:border-dneutral-300'
       }`}
     >
-      <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1">
-        <span className={task.type === 'bug' ? 'text-red-500' : task.type === 'story' ? 'text-violet-500' : ''}>
-          {typeIcons[task.type] || '○'}
-        </span>
+      <div className="flex items-center gap-1.5 text-sm text-neutral-400 mb-1">
+        {task.parentId && (
+          <Tooltip label={`Subtask of #${task.parentTaskNumber}`}>
+            <span className="text-neutral-400">↳</span>
+          </Tooltip>
+        )}
+        <Tooltip label={task.type.charAt(0).toUpperCase() + task.type.slice(1)}>
+          <span className={task.type === 'bug' ? 'text-danger' : task.type === 'story' ? 'text-primary-400' : ''}>
+            {typeIcons[task.type] || '○'}
+          </span>
+        </Tooltip>
         <span className="font-mono">#{task.taskNumber}</span>
         {task.hasBlockers && (
-          <span className="text-red-500 ml-auto" title="Blocked">🔒</span>
+          <Tooltip label="Blocked">
+            <span className="text-danger">🔒</span>
+          </Tooltip>
+        )}
+        {task.assignee && (
+          <span className="ml-auto text-sm px-2 py-0.5 rounded-full bg-primary-100 dark:bg-dprimary-100 text-primary-600 dark:text-dprimary-600 truncate max-w-[120px]">
+            {task.assignee.displayName}
+          </span>
         )}
       </div>
-      <p className="text-sm font-medium text-gray-900 dark:text-gray-50 line-clamp-2">{task.title}</p>
+      <p className="text-sm font-medium text-neutral-700 dark:text-dneutral-700 line-clamp-2">{task.title}</p>
       <div className="flex items-center gap-2 mt-2">
-        <span className={`w-2 h-2 rounded-full ${priorityColors[task.priority]}`} />
+        <Tooltip label={`Priority: ${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}`}>
+          <span className={`w-2 h-2 rounded-full ${priorityColors[task.priority]}`} />
+        </Tooltip>
         {task.storyPoints != null && task.storyPoints > 0 && (
-          <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
+          <span className="text-sm text-neutral-400 bg-neutral-100 dark:bg-dneutral-200 px-1.5 py-0.5 rounded">
             {task.storyPoints}pts
           </span>
         )}
         {task.subtaskCount != null && task.subtaskCount > 0 && (
-          <span className="text-xs text-gray-400">
-            ☑ {task.subtaskDoneCount}/{task.subtaskCount}
-          </span>
+          <Tooltip label={`Subtasks: ${task.subtaskDoneCount} of ${task.subtaskCount} done`}>
+            <span className="text-sm text-neutral-400">☑ {task.subtaskDoneCount}/{task.subtaskCount}</span>
+          </Tooltip>
         )}
       </div>
     </div>

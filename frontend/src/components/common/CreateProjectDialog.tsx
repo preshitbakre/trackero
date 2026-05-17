@@ -1,0 +1,97 @@
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
+import { apiClient } from '../../api/client';
+import { queryClient } from '../../lib/query-client';
+
+function generatePrefix(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length >= 5) {
+    return words.slice(0, 5).map((w) => w[0]).join('').toUpperCase();
+  }
+  if (words.length >= 2) {
+    const initials = words.map((w) => w[0].toUpperCase()).join('');
+    if (initials.length >= 5) return initials.slice(0, 5);
+    // Pad from first word's remaining letters
+    const needed = 5 - initials.length;
+    const extra = words[0].slice(1, 1 + needed).toUpperCase();
+    return (initials[0] + extra + initials.slice(1)).slice(0, 5);
+  }
+  return name.replace(/[^a-zA-Z]/g, '').slice(0, 5).toUpperCase();
+}
+
+export function CreateProjectDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [name, setName] = useState('');
+  const [prefix, setPrefix] = useState('');
+  const [prefixTouched, setPrefixTouched] = useState(false);
+  const [description, setDescription] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleNameChange = (value: string) => {
+    setName(value);
+    if (!prefixTouched) {
+      setPrefix(generatePrefix(value));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      await apiClient.post('/projects', { name, prefix: prefix.toUpperCase(), description: description || undefined });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      onCreated();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to create project');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputClass = "w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 px-3 py-2 text-sm text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400";
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-700/50" onClick={onClose}>
+      <div className="bg-neutral-50 dark:bg-dneutral-100 rounded-lg p-6 w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-bold mb-4 text-neutral-700 dark:text-dneutral-700">Create Project</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && <div className="text-sm text-danger">{error}</div>}
+          <div>
+            <label className="block text-sm font-medium text-neutral-600 dark:text-dneutral-600 mb-1">Name</label>
+            <input
+              type="text" value={name} onChange={(e) => handleNameChange(e.target.value)} required
+              placeholder="e.g. Cubitraq"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-neutral-600 dark:text-dneutral-600 mb-1">Prefix</label>
+            <input
+              type="text" value={prefix}
+              onChange={(e) => { setPrefixTouched(true); setPrefix(e.target.value.toUpperCase()); }}
+              required pattern="[A-Z0-9]{2,5}" maxLength={5}
+              className={`${inputClass} font-mono`}
+            />
+            <p className="text-sm text-neutral-400 mt-1">Auto-generated from name. Edit if needed.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-neutral-600 dark:text-dneutral-600 mb-1">Description (optional)</label>
+            <textarea
+              value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
+              placeholder="What is this project about?"
+              className={inputClass}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-neutral-500 dark:text-dneutral-500 hover:text-neutral-700">Cancel</button>
+            <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-primary-500 rounded-md hover:bg-primary-600 disabled:opacity-50">
+              {loading ? 'Creating...' : 'Create'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>,
+    document.body,
+  );
+}

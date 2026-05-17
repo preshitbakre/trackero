@@ -19,7 +19,15 @@ export class UsersController {
   @Get()
   @Roles('admin')
   @ResponseCode('USERS_LISTED')
-  async findAll(@Query('page') page?: number, @Query('limit') limit?: number) {
+  async findAll(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('exclude_project') excludeProject?: number,
+    @Query('search') search?: string,
+  ) {
+    if (excludeProject) {
+      return this.usersService.searchUsersExcludingProject(excludeProject, search, limit || 10);
+    }
     return this.usersService.listUsers(page || 1, limit || 20);
   }
 

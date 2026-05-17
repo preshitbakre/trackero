@@ -1,0 +1,153 @@
+import { GreetingBar } from './GreetingBar';
+import { StatCard, StatCardGrid } from './StatCard';
+import { ProjectCard } from './ProjectCard';
+import { DashboardSection, TwoColumnLayout } from './DashboardSection';
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+export function ViewerDashboard({ data }: { data: any }) {
+  const { greeting, overviewStats, projects, sprintProgress, epicProgress, recentCompletions, teamMembers } = data;
+
+  const summaryText = overviewStats.projectsCount > 0
+    ? `Viewing ${overviewStats.projectsCount} project${overviewStats.projectsCount !== 1 ? 's' : ''} — ${overviewStats.overallProgress}% overall completion`
+    : 'No projects assigned yet';
+
+  return (
+    <div className="p-6">
+      <GreetingBar userName={greeting.userName} date={greeting.date} summaryText={summaryText} />
+
+      <StatCardGrid>
+        <StatCard icon="&#x1F4C1;" label="Projects" value={overviewStats.projectsCount} />
+        <StatCard icon="&#x2611;" label="Total tasks" value={overviewStats.totalTasks} />
+        <StatCard icon="&#x2705;" label="Completed" value={overviewStats.completedTasks} />
+        <StatCard icon="&#x1F4CA;" label="Progress" value={`${overviewStats.overallProgress}%`} progressBar={{ percent: overviewStats.overallProgress, color: '#4A6FA5' }} />
+      </StatCardGrid>
+
+      {projects.length === 0 ? (
+        <div className="rounded-lg border border-neutral-200 dark:border-dneutral-200 bg-neutral-50 dark:bg-dneutral-100 p-8 text-center">
+          <p className="text-neutral-400 dark:text-dneutral-500">You haven't been added to any projects yet.</p>
+          <p className="text-sm text-neutral-400 dark:text-dneutral-500 mt-1">Ask your admin to add you.</p>
+        </div>
+      ) : (
+        <>
+          {/* Projects + Sprint progress */}
+          <TwoColumnLayout>
+            <DashboardSection title="Projects overview">
+              <div className="space-y-3">
+                {projects.map((p: any) => (
+                  <ProjectCard key={p.id} {...p} />
+                ))}
+              </div>
+            </DashboardSection>
+
+            <DashboardSection title="Sprint progress">
+              {sprintProgress.length > 0 ? (
+                <div className="space-y-4">
+                  {sprintProgress.map((sp: any, i: number) => (
+                    <div key={i}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-medium text-neutral-700 dark:text-dneutral-700">{sp.projectName}</span>
+                        <span className="text-sm text-neutral-400 dark:text-dneutral-500">— {sp.sprintName}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm text-neutral-400 dark:text-dneutral-500 mb-1">
+                        <span>{sp.daysRemaining} days left</span>
+                        <span>{sp.progressPercent}%</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-neutral-200 dark:bg-dneutral-300 mb-2">
+                        <div className="h-full rounded-full bg-primary-500 transition-all" style={{ width: `${sp.progressPercent}%` }} />
+                      </div>
+                      <div className="flex gap-2 text-sm text-neutral-400 dark:text-dneutral-500 flex-wrap">
+                        <span>Backlog:{sp.tasksByStatus.backlog}</span>
+                        <span>In Progress:{sp.tasksByStatus.in_progress}</span>
+                        <span>Done:{sp.tasksByStatus.done}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-neutral-400 dark:text-dneutral-500 py-4 text-center">No active sprints</p>
+              )}
+            </DashboardSection>
+          </TwoColumnLayout>
+
+          {/* Epics + Recent completions */}
+          <TwoColumnLayout>
+            <DashboardSection title="Epic progress">
+              {epicProgress.length > 0 ? (
+                <div className="space-y-3">
+                  {epicProgress.map((e: any, i: number) => (
+                    <div key={i}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: e.color }} />
+                        <span className="text-sm font-medium text-neutral-700 dark:text-dneutral-700 truncate">{e.title}</span>
+                        <span className="text-sm text-neutral-400 dark:text-dneutral-500 ml-auto">{e.progressPercent}% ({e.completedTasks}/{e.totalTasks})</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-neutral-200 dark:bg-dneutral-300">
+                        <div className="h-full rounded-full transition-all" style={{ width: `${e.progressPercent}%`, backgroundColor: e.color }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-neutral-400 dark:text-dneutral-500 py-4 text-center">No active epics</p>
+              )}
+            </DashboardSection>
+
+            <DashboardSection title="Recent completions">
+              {recentCompletions.length > 0 ? (
+                <div className="space-y-2">
+                  {recentCompletions.map((c: any, i: number) => (
+                    <div key={i} className="flex items-center gap-2 text-sm">
+                      <span className="text-success flex-shrink-0">&#x2713;</span>
+                      <span className="font-mono text-neutral-400 dark:text-dneutral-500 text-sm">{c.taskKey}</span>
+                      <span className="text-neutral-700 dark:text-dneutral-700 truncate flex-1">{c.title}</span>
+                      <span className="text-sm text-neutral-400 dark:text-dneutral-500 flex-shrink-0">{c.completedBy.displayName}</span>
+                      <span className="text-sm text-neutral-400 dark:text-dneutral-500 flex-shrink-0">{timeAgo(c.completedAt)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-neutral-400 dark:text-dneutral-500 py-4 text-center">No recent completions</p>
+              )}
+            </DashboardSection>
+          </TwoColumnLayout>
+
+          {/* Team */}
+          <DashboardSection title="Team">
+            <div className="space-y-2">
+              {teamMembers.map((m: any, i: number) => {
+                const initial = m.displayName?.charAt(0)?.toUpperCase() || '?';
+                const roleBadge: Record<string, string> = {
+                  admin: 'bg-primary-100 dark:bg-dprimary-100 text-primary-700 dark:text-dprimary-600',
+                  project_manager: 'bg-accent-100 dark:bg-daccent-100 text-accent-700 dark:text-daccent-600',
+                  member: 'bg-secondary-100 dark:bg-dsecondary-100 text-secondary-700 dark:text-dsecondary-600',
+                  viewer: 'bg-neutral-100 dark:bg-dneutral-200 text-neutral-500 dark:text-dneutral-500',
+                };
+                return (
+                  <div key={i} className="flex items-center gap-3 py-1.5">
+                    <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-dprimary-100 flex items-center justify-center text-sm font-medium text-primary-600 dark:text-dprimary-600 flex-shrink-0">
+                      {initial}
+                    </div>
+                    <span className="text-sm font-medium text-neutral-700 dark:text-dneutral-700 flex-1">{m.displayName}</span>
+                    <span className={`text-sm px-1.5 py-0.5 rounded font-medium ${roleBadge[m.role] || roleBadge.member}`}>
+                      {m.role === 'project_manager' ? 'PM' : m.role}
+                    </span>
+                    <span className="text-sm text-neutral-400 dark:text-dneutral-500">{m.openTaskCount} open</span>
+                  </div>
+                );
+              })}
+            </div>
+          </DashboardSection>
+        </>
+      )}
+    </div>
+  );
+}

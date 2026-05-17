@@ -2,12 +2,7 @@ import { useAuthStore } from '../../store/auth.store';
 import { useNavigate, Link } from 'react-router-dom';
 import { NotificationBell } from '../notifications/NotificationBell';
 
-interface TopBarProps {
-  onMenuToggle: () => void;
-  onSearchClick: () => void;
-}
-
-export function TopBar({ onMenuToggle, onSearchClick }: TopBarProps) {
+export function TopBar() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
@@ -18,39 +13,18 @@ export function TopBar({ onMenuToggle, onSearchClick }: TopBarProps) {
   };
 
   return (
-    <header className="h-14 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 flex items-center justify-between px-4">
-      <div className="flex items-center gap-4">
-        <button
-          onClick={onMenuToggle}
-          className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-        </button>
-        <button
-          onClick={onSearchClick}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <span>Search...</span>
-          <kbd className="hidden sm:inline text-xs bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">⌘K</kbd>
-        </button>
-      </div>
-
+    <header className="h-14 border-b border-neutral-200 dark:border-dneutral-200 bg-neutral-50 dark:bg-dneutral-50 flex items-center justify-end px-4">
       <div className="flex items-center gap-3">
         <ThemeToggle />
         <NotificationBell />
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-brand/20 flex items-center justify-center text-sm font-medium text-brand">
+          <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-sm font-medium text-primary-500">
             {user?.displayName?.charAt(0)?.toUpperCase() || '?'}
           </div>
-          <Link to="/profile" className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100">Profile</Link>
+          <Link to="/profile" className="text-sm text-neutral-400 dark:text-dneutral-500 hover:text-neutral-700 dark:hover:text-dneutral-700">Profile</Link>
           <button
             onClick={handleLogout}
-            className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+            className="text-sm text-neutral-400 dark:text-dneutral-500 hover:text-neutral-700 dark:hover:text-dneutral-700"
           >
             Logout
           </button>
@@ -75,7 +49,7 @@ function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
+      className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-dneutral-200 text-neutral-400"
       title="Toggle theme"
     >
       <svg className="w-4 h-4 dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">

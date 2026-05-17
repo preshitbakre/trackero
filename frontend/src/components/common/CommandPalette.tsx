@@ -56,10 +56,10 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 
   return (
     <>
-      <div className="fixed inset-0 z-50 bg-black/50" onClick={onClose} />
-      <div className="fixed top-[20%] left-1/2 -translate-x-1/2 z-50 w-full max-w-lg bg-white dark:bg-gray-900 rounded-xl shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-700">
-        <div className="flex items-center px-4 border-b border-gray-200 dark:border-gray-700">
-          <svg className="w-4 h-4 text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className="fixed inset-0 z-50 bg-neutral-700/50" onClick={onClose} />
+      <div className="fixed top-[20%] left-1/2 -translate-x-1/2 z-50 w-full max-w-lg bg-neutral-50 dark:bg-dneutral-100 rounded-xl shadow-2xl overflow-hidden border border-neutral-200 dark:border-dneutral-300">
+        <div className="flex items-center px-4 border-b border-neutral-200 dark:border-dneutral-300">
+          <svg className="w-4 h-4 text-neutral-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
@@ -69,7 +69,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Search tasks, projects, actions..."
-            className="flex-1 py-3 text-sm bg-transparent outline-none text-gray-900 dark:text-gray-50 placeholder-gray-400"
+            className="flex-1 py-3 text-sm bg-transparent outline-none text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400"
           />
         </div>
 
@@ -80,23 +80,23 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
                 key={r.id}
                 onClick={() => { navigate(`/projects/${r.projectId}/board`); onClose(); }}
                 className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-3 ${
-                  i === selectedIndex ? 'bg-brand/10 text-brand' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  i === selectedIndex ? 'bg-primary-50 text-primary-500' : 'text-neutral-600 dark:text-dneutral-600 hover:bg-neutral-100 dark:hover:bg-dneutral-200'
                 }`}
               >
-                <span className="text-xs font-mono text-gray-400">{r.taskKey}</span>
+                <span className="text-sm font-mono text-neutral-400">{r.taskKey}</span>
                 <span className="text-sm flex-1 truncate">{r.title}</span>
-                <span className="text-xs text-gray-400">{r.projectName}</span>
+                <span className="text-sm text-neutral-400">{r.projectName}</span>
               </button>
             ))}
           </div>
         )}
 
         {query.length >= 2 && results.length === 0 && (
-          <div className="p-4 text-center text-sm text-gray-400">No results found</div>
+          <div className="p-4 text-center text-sm text-neutral-400">No results found</div>
         )}
 
         {query.length < 2 && (
-          <div className="p-4 text-center text-xs text-gray-400">
+          <div className="p-4 text-center text-sm text-neutral-400">
             Type at least 2 characters to search
           </div>
         )}

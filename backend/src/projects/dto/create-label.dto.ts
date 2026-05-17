@@ -2,7 +2,7 @@ import { IsString, MaxLength, Matches } from 'class-validator';
 
 export class CreateLabelDto {
   @IsString()
-  @MaxLength(50)
+  @MaxLength(15)
   name: string;
 
   @IsString()

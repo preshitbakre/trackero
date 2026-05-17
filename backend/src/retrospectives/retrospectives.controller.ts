@@ -43,32 +43,35 @@ export class RetrospectivesController {
   @HttpCode(HttpStatus.CREATED)
   @ResponseCode('RETRO_CARD_CREATED')
   async addCard(
+    @Param('projectId', ParseIntPipe) projectId: number,
     @Param('retroId', ParseIntPipe) retroId: number,
     @Body() body: { column: string; content: string },
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.retroService.addCard(retroId, body.column, body.content, user.userId);
+    return this.retroService.addCard(projectId, retroId, body.column, body.content, user.userId);
   }
 
   @Put('retro/:retroId/cards/:cardId')
   @Roles('admin', 'project_manager', 'member')
   @ResponseCode('RETRO_CARD_UPDATED')
   async updateCard(
+    @Param('projectId', ParseIntPipe) projectId: number,
     @Param('retroId', ParseIntPipe) retroId: number,
     @Param('cardId', ParseIntPipe) cardId: number,
     @Body() body: { content: string },
   ) {
-    return this.retroService.updateCard(retroId, cardId, body.content);
+    return this.retroService.updateCard(projectId, retroId, cardId, body.content);
   }
 
   @Delete('retro/:retroId/cards/:cardId')
   @Roles('admin', 'project_manager', 'member')
   @ResponseCode('RETRO_CARD_DELETED')
   async deleteCard(
+    @Param('projectId', ParseIntPipe) projectId: number,
     @Param('retroId', ParseIntPipe) retroId: number,
     @Param('cardId', ParseIntPipe) cardId: number,
   ) {
-    await this.retroService.deleteCard(retroId, cardId);
+    await this.retroService.deleteCard(projectId, retroId, cardId);
     return null;
   }
 
@@ -77,10 +80,11 @@ export class RetrospectivesController {
   @HttpCode(HttpStatus.OK)
   @ResponseCode('RETRO_CARD_VOTED')
   async vote(
+    @Param('projectId', ParseIntPipe) projectId: number,
     @Param('retroId', ParseIntPipe) retroId: number,
     @Param('cardId', ParseIntPipe) cardId: number,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.retroService.toggleVote(retroId, cardId, user.userId);
+    return this.retroService.toggleVote(projectId, retroId, cardId, user.userId);
   }
 }

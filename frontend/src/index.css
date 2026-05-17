@@ -1,7 +1,186 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+}
+.dark {
+  color-scheme: dark;
+}
+
+button, [role="button"], a, select, label[for], input[type="checkbox"], input[type="radio"], summary {
+  cursor: pointer;
+}
+
+/* Themed scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #9BAAB8;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #6D7F8E;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #2C3E4E;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #3D5165;
+}
+
+.scrollbar-none::-webkit-scrollbar { display: none; }
+.scrollbar-none { scrollbar-width: none; }
+
+@keyframes slide-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.animate-slide-in { animation: slide-in 0.2s ease-out; }
+
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #9BAAB8 transparent;
+}
+.dark * {
+  scrollbar-color: #2C3E4E transparent;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+select,
+button[type="submit"],
+.btn {
+  height: 30px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+textarea {
+  min-height: 30px;
+  box-sizing: border-box;
+}
+
 @theme {
   --font-sans: 'Geist', system-ui, -apple-system, sans-serif;
-  --color-brand: #6366F1;
-  --color-brand-accent: #8B5CF6;
+
+  /* keep brand alias for existing code */
+  --color-brand: #4A6FA5;
+  --color-brand-accent: #3B5A8A;
+
+  /* ═══════════════════════════════════════ */
+  /* LIGHT MODE SCALES                      */
+  /* ═══════════════════════════════════════ */
+  --color-primary-50:  #EDF2F7;
+  --color-primary-100: #D4E1EE;
+  --color-primary-200: #A8C3DA;
+  --color-primary-300: #7B9EBF;
+  --color-primary-400: #5A83A8;
+  --color-primary-500: #4A6FA5;
+  --color-primary-600: #3B5A8A;
+  --color-primary-700: #2C4468;
+
+  --color-secondary-50:  #EEF4F2;
+  --color-secondary-100: #D5E5E0;
+  --color-secondary-200: #B0CEC4;
+  --color-secondary-300: #88B5A8;
+  --color-secondary-400: #6A9E8E;
+  --color-secondary-500: #558A7A;
+  --color-secondary-600: #437060;
+  --color-secondary-700: #325549;
+
+  --color-accent-50:  #FAF5EF;
+  --color-accent-100: #F0E4D4;
+  --color-accent-200: #E0C9AB;
+  --color-accent-300: #C4A882;
+  --color-accent-400: #B08F62;
+  --color-accent-500: #96784E;
+  --color-accent-600: #7A613D;
+  --color-accent-700: #5B4A35;
+
+  --color-neutral-50:  #F0F4F8;
+  --color-neutral-100: #E1E8EF;
+  --color-neutral-200: #C8D3DE;
+  --color-neutral-300: #9BAAB8;
+  --color-neutral-400: #6D7F8E;
+  --color-neutral-500: #4E5D6A;
+  --color-neutral-600: #3D4F5F;
+  --color-neutral-700: #1E2A35;
+
+  /* ═══════════════════════════════════════ */
+  /* DARK MODE SCALES                       */
+  /* dark:bg-dprimary-500, dark:text-dprimary-600 */
+  /* 50=subtlest tint, 700=brightest fg     */
+  /* ═══════════════════════════════════════ */
+  --color-dprimary-50:  #0D1E2E;
+  --color-dprimary-100: #142C42;
+  --color-dprimary-200: #1E3D5A;
+  --color-dprimary-300: #2A5278;
+  --color-dprimary-400: #3B6A96;
+  --color-dprimary-500: #5A8ABF;
+  --color-dprimary-600: #7BAAD6;
+  --color-dprimary-700: #A8C8E8;
+
+  --color-dsecondary-50:  #0D1F1A;
+  --color-dsecondary-100: #142E26;
+  --color-dsecondary-200: #1E4035;
+  --color-dsecondary-300: #2A5647;
+  --color-dsecondary-400: #3A6E5C;
+  --color-dsecondary-500: #5A9A84;
+  --color-dsecondary-600: #7BBEA6;
+  --color-dsecondary-700: #A8D8C4;
+
+  --color-daccent-50:  #1A150D;
+  --color-daccent-100: #2A2114;
+  --color-daccent-200: #3D3020;
+  --color-daccent-300: #54422E;
+  --color-daccent-400: #6E5840;
+  --color-daccent-500: #B08F62;
+  --color-daccent-600: #D4B888;
+  --color-daccent-700: #E8D4AE;
+
+  --color-dneutral-50:  #0A1018;
+  --color-dneutral-100: #121C26;
+  --color-dneutral-200: #1E2D3A;
+  --color-dneutral-300: #2C3E4E;
+  --color-dneutral-400: #3D5165;
+  --color-dneutral-500: #6D7F8E;
+  --color-dneutral-600: #9BAAB8;
+  --color-dneutral-700: #C8D3DE;
+
+  /* ═══════════════════════════════════════ */
+  /* SEMANTIC (same hue in both modes)      */
+  /* ═══════════════════════════════════════ */
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-danger:  #EF4444;
+  --color-info:    #4A6FA5;
+
+  /* ═══════════════════════════════════════ */
+  /* STATUS CATEGORIES                      */
+  /* ═══════════════════════════════════════ */
+  --color-status-backlog:     #6D7F8E;
+  --color-status-todo:        #4A6FA5;
+  --color-status-in_progress: #C4A882;
+  --color-status-in_review:   #7C6B9E;
+  --color-status-done:        #558A7A;
+  --color-status-cancelled:   #EF4444;
+
+  /* ═══════════════════════════════════════ */
+  /* PRIORITY LEVELS                        */
+  /* ═══════════════════════════════════════ */
+  --color-priority-urgent: #EF4444;
+  --color-priority-high:   #F97316;
+  --color-priority-medium: #C4A882;
+  --color-priority-low:    #4A6FA5;
+  --color-priority-none:   #6D7F8E;
 }

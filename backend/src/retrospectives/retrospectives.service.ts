@@ -5,6 +5,7 @@ import { Retrospective } from './entities/retrospective.entity';
 import { RetroCard } from './entities/retro-card.entity';
 import { RetroVote } from './entities/retro-vote.entity';
 import { AppLogicException } from '../common/exceptions/app-exceptions';
+import { stripHtml } from '../common/helpers/sanitize.helper';
 
 @Injectable()
 export class RetrospectivesService {
@@ -43,9 +44,17 @@ export class RetrospectivesService {
     return retro;
   }
 
-  async addCard(retroId: number, column: string, content: string, userId: number) {
+  private async findRetroForProject(projectId: number, retroId: number): Promise<Retrospective> {
     const retro = await this.retroRepo.findOne({ where: { id: retroId } });
     if (!retro) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    if (retro.projectId !== projectId) {
+      throw new AppLogicException('FORBIDDEN', HttpStatus.FORBIDDEN);
+    }
+    return retro;
+  }
+
+  async addCard(projectId: number, retroId: number, column: string, content: string, userId: number) {
+    await this.findRetroForProject(projectId, retroId);
 
     const maxOrder = await this.cardRepo
       .createQueryBuilder('c')
@@ -56,27 +65,30 @@ export class RetrospectivesService {
     const card = this.cardRepo.create({
       retrospectiveId: retroId,
       column: column as RetroCard['column'],
-      content,
+      content: stripHtml(content),
       authorId: userId,
       sortOrder: (maxOrder?.max ?? -1) + 1,
     });
     return this.cardRepo.save(card);
   }
 
-  async updateCard(retroId: number, cardId: number, content: string) {
+  async updateCard(projectId: number, retroId: number, cardId: number, content: string) {
+    await this.findRetroForProject(projectId, retroId);
     const card = await this.cardRepo.findOne({ where: { id: cardId, retrospectiveId: retroId } });
     if (!card) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
-    card.content = content;
+    card.content = stripHtml(content);
     return this.cardRepo.save(card);
   }
 
-  async deleteCard(retroId: number, cardId: number) {
+  async deleteCard(projectId: number, retroId: number, cardId: number) {
+    await this.findRetroForProject(projectId, retroId);
     const card = await this.cardRepo.findOne({ where: { id: cardId, retrospectiveId: retroId } });
     if (!card) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     await this.cardRepo.remove(card);
   }
 
-  async toggleVote(retroId: number, cardId: number, userId: number) {
+  async toggleVote(projectId: number, retroId: number, cardId: number, userId: number) {
+    await this.findRetroForProject(projectId, retroId);
     const card = await this.cardRepo.findOne({ where: { id: cardId, retrospectiveId: retroId } });
     if (!card) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
 

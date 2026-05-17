@@ -29,6 +29,9 @@ COPY --from=builder /app/backend/dist ./dist
 COPY --from=builder /app/backend/migrations ./migrations
 COPY --from=builder /app/frontend/dist ./public
 
+RUN addgroup -S app && adduser -S app -G app
+USER app
+
 ENV NODE_ENV=production
 EXPOSE 3001
 

@@ -9,7 +9,7 @@ describe('Board Module (e2e)', () => {
   let adminToken: string;
   let projectId: number;
   let backlogStatusId: number;
-  let todoStatusId: number;
+  let inProgressStatusId: number;
   let doneStatusId: number;
 
   beforeAll(async () => {
@@ -40,7 +40,7 @@ describe('Board Module (e2e)', () => {
       [projectId],
     );
     backlogStatusId = statuses.find((s: any) => s.category === 'backlog').id;
-    todoStatusId = statuses.find((s: any) => s.category === 'todo').id;
+    inProgressStatusId = statuses.find((s: any) => s.category === 'in_progress').id;
     doneStatusId = statuses.find((s: any) => s.category === 'done').id;
   });
 
@@ -64,7 +64,7 @@ describe('Board Module (e2e)', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.code).toBe('S-0109');
       expect(res.body.data.columns).toBeDefined();
-      expect(res.body.data.columns.length).toBe(6); // 6 default statuses
+      expect(res.body.data.columns.length).toBe(3); // 3 default statuses
 
       // Tasks should be in the backlog column (default status)
       const backlogCol = res.body.data.columns.find((c: any) => c.status.category === 'backlog');
@@ -77,7 +77,7 @@ describe('Board Module (e2e)', () => {
       const sprintRes = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 1' });
+        .send({ name: 'Sprint 1', startDate: '2026-05-18', endDate: '2026-06-01' });
       const sprintId = sprintRes.body.data.item.id;
 
       // Create tasks - one in sprint, one without
@@ -118,14 +118,14 @@ describe('Board Module (e2e)', () => {
       const res = await request(app.getHttpServer())
         .put(`/api/projects/${projectId}/board/move`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ taskId, statusId: todoStatusId, sortOrder: 'n' })
+        .send({ taskId, statusId: inProgressStatusId, sortOrder: 'n' })
         .expect(200);
 
       expect(res.body.success).toBe(true);
       expect(res.body.code).toBe('S-0110');
       // Lightweight response - just the task fields, not full mutation response
       expect(res.body.data.id).toBe(taskId);
-      expect(res.body.data.statusId).toBe(todoStatusId);
+      expect(res.body.data.statusId).toBe(inProgressStatusId);
       expect(res.body.data.sortOrder).toBe('n');
       // Should NOT have list/pagination fields
       expect(res.body.data.list).toBeUndefined();
@@ -190,11 +190,11 @@ describe('Board Module (e2e)', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ taskId, statusId: doneStatusId, sortOrder: 'n' });
 
-      // Move back to todo
+      // Move back to in_progress
       const res = await request(app.getHttpServer())
         .put(`/api/projects/${projectId}/board/move`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ taskId, statusId: todoStatusId, sortOrder: 'n' })
+        .send({ taskId, statusId: inProgressStatusId, sortOrder: 'n' })
         .expect(200);
 
       expect(res.body.data.completedAt).toBeNull();

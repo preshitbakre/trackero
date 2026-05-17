@@ -5,6 +5,7 @@ import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { Notification } from './entities/notification.entity';
 import { PaginatedResponse } from '../common/dto/paginated-response.dto';
 import { EmailService } from '../common/services/email.service';
+import { clampLimit } from '../common/helpers/pagination.helper';
 
 @Injectable()
 export class NotificationsService {
@@ -17,6 +18,7 @@ export class NotificationsService {
   ) {}
 
   async list(userId: number, page: number = 1, limit: number = 20, isRead?: boolean) {
+    limit = clampLimit(limit);
     const qb = this.notifRepo.createQueryBuilder('n')
       .where('n.userId = :userId', { userId })
       .orderBy('n.createdAt', 'DESC');
@@ -26,9 +28,7 @@ export class NotificationsService {
     }
 
     const total = await qb.getCount();
-    if (limit !== -1) {
-      qb.skip((page - 1) * limit).take(limit);
-    }
+    qb.skip((page - 1) * limit).take(limit);
     const data = await qb.getMany();
     return new PaginatedResponse(data, total, page, limit);
   }

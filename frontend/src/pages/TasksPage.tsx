@@ -43,11 +43,11 @@ export function TasksPage() {
   };
 
   const priorityDot: Record<string, string> = {
-    urgent: 'bg-red-500',
-    high: 'bg-orange-400',
-    medium: 'bg-yellow-400',
-    low: 'bg-blue-400',
-    none: 'bg-gray-300',
+    urgent: 'bg-priority-urgent',
+    high: 'bg-priority-high',
+    medium: 'bg-priority-medium',
+    low: 'bg-priority-low',
+    none: 'bg-priority-none',
   };
 
   const typeIcon: Record<string, string> = {
@@ -59,10 +59,10 @@ export function TasksPage() {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Tasks</h1>
+        <h1 className="text-2xl font-bold text-neutral-700 dark:text-dneutral-700">Tasks</h1>
         <button
           onClick={() => setShowCreate(true)}
-          className="px-4 py-2 text-sm font-medium text-white bg-brand rounded-md hover:bg-brand/90"
+          className="px-4 py-2 text-sm font-medium text-white bg-primary-500 rounded-md hover:bg-primary-600"
         >
           Create Task
         </button>
@@ -73,10 +73,10 @@ export function TasksPage() {
           <input
             type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)}
             placeholder="Task title..." autoFocus
-            className="flex-1 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+            className="flex-1 rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 px-3 py-2 text-sm text-neutral-700 dark:text-dneutral-700"
           />
-          <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-brand rounded-md">Add</button>
-          <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm text-gray-500">Cancel</button>
+          <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-primary-500 rounded-md">Add</button>
+          <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm text-neutral-400">Cancel</button>
         </form>
       )}
 
@@ -85,20 +85,20 @@ export function TasksPage() {
           <div
             key={task.id}
             onClick={() => setSelectedTaskId(task.id)}
-            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 cursor-pointer border border-transparent hover:border-gray-200 dark:hover:border-gray-800"
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-neutral-100 dark:hover:bg-dneutral-100 cursor-pointer border border-transparent hover:border-neutral-200 dark:hover:border-dneutral-200"
           >
-            <span className="text-gray-400 text-sm">{typeIcon[task.type] || '○'}</span>
-            <span className="flex-1 text-sm text-gray-900 dark:text-gray-50 truncate">{task.title}</span>
+            <span className="text-neutral-400 text-sm">{typeIcon[task.type] || '○'}</span>
+            <span className="flex-1 text-sm text-neutral-700 dark:text-dneutral-700 truncate">{task.title}</span>
             <span className={`w-2 h-2 rounded-full ${priorityDot[task.priority]}`} />
             {task.storyPoints && (
-              <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
+              <span className="text-sm text-neutral-400 bg-neutral-100 dark:bg-dneutral-200 px-1.5 py-0.5 rounded">
                 {task.storyPoints}
               </span>
             )}
           </div>
         ))}
         {tasks.length === 0 && !showCreate && (
-          <div className="text-center py-12 text-gray-500">No tasks yet</div>
+          <div className="text-center py-12 text-neutral-400">No tasks yet</div>
         )}
       </div>
 

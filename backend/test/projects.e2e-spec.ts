@@ -48,14 +48,11 @@ describe('Projects Module (e2e)', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(statusRes.body.data.length).toBe(6);
+      expect(statusRes.body.data.length).toBe(3);
       const categories = statusRes.body.data.map((s: any) => s.category);
       expect(categories).toContain('backlog');
-      expect(categories).toContain('todo');
       expect(categories).toContain('in_progress');
-      expect(categories).toContain('in_review');
       expect(categories).toContain('done');
-      expect(categories).toContain('cancelled');
     });
 
     it('auto-adds creator as project member', async () => {
@@ -235,27 +232,24 @@ describe('Projects Module (e2e)', () => {
       const res = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/statuses`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'QA Testing', category: 'in_review', color: '#9333EA' })
+        .send({ name: 'QA Testing', category: 'in_progress', color: '#9333EA' })
         .expect(201);
 
       expect(res.body.success).toBe(true);
       expect(res.body.code).toBe('S-0031');
     });
 
-    it('cannot delete last status of required category -> 409', async () => {
-      // Get the statuses
+    it('cannot delete fixed status -> 403', async () => {
       const statusRes = await request(app.getHttpServer())
         .get(`/api/projects/${projectId}/statuses`)
         .set('Authorization', `Bearer ${adminToken}`);
 
       const backlogStatus = statusRes.body.data.find((s: any) => s.category === 'backlog');
 
-      const res = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .delete(`/api/projects/${projectId}/statuses/${backlogStatus.id}`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .expect(409);
-
-      expect(res.body.code).toBe('F-L-0041');
+        .expect(403);
     });
   });
 

@@ -4,6 +4,7 @@ import {
   Get,
   Put,
   Body,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -30,6 +31,13 @@ export class AuthController {
   @ResponseCode('HEALTH_OK')
   async setupStatus() {
     return this.authService.getSetupStatus();
+  }
+
+  @Get('invite-info')
+  @Throttle({ default: { limit: parseInt(process.env.AUTH_THROTTLE_LIMIT || '5', 10), ttl: parseInt(process.env.AUTH_THROTTLE_TTL || '60000', 10) } })
+  @ResponseCode('HEALTH_OK')
+  async inviteInfo(@Query('token') token: string) {
+    return this.authService.getInviteInfo(token);
   }
 
   @Post('register')

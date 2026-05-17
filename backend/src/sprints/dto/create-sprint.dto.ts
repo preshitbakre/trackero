@@ -9,11 +9,9 @@ export class CreateSprintDto {
   @IsString()
   goal?: string;
 
-  @IsOptional()
   @IsString()
-  startDate?: string;
+  startDate: string;
 
-  @IsOptional()
   @IsString()
-  endDate?: string;
+  endDate: string;
 }

@@ -18,7 +18,7 @@ export class ProjectStatus {
   name: string;
 
   @Column({ type: 'varchar', length: 20 })
-  category: 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done' | 'cancelled';
+  category: 'backlog' | 'in_progress' | 'done';
 
   @Column({ length: 7, default: '#6B7280' })
   color: string;
@@ -28,6 +28,12 @@ export class ProjectStatus {
 
   @Column({ name: 'is_default', type: 'boolean', default: false })
   isDefault: boolean;
+
+  @Column({ name: 'wip_limit', type: 'int', default: 0 })
+  wipLimit: number;
+
+  @Column({ name: 'is_fixed', type: 'boolean', default: false })
+  isFixed: boolean;
 
   @ManyToOne(() => Project, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'project_id' })

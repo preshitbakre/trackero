@@ -16,15 +16,16 @@ interface BoardTask {
 }
 
 interface StatusColumnProps {
-  status: { id: number; name: string; category: string; color: string };
+  status: { id: number; name: string; category: string; color: string; wipLimit?: number };
   tasks: BoardTask[];
   taskCount: number;
   onTaskClick: (taskId: number) => void;
   projectId: number;
   onTaskCreated: () => void;
+  canEdit?: boolean;
 }
 
-export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId, onTaskCreated }: StatusColumnProps) {
+export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId, onTaskCreated, canEdit = true }: StatusColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: `column-${status.id}` });
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickTitle, setQuickTitle] = useState('');
@@ -49,18 +50,23 @@ export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId,
     } catch {}
   };
 
+  const wipLimit = status.wipLimit || 0;
+  const overWip = wipLimit > 0 && taskCount > wipLimit;
+
   return (
     <div
       ref={setNodeRef}
       className={`flex flex-col w-[280px] flex-shrink-0 rounded-lg ${
-        isOver ? 'bg-brand/5 ring-2 ring-brand/20' : 'bg-gray-50 dark:bg-gray-900/50'
+        isOver ? 'bg-primary-50 ring-2 ring-primary-200' : overWip ? 'bg-danger/5 dark:bg-danger/5' : 'bg-neutral-50 dark:bg-dneutral-100'
       }`}
     >
       {/* Column header */}
       <div className="flex items-center gap-2 px-3 py-2">
         <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: status.color }} />
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{status.name}</span>
-        <span className="text-xs text-gray-400 ml-auto">{taskCount}</span>
+        <span className="text-sm font-medium text-neutral-600 dark:text-dneutral-600">{status.name}</span>
+        <span className={`text-sm ml-auto ${overWip ? 'text-danger font-medium' : 'text-neutral-400'}`}>
+          {wipLimit > 0 ? `${taskCount}/${wipLimit}` : taskCount}
+        </span>
       </div>
 
       {/* Tasks */}
@@ -70,37 +76,39 @@ export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId,
         ))}
 
         {tasks.length === 0 && !showQuickAdd && (
-          <div className="text-center py-4 text-xs text-gray-400">No tasks</div>
+          <div className="text-center py-4 text-sm text-neutral-400">No tasks</div>
         )}
       </div>
 
       {/* Quick add */}
-      <div className="px-2 pb-2">
-        {showQuickAdd ? (
-          <form onSubmit={handleQuickAdd} className="space-y-1">
-            <input
-              type="text"
-              value={quickTitle}
-              onChange={(e) => setQuickTitle(e.target.value)}
-              placeholder="Task title..."
-              autoFocus
-              onBlur={() => !quickTitle && setShowQuickAdd(false)}
-              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
-            />
-            <div className="flex gap-1">
-              <button type="submit" className="text-xs px-2 py-1 bg-brand text-white rounded">Add</button>
-              <button type="button" onClick={() => setShowQuickAdd(false)} className="text-xs px-2 py-1 text-gray-500">Cancel</button>
-            </div>
-          </form>
-        ) : (
-          <button
-            onClick={() => setShowQuickAdd(true)}
-            className="w-full text-left text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
-          >
-            + Add task
-          </button>
-        )}
-      </div>
+      {canEdit && (
+        <div className="px-2 pb-2">
+          {showQuickAdd ? (
+            <form onSubmit={handleQuickAdd} className="space-y-1">
+              <input
+                type="text"
+                value={quickTitle}
+                onChange={(e) => setQuickTitle(e.target.value)}
+                placeholder="Task title..."
+                autoFocus
+                onBlur={() => !quickTitle && setShowQuickAdd(false)}
+                className="w-full text-sm px-2 py-1.5 rounded border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 text-neutral-700 dark:text-dneutral-700"
+              />
+              <div className="flex gap-1">
+                <button type="submit" className="text-sm px-2 py-1 bg-primary-500 text-white rounded">Add</button>
+                <button type="button" onClick={() => setShowQuickAdd(false)} className="text-sm px-2 py-1 text-neutral-400">Cancel</button>
+              </div>
+            </form>
+          ) : (
+            <button
+              onClick={() => setShowQuickAdd(true)}
+              className="w-full text-left text-sm text-neutral-400 hover:text-neutral-500 dark:hover:text-dneutral-600 px-2 py-1 rounded hover:bg-neutral-100 dark:hover:bg-dneutral-200"
+            >
+              + Add task
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

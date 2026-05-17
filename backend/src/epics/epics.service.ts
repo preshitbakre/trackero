@@ -7,6 +7,7 @@ import { PaginatedResponse } from '../common/dto/paginated-response.dto';
 import { PaginatedMutationResponse } from '../common/dto/paginated-mutation-response.dto';
 import { CreateEpicDto } from './dto/create-epic.dto';
 import { UpdateEpicDto } from './dto/update-epic.dto';
+import { clampLimit } from '../common/helpers/pagination.helper';
 
 @Injectable()
 export class EpicsService {
@@ -33,14 +34,13 @@ export class EpicsService {
   }
 
   async listEpics(projectId: number, page: number = 1, limit: number = 20) {
+    limit = clampLimit(limit);
     const qb = this.epicRepo.createQueryBuilder('e')
       .where('e.projectId = :projectId', { projectId })
       .orderBy('e.sortOrder', 'ASC');
 
     const total = await qb.getCount();
-    if (limit !== -1) {
-      qb.skip((page - 1) * limit).take(limit);
-    }
+    qb.skip((page - 1) * limit).take(limit);
     const epics = await qb.getMany();
 
     const data = await Promise.all(epics.map(async (epic) => {

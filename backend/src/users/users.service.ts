@@ -7,6 +7,7 @@ import { Invitation } from '../auth/entities/invitation.entity';
 import { AppLogicException } from '../common/exceptions/app-exceptions';
 import { PaginatedResponse } from '../common/dto/paginated-response.dto';
 import { PaginatedMutationResponse } from '../common/dto/paginated-mutation-response.dto';
+import { clampLimit } from '../common/helpers/pagination.helper';
 
 @Injectable()
 export class UsersService {
@@ -19,6 +20,7 @@ export class UsersService {
   ) {}
 
   async listUsers(page: number = 1, limit: number = 20) {
+    limit = clampLimit(limit);
     const qb = this.userRepo.createQueryBuilder('u')
       .select([
         'u.id', 'u.email', 'u.displayName', 'u.role',
@@ -27,12 +29,31 @@ export class UsersService {
       .orderBy('u.createdAt', 'DESC');
 
     const total = await qb.getCount();
-    if (limit !== -1) {
-      qb.skip((page - 1) * limit).take(limit);
-    }
+    qb.skip((page - 1) * limit).take(limit);
     const data = await qb.getMany();
 
     return new PaginatedResponse(data, total, page, limit);
+  }
+
+  async searchUsersExcludingProject(excludeProjectId: number, search?: string, limit: number = 10) {
+    let sql = `
+      SELECT u.id, u.display_name AS "displayName", u.email, u.avatar_url AS "avatarUrl"
+      FROM users u
+      WHERE u.is_active = true
+        AND u.id NOT IN (SELECT user_id FROM project_members WHERE project_id = $1)
+    `;
+    const params: any[] = [excludeProjectId];
+
+    if (search && search.length >= 1) {
+      params.push(`%${search}%`);
+      sql += ` AND (u.display_name ILIKE $${params.length} OR u.email ILIKE $${params.length})`;
+    }
+
+    sql += ` ORDER BY u.display_name ASC LIMIT $${params.length + 1}`;
+    params.push(limit);
+
+    const list = await this.dataSource.query(sql, params);
+    return { list };
   }
 
   async changeRole(id: number, newRole: string, actorId: number) {
@@ -90,18 +111,33 @@ export class UsersService {
   }
 
   async invite(email: string, role: string, invitedBy: number, projectId?: number) {
+    const VALID_ROLES = ['admin', 'project_manager', 'member', 'viewer'];
+    if (!VALID_ROLES.includes(role)) {
+      throw new AppLogicException('FORBIDDEN', HttpStatus.BAD_REQUEST);
+    }
+
+    // Block if active user exists with this email
     const existingUser = await this.userRepo.findOne({ where: { email } });
-    if (existingUser) {
+    if (existingUser && existingUser.isActive) {
       throw new AppLogicException('EMAIL_ALREADY_REGISTERED', HttpStatus.CONFLICT);
     }
 
+    // Block if pending invite already exists for this email
+    const existingInvite = await this.invitationRepo.findOne({
+      where: { email, status: 'pending' },
+    });
+    if (existingInvite) {
+      throw new AppLogicException('DUPLICATE_ENTRY', HttpStatus.CONFLICT);
+    }
+
     const token = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
     const invitation = this.invitationRepo.create({
       email,
-      token,
+      token: hashedToken,
       role: role as Invitation['role'],
       projectId: projectId || null,
       invitedBy,

@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { ResponsiveLine } from '@nivo/line';
 import { ResponsiveBar } from '@nivo/bar';
+import { Select } from '../components/ui/Select';
 
 export function ChartsPage() {
   const { id: projectId } = useParams();
@@ -17,7 +18,7 @@ export function ChartsPage() {
     if (!projectId) return;
     apiClient.get(`/projects/${projectId}/velocity`).then((r) => setVelocityData(r.data.data)).catch(() => {});
     apiClient.get(`/projects/${projectId}/cumulative-flow`).then((r) => setFlowData(r.data.data)).catch(() => {});
-    apiClient.get(`/projects/${projectId}/sprints?limit=-1`).then((r) => setSprints(r.data.data.list || [])).catch(() => {});
+    apiClient.get(`/projects/${projectId}/sprints?limit=100`).then((r) => setSprints(r.data.data.list || [])).catch(() => {});
   }, [projectId]);
 
   useEffect(() => {
@@ -35,15 +36,15 @@ export function ChartsPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50 mb-4">Charts</h1>
+      <h1 className="text-2xl font-bold text-neutral-700 dark:text-dneutral-700 mb-4">Charts</h1>
 
-      <div className="flex gap-1 mb-6 border-b border-gray-200 dark:border-gray-800">
+      <div className="flex gap-1 mb-6 border-b border-neutral-200 dark:border-dneutral-200">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-              tab === t.key ? 'border-brand text-brand' : 'border-transparent text-gray-500 hover:text-gray-700'
+              tab === t.key ? 'border-primary-500 text-primary-500' : 'border-transparent text-neutral-400 hover:text-neutral-600'
             }`}
           >
             {t.label}
@@ -67,23 +68,24 @@ export function ChartsPage() {
               theme={{ text: { fill: '#6B7280' } }}
             />
           ) : (
-            <div className="flex items-center justify-center h-full text-gray-400">No completed sprints yet</div>
+            <div className="flex items-center justify-center h-full text-neutral-400">No completed sprints yet</div>
           )}
         </div>
       )}
 
       {tab === 'burndown' && (
         <div>
-          <select
-            value={selectedSprintId}
-            onChange={(e) => setSelectedSprintId(e.target.value)}
-            className="mb-4 text-sm rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-1.5"
-          >
-            <option value="">Select a sprint</option>
-            {sprints.filter((s: any) => s.status === 'active' || s.status === 'completed').map((s: any) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
+          <div className="mb-4">
+            <Select
+              value={selectedSprintId}
+              onChange={setSelectedSprintId}
+              placeholder="Select a sprint"
+              options={[
+                { value: '', label: 'Select a sprint' },
+                ...sprints.filter((s: any) => s.status === 'active' || s.status === 'completed').map((s: any) => ({ value: String(s.id), label: s.name })),
+              ]}
+            />
+          </div>
 
           <div className="h-[400px]">
             {burndownData?.dataPoints?.length > 0 ? (
@@ -103,7 +105,7 @@ export function ChartsPage() {
                 legends={[{ anchor: 'bottom-right', direction: 'column', translateX: 80, itemWidth: 60, itemHeight: 20 }]}
               />
             ) : (
-              <div className="flex items-center justify-center h-full text-gray-400">
+              <div className="flex items-center justify-center h-full text-neutral-400">
                 {selectedSprintId ? 'No burndown data' : 'Select a sprint to view burndown'}
               </div>
             )}
@@ -117,9 +119,7 @@ export function ChartsPage() {
             <ResponsiveLine
               data={[
                 { id: 'Backlog', data: flowData.map((d: any) => ({ x: d.date, y: d.backlog })) },
-                { id: 'Todo', data: flowData.map((d: any) => ({ x: d.date, y: d.todo })) },
                 { id: 'In Progress', data: flowData.map((d: any) => ({ x: d.date, y: d.in_progress })) },
-                { id: 'In Review', data: flowData.map((d: any) => ({ x: d.date, y: d.in_review })) },
                 { id: 'Done', data: flowData.map((d: any) => ({ x: d.date, y: d.done })) },
               ]}
               margin={{ top: 20, right: 100, bottom: 50, left: 50 }}
@@ -127,12 +127,12 @@ export function ChartsPage() {
               yScale={{ type: 'linear', stacked: true, min: 0 }}
               enableArea={true}
               areaOpacity={0.6}
-              colors={['#6B7280', '#3B82F6', '#F59E0B', '#8B5CF6', '#22C55E']}
+              colors={['#6B7280', '#F59E0B', '#22C55E']}
               axisLeft={{ legend: 'Tasks', legendPosition: 'middle', legendOffset: -40 }}
               legends={[{ anchor: 'bottom-right', direction: 'column', translateX: 90, itemWidth: 70, itemHeight: 20 }]}
             />
           ) : (
-            <div className="flex items-center justify-center h-full text-gray-400">No data yet</div>
+            <div className="flex items-center justify-center h-full text-neutral-400">No data yet</div>
           )}
         </div>
       )}

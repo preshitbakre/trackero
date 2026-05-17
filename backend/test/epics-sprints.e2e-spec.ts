@@ -111,7 +111,7 @@ describe('Epics & Sprints (e2e)', () => {
       const res = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 1', goal: 'Complete auth' })
+        .send({ name: 'Sprint 1', goal: 'Complete auth', startDate: '2026-05-18', endDate: '2026-06-01' })
         .expect(201);
 
       expect(res.body.success).toBe(true);
@@ -125,12 +125,12 @@ describe('Epics & Sprints (e2e)', () => {
       await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 1' });
+        .send({ name: 'Sprint 1', startDate: '2026-05-18', endDate: '2026-06-01' });
 
       const res = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 2' })
+        .send({ name: 'Sprint 2', startDate: '2026-05-18', endDate: '2026-06-01' })
         .expect(201);
 
       expect(res.body.data.item.sprintNumber).toBe(2);
@@ -140,7 +140,7 @@ describe('Epics & Sprints (e2e)', () => {
       const createRes = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Empty Sprint' });
+        .send({ name: 'Empty Sprint', startDate: '2026-05-18', endDate: '2026-06-01' });
 
       const sprintId = createRes.body.data.item.id;
       const res = await request(app.getHttpServer())
@@ -156,11 +156,11 @@ describe('Epics & Sprints (e2e)', () => {
       const s1Res = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 1' });
+        .send({ name: 'Sprint 1', startDate: '2026-05-18', endDate: '2026-06-01' });
       const s2Res = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 2' });
+        .send({ name: 'Sprint 2', startDate: '2026-05-18', endDate: '2026-06-01' });
 
       const sprint1Id = s1Res.body.data.item.id;
       const sprint2Id = s2Res.body.data.item.id;
@@ -205,7 +205,7 @@ describe('Epics & Sprints (e2e)', () => {
       const createRes = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 1' });
+        .send({ name: 'Sprint 1', startDate: '2026-05-18', endDate: '2026-06-01' });
       const sprintId = createRes.body.data.item.id;
 
       // Add a task directly
@@ -234,14 +234,14 @@ describe('Epics & Sprints (e2e)', () => {
       const s1Res = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 1' });
+        .send({ name: 'Sprint 1', startDate: '2026-05-18', endDate: '2026-06-01' });
       const sprint1Id = s1Res.body.data.item.id;
 
       // Create sprint 2 (planning) to receive incomplete tasks
       const s2Res = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 2' });
+        .send({ name: 'Sprint 2', startDate: '2026-05-18', endDate: '2026-06-01' });
       const sprint2Id = s2Res.body.data.item.id;
 
       // Add task to sprint 1
@@ -285,7 +285,7 @@ describe('Epics & Sprints (e2e)', () => {
       const createRes = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Not Active' });
+        .send({ name: 'Not Active', startDate: '2026-05-18', endDate: '2026-06-01' });
 
       const sprintId = createRes.body.data.item.id;
       const res = await request(app.getHttpServer())
@@ -300,7 +300,7 @@ describe('Epics & Sprints (e2e)', () => {
       await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 1' });
+        .send({ name: 'Sprint 1', startDate: '2026-05-18', endDate: '2026-06-01' });
 
       const res = await request(app.getHttpServer())
         .get(`/api/projects/${projectId}/sprints`)

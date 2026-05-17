@@ -9,6 +9,7 @@ import { PaginatedResponse } from '../common/dto/paginated-response.dto';
 import { PaginatedMutationResponse } from '../common/dto/paginated-mutation-response.dto';
 import { CreateSprintDto } from './dto/create-sprint.dto';
 import { UpdateSprintDto } from './dto/update-sprint.dto';
+import { clampLimit } from '../common/helpers/pagination.helper';
 
 @Injectable()
 export class SprintsService {
@@ -22,6 +23,15 @@ export class SprintsService {
   ) {}
 
   async create(projectId: number, dto: CreateSprintDto, userId: number) {
+    // Date validation
+    const today = new Date().toISOString().split('T')[0];
+    if (dto.startDate < today) {
+      throw new AppLogicException('INVALID_DATE', HttpStatus.BAD_REQUEST);
+    }
+    if (dto.endDate <= dto.startDate) {
+      throw new AppLogicException('INVALID_DATE', HttpStatus.BAD_REQUEST);
+    }
+
     // Auto-increment sprint number per project
     const lastSprint = await this.sprintRepo
       .createQueryBuilder('s')
@@ -35,8 +45,8 @@ export class SprintsService {
       projectId,
       name: dto.name,
       goal: dto.goal || null,
-      startDate: dto.startDate || null,
-      endDate: dto.endDate || null,
+      startDate: dto.startDate,
+      endDate: dto.endDate,
       sprintNumber,
       createdBy: userId,
     });
@@ -47,14 +57,13 @@ export class SprintsService {
   }
 
   async listSprints(projectId: number, page: number = 1, limit: number = 20) {
+    limit = clampLimit(limit);
     const qb = this.sprintRepo.createQueryBuilder('s')
       .where('s.projectId = :projectId', { projectId })
       .orderBy('s.sprintNumber', 'DESC');
 
     const total = await qb.getCount();
-    if (limit !== -1) {
-      qb.skip((page - 1) * limit).take(limit);
-    }
+    qb.skip((page - 1) * limit).take(limit);
     const sprints = await qb.getMany();
 
     const data = await Promise.all(sprints.map(async (sprint) => {
@@ -88,6 +97,25 @@ export class SprintsService {
 
   async update(projectId: number, sprintId: number, dto: UpdateSprintDto) {
     const sprint = await this.findOne(projectId, sprintId);
+
+    // Only allow date changes on planning sprints
+    if (sprint.status !== 'planning' && (dto.startDate !== undefined || dto.endDate !== undefined)) {
+      throw new AppLogicException('FORBIDDEN', HttpStatus.BAD_REQUEST);
+    }
+
+    // Date validation
+    if (dto.startDate !== undefined || dto.endDate !== undefined) {
+      const newStart = dto.startDate ?? sprint.startDate;
+      const newEnd = dto.endDate ?? sprint.endDate;
+      const today = new Date().toISOString().split('T')[0];
+      if (newStart && newStart < today) {
+        throw new AppLogicException('INVALID_DATE', HttpStatus.BAD_REQUEST);
+      }
+      if (newStart && newEnd && newEnd <= newStart) {
+        throw new AppLogicException('INVALID_DATE', HttpStatus.BAD_REQUEST);
+      }
+    }
+
     if (dto.name !== undefined) sprint.name = dto.name;
     if (dto.goal !== undefined) sprint.goal = dto.goal;
     if (dto.startDate !== undefined) sprint.startDate = dto.startDate;
@@ -173,11 +201,11 @@ export class SprintsService {
 
     this.eventEmitter.emit('sprint.completed', { sprintId, projectId, actorId: userId });
 
-    // Find incomplete tasks (status category NOT done/cancelled)
+    // Find incomplete tasks (status category NOT done)
     const incompleteTasks = await this.dataSource.query(
       `SELECT t.id FROM tasks t
        JOIN project_statuses ps ON t.status_id = ps.id
-       WHERE t.sprint_id = $1 AND ps.category NOT IN ('done', 'cancelled')`,
+       WHERE t.sprint_id = $1 AND ps.category != 'done'`,
       [sprintId],
     );
 

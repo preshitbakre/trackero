@@ -7,6 +7,7 @@ import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } 
 import { CSS } from '@dnd-kit/utilities';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/auth.store';
+import { Input } from '../components/ui/Input';
 import { TaskDetailPanel } from '../components/tasks/TaskDetailPanel';
 import { RowSkeleton } from '../components/common/Skeleton';
 import { ErrorState } from '../components/common/ErrorState';
@@ -38,7 +39,7 @@ function SortableTaskRow({ task, selected, onSelect, onClick }: {
   const style = { transform: CSS.Transform.toString(transform), transition };
 
   const priorityColors: Record<string, string> = {
-    urgent: 'bg-red-500', high: 'bg-orange-400', medium: 'bg-yellow-400', low: 'bg-blue-400', none: 'bg-gray-300',
+    urgent: 'bg-priority-urgent', high: 'bg-priority-high', medium: 'bg-priority-medium', low: 'bg-priority-low', none: 'bg-priority-none',
   };
   const typeIcons: Record<string, string> = { task: '\u25CB', bug: '\u25CF', story: '\u25C6' };
 
@@ -46,21 +47,21 @@ function SortableTaskRow({ task, selected, onSelect, onClick }: {
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${selected ? 'border-brand bg-brand/5' : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'}`}
+      className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${selected ? 'border-primary-500 bg-primary-50' : 'border-neutral-200 dark:border-dneutral-200 hover:border-neutral-300 dark:hover:border-dneutral-300'}`}
     >
       <input
         type="checkbox"
         checked={selected}
         onChange={() => onSelect(task.id)}
-        className="w-4 h-4 rounded border-gray-300"
+        className="w-4 h-4 rounded border-neutral-200"
       />
-      <span {...listeners} {...attributes} className="cursor-grab text-gray-400 hover:text-gray-600">{'\u2807'}</span>
-      <span className={`text-xs ${task.type === 'bug' ? 'text-red-500' : task.type === 'story' ? 'text-violet-500' : 'text-gray-400'}`}>{typeIcons[task.type] || '\u25CB'}</span>
-      <span className="text-xs font-mono text-gray-400">#{task.taskNumber}</span>
-      <span onClick={onClick} className="flex-1 text-sm text-gray-900 dark:text-gray-50 truncate cursor-pointer hover:text-brand">{task.title}</span>
-      <span className={`w-2 h-2 rounded-full ${priorityColors[task.priority] || 'bg-gray-300'}`} />
+      <span {...listeners} {...attributes} className="cursor-grab text-neutral-400 hover:text-neutral-500">{'\u2807'}</span>
+      <span className={`text-sm ${task.type === 'bug' ? 'text-danger' : task.type === 'story' ? 'text-primary-400' : 'text-neutral-400'}`}>{typeIcons[task.type] || '\u25CB'}</span>
+      <span className="text-sm font-mono text-neutral-400">#{task.taskNumber}</span>
+      <span onClick={onClick} className="flex-1 text-sm text-neutral-700 dark:text-dneutral-700 truncate cursor-pointer hover:text-primary-500">{task.title}</span>
+      <span className={`w-2 h-2 rounded-full ${priorityColors[task.priority] || 'bg-priority-none'}`} />
       {task.storyPoints != null && task.storyPoints > 0 && (
-        <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{task.storyPoints}pts</span>
+        <span className="text-sm text-neutral-400 bg-neutral-100 dark:bg-dneutral-200 px-1.5 py-0.5 rounded">{task.storyPoints}pts</span>
       )}
     </div>
   );
@@ -73,11 +74,11 @@ function SprintDropTarget({ sprint }: { sprint: SprintTarget }) {
     <div
       ref={setNodeRef}
       className={`p-3 rounded-lg border-2 border-dashed transition-colors ${
-        isOver ? 'border-brand bg-brand/10' : 'border-gray-300 dark:border-gray-700'
+        isOver ? 'border-primary-500 bg-primary-50' : 'border-neutral-200 dark:border-dneutral-300'
       }`}
     >
-      <p className="text-sm font-medium text-gray-900 dark:text-gray-50">{sprint.name}</p>
-      <p className="text-xs text-gray-400">
+      <p className="text-sm font-medium text-neutral-700 dark:text-dneutral-700">{sprint.name}</p>
+      <p className="text-sm text-neutral-400">
         {sprint.status} &middot; {sprint.taskCount} tasks &middot; {sprint.totalPoints}pts
       </p>
     </div>
@@ -103,11 +104,11 @@ export function BacklogPage() {
     setLoading(true);
     setError(false);
     try {
-      const { data: taskData } = await apiClient.get(`/projects/${projectId}/tasks?limit=-1`);
+      const { data: taskData } = await apiClient.get(`/projects/${projectId}/tasks?limit=100`);
       const backlogTasks = (taskData.data.list || []).filter((t: any) => !t.sprintId);
       setTasks(backlogTasks);
 
-      const { data: sprintData } = await apiClient.get(`/projects/${projectId}/sprints?limit=-1`);
+      const { data: sprintData } = await apiClient.get(`/projects/${projectId}/sprints?limit=100`);
       const planSprints = (sprintData.data.list || []).filter((s: any) => s.status === 'planning' || s.status === 'active');
       setSprints(planSprints);
     } catch {
@@ -216,33 +217,35 @@ export function BacklogPage() {
       <div className="flex-1 overflow-y-auto p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Backlog</h1>
-            <p className="text-sm text-gray-500">{tasks.length} tasks, {totalPoints} pts</p>
+            <h1 className="text-2xl font-bold text-neutral-700 dark:text-dneutral-700">Backlog</h1>
+            <p className="text-sm text-neutral-400">{tasks.length} tasks, {totalPoints} pts</p>
           </div>
-          <button onClick={() => setShowCreate(true)} className="px-4 py-2 text-sm font-medium text-white bg-brand rounded-md hover:bg-brand/90">
-            + Task
-          </button>
+          {user?.role !== 'viewer' && (
+            <button onClick={() => setShowCreate(true)} className="px-4 py-2 text-sm font-medium text-white bg-primary-500 rounded-md hover:bg-primary-600">
+              + Task
+            </button>
+          )}
         </div>
 
         {/* Bulk actions bar */}
         {selectedIds.size > 0 && (
-          <div className="mb-4 flex items-center gap-3 p-3 bg-brand/5 border border-brand/20 rounded-lg">
-            <span className="text-sm font-medium text-brand">{selectedIds.size} selected</span>
-            <button onClick={handleBulkAssignToMe} className="text-xs px-2 py-1 bg-brand text-white rounded">Assign to me</button>
+          <div className="mb-4 flex items-center gap-3 p-3 bg-primary-50 border border-primary-100 rounded-lg">
+            <span className="text-sm font-medium text-primary-500">{selectedIds.size} selected</span>
+            <button onClick={handleBulkAssignToMe} className="text-sm px-2 py-1 bg-primary-500 text-white rounded">Assign to me</button>
             {sprints.map((s) => (
-              <button key={s.id} onClick={() => handleBulkMoveToSprint(s.id)} className="text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-gray-700 dark:text-gray-300">
+              <button key={s.id} onClick={() => handleBulkMoveToSprint(s.id)} className="text-sm px-2 py-1 bg-neutral-200 dark:bg-dneutral-300 rounded text-neutral-600 dark:text-dneutral-600">
                 &rarr; {s.name}
               </button>
             ))}
-            <button onClick={() => setSelectedIds(new Set())} className="text-xs text-gray-400 ml-auto">Clear</button>
+            <button onClick={() => setSelectedIds(new Set())} className="text-sm text-neutral-400 ml-auto">Clear</button>
           </div>
         )}
 
         {showCreate && (
           <form onSubmit={handleCreate} className="mb-4 flex gap-2">
-            <input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Task title..." autoFocus className="flex-1 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm" />
-            <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-brand rounded-md">Add</button>
-            <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm text-gray-500">Cancel</button>
+            <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Task title..." autoFocus className="flex-1" />
+            <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-primary-500 rounded-md">Add</button>
+            <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm text-neutral-400">Cancel</button>
           </form>
         )}
 
@@ -270,20 +273,20 @@ export function BacklogPage() {
           </SortableContext>
 
           {tasks.length === 0 && !showCreate && (
-            <div className="text-center py-12 text-gray-400">All caught up! No tasks in the backlog.</div>
+            <div className="text-center py-12 text-neutral-400">All caught up! No tasks in the backlog.</div>
           )}
         </DndContext>
       </div>
 
       {/* Sprint sidebar (drag targets) */}
-      <div className="w-64 border-l border-gray-200 dark:border-gray-800 p-4 overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
-        <h3 className="text-sm font-medium text-gray-500 mb-3">Drag to sprint:</h3>
+      <div className="w-64 border-l border-neutral-200 dark:border-dneutral-200 p-4 overflow-y-auto bg-neutral-50 dark:bg-dneutral-100">
+        <h3 className="text-sm font-medium text-neutral-400 mb-3">Drag to sprint:</h3>
         <div className="space-y-2">
           {sprints.map((sprint) => (
             <SprintDropTarget key={sprint.id} sprint={sprint} />
           ))}
           {sprints.length === 0 && (
-            <p className="text-xs text-gray-400">No planning sprints available</p>
+            <p className="text-sm text-neutral-400">No planning sprints available</p>
           )}
         </div>
       </div>

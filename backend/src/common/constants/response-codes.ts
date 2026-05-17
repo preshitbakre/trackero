@@ -128,6 +128,15 @@ export const ResponseCodes = {
   SETTINGS_FETCHED:       { code: 'S-0210', message: 'Settings retrieved' },
   SETTINGS_UPDATED:       { code: 'S-0211', message: 'Settings updated' },
 
+  // Dashboard (S-0220)
+  DASHBOARD_FETCHED:      { code: 'S-0220', message: 'Dashboard retrieved' },
+
+  // Task types (S-0070 – S-0073)
+  TASK_TYPES_LISTED:      { code: 'S-0070', message: 'Task types retrieved' },
+  TASK_TYPE_CREATED:      { code: 'S-0071', message: 'Task type created' },
+  TASK_TYPE_UPDATED:      { code: 'S-0072', message: 'Task type updated' },
+  TASK_TYPE_DELETED:      { code: 'S-0073', message: 'Task type deleted' },
+
   // Health (S-0300)
   HEALTH_OK:              { code: 'S-0300', message: 'Service healthy' },
 
@@ -156,7 +165,11 @@ export const ResponseCodes = {
 
   TASK_BLOCKED:           { code: 'F-L-0030', message: 'Task is blocked by a dependency. Resolve the blocker first.' },
   CIRCULAR_DEPENDENCY:    { code: 'F-L-0031', message: 'This dependency would create a circular chain' },
+  TYPE_IN_USE:            { code: 'F-L-0080', message: 'Cannot delete type that has tasks assigned' },
+  BUILTIN_TYPE:           { code: 'F-L-0081', message: 'Cannot delete built-in task type' },
   SUBTASK_NESTING:        { code: 'F-L-0032', message: 'Subtasks cannot have their own subtasks' },
+  INVALID_DATE:           { code: 'F-L-0090', message: 'Invalid date range' },
+  SUBTASKS_INCOMPLETE:    { code: 'F-L-0091', message: 'All subtasks must be completed before marking this task as done' },
   CHECKLIST_NOT_SUBTASK:  { code: 'F-L-0033', message: 'Checklist items can only be added to subtasks' },
 
   STATUS_IN_USE:          { code: 'F-L-0040', message: 'Cannot delete status that has tasks assigned to it' },

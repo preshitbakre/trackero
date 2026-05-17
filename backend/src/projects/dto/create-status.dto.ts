@@ -6,8 +6,8 @@ export class CreateStatusDto {
   name: string;
 
   @IsString()
-  @IsIn(['backlog', 'todo', 'in_progress', 'in_review', 'done', 'cancelled'])
-  category: 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done' | 'cancelled';
+  @IsIn(['backlog', 'in_progress', 'done'])
+  category: 'backlog' | 'in_progress' | 'done';
 
   @IsString()
   @Matches(/^#[0-9A-Fa-f]{6}$/, { message: 'color must be hex format #XXXXXX' })
