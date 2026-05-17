@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { DataSource } from 'typeorm';
-import { createTestApp, clearDatabase } from './setup';
+import { createTestApp, clearDatabase, registerAdmin, registerInvitedUser } from './setup';
 
 describe('Projects Module (e2e)', () => {
   let app: INestApplication;
@@ -21,28 +20,12 @@ describe('Projects Module (e2e)', () => {
   beforeEach(async () => {
     await clearDatabase(app);
 
-    // Register admin (seed creates one, but let's use register for control)
-    const adminRes = await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({ email: 'admin@test.com', password: 'password123', displayName: 'Admin' });
-    adminToken = adminRes.body.data.accessToken;
+    const admin = await registerAdmin(app);
+    adminToken = admin.token;
 
-    // Make user admin directly via DB
-    const ds = app.get(DataSource);
-    await ds.query(`UPDATE users SET role = 'admin' WHERE email = $1`, ['admin@test.com']);
-
-    // Re-login to get token with admin role
-    const loginRes = await request(app.getHttpServer())
-      .post('/api/auth/login')
-      .send({ email: 'admin@test.com', password: 'password123' });
-    adminToken = loginRes.body.data.accessToken;
-
-    // Register a member
-    const memberRes = await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({ email: 'member@test.com', password: 'password123', displayName: 'Member' });
-    memberToken = memberRes.body.data.accessToken;
-    memberId = memberRes.body.data.user.id;
+    const member = await registerInvitedUser(app, adminToken, 'member@test.com', 'member');
+    memberToken = member.token;
+    memberId = member.id;
   });
 
   describe('POST /api/projects', () => {

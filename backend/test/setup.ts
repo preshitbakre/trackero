@@ -7,6 +7,7 @@ import { ResponseEnvelopeInterceptor } from '../src/common/interceptors/response
 import { AppValidationException } from '../src/common/exceptions/app-exceptions';
 import { flattenValidationErrors } from '../src/common/helpers/validation-errors.helper';
 import { DataSource } from 'typeorm';
+import request from 'supertest';
 
 export async function createTestApp(): Promise<INestApplication> {
   const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -43,4 +44,41 @@ export async function clearDatabase(app: INestApplication): Promise<void> {
   for (const entity of entities) {
     await dataSource.query(`TRUNCATE "${entity.tableName}" RESTART IDENTITY CASCADE`);
   }
+}
+
+/**
+ * Register the first user (becomes admin automatically).
+ * Returns the admin's JWT token and user ID.
+ */
+export async function registerAdmin(app: INestApplication, email = 'admin@test.com', password = 'password123') {
+  const res = await request(app.getHttpServer())
+    .post('/api/auth/register')
+    .send({ email, password, displayName: 'Admin' });
+  // First user is auto-admin, no DB update needed
+  return { token: res.body.data.accessToken, id: res.body.data.user.id };
+}
+
+/**
+ * Invite and register a non-admin user.
+ * Admin must already exist. Returns the user's JWT token and user ID.
+ */
+export async function registerInvitedUser(
+  app: INestApplication,
+  adminToken: string,
+  email: string,
+  role = 'member',
+  password = 'password123',
+) {
+  // Admin creates invitation
+  const inviteRes = await request(app.getHttpServer())
+    .post('/api/users/invite')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ email, role });
+  const inviteToken = inviteRes.body.data.item.token;
+
+  // User registers with invite
+  const regRes = await request(app.getHttpServer())
+    .post('/api/auth/register')
+    .send({ email, password, displayName: role.charAt(0).toUpperCase() + role.slice(1), inviteToken });
+  return { token: regRes.body.data.accessToken, id: regRes.body.data.user.id };
 }

@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { DataSource } from 'typeorm';
-import { createTestApp, clearDatabase } from './setup';
+import { createTestApp, clearDatabase, registerAdmin, registerInvitedUser } from './setup';
 
 describe('Admin, Settings & Invitations (e2e)', () => {
   let app: INestApplication;
@@ -21,23 +20,14 @@ describe('Admin, Settings & Invitations (e2e)', () => {
 
   beforeEach(async () => {
     await clearDatabase(app);
-    const ds = app.get(DataSource);
 
-    const adminReg = await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({ email: 'admin@test.com', password: 'password123', displayName: 'Admin' });
-    adminId = adminReg.body.data.user.id;
-    await ds.query(`UPDATE users SET role = 'admin' WHERE email = $1`, ['admin@test.com']);
-    const adminLogin = await request(app.getHttpServer())
-      .post('/api/auth/login')
-      .send({ email: 'admin@test.com', password: 'password123' });
-    adminToken = adminLogin.body.data.accessToken;
+    const admin = await registerAdmin(app);
+    adminToken = admin.token;
+    adminId = admin.id;
 
-    const memberReg = await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({ email: 'member@test.com', password: 'password123', displayName: 'Member' });
-    memberToken = memberReg.body.data.accessToken;
-    memberId = memberReg.body.data.user.id;
+    const member = await registerInvitedUser(app, adminToken, 'member@test.com', 'member');
+    memberToken = member.token;
+    memberId = member.id;
   });
 
   describe('Settings', () => {
@@ -85,11 +75,7 @@ describe('Admin, Settings & Invitations (e2e)', () => {
 
     it('cannot change own role -> 409', async () => {
       // Create another admin so the "last admin" check doesn't trigger first
-      const admin2Reg = await request(app.getHttpServer())
-        .post('/api/auth/register')
-        .send({ email: 'admin2@test.com', password: 'password123', displayName: 'Admin 2' });
-      const ds = app.get(DataSource);
-      await ds.query(`UPDATE users SET role = 'admin' WHERE id = $1`, [admin2Reg.body.data.user.id]);
+      const admin2 = await registerInvitedUser(app, adminToken, 'admin2@test.com', 'admin');
 
       const res = await request(app.getHttpServer())
         .put(`/api/users/${adminId}/role`)

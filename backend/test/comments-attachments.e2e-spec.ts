@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { DataSource } from 'typeorm';
-import { createTestApp, clearDatabase } from './setup';
+import { createTestApp, clearDatabase, registerAdmin, registerInvitedUser } from './setup';
 
 describe('Comments & Attachments (e2e)', () => {
   let app: INestApplication;
@@ -22,31 +21,17 @@ describe('Comments & Attachments (e2e)', () => {
 
   beforeEach(async () => {
     await clearDatabase(app);
-    const ds = app.get(DataSource);
 
-    // Admin
-    await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({ email: 'admin@test.com', password: 'password123', displayName: 'Admin' });
-    await ds.query(`UPDATE users SET role = 'admin' WHERE email = $1`, ['admin@test.com']);
-    const adminLogin = await request(app.getHttpServer())
-      .post('/api/auth/login')
-      .send({ email: 'admin@test.com', password: 'password123' });
-    adminToken = adminLogin.body.data.accessToken;
+    const admin = await registerAdmin(app);
+    adminToken = admin.token;
 
-    // Member
-    const memberReg = await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({ email: 'member@test.com', password: 'password123', displayName: 'Member' });
-    memberToken = memberReg.body.data.accessToken;
-    const memberId = memberReg.body.data.user.id;
+    const member = await registerInvitedUser(app, adminToken, 'member@test.com', 'member');
+    memberToken = member.token;
+    const memberId = member.id;
 
-    // Viewer
-    const viewerReg = await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({ email: 'viewer@test.com', password: 'password123', displayName: 'Viewer' });
-    viewerToken = viewerReg.body.data.accessToken;
-    const viewerId = viewerReg.body.data.user.id;
+    const viewer = await registerInvitedUser(app, adminToken, 'viewer@test.com', 'viewer');
+    viewerToken = viewer.token;
+    const viewerId = viewer.id;
 
     // Project
     const projRes = await request(app.getHttpServer())

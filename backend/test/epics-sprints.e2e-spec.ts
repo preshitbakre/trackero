@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
-import { createTestApp, clearDatabase } from './setup';
+import { createTestApp, clearDatabase, registerAdmin } from './setup';
 
 describe('Epics & Sprints (e2e)', () => {
   let app: INestApplication;
@@ -20,16 +20,8 @@ describe('Epics & Sprints (e2e)', () => {
   beforeEach(async () => {
     await clearDatabase(app);
 
-    // Register + make admin
-    await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({ email: 'admin@test.com', password: 'password123', displayName: 'Admin' });
-    const ds = app.get(DataSource);
-    await ds.query(`UPDATE users SET role = 'admin' WHERE email = $1`, ['admin@test.com']);
-    const loginRes = await request(app.getHttpServer())
-      .post('/api/auth/login')
-      .send({ email: 'admin@test.com', password: 'password123' });
-    adminToken = loginRes.body.data.accessToken;
+    const admin = await registerAdmin(app);
+    adminToken = admin.token;
 
     // Create a project
     const projRes = await request(app.getHttpServer())

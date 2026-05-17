@@ -35,7 +35,7 @@ describe('Auth Module (e2e)', () => {
       expect(res.body.data.user).toBeDefined();
       expect(res.body.data.user.email).toBe('test@example.com');
       expect(res.body.data.user.displayName).toBe('Test User');
-      expect(res.body.data.user.role).toBe('member');
+      expect(res.body.data.user.role).toBe('admin'); // First user is auto-admin
       expect(res.body.data.user.id).toBeDefined();
       expect(res.body.data.accessToken).toBeDefined();
       expect(res.body.data.refreshToken).toBeDefined();
@@ -386,23 +386,51 @@ describe('Auth Module (e2e)', () => {
     });
   });
 
-  describe('Seed Admin', () => {
-    it('creates admin user on fresh database from env vars', async () => {
-      // Clear DB to ensure no users exist, then create a fresh app that will seed
-      await clearDatabase(app);
-      const { createTestApp: createFresh } = await import('./setup');
-      const freshApp = await createFresh();
-
-      const res = await request(freshApp.getHttpServer())
-        .post('/api/auth/login')
+  describe('First-user-is-admin', () => {
+    it('first registered user gets admin role', async () => {
+      // clearDatabase already ran in beforeEach — no users exist
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/register')
         .send({
-          email: process.env.ADMIN_EMAIL || 'admin@example.com',
-          password: process.env.ADMIN_PASSWORD || 'changeme123',
+          email: 'firstuser@example.com',
+          password: 'password123',
+          displayName: 'First User',
         })
-        .expect(200);
+        .expect(201);
 
       expect(res.body.data.user.role).toBe('admin');
-      await freshApp.close();
+    });
+
+    it('second user without invite token is rejected', async () => {
+      // Register first user (admin)
+      await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({ email: 'first@example.com', password: 'password123', displayName: 'First' });
+
+      // Second user without invite → rejected
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({
+          email: 'uninvited@example.com',
+          password: 'password123',
+          displayName: 'Uninvited',
+        })
+        .expect(403);
+
+      expect(res.body.success).toBe(false);
+    });
+
+    it('setup-status returns isSetup correctly', async () => {
+      // Register a user first so isSetup is true
+      await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({ email: 'setup@example.com', password: 'password123', displayName: 'Setup' });
+
+      const res = await request(app.getHttpServer())
+        .get('/api/auth/setup-status')
+        .expect(200);
+
+      expect(res.body.data.isSetup).toBe(true);
     });
   });
 });

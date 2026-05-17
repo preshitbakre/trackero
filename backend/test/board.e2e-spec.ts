@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
-import { createTestApp, clearDatabase } from './setup';
+import { createTestApp, clearDatabase, registerAdmin } from './setup';
 
 describe('Board Module (e2e)', () => {
   let app: INestApplication;
@@ -23,16 +23,8 @@ describe('Board Module (e2e)', () => {
   beforeEach(async () => {
     await clearDatabase(app);
 
-    // Setup admin
-    await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({ email: 'admin@test.com', password: 'password123', displayName: 'Admin' });
-    const ds = app.get(DataSource);
-    await ds.query(`UPDATE users SET role = 'admin' WHERE email = $1`, ['admin@test.com']);
-    const loginRes = await request(app.getHttpServer())
-      .post('/api/auth/login')
-      .send({ email: 'admin@test.com', password: 'password123' });
-    adminToken = loginRes.body.data.accessToken;
+    const admin = await registerAdmin(app);
+    adminToken = admin.token;
 
     // Create project
     const projRes = await request(app.getHttpServer())
@@ -42,6 +34,7 @@ describe('Board Module (e2e)', () => {
     projectId = projRes.body.data.item.id;
 
     // Get statuses
+    const ds = app.get(DataSource);
     const statuses = await ds.query(
       `SELECT id, category FROM project_statuses WHERE project_id = $1 ORDER BY sort_order`,
       [projectId],

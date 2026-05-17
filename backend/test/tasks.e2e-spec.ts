@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
-import { createTestApp, clearDatabase } from './setup';
+import { createTestApp, clearDatabase, registerAdmin, registerInvitedUser } from './setup';
 
 describe('Tasks Module (e2e)', () => {
   let app: INestApplication;
@@ -24,23 +24,12 @@ describe('Tasks Module (e2e)', () => {
   beforeEach(async () => {
     await clearDatabase(app);
 
-    // Register admin
-    await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({ email: 'admin@test.com', password: 'password123', displayName: 'Admin' });
-    const ds = app.get(DataSource);
-    await ds.query(`UPDATE users SET role = 'admin' WHERE email = $1`, ['admin@test.com']);
-    const loginRes = await request(app.getHttpServer())
-      .post('/api/auth/login')
-      .send({ email: 'admin@test.com', password: 'password123' });
-    adminToken = loginRes.body.data.accessToken;
+    const admin = await registerAdmin(app);
+    adminToken = admin.token;
 
-    // Register member
-    const memberRes = await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({ email: 'member@test.com', password: 'password123', displayName: 'Member' });
-    memberToken = memberRes.body.data.accessToken;
-    memberId = memberRes.body.data.user.id;
+    const member = await registerInvitedUser(app, adminToken, 'member@test.com', 'member');
+    memberToken = member.token;
+    memberId = member.id;
 
     // Create project
     const projRes = await request(app.getHttpServer())
@@ -56,6 +45,7 @@ describe('Tasks Module (e2e)', () => {
       .send({ userId: memberId, role: 'member' });
 
     // Get statuses
+    const ds = app.get(DataSource);
     const statuses = await ds.query(
       `SELECT id, category FROM project_statuses WHERE project_id = $1`,
       [projectId],

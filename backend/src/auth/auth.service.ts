@@ -1,4 +1,4 @@
-import { Injectable, HttpStatus, OnModuleInit } from '@nestjs/common';
+import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -16,7 +16,7 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
-export class AuthService implements OnModuleInit {
+export class AuthService {
   constructor(
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
@@ -28,32 +28,9 @@ export class AuthService implements OnModuleInit {
     private readonly configService: ConfigService,
   ) {}
 
-  async onModuleInit() {
-    await this.seedAdmin();
-  }
-
-  private async seedAdmin(): Promise<void> {
+  async getSetupStatus() {
     const userCount = await this.userRepo.count();
-    if (userCount > 0) return;
-
-    const email = this.configService.get<string>('ADMIN_EMAIL');
-    const password = this.configService.get<string>('ADMIN_PASSWORD');
-
-    if (!email || !password) {
-      console.error('ADMIN_EMAIL and ADMIN_PASSWORD must be set for first run');
-      process.exit(1);
-    }
-
-    const passwordHash = await bcrypt.hash(password, 12);
-    const admin = this.userRepo.create({
-      email,
-      passwordHash,
-      displayName: 'Admin',
-      role: 'admin',
-      isActive: true,
-    });
-    await this.userRepo.save(admin);
-    console.log(`Admin account created: ${email}`);
+    return { isSetup: userCount > 0 };
   }
 
   async register(dto: RegisterDto) {
@@ -62,9 +39,14 @@ export class AuthService implements OnModuleInit {
       throw new AppLogicException('EMAIL_ALREADY_REGISTERED', HttpStatus.CONFLICT);
     }
 
+    const userCount = await this.userRepo.count();
     let role: User['role'] = 'member';
 
-    if (dto.inviteToken) {
+    if (userCount === 0) {
+      // First user ever → becomes admin (instance setup)
+      role = 'admin';
+    } else if (dto.inviteToken) {
+      // Invited user → validate token and use invited role
       const invitation = await this.invitationRepo.findOne({
         where: { token: dto.inviteToken, status: 'pending' },
       });
@@ -79,6 +61,9 @@ export class AuthService implements OnModuleInit {
       role = invitation.role;
       invitation.status = 'accepted';
       await this.invitationRepo.save(invitation);
+    } else {
+      // No invite token and not first user → registration closed
+      throw new AppLogicException('FORBIDDEN', HttpStatus.FORBIDDEN);
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 12);

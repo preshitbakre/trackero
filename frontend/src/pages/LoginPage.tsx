@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/auth.store';
@@ -8,8 +8,18 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isSetup, setIsSetup] = useState<boolean | null>(null);
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
+
+  useEffect(() => {
+    apiClient.get('/auth/setup-status').then((res) => {
+      setIsSetup(res.data.data.isSetup);
+      if (!res.data.data.isSetup) {
+        navigate('/register');
+      }
+    }).catch(() => setIsSetup(true));
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,6 +37,14 @@ export function LoginPage() {
       setLoading(false);
     }
   };
+
+  if (isSetup === null) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
+        <div className="text-gray-400">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
@@ -86,10 +104,6 @@ export function LoginPage() {
             {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
-
-        <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-          Don't have an account? Contact your admin.
-        </p>
       </div>
     </div>
   );

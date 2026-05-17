@@ -26,6 +26,12 @@ import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Get('setup-status')
+  @ResponseCode('HEALTH_OK')
+  async setupStatus() {
+    return this.authService.getSetupStatus();
+  }
+
   @Post('register')
   @Throttle({ default: { limit: parseInt(process.env.AUTH_THROTTLE_LIMIT || '5', 10), ttl: parseInt(process.env.AUTH_THROTTLE_TTL || '60000', 10) } })
   @HttpCode(HttpStatus.CREATED)

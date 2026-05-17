@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { DataSource } from 'typeorm';
-import { createTestApp, clearDatabase } from './setup';
+import { createTestApp, clearDatabase, registerAdmin, registerInvitedUser } from './setup';
 
 describe('Gap Fixes (e2e)', () => {
   let app: INestApplication;
@@ -19,15 +18,9 @@ describe('Gap Fixes (e2e)', () => {
 
   beforeEach(async () => {
     await clearDatabase(app);
-    await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({ email: 'admin@test.com', password: 'password123', displayName: 'Admin' });
-    const ds = app.get(DataSource);
-    await ds.query(`UPDATE users SET role = 'admin' WHERE email = $1`, ['admin@test.com']);
-    const loginRes = await request(app.getHttpServer())
-      .post('/api/auth/login')
-      .send({ email: 'admin@test.com', password: 'password123' });
-    adminToken = loginRes.body.data.accessToken;
+
+    const admin = await registerAdmin(app);
+    adminToken = admin.token;
 
     const projRes = await request(app.getHttpServer())
       .post('/api/projects')
@@ -109,10 +102,8 @@ describe('Gap Fixes (e2e)', () => {
 
   describe('Task assign', () => {
     it('assigns task to user -> 200', async () => {
-      const memberRes = await request(app.getHttpServer())
-        .post('/api/auth/register')
-        .send({ email: 'assignee@test.com', password: 'password123', displayName: 'Assignee' });
-      const assigneeId = memberRes.body.data.user.id;
+      const assignee = await registerInvitedUser(app, adminToken, 'assignee@test.com', 'member');
+      const assigneeId = assignee.id;
 
       const taskRes = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/tasks`)
