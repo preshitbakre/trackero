@@ -167,6 +167,107 @@ describe('Board Endpoint (e2e)', () => {
       expect(bug).toBeDefined();
       expect(bug.title).toBe('Login Crash');
     });
+
+    it('enriches every card correctly across a multi-card multi-column board', async () => {
+      // Epic the tasks belong to
+      const epicRes = await createItem({ itemType: 'epic', title: 'Epic One', color: '#AABBCC' });
+      const epicId = epicRes.body.data.item.id;
+
+      // Task A — backlog column, 2 subtasks (1 done), belongs to epic, blocked, has comment+attachment
+      const taskARes = await createItem({ itemType: 'task', title: 'Task A' });
+      const taskAId = taskARes.body.data.item.id;
+      const stA1Res = await createItem({
+        itemType: 'subtask', title: 'A-ST1', parentId: taskAId, statusId: doneStatusId,
+      });
+      const stA1Id = stA1Res.body.data.item.id;
+      await createItem({ itemType: 'subtask', title: 'A-ST2', parentId: taskAId });
+      await createAssociation(taskAId, epicId, 'belongs_to');
+
+      // Task B — moved to in_progress column, 1 subtask (0 done), belongs to epic, no blockers
+      const taskBRes = await createItem({ itemType: 'task', title: 'Task B' });
+      const taskBId = taskBRes.body.data.item.id;
+      await createItem({ itemType: 'subtask', title: 'B-ST1', parentId: taskBId });
+      await createAssociation(taskBId, epicId, 'belongs_to');
+      await moveCard({ itemId: taskBId, statusId: inProgressStatusId, sortOrder: 'm' }).expect(200);
+
+      // Task C — no subtasks, no epic, no blockers, no comments/attachments
+      const taskCRes = await createItem({ itemType: 'task', title: 'Task C' });
+      const taskCId = taskCRes.body.data.item.id;
+
+      // Bug D — belongs to epic
+      const bugDRes = await createItem({ itemType: 'bug', title: 'Bug D' });
+      const bugDId = bugDRes.body.data.item.id;
+      await createAssociation(bugDId, epicId, 'belongs_to');
+
+      // Task A is blocked by Task C
+      await createAssociation(taskAId, taskCId, 'blocks');
+
+      // Comments + attachments on Task A
+      await ds.query(
+        `INSERT INTO comments (work_item_id, author_id, body) VALUES ($1, $2, 'c1'), ($1, $2, 'c2')`,
+        [taskAId, adminId],
+      );
+      await ds.query(
+        `INSERT INTO attachments (work_item_id, uploaded_by, original_filename, storage_key, mime_type, size_bytes)
+         VALUES ($1, $2, 'f.png', 'k1', 'image/png', 10)`,
+        [taskAId, adminId],
+      );
+
+      const res = await getBoard().expect(200);
+      const allItems = res.body.data.columns.flatMap((c: any) => c.tasks);
+
+      const a = allItems.find((t: any) => t.id === taskAId);
+      expect(a.subtaskCount).toBe(2);
+      expect(a.subtaskDoneCount).toBe(1);
+      expect(a.commentCount).toBe(2);
+      expect(a.attachmentCount).toBe(1);
+      expect(a.hasBlockers).toBe(true);
+      expect(a.epicColor).toBe('#AABBCC');
+      expect(a.parentRef).toBeNull();
+
+      const b = allItems.find((t: any) => t.id === taskBId);
+      expect(b.subtaskCount).toBe(1);
+      expect(b.subtaskDoneCount).toBe(0);
+      expect(b.commentCount).toBe(0);
+      expect(b.attachmentCount).toBe(0);
+      expect(b.hasBlockers).toBe(false);
+      expect(b.epicColor).toBe('#AABBCC');
+
+      const c = allItems.find((t: any) => t.id === taskCId);
+      expect(c.subtaskCount).toBe(0);
+      expect(c.subtaskDoneCount).toBe(0);
+      expect(c.commentCount).toBe(0);
+      expect(c.attachmentCount).toBe(0);
+      expect(c.hasBlockers).toBe(false);
+      expect(c.epicColor).toBeNull();
+
+      const d = allItems.find((t: any) => t.id === bugDId);
+      expect(d.itemType).toBe('bug');
+      expect(d.epicColor).toBe('#AABBCC');
+      expect(d.hasBlockers).toBe(false);
+
+      // Subtask cards: parentRef correct
+      const stA1 = allItems.find((t: any) => t.id === stA1Id);
+      expect(stA1.itemType).toBe('subtask');
+      expect(stA1.parentRef).not.toBeNull();
+      expect(stA1.parentRef.id).toBe(taskAId);
+      expect(stA1.parentRef.title).toBe('Task A');
+      expect(stA1.parentRef.itemKey).toBe(`TST-${taskARes.body.data.item.itemNumber}`);
+
+      // Verify cards are spread across multiple columns
+      const columnsWithCards = res.body.data.columns.filter((col: any) => col.tasks.length > 0);
+      expect(columnsWithCards.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('returns empty columns for a board with no items', async () => {
+      const res = await getBoard().expect(200);
+      expect(res.body.data.columns.length).toBeGreaterThan(0);
+      const allItems = res.body.data.columns.flatMap((c: any) => c.tasks);
+      expect(allItems).toHaveLength(0);
+      for (const col of res.body.data.columns) {
+        expect(col.taskCount).toBe(0);
+      }
+    });
   });
 
   describe('PUT board/move', () => {

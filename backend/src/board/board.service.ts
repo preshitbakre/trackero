@@ -32,7 +32,10 @@ export class BoardService {
       order: { sortOrder: 'ASC' },
     });
 
-    const columns = [];
+    // Step 1: run the per-column item queries and collect ALL items into one
+    // flat list, remembering which column (status index) each belongs to.
+    const itemsByStatus: WorkItem[][] = [];
+    const allItems: WorkItem[] = [];
     for (const status of statuses) {
       const qb = this.workItemRepo.createQueryBuilder('wi')
         .where('wi.projectId = :projectId', { projectId })
@@ -78,79 +81,148 @@ export class BoardService {
       qb.orderBy('wi.sortOrder', 'ASC');
 
       const items = await qb.getMany();
-      const taskCount = items.length;
+      itemsByStatus.push(items);
+      allItems.push(...items);
+    }
 
-      const enrichedItems = await Promise.all(items.map(async (item) => {
-        // Subtask/comment counts for tasks
+    // Step 2: batched, set-based enrichment queries keyed by item id.
+    const allIds = allItems.map((i) => i.id);
+
+    // Subtask counts (total + done) for task items, keyed by parent id.
+    const taskIds = allItems.filter((i) => i.itemType === 'task').map((i) => i.id);
+    const subtaskCounts = new Map<number, { total: number; done: number }>();
+    if (taskIds.length > 0) {
+      const rows = await this.dataSource.query(
+        `SELECT parent_id,
+                COUNT(*)::int AS total,
+                COUNT(*) FILTER (WHERE ps.category = 'done')::int AS done
+         FROM work_items wi
+         JOIN project_statuses ps ON ps.id = wi.status_id
+         WHERE wi.parent_id = ANY($1)
+         GROUP BY parent_id`,
+        [taskIds],
+      );
+      for (const r of rows) {
+        subtaskCounts.set(r.parent_id, { total: r.total, done: r.done });
+      }
+    }
+
+    // Comment counts keyed by work item id.
+    const commentCounts = new Map<number, number>();
+    if (allIds.length > 0) {
+      const rows = await this.dataSource.query(
+        `SELECT work_item_id, COUNT(*)::int AS count
+         FROM comments WHERE work_item_id = ANY($1) GROUP BY work_item_id`,
+        [allIds],
+      );
+      for (const r of rows) commentCounts.set(r.work_item_id, r.count);
+    }
+
+    // Attachment counts keyed by work item id.
+    const attachmentCounts = new Map<number, number>();
+    if (allIds.length > 0) {
+      const rows = await this.dataSource.query(
+        `SELECT work_item_id, COUNT(*)::int AS count
+         FROM attachments WHERE work_item_id = ANY($1) GROUP BY work_item_id`,
+        [allIds],
+      );
+      for (const r of rows) attachmentCounts.set(r.work_item_id, r.count);
+    }
+
+    // Blocker flags: set of item ids that have an outgoing 'blocks' association.
+    const blockedIds = new Set<number>();
+    if (allIds.length > 0) {
+      const rows = await this.dataSource.query(
+        `SELECT DISTINCT item_id FROM work_item_associations
+         WHERE item_id = ANY($1) AND link_type = 'blocks'`,
+        [allIds],
+      );
+      for (const r of rows) blockedIds.add(r.item_id);
+    }
+
+    // Parent refs for subtasks: one query for all distinct parent ids.
+    const parentRefs = new Map<number, { id: number; itemKey: string; title: string }>();
+    const parentIds = [
+      ...new Set(
+        allItems
+          .filter((i) => i.itemType === 'subtask' && i.parentId)
+          .map((i) => i.parentId as number),
+      ),
+    ];
+    if (parentIds.length > 0) {
+      const rows = await this.dataSource.query(
+        `SELECT wi.id, wi.item_number, wi.title, p.prefix
+         FROM work_items wi JOIN projects p ON p.id = wi.project_id
+         WHERE wi.id = ANY($1)`,
+        [parentIds],
+      );
+      for (const r of rows) {
+        parentRefs.set(r.id, {
+          id: r.id,
+          itemKey: `${r.prefix}-${r.item_number}`,
+          title: r.title,
+        });
+      }
+    }
+
+    // Epic colors for task/bug items: one recursive CTE walking 'belongs_to'
+    // associations up to the epic ancestor. The base case starts from ALL ids
+    // at once and carries the originating item id (root_id) down through the
+    // recursion so the final SELECT maps each starting item to its epic color.
+    const epicColors = new Map<number, string>();
+    const epicCandidateIds = allItems
+      .filter((i) => i.itemType === 'task' || i.itemType === 'bug')
+      .map((i) => i.id);
+    if (epicCandidateIds.length > 0) {
+      const rows = await this.dataSource.query(
+        `WITH RECURSIVE ancestors AS (
+           SELECT a.item_id AS root_id, a.linked_item_id AS id, wi.item_type, wi.color
+           FROM work_item_associations a
+           JOIN work_items wi ON wi.id = a.linked_item_id
+           WHERE a.item_id = ANY($1) AND a.link_type = 'belongs_to'
+           UNION ALL
+           SELECT anc.root_id, a2.linked_item_id, wi2.item_type, wi2.color
+           FROM work_item_associations a2
+           JOIN work_items wi2 ON wi2.id = a2.linked_item_id
+           JOIN ancestors anc ON a2.item_id = anc.id
+           WHERE a2.link_type = 'belongs_to'
+         )
+         SELECT DISTINCT ON (root_id) root_id, color
+         FROM ancestors WHERE item_type = 'epic'`,
+        [epicCandidateIds],
+      );
+      for (const r of rows) {
+        if (r.color) epicColors.set(r.root_id, r.color);
+      }
+    }
+
+    // Step 3: build each column's enriched items via map/set lookups — no awaits.
+    const columns = statuses.map((status, statusIdx) => {
+      const items = itemsByStatus[statusIdx];
+      const enrichedItems = items.map((item) => {
         let subtaskCount = 0;
         let subtaskDoneCount = 0;
         if (item.itemType === 'task') {
-          subtaskCount = await this.workItemRepo.count({ where: { parentId: item.id } });
-          const [doneResult] = await this.dataSource.query(
-            `SELECT COUNT(*) as count FROM work_items wi
-             JOIN project_statuses ps ON ps.id = wi.status_id
-             WHERE wi.parent_id = $1 AND ps.category = 'done'`,
-            [item.id],
-          );
-          subtaskDoneCount = parseInt(doneResult?.count || '0');
-        }
-
-        // Blocker check (item is blocked if it has outgoing 'blocks' associations)
-        const hasBlockers = await this.assocRepo.count({
-          where: { itemId: item.id, linkType: 'blocks' },
-        }) > 0;
-
-        // Comment count
-        const [commentResult] = await this.dataSource.query(
-          `SELECT COUNT(*) as count FROM comments WHERE work_item_id = $1`,
-          [item.id],
-        );
-        const commentCount = parseInt(commentResult?.count || '0');
-
-        // Attachment count
-        const [attachResult] = await this.dataSource.query(
-          `SELECT COUNT(*) as count FROM attachments WHERE work_item_id = $1`,
-          [item.id],
-        );
-        const attachmentCount = parseInt(attachResult?.count || '0');
-
-        // Parent ref for subtasks
-        let parentRef: { id: number; itemKey: string; title: string } | null = null;
-        if (item.itemType === 'subtask' && item.parentId) {
-          const [parent] = await this.dataSource.query(
-            `SELECT wi.id, item_number, title, p.prefix
-             FROM work_items wi JOIN projects p ON p.id = wi.project_id
-             WHERE wi.id = $1`,
-            [item.parentId],
-          );
-          if (parent) {
-            parentRef = {
-              id: parent.id,
-              itemKey: `${parent.prefix}-${parent.item_number}`,
-              title: parent.title,
-            };
+          const counts = subtaskCounts.get(item.id);
+          if (counts) {
+            subtaskCount = counts.total;
+            subtaskDoneCount = counts.done;
           }
         }
 
-        // Epic color: walk up associations to find epic ancestor
+        const hasBlockers = blockedIds.has(item.id);
+
+        const commentCount = commentCounts.get(item.id) || 0;
+        const attachmentCount = attachmentCounts.get(item.id) || 0;
+
+        let parentRef: { id: number; itemKey: string; title: string } | null = null;
+        if (item.itemType === 'subtask' && item.parentId) {
+          parentRef = parentRefs.get(item.parentId) || null;
+        }
+
         let epicColor: string | null = null;
         if (item.itemType === 'task' || item.itemType === 'bug') {
-          const epicResult = await this.dataSource.query(`
-            WITH RECURSIVE ancestors AS (
-              SELECT a.linked_item_id AS id, wi.item_type, wi.color
-              FROM work_item_associations a
-              JOIN work_items wi ON wi.id = a.linked_item_id
-              WHERE a.item_id = $1 AND a.link_type = 'belongs_to'
-              UNION ALL
-              SELECT a2.linked_item_id, wi2.item_type, wi2.color
-              FROM work_item_associations a2
-              JOIN work_items wi2 ON wi2.id = a2.linked_item_id
-              JOIN ancestors anc ON a2.item_id = anc.id
-              WHERE a2.link_type = 'belongs_to'
-            )
-            SELECT color FROM ancestors WHERE item_type = 'epic' LIMIT 1
-          `, [item.id]);
-          epicColor = epicResult[0]?.color || null;
+          epicColor = epicColors.get(item.id) || null;
         }
 
         return {
@@ -179,9 +251,9 @@ export class BoardService {
           parentRef,
           epicColor,
         };
-      }));
+      });
 
-      columns.push({
+      return {
         status: {
           id: status.id,
           name: status.name,
@@ -190,9 +262,9 @@ export class BoardService {
           wipLimit: status.wipLimit || 0,
         },
         tasks: enrichedItems,
-        taskCount,
-      });
-    }
+        taskCount: items.length,
+      };
+    });
 
     return { columns };
   }
