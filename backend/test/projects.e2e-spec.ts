@@ -292,6 +292,77 @@ describe('Projects Module (e2e)', () => {
     });
   });
 
+  describe('Archived project mutation block (ProjectAccessGuard)', () => {
+    let projectId: number;
+
+    beforeEach(async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/projects')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Archive Project', prefix: 'ARCH' });
+      projectId = res.body.data.item.id;
+
+      // Archive it
+      await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/archive`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(201);
+    });
+
+    it('blocks a mutation on an archived project even with ?x=/archive querystring', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/labels?x=/archive`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'sneaky', color: '#EF4444' })
+        .expect(403);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('F-L-0052');
+    });
+
+    it('blocks a mutation on an archived project even with ?redirect=/unarchive querystring', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/labels?redirect=/unarchive`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'sneaky2', color: '#3B82F6' })
+        .expect(403);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('F-L-0052');
+    });
+
+    it('still blocks a plain mutation on an archived project', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/labels`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'plain', color: '#10B981' })
+        .expect(403);
+
+      expect(res.body.code).toBe('F-L-0052');
+    });
+
+    it('still allows the real archive and unarchive endpoints on an archived project', async () => {
+      // unarchive works on archived project
+      await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/unarchive`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(201);
+
+      // re-archive works (project is now active)
+      await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/archive`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(201);
+
+      // archive endpoint works again on the now-archived project
+      const res = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/archive`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(201);
+      expect(res.body.success).toBe(true);
+    });
+  });
+
   describe('Users (Admin)', () => {
     it('lists users as admin -> 200', async () => {
       const res = await request(app.getHttpServer())

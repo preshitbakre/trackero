@@ -41,9 +41,15 @@ export class ProjectAccessGuard implements CanActivate {
         [projectId],
       );
       if (project?.status === 'archived') {
-        // Allow archive/unarchive endpoints through
-        const url = request.url || '';
-        if (!url.includes('/archive') && !url.includes('/unarchive')) {
+        // Allow archive/unarchive endpoints through. Match the route PATHNAME
+        // (query string stripped) and require it to END WITH the action — a
+        // raw-url substring check is bypassable via a crafted query string
+        // (e.g. POST .../labels?x=/archive).
+        const rawUrl = request.url || '';
+        const pathname = rawUrl.split('?')[0];
+        const isArchiveAction =
+          pathname.endsWith('/archive') || pathname.endsWith('/unarchive');
+        if (!isArchiveAction) {
           throw new AppLogicException('PROJECT_ARCHIVED_ERROR', HttpStatus.FORBIDDEN);
         }
       }
