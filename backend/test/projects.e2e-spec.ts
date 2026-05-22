@@ -326,6 +326,48 @@ describe('Projects Module (e2e)', () => {
       expect(res.body.success).toBe(false);
     });
 
+    // --- DTO validation (Task 3.2): malformed bodies must fail at the DTO layer ---
+
+    it('rejects a body missing statusIds entirely -> 400', async () => {
+      const res = await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/statuses/reorder`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({})
+        .expect(400);
+
+      expect(res.body.success).toBe(false);
+    });
+
+    it('rejects statusIds that is not an array -> 400', async () => {
+      const res = await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/statuses/reorder`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ statusIds: 'notanarray' })
+        .expect(400);
+
+      expect(res.body.success).toBe(false);
+    });
+
+    it('rejects an empty statusIds array -> 400', async () => {
+      const res = await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/statuses/reorder`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ statusIds: [] })
+        .expect(400);
+
+      expect(res.body.success).toBe(false);
+    });
+
+    it('rejects statusIds containing a non-integer value -> 400', async () => {
+      const res = await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/statuses/reorder`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ statusIds: [statusIds[0], 'oops', statusIds[2]] })
+        .expect(400);
+
+      expect(res.body.success).toBe(false);
+    });
+
     it('rejects statusIds from another project -> 400 and leaves order untouched', async () => {
       const otherRes = await request(app.getHttpServer())
         .post('/api/projects')

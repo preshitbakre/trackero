@@ -16,6 +16,7 @@ import { MoveWorkItemDto } from './dto/move-work-item.dto';
 import { QueryWorkItemsDto } from './dto/query-work-items.dto';
 import { AssignSprintDto } from './dto/assign-sprint.dto';
 import { AssignWorkItemDto } from './dto/assign-work-item.dto';
+import { ReorderItemsDto } from './dto/reorder-items.dto';
 
 @Controller('projects/:projectId/items')
 @UseGuards(JwtAuthGuard, ProjectAccessGuard, RolesGuard)
@@ -49,9 +50,9 @@ export class WorkItemsController {
   @ResponseCode('ITEMS_LISTED')
   async reorder(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Body() body: { reorders: { itemId: number; sortOrder: string }[] },
+    @Body() dto: ReorderItemsDto,
   ) {
-    await this.workItemsService.reorderItems(projectId, body.reorders);
+    await this.workItemsService.reorderItems(projectId, dto.reorders);
     return null;
   }
 

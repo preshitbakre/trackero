@@ -214,4 +214,68 @@ describe('Board Endpoint (e2e)', () => {
       }).expect(400);
     });
   });
+
+  describe('PUT items/reorder (DTO validation)', () => {
+    const reorder = (body: any) =>
+      request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/items/reorder`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(body);
+
+    it('reorders items with a well-formed body -> 200', async () => {
+      const a = await createItem({ itemType: 'task', title: 'A' });
+      const b = await createItem({ itemType: 'task', title: 'B' });
+      const aId = a.body.data.item.id;
+      const bId = b.body.data.item.id;
+
+      await reorder({
+        reorders: [
+          { itemId: aId, sortOrder: 'z' },
+          { itemId: bId, sortOrder: 'a' },
+        ],
+      }).expect(200);
+
+      const aRow = await ds.query(`SELECT sort_order FROM work_items WHERE id = $1`, [aId]);
+      const bRow = await ds.query(`SELECT sort_order FROM work_items WHERE id = $1`, [bId]);
+      expect(aRow[0].sort_order).toBe('z');
+      expect(bRow[0].sort_order).toBe('a');
+    });
+
+    it('rejects a body missing reorders entirely -> 400', async () => {
+      const res = await reorder({}).expect(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    it('rejects reorders that is not an array -> 400', async () => {
+      const res = await reorder({ reorders: 'notanarray' }).expect(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    it('rejects an empty reorders array -> 400', async () => {
+      const res = await reorder({ reorders: [] }).expect(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    it('rejects an entry missing itemId -> 400', async () => {
+      const res = await reorder({ reorders: [{ sortOrder: 'a' }] }).expect(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    it('rejects an entry with a non-string sortOrder -> 400', async () => {
+      // The app-wide ValidationPipe runs with enableImplicitConversion, which
+      // coerces any scalar (number/boolean/object) to a string before @IsString
+      // sees it. An array is the genuine non-string that @IsString rejects.
+      const res = await reorder({
+        reorders: [{ itemId: 1, sortOrder: ['a', 'b'] }],
+      }).expect(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    it('rejects an entry with sortOrder longer than 255 chars -> 400', async () => {
+      const res = await reorder({
+        reorders: [{ itemId: 1, sortOrder: 'x'.repeat(256) }],
+      }).expect(400);
+      expect(res.body.success).toBe(false);
+    });
+  });
 });

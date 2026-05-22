@@ -17,6 +17,7 @@ import { CreateStatusDto } from './dto/create-status.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { CreateLabelDto } from './dto/create-label.dto';
 import { UpdateLabelDto } from './dto/update-label.dto';
+import { ReorderStatusesDto } from './dto/reorder-statuses.dto';
 
 // ProjectAccessGuard MUST run before RolesGuard so `request.projectRole` is
 // populated for project-scoped routes (:projectId). NestJS runs controller-level
@@ -163,9 +164,9 @@ export class ProjectsController {
   @ResponseCode('STATUSES_REORDERED')
   async reorderStatuses(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Body() body: { statusIds: number[] },
+    @Body() dto: ReorderStatusesDto,
   ) {
-    return this.projectsService.reorderStatuses(projectId, body.statusIds);
+    return this.projectsService.reorderStatuses(projectId, dto.statusIds);
   }
 
   @Put(':projectId/statuses/:statusId')
