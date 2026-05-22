@@ -174,7 +174,25 @@ export class SprintsService {
       }
 
       sprint.status = 'active';
-      const savedSprint = await manager.save(Sprint, sprint);
+      let savedSprint: Sprint;
+      try {
+        savedSprint = await manager.save(Sprint, sprint);
+      } catch (error: any) {
+        // The pre-check above gives the fast clean path, but two concurrent
+        // start() calls can both pass it (each locks only its own row). The
+        // partial unique index UQ_sprint_one_active_per_project is the real
+        // guard: the loser's save raises a 23505 unique violation, which we
+        // translate to the same clean SPRINT_ALREADY_ACTIVE response.
+        if (
+          error?.code === '23505' &&
+          (error?.constraint === 'UQ_sprint_one_active_per_project' ||
+            String(error?.detail ?? '').includes('UQ_sprint_one_active_per_project'))
+        ) {
+          throw new AppLogicException('SPRINT_ALREADY_ACTIVE', HttpStatus.CONFLICT);
+        }
+        // Any other unique violation (or error) is unrelated — do not mask it.
+        throw error;
+      }
 
       // Record initial scope
       const tasks = await manager.query(
@@ -286,21 +304,21 @@ export class SprintsService {
   async cancel(projectId: number, sprintId: number, userId: number) {
     const sprint = await this.dataSource.transaction(async (manager) => {
       // Re-load with a pessimistic write lock so concurrent callers serialize.
-      const locked = await manager.findOne(Sprint, {
+      const sprint = await manager.findOne(Sprint, {
         where: { id: sprintId, projectId },
         lock: { mode: 'pessimistic_write' },
       });
-      if (!locked) {
+      if (!sprint) {
         throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
       }
 
       // Re-check status inside the lock.
-      if (locked.status !== 'planning' && locked.status !== 'active') {
+      if (sprint.status !== 'planning' && sprint.status !== 'active') {
         throw new AppLogicException('SPRINT_NOT_ACTIVE', HttpStatus.BAD_REQUEST);
       }
 
-      locked.status = 'cancelled';
-      await manager.save(Sprint, locked);
+      sprint.status = 'cancelled';
+      await manager.save(Sprint, sprint);
 
       // Move ALL tasks to backlog
       await manager.query(
@@ -308,7 +326,7 @@ export class SprintsService {
         [sprintId],
       );
 
-      return locked;
+      return sprint;
     });
 
     // Emit only after the transaction commits.

@@ -7,6 +7,12 @@ import { Project } from '../../projects/entities/project.entity';
 @Entity('sprints')
 @Index('IDX_sprint_project', ['projectId'])
 @Index('IDX_sprint_status', ['status'])
+// Partial unique index: at most one active sprint per project. Enforced at the
+// DB level so concurrent start() calls cannot create a second active sprint.
+@Index('UQ_sprint_one_active_per_project', ['projectId'], {
+  unique: true,
+  where: "status = 'active'",
+})
 export class Sprint {
   @PrimaryGeneratedColumn('increment')
   id: number;

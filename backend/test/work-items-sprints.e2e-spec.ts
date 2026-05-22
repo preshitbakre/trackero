@@ -3,6 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { createTestApp, clearDatabase, registerAdmin } from './setup';
+import { SprintsService } from '../src/sprints/sprints.service';
 
 /** A date `daysFromNow` days ahead of today, as YYYY-MM-DD — sprints reject past start dates. */
 const futureDate = (daysFromNow: number): string =>
@@ -195,6 +196,83 @@ describe('WorkItems Sprints (e2e)', () => {
         .expect(400);
 
       expect(res.body.code).toBe('F-L-0023');
+    });
+
+    it('concurrent starts of two planning sprints -> exactly one wins, project never has two active sprints', async () => {
+      // Drive the race at the service layer: two start() calls in genuinely
+      // overlapping transactions. Each locks only its own planning-sprint row,
+      // so both can pass the "no other active sprint" pre-check before either
+      // commits. The partial unique index UQ_sprint_one_active_per_project is
+      // the real guard — the loser's UPDATE raises 23505, which start()
+      // translates to a clean SPRINT_ALREADY_ACTIVE conflict.
+      //
+      // The race window is narrow and timing-dependent, so a single pair is
+      // not reliable. Run many concurrent pairs: without the index+catch the
+      // two-active-sprints invariant breaks in at least one round; with the
+      // fix it must hold in every round.
+      const service = app.get(SprintsService);
+      const ds = app.get(DataSource);
+      const adminId = (await ds.query(
+        `SELECT id FROM users WHERE email = 'admin@test.com'`,
+      ))[0].id;
+      const ROUNDS = 25;
+
+      for (let round = 0; round < ROUNDS; round++) {
+        // Fresh project per round so each race is independent.
+        const projRes = await request(app.getHttpServer())
+          .post('/api/projects')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ name: `Race Project ${round}`, prefix: `R${round}` });
+        const raceProjectId = projRes.body.data.item.id;
+
+        // Two planning sprints, each with a task so both are startable.
+        const mkSprint = async (name: string) => {
+          const r = await request(app.getHttpServer())
+            .post(`/api/projects/${raceProjectId}/sprints`)
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ name, startDate: futureDate(1), endDate: futureDate(15) });
+          return r.body.data.item.id as number;
+        };
+        const sprintAId = await mkSprint('Sprint A');
+        const sprintBId = await mkSprint('Sprint B');
+        await request(app.getHttpServer())
+          .post(`/api/projects/${raceProjectId}/items`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ itemType: 'task', title: 'Task A', sprintId: sprintAId })
+          .expect(201);
+        await request(app.getHttpServer())
+          .post(`/api/projects/${raceProjectId}/items`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ itemType: 'task', title: 'Task B', sprintId: sprintBId })
+          .expect(201);
+
+        const settled = await Promise.allSettled([
+          service.start(raceProjectId, sprintAId, adminId),
+          service.start(raceProjectId, sprintBId, adminId),
+        ]);
+
+        const fulfilled = settled.filter((r) => r.status === 'fulfilled');
+        const rejected = settled.filter(
+          (r): r is PromiseRejectedResult => r.status === 'rejected',
+        );
+
+        // Exactly one start succeeds; the other fails cleanly.
+        expect(fulfilled.length).toBe(1);
+        expect(rejected.length).toBe(1);
+
+        // The loser must surface the same clean SPRINT_ALREADY_ACTIVE conflict
+        // the pre-check throws — never a raw DB error.
+        const err = rejected[0].reason as any;
+        expect(err.appCode).toBe('F-L-0020');
+        expect(err.getStatus()).toBe(409);
+
+        // The project must end up with exactly one active sprint.
+        const active = await ds.query(
+          `SELECT id FROM sprints WHERE project_id = $1 AND status = 'active'`,
+          [raceProjectId],
+        );
+        expect(active.length).toBe(1);
+      }
     });
 
     it('lists sprints -> 200', async () => {
