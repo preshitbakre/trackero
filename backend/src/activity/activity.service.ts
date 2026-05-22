@@ -61,21 +61,26 @@ export class ActivityService {
     changes: any;
     previous?: { statusId: number | null };
   }) {
-    // Generic 'updated' row — feeds the activity feed.
-    await this.activityRepo.save(this.activityRepo.create({
-      projectId: payload.projectId,
-      workItemId: payload.item?.id,
-      userId: payload.userId,
-      action: 'updated',
-    }));
+    const rows = [
+      // Generic 'updated' row — feeds the activity feed. Always written.
+      this.activityRepo.create({
+        projectId: payload.projectId,
+        workItemId: payload.item?.id,
+        userId: payload.userId,
+        action: 'updated',
+      }),
+    ];
 
     // Status-change row — feeds the cumulative-flow chart's history
-    // reconstruction (D-C6). The CFD query does CAST(new_value AS INTEGER),
-    // so new_value MUST be the numeric status id as a string.
-    const newStatusId = payload.changes?.statusId;
-    if (newStatusId !== undefined && newStatusId !== null) {
-      const oldStatusId = payload.previous?.statusId;
-      await this.activityRepo.save(this.activityRepo.create({
+    // reconstruction (D-C6). Gate on `payload.previous`, the deliberate
+    // "status actually changed" signal computed by WorkItemsService.update()
+    // — NOT on changes.statusId, which is the raw DTO value and is present
+    // even for a no-op PUT that resends the item's current status.
+    // The CFD query does CAST(new_value AS INTEGER), so new_value MUST be
+    // the numeric status id as a string.
+    if (payload.previous !== undefined) {
+      const oldStatusId = payload.previous.statusId;
+      rows.push(this.activityRepo.create({
         projectId: payload.projectId,
         workItemId: payload.item?.id,
         userId: payload.userId,
@@ -85,9 +90,11 @@ export class ActivityService {
           oldStatusId === undefined || oldStatusId === null
             ? null
             : String(oldStatusId),
-        newValue: String(newStatusId),
+        newValue: String(payload.changes?.statusId),
       }));
     }
+
+    await this.activityRepo.save(rows);
   }
 
   @OnEvent('work_item.deleted')

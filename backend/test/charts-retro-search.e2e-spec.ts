@@ -8,6 +8,25 @@ import { createTestApp, clearDatabase, registerAdmin, registerInvitedUser } from
 const futureDate = (daysFromNow: number): string =>
   new Date(Date.now() + daysFromNow * 86400000).toISOString().split('T')[0];
 
+/**
+ * Polls `query` until `predicate` returns true, or a ~2s timeout elapses.
+ * Replaces fixed `setTimeout` sleeps when waiting for async `@OnEvent`
+ * activity-log writes — removes flakiness without slowing the happy path.
+ */
+async function pollUntil<T>(
+  query: () => Promise<T>,
+  predicate: (rows: T) => boolean,
+  { timeoutMs = 2000, intervalMs = 25 }: { timeoutMs?: number; intervalMs?: number } = {},
+): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  let rows = await query();
+  while (!predicate(rows) && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, intervalMs));
+    rows = await query();
+  }
+  return rows;
+}
+
 describe('Charts, Retro, Search (e2e)', () => {
   let app: INestApplication;
   let adminToken: string;
@@ -105,16 +124,16 @@ describe('Charts, Retro, Search (e2e)', () => {
         .send({ statusId: doneStatus.id })
         .expect(200);
 
-      // Give the async @OnEvent handlers time to commit the activity rows
-      await new Promise((r) => setTimeout(r, 100));
-
-      // A status-change activity_logs row must now exist for this item
+      // Poll until the async @OnEvent handlers commit the status-change rows.
       const dataSource = app.get(DataSource);
-      const statusRows = await dataSource.query(
-        `SELECT old_value, new_value FROM activity_logs
-         WHERE work_item_id = $1 AND field_changed = 'status'
-         ORDER BY created_at ASC`,
-        [taskId],
+      const statusRows = await pollUntil(
+        () => dataSource.query(
+          `SELECT old_value, new_value FROM activity_logs
+           WHERE work_item_id = $1 AND field_changed = 'status'
+           ORDER BY created_at ASC`,
+          [taskId],
+        ),
+        (rows: any[]) => rows.length >= 2,
       );
       expect(statusRows.length).toBeGreaterThanOrEqual(2);
       // The latest status-change row records the move to the done status
@@ -142,6 +161,67 @@ describe('Charts, Retro, Search (e2e)', () => {
       expect(today.done).toBe(1);
       expect(today.in_progress).toBe(0);
       expect(today.backlog).toBe(0);
+    });
+
+    it('a no-op status PUT does NOT create an extra status-change row (D-C6)', async () => {
+      const statusRes = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/statuses`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      const statuses = statusRes.body.data.list ?? statusRes.body.data;
+      const inProgressStatus = statuses.find((s: any) => s.category === 'in_progress');
+      expect(inProgressStatus).toBeDefined();
+
+      // Create a task — it starts in the default backlog status.
+      const taskRes = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/items`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ itemType: 'task', title: 'No-op status task' })
+        .expect(201);
+      const taskId = taskRes.body.data.item.id;
+
+      const dataSource = app.get(DataSource);
+      const countStatusRows = async (): Promise<number> => {
+        const [row] = await dataSource.query(
+          `SELECT COUNT(*)::int AS cnt FROM activity_logs
+           WHERE work_item_id = $1 AND field_changed = 'status'`,
+          [taskId],
+        );
+        return row.cnt;
+      };
+      const countGenericUpdatedRows = async (): Promise<number> => {
+        const [row] = await dataSource.query(
+          `SELECT COUNT(*)::int AS cnt FROM activity_logs
+           WHERE work_item_id = $1 AND field_changed IS NULL AND action = 'updated'`,
+          [taskId],
+        );
+        return row.cnt;
+      };
+
+      // One REAL status change → exactly one status-change row + one generic
+      // 'updated' row. Poll until both async writes commit.
+      await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/items/${taskId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ statusId: inProgressStatus.id })
+        .expect(200);
+      await pollUntil(countGenericUpdatedRows, (cnt: number) => cnt >= 1);
+      expect(await countStatusRows()).toBe(1);
+
+      // No-op PUT: resend the SAME (now-current) statusId. update() sees no real
+      // change (dto.statusId === item.statusId), so it must NOT produce another
+      // status-change row — only a generic 'updated' row. Poll until THIS PUT's
+      // generic row commits (generic-updated count reaches 2, one per PUT) so
+      // the handler is guaranteed to have fully run before we assert.
+      await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/items/${taskId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ statusId: inProgressStatus.id, title: 'No-op status task (renamed)' })
+        .expect(200);
+      await pollUntil(countGenericUpdatedRows, (cnt: number) => cnt >= 2);
+
+      // Still exactly ONE status-change row — the no-op PUT added none.
+      expect(await countStatusRows()).toBe(1);
     });
   });
 
