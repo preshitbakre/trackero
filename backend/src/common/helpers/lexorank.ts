@@ -75,8 +75,10 @@ function keyAfterTail(tail: string): string {
     // entire tail (since later positions can only lower the value). Pick the
     // midpoint between `head` and the alphabet's end so future inserts on
     // either side still have room.
+    // `midIndex` is always >= ord(head)+1: the floored half-gap term is never
+    // negative because `head < MAX_CHAR` guarantees ord(head)+1 <= ALPHABET.length-1.
     const midIndex = ord(head) + 1 + Math.floor((ALPHABET.length - 1 - (ord(head) + 1)) / 2);
-    return chr(Math.max(midIndex, ord(head) + 1));
+    return chr(midIndex);
   }
   // head === MAX_CHAR: must keep it and descend.
   return MAX_CHAR + keyAfterTail(tail.slice(1));
@@ -128,16 +130,22 @@ function between(lower: string, upper: string): string {
     // char (it would pin against the prefix and leave no room below it), so we
     // copy `upper`'s remaining min chars and stop at its first char above min,
     // then halve that gap.
-    const hiChar2 = hiChar as string;
-    const hiIndex2 = ord(hiChar2);
+    if (hiChar === null) {
+      // `upper` is exhausted too, which can only happen when every character of
+      // `upper` past the shared prefix was the min char (each one copied via
+      // the `upper[i] === 'a'` branch below). That means `after` ends in the
+      // min char, which leaves no room strictly below it — an invalid bound,
+      // just like `before >= after`. Reject it with a clear error.
+      throw new Error(
+        `calculateMidpoint: 'after' must not end in the min char ('${MIN_CHAR}'); ` +
+          `a trailing min char carries no information and leaves no room below it`,
+      );
+    }
+    const hiIndex2 = ord(hiChar);
     if (hiIndex2 > 0) {
-      // upper[i] is above 'a': pick a char strictly between 'a'(exclusive,
-      // since emitting 'a' as the final char is forbidden) ... actually we may
-      // emit 'a' here ONLY if more chars follow. Descend one more level so the
-      // result never *ends* in 'a': append MIN_CHAR and place a mid char below
-      // upper[i] at the next position is unnecessary — instead just take the
-      // midpoint between index 0 and hiIndex2, and if that midpoint is 0 we
-      // descend.
+      // upper[i] is above 'a'. Take the midpoint between index 0 and hiIndex2.
+      // If that midpoint is > 0 it is a valid single char strictly below
+      // upper[i] (and above the empty lower bound), so emit it and stop.
       const midIndex = Math.floor(hiIndex2 / 2);
       if (midIndex > 0) {
         return prefix + chr(midIndex);
@@ -165,6 +173,13 @@ function between(lower: string, upper: string): string {
  * - `(before, after)`     → a key strictly between them (requires before < after).
  *
  * The returned key is always non-empty and never ends in the min char.
+ *
+ * Preconditions (throws a clear `Error` if violated):
+ *  - When both bounds are non-empty, `before` must sort strictly before `after`.
+ *  - `after` must not end in the min char (`'a'`). A trailing min char carries
+ *    no information and leaves no room strictly below it. Keys produced by this
+ *    module never end in the min char, so this only matters for hand-crafted
+ *    input.
  */
 export function calculateMidpoint(
   before: string | null,

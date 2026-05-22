@@ -113,6 +113,18 @@ describe('lexorank', () => {
       expect(new Set(full).size).toBe(full.length);
     });
 
+    it('throws a clear error when `after` ends in the min char', () => {
+      // `after` ending in 'a' past the shared prefix leaves no room strictly
+      // below it — an invalid bound, like `before >= after`. It must throw a
+      // clear Error, not crash with an opaque TypeError.
+      expect(() => calculateMidpoint('n', 'naa')).toThrow(
+        /must not end in the min char/,
+      );
+      expect(() => calculateMidpoint('mz', 'mza')).toThrow(
+        /must not end in the min char/,
+      );
+    });
+
     it('inserting always in the MIDDLE of the list 1000 times stays ordered & distinct', () => {
       let keys: string[] = [calculateMidpoint(null, null)];
       keys.push(calculateMidpoint(keys[0], null));
