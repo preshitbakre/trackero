@@ -364,6 +364,112 @@ describe('Charts, Retro, Search (e2e)', () => {
 
       expect(unvoteRes.body.data.votes).toBe(0);
     });
+
+    it('concurrent votes by N distinct users derive an exact count (no lost updates)', async () => {
+      const retroRes = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/sprints/${sprintId}/retro`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      const retroId = retroRes.body.data.id;
+
+      const cardRes = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/retro/${retroId}/cards`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ column: 'went_well', content: 'Concurrency test' });
+      const cardId = cardRes.body.data.id;
+
+      // Create N distinct project members so we get N concurrent ADD votes.
+      const N = 6;
+      const voterTokens: string[] = [];
+      for (let i = 0; i < N; i++) {
+        const u = await registerInvitedUser(app, adminToken, `voter${i}@test.com`, 'member');
+        await request(app.getHttpServer())
+          .post(`/api/projects/${projectId}/members`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ userId: u.id, role: 'member' });
+        voterTokens.push(u.token);
+      }
+
+      const castVotes = () =>
+        Promise.all(
+          voterTokens.map((t) =>
+            request(app.getHttpServer())
+              .post(`/api/projects/${projectId}/retro/${retroId}/cards/${cardId}/vote`)
+              .set('Authorization', `Bearer ${t}`),
+          ),
+        );
+
+      // All N users vote concurrently -> votes must be exactly N.
+      const addResults = await castVotes();
+      for (const r of addResults) expect(r.status).toBe(200);
+
+      const dataSource = app.get(DataSource);
+      const cardAfterAdd = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/sprints/${sprintId}/retro`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      const addedCard = cardAfterAdd.body.data.cards.find((c: any) => c.id === cardId);
+      expect(addedCard.votes).toBe(N);
+      const [addRow] = await dataSource.query(
+        'SELECT COUNT(*)::int AS cnt FROM retro_votes WHERE card_id = $1',
+        [cardId],
+      );
+      expect(addRow.cnt).toBe(N);
+
+      // All N users un-vote concurrently -> votes must be exactly 0.
+      const removeResults = await castVotes();
+      for (const r of removeResults) expect(r.status).toBe(200);
+
+      const cardAfterRemove = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/sprints/${sprintId}/retro`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      const removedCard = cardAfterRemove.body.data.cards.find((c: any) => c.id === cardId);
+      expect(removedCard.votes).toBe(0);
+      const [removeRow] = await dataSource.query(
+        'SELECT COUNT(*)::int AS cnt FROM retro_votes WHERE card_id = $1',
+        [cardId],
+      );
+      expect(removeRow.cnt).toBe(0);
+    });
+
+    it('concurrent double-vote from the same user does not 500 and stays consistent', async () => {
+      const retroRes = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/sprints/${sprintId}/retro`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      const retroId = retroRes.body.data.id;
+
+      const cardRes = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/retro/${retroId}/cards`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ column: 'went_well', content: 'Double-vote test' });
+      const cardId = cardRes.body.data.id;
+
+      // One user fires 2 concurrent votes on the same card.
+      const results = await Promise.all([
+        request(app.getHttpServer())
+          .post(`/api/projects/${projectId}/retro/${retroId}/cards/${cardId}/vote`)
+          .set('Authorization', `Bearer ${memberToken}`),
+        request(app.getHttpServer())
+          .post(`/api/projects/${projectId}/retro/${retroId}/cards/${cardId}/vote`)
+          .set('Authorization', `Bearer ${memberToken}`),
+      ]);
+
+      // Neither request may 500 — a concurrent double-vote is benign.
+      for (const r of results) {
+        expect(r.status).toBeLessThan(500);
+        expect(r.status).toBe(200);
+      }
+
+      // The stored count must equal the actual retro_votes rows for this card.
+      const dataSource = app.get(DataSource);
+      const [row] = await dataSource.query(
+        'SELECT COUNT(*)::int AS cnt FROM retro_votes WHERE card_id = $1',
+        [cardId],
+      );
+      const cardAfter = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/sprints/${sprintId}/retro`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      const card = cardAfter.body.data.cards.find((c: any) => c.id === cardId);
+      expect(card.votes).toBe(row.cnt);
+    });
   });
 
   describe('Search', () => {

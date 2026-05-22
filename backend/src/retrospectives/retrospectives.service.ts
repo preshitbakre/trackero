@@ -106,14 +106,37 @@ export class RetrospectivesService {
 
     const existingVote = await this.voteRepo.findOne({ where: { cardId, userId } });
     if (existingVote) {
-      // Remove vote
+      // Remove vote — no uniqueness concern on delete.
       await this.voteRepo.remove(existingVote);
-      card.votes = Math.max(0, card.votes - 1);
     } else {
-      // Add vote
-      await this.voteRepo.save(this.voteRepo.create({ cardId, userId }));
-      card.votes += 1;
+      // Add vote. Two concurrent toggles from the SAME user can both miss the
+      // findOne above and both try to insert — the second hits the
+      // UQ_retro_vote unique constraint. That is a benign concurrent
+      // double-vote: the net effect is one vote, which is correct toggle
+      // semantics, so swallow the 23505 and fall through to the recompute.
+      try {
+        await this.voteRepo.save(this.voteRepo.create({ cardId, userId }));
+      } catch (error: any) {
+        const isUniqueViolation =
+          error?.code === '23505' &&
+          ((typeof error?.constraint === 'string' && error.constraint.includes('UQ_retro_vote')) ||
+            (typeof error?.detail === 'string' && error.detail.includes('UQ_retro_vote')) ||
+            // Some drivers omit the constraint name; fall back to the column pair.
+            (typeof error?.detail === 'string' &&
+              error.detail.includes('card_id') &&
+              error.detail.includes('user_id')));
+        if (!isUniqueViolation) throw error;
+      }
     }
-    return this.cardRepo.save(card);
+
+    // Derive the count atomically from the actual retro_votes rows. This
+    // makes `votes` exactly equal to the real row count regardless of
+    // concurrency / lost updates — no read-modify-write on card.votes.
+    await this.dataSource.query(
+      'UPDATE retro_cards SET votes = (SELECT COUNT(*) FROM retro_votes WHERE card_id = $1) WHERE id = $1',
+      [cardId],
+    );
+
+    return this.cardRepo.findOne({ where: { id: cardId, retrospectiveId: retroId } });
   }
 }
