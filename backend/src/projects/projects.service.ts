@@ -44,28 +44,35 @@ export class ProjectsService {
       throw new AppLogicException('DUPLICATE_ENTRY', HttpStatus.CONFLICT);
     }
 
-    const project = this.projectRepo.create({
-      name: dto.name,
-      prefix: dto.prefix,
-      description: dto.description || null,
-      leadId: dto.leadId || null,
-    });
-    const saved = await this.projectRepo.save(project);
+    // Atomically create the project, its default statuses and the creator
+    // membership — if any write fails the whole thing rolls back, so we never
+    // leave a half-created project with no statuses and/or no members.
+    const saved = await this.dataSource.transaction(async (manager) => {
+      const project = manager.create(Project, {
+        name: dto.name,
+        prefix: dto.prefix,
+        description: dto.description || null,
+        leadId: dto.leadId || null,
+      });
+      const savedProject = await manager.save(Project, project);
 
-    // Create default statuses
-    const statuses = DEFAULT_STATUSES.map((s) =>
-      this.statusRepo.create({ ...s, projectId: saved.id }),
-    );
-    await this.statusRepo.save(statuses);
+      // Create default statuses
+      const statuses = DEFAULT_STATUSES.map((s) =>
+        manager.create(ProjectStatus, { ...s, projectId: savedProject.id }),
+      );
+      await manager.save(ProjectStatus, statuses);
 
-    // Add creator as project_manager
-    const member = this.memberRepo.create({
-      projectId: saved.id,
-      userId,
-      role: 'project_manager',
-      addedBy: userId,
+      // Add creator as project_manager
+      const member = manager.create(ProjectMember, {
+        projectId: savedProject.id,
+        userId,
+        role: 'project_manager',
+        addedBy: userId,
+      });
+      await manager.save(ProjectMember, member);
+
+      return savedProject;
     });
-    await this.memberRepo.save(member);
 
     const list = await this.listProjects(userId, 'admin', 1, 20);
     return PaginatedMutationResponse.forPaginated(saved, list);
@@ -264,9 +271,34 @@ export class ProjectsService {
   }
 
   async reorderStatuses(projectId: number, statusIds: number[]) {
-    for (let i = 0; i < statusIds.length; i++) {
-      await this.statusRepo.update({ id: statusIds[i], projectId }, { sortOrder: i });
+    // Validate that statusIds is an exact permutation of the project's own
+    // statuses — same length, same elements, no duplicates, no foreign/unknown
+    // ids. A partial or tampered list would otherwise produce a broken ordering.
+    const existing = await this.statusRepo.find({
+      where: { projectId },
+      select: ['id'],
+    });
+    const validIds = new Set(existing.map((s) => s.id));
+    const supplied = new Set(statusIds);
+
+    const isPermutation =
+      Array.isArray(statusIds) &&
+      statusIds.length === existing.length &&
+      supplied.size === statusIds.length &&
+      statusIds.every((id) => validIds.has(id));
+
+    if (!isPermutation) {
+      throw new AppLogicException('VALIDATION_FAILED', HttpStatus.BAD_REQUEST);
     }
+
+    // Apply the sortOrder updates atomically — a mid-loop failure must not
+    // leave statuses with inconsistent sortOrders.
+    await this.dataSource.transaction(async (manager) => {
+      for (let i = 0; i < statusIds.length; i++) {
+        await manager.update(ProjectStatus, { id: statusIds[i], projectId }, { sortOrder: i });
+      }
+    });
+
     return this.listStatuses(projectId);
   }
 

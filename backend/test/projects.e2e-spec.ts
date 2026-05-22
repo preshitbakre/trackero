@@ -253,6 +253,154 @@ describe('Projects Module (e2e)', () => {
     });
   });
 
+  describe('Status reorder (permutation validation + atomicity)', () => {
+    let projectId: number;
+    let statusIds: number[];
+
+    beforeEach(async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/projects')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Reorder Project', prefix: 'REO' });
+      projectId = res.body.data.item.id;
+
+      const statusRes = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/statuses`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      // statuses returned ordered by sortOrder ASC
+      statusIds = statusRes.body.data.map((s: any) => s.id);
+      expect(statusIds.length).toBe(3);
+    });
+
+    it('reorders statuses with a valid full permutation -> 200 and applies new order', async () => {
+      const reversed = [...statusIds].reverse();
+      const res = await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/statuses/reorder`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ statusIds: reversed })
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.code).toBe('S-0034');
+
+      const after = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/statuses`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      // statuses come back ordered by sortOrder ASC -> must match reversed
+      expect(after.body.data.map((s: any) => s.id)).toEqual(reversed);
+      after.body.data.forEach((s: any, i: number) => {
+        expect(s.sortOrder).toBe(i);
+      });
+    });
+
+    it('rejects a partial statusIds list (missing one id) -> 400', async () => {
+      const res = await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/statuses/reorder`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ statusIds: statusIds.slice(0, 2) })
+        .expect(400);
+
+      expect(res.body.success).toBe(false);
+    });
+
+    it('rejects a statusIds list with a duplicate id -> 400', async () => {
+      const res = await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/statuses/reorder`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ statusIds: [statusIds[0], statusIds[1], statusIds[1]] })
+        .expect(400);
+
+      expect(res.body.success).toBe(false);
+    });
+
+    it('rejects a statusIds list containing a foreign / unknown id -> 400', async () => {
+      const res = await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/statuses/reorder`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ statusIds: [statusIds[0], statusIds[1], 9999999] })
+        .expect(400);
+
+      expect(res.body.success).toBe(false);
+    });
+
+    it('rejects statusIds from another project -> 400 and leaves order untouched', async () => {
+      const otherRes = await request(app.getHttpServer())
+        .post('/api/projects')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Other Reorder Project', prefix: 'REO2' });
+      const otherProjectId = otherRes.body.data.item.id;
+      const otherStatusRes = await request(app.getHttpServer())
+        .get(`/api/projects/${otherProjectId}/statuses`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      const otherStatusIds = otherStatusRes.body.data.map((s: any) => s.id);
+
+      await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/statuses/reorder`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ statusIds: otherStatusIds })
+        .expect(400);
+
+      // original project order unchanged
+      const after = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/statuses`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(after.body.data.map((s: any) => s.id)).toEqual(statusIds);
+    });
+  });
+
+  describe('Project creation atomicity', () => {
+    it('a successful create yields a project with 3 statuses AND the creator as project_manager', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/projects')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Atomic Project', prefix: 'ATOM' })
+        .expect(201);
+
+      const newProjectId = res.body.data.item.id;
+
+      const statusRes = await request(app.getHttpServer())
+        .get(`/api/projects/${newProjectId}/statuses`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(statusRes.body.data.length).toBe(3);
+
+      const membersRes = await request(app.getHttpServer())
+        .get(`/api/projects/${newProjectId}/members`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(membersRes.body.data.list.length).toBe(1);
+      expect(membersRes.body.data.list[0].role).toBe('project_manager');
+    });
+
+    it('a rejected create (duplicate prefix) leaves no orphan project, statuses or members', async () => {
+      await request(app.getHttpServer())
+        .post('/api/projects')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'First Atom', prefix: 'ATM2' })
+        .expect(201);
+
+      // attempt a duplicate-prefix create -> rejected
+      await request(app.getHttpServer())
+        .post('/api/projects')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Second Atom', prefix: 'ATM2' })
+        .expect(409);
+
+      // exactly one project with that prefix exists
+      const list = await request(app.getHttpServer())
+        .get('/api/projects')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      const matching = list.body.data.list.filter((p: any) => p.prefix === 'ATM2');
+      expect(matching.length).toBe(1);
+    });
+  });
+
   describe('Labels', () => {
     let projectId: number;
 
