@@ -363,6 +363,56 @@ describe('Projects Module (e2e)', () => {
     });
   });
 
+  describe('Project existence + projectId validation (ProjectAccessGuard)', () => {
+    it('admin requesting a non-existent project -> 404 NOT_FOUND', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/projects/99999')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(404);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('F-L-0001');
+    });
+
+    it('admin requesting a non-existent project sub-route -> 404 NOT_FOUND', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/projects/99999/members')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(404);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('F-L-0001');
+    });
+
+    it('admin mutating a non-existent project -> 404 NOT_FOUND', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/projects/99999/labels')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'ghost', color: '#EF4444' })
+        .expect(404);
+
+      expect(res.body.code).toBe('F-L-0001');
+    });
+
+    it('regular user requesting a non-existent project is rejected (not 200/500)', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/projects/99999/members')
+        .set('Authorization', `Bearer ${memberToken}`);
+
+      expect([403, 404]).toContain(res.status);
+      expect(res.body.success).toBe(false);
+    });
+
+    it('rejects a malformed projectId like /99999abc -> 400', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/projects/99999abc/members')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(400);
+
+      expect(res.body.success).toBe(false);
+    });
+  });
+
   describe('Users (Admin)', () => {
     it('lists users as admin -> 200', async () => {
       const res = await request(app.getHttpServer())

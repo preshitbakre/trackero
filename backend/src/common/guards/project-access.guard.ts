@@ -14,9 +14,20 @@ export class ProjectAccessGuard implements CanActivate {
     // Route doesn't have :projectId param — not a project-scoped route
     if (projectIdParam === undefined) return true;
 
-    const projectId = parseInt(projectIdParam, 10);
-    if (isNaN(projectId)) {
+    // Strict numeric validation — `parseInt` is too lax ('5abc' -> 5).
+    if (typeof projectIdParam !== 'string' || !/^\d+$/.test(projectIdParam)) {
       throw new AppLogicException('FORBIDDEN', HttpStatus.BAD_REQUEST);
+    }
+    const projectId = parseInt(projectIdParam, 10);
+
+    // Fail closed: the project must exist. Loaded once here for ALL methods
+    // and reused for the archived-status check below.
+    const [project] = await this.dataSource.query(
+      'SELECT status FROM projects WHERE id = $1',
+      [projectId],
+    );
+    if (!project) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
 
     // Check membership (admin bypasses)
@@ -36,11 +47,7 @@ export class ProjectAccessGuard implements CanActivate {
     // Block mutations on archived projects (POST, PUT, DELETE — not GET)
     const method = request.method;
     if (method !== 'GET') {
-      const [project] = await this.dataSource.query(
-        'SELECT status FROM projects WHERE id = $1',
-        [projectId],
-      );
-      if (project?.status === 'archived') {
+      if (project.status === 'archived') {
         // Allow archive/unarchive endpoints through. Match the route PATHNAME
         // (query string stripped) and require it to END WITH the action — a
         // raw-url substring check is bypassable via a crafted query string
