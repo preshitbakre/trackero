@@ -52,15 +52,16 @@ export class WorkItemsService {
     // Validate depth
     await this.validateDepth(dto.parentId ?? null);
 
-    // Atomically increment project.itemCounter
-    await this.dataSource.query(
-      `UPDATE projects SET item_counter = item_counter + 1 WHERE id = $1`,
+    // Atomically increment project.itemCounter and read the new value in a
+    // single statement — a separate UPDATE then SELECT races under concurrent
+    // creation and produces duplicate itemNumbers (D-C3). TypeORM's query()
+    // returns [rows, affectedCount] for UPDATE...RETURNING, so unwrap defensively.
+    const counterResult = await this.dataSource.query(
+      `UPDATE projects SET item_counter = item_counter + 1 WHERE id = $1 RETURNING item_counter, prefix`,
       [projectId],
     );
-    const [projectRow] = await this.dataSource.query(
-      `SELECT item_counter, prefix FROM projects WHERE id = $1`,
-      [projectId],
-    );
+    const counterRows = Array.isArray(counterResult[0]) ? counterResult[0] : counterResult;
+    const projectRow = counterRows[0];
     const itemNumber = projectRow.item_counter;
     const projectPrefix: string = projectRow.prefix;
 

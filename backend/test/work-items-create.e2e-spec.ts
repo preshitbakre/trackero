@@ -407,4 +407,27 @@ describe('WorkItems CREATE (e2e)', () => {
 
     expect(res.body.data.item.reporterId).toBe(memberId);
   });
+
+  // =========================================================================
+  // Concurrent creation — item numbers must be unique (D-C3)
+  // =========================================================================
+
+  it('assigns unique consecutive itemNumbers under concurrent creation', async () => {
+    const N = 10;
+    const responses = await Promise.all(
+      Array.from({ length: N }, (_, i) =>
+        createItem({ itemType: 'task', title: `Concurrent ${i}` }),
+      ),
+    );
+
+    for (const res of responses) {
+      expect(res.status).toBe(201);
+    }
+
+    const numbers = responses
+      .map((r) => r.body.data.item.itemNumber)
+      .sort((a: number, b: number) => a - b);
+    expect(new Set(numbers).size).toBe(N);
+    expect(numbers[N - 1] - numbers[0]).toBe(N - 1);
+  });
 });
