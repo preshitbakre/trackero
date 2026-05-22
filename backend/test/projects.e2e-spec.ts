@@ -155,7 +155,29 @@ describe('Projects Module (e2e)', () => {
       projectId = res.body.data.item.id;
     });
 
-    it('admin can delete project -> 200', async () => {
+    it('rejects deleting a non-archived (active) project -> 409 and project still exists', async () => {
+      const res = await request(app.getHttpServer())
+        .delete(`/api/projects/${projectId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(409);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('F-L-0055');
+
+      // project still exists
+      await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+    });
+
+    it('admin can delete project after archiving it -> 200 and project is gone', async () => {
+      // archive first
+      await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/archive`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(201);
+
       const res = await request(app.getHttpServer())
         .delete(`/api/projects/${projectId}`)
         .set('Authorization', `Bearer ${adminToken}`)
@@ -163,6 +185,12 @@ describe('Projects Module (e2e)', () => {
 
       expect(res.body.success).toBe(true);
       expect(res.body.code).toBe('S-0024');
+
+      // project is gone
+      await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(404);
     });
 
     it('member cannot delete project -> 403', async () => {

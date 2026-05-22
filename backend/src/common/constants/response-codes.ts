@@ -198,6 +198,7 @@ export const ResponseCodes = {
   PROJECT_ARCHIVED_ERROR: { code: 'F-L-0052', message: 'This project is archived. Unarchive it to make changes.' },
   RETRO_EXISTS:           { code: 'F-L-0053', message: 'A retrospective already exists for this sprint' },
   LAST_PROJECT_MANAGER:   { code: 'F-L-0054', message: 'Cannot remove or demote the last project manager' },
+  PROJECT_NOT_ARCHIVED:   { code: 'F-L-0055', message: 'Project must be archived before it can be deleted' },
 
   FILE_REQUIRED:          { code: 'F-L-0060', message: 'File is required' },
   FILE_TOO_LARGE:         { code: 'F-L-0061', message: 'File exceeds maximum allowed size' },

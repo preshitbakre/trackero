@@ -149,6 +149,12 @@ export class ProjectsService {
 
   async remove(id: number, userId: number, role: string) {
     const project = await this.findOne(id);
+    // Safety gate: a project must be archived before it can be hard-deleted.
+    // Hard-delete is irreversible, so archiving acts as a deliberate two-step
+    // confirmation — you cannot destroy an active project in a single click.
+    if (project.status !== 'archived') {
+      throw new AppLogicException('PROJECT_NOT_ARCHIVED', HttpStatus.CONFLICT);
+    }
     await this.projectRepo.remove(project);
     const list = await this.listProjects(userId, role, 1, 20);
     return PaginatedMutationResponse.forPaginated(null, list);

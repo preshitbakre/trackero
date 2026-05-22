@@ -56,7 +56,13 @@ export class ProjectAccessGuard implements CanActivate {
         const pathname = rawUrl.split('?')[0];
         const isArchiveAction =
           pathname.endsWith('/archive') || pathname.endsWith('/unarchive');
-        if (!isArchiveAction) {
+        // Hard-deleting the project itself (DELETE /projects/:projectId) must be
+        // allowed ONLY on archived projects — archiving is the required safety
+        // gate before the irreversible delete. The pathname for that route ends
+        // with `/projects/{id}` (no further sub-segments).
+        const isProjectHardDelete =
+          method === 'DELETE' && pathname.endsWith(`/projects/${projectId}`);
+        if (!isArchiveAction && !isProjectHardDelete) {
           throw new AppLogicException('PROJECT_ARCHIVED_ERROR', HttpStatus.FORBIDDEN);
         }
       }
