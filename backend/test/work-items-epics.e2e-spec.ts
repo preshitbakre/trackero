@@ -157,6 +157,80 @@ describe('Epics List Endpoint (e2e)', () => {
     expect(res.body.data.hasNext).toBe(true);
   });
 
+  it('computes per-epic descendant stats correctly across a multi-epic page', async () => {
+    // Three epics in a single page, each with different descendant composition:
+    //   E1: fully done — story + 2 done tasks (totalItems=3, completedItems=3 -> 100%)
+    //   E2: mixed — story with 1 done task and 1 backlog task (totalItems=3, completedItems=1 -> 33%)
+    //   E3: no descendants (zeros)
+    const e1Res = await createItem({ itemType: 'epic', title: 'E1', statusId: doneStatusId });
+    const e1Id = e1Res.body.data.item.id;
+    const e2Res = await createItem({ itemType: 'epic', title: 'E2' });
+    const e2Id = e2Res.body.data.item.id;
+    const e3Res = await createItem({ itemType: 'epic', title: 'E3' });
+    const e3Id = e3Res.body.data.item.id;
+
+    // E1: story (done) belongs_to E1; 2 done tasks belong_to story
+    const e1StoryRes = await createItem({ itemType: 'story', title: 'E1-Story', statusId: doneStatusId, storyPoints: 2 });
+    const e1StoryId = e1StoryRes.body.data.item.id;
+    const e1T1Res = await createItem({ itemType: 'task', title: 'E1-T1', statusId: doneStatusId, storyPoints: 3 });
+    const e1T1Id = e1T1Res.body.data.item.id;
+    const e1T2Res = await createItem({ itemType: 'task', title: 'E1-T2', statusId: doneStatusId, storyPoints: 5 });
+    const e1T2Id = e1T2Res.body.data.item.id;
+    await createAssociation(e1StoryId, e1Id, 'belongs_to');
+    await createAssociation(e1T1Id, e1StoryId, 'belongs_to');
+    await createAssociation(e1T2Id, e1StoryId, 'belongs_to');
+
+    // E2: story (backlog) belongs_to E2; 1 done task + 1 backlog task belong_to story
+    const e2StoryRes = await createItem({ itemType: 'story', title: 'E2-Story', storyPoints: 4 });
+    const e2StoryId = e2StoryRes.body.data.item.id;
+    const e2T1Res = await createItem({ itemType: 'task', title: 'E2-T1', statusId: doneStatusId, storyPoints: 1 });
+    const e2T1Id = e2T1Res.body.data.item.id;
+    const e2T2Res = await createItem({ itemType: 'task', title: 'E2-T2', storyPoints: 7 });
+    const e2T2Id = e2T2Res.body.data.item.id;
+    await createAssociation(e2StoryId, e2Id, 'belongs_to');
+    await createAssociation(e2T1Id, e2StoryId, 'belongs_to');
+    await createAssociation(e2T2Id, e2StoryId, 'belongs_to');
+
+    // E3: no descendants
+
+    const res = await listEpics().expect(200);
+    expect(res.body.data.list).toHaveLength(3);
+
+    const byId: Record<number, any> = {};
+    for (const e of res.body.data.list) byId[e.id] = e;
+
+    // E1: 3 items (1 story + 2 tasks), all done
+    expect(byId[e1Id].progress.totalItems).toBe(3);
+    expect(byId[e1Id].progress.completedItems).toBe(3);
+    expect(byId[e1Id].progress.progressPercent).toBe(100);
+    expect(byId[e1Id].progress.totalPoints).toBe(10);
+    expect(byId[e1Id].progress.completedPoints).toBe(10);
+    expect(byId[e1Id].childBreakdown.stories).toBe(1);
+    expect(byId[e1Id].childBreakdown.tasks).toBe(2);
+    expect(byId[e1Id].childBreakdown.subtasks).toBe(0);
+    expect(byId[e1Id].childBreakdown.bugs).toBe(0);
+
+    // E2: 3 items (1 story + 2 tasks), 1 done -> round(1/3*100)=33
+    expect(byId[e2Id].progress.totalItems).toBe(3);
+    expect(byId[e2Id].progress.completedItems).toBe(1);
+    expect(byId[e2Id].progress.progressPercent).toBe(33);
+    expect(byId[e2Id].progress.totalPoints).toBe(12);
+    expect(byId[e2Id].progress.completedPoints).toBe(1);
+    expect(byId[e2Id].childBreakdown.stories).toBe(1);
+    expect(byId[e2Id].childBreakdown.tasks).toBe(2);
+
+    // E3: empty descendants — all zeros
+    expect(byId[e3Id].progress.totalItems).toBe(0);
+    expect(byId[e3Id].progress.completedItems).toBe(0);
+    expect(byId[e3Id].progress.progressPercent).toBe(0);
+    expect(byId[e3Id].progress.totalPoints).toBe(0);
+    expect(byId[e3Id].progress.completedPoints).toBe(0);
+    expect(byId[e3Id].childBreakdown.stories).toBe(0);
+    expect(byId[e3Id].childBreakdown.tasks).toBe(0);
+    expect(byId[e3Id].childBreakdown.subtasks).toBe(0);
+    expect(byId[e3Id].childBreakdown.bugs).toBe(0);
+  });
+
   it('includes status, assignee, sprint, endDate', async () => {
     const [sprint] = await ds.query(
       `INSERT INTO sprints (project_id, name, status, sprint_number, created_by)

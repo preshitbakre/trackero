@@ -131,6 +131,70 @@ describe('Stories List Endpoint (e2e)', () => {
     expect(res.body.data.hasNext).toBe(true);
   });
 
+  it('computes per-story descendant stats correctly across a multi-story page', async () => {
+    // Three stories in a single page, each with different descendant composition:
+    //   S1: 2 done tasks (totalItems=2, completedItems=2 -> 100%)
+    //   S2: 1 done task + 1 backlog task (totalItems=2, completedItems=1 -> 50%)
+    //   S3: no descendants (zeros)
+    const s1Res = await createItem({ itemType: 'story', title: 'S1' });
+    const s1Id = s1Res.body.data.item.id;
+    const s2Res = await createItem({ itemType: 'story', title: 'S2' });
+    const s2Id = s2Res.body.data.item.id;
+    const s3Res = await createItem({ itemType: 'story', title: 'S3' });
+    const s3Id = s3Res.body.data.item.id;
+
+    // S1: 2 done tasks
+    const s1T1Res = await createItem({ itemType: 'task', title: 'S1-T1', statusId: doneStatusId, storyPoints: 3 });
+    const s1T1Id = s1T1Res.body.data.item.id;
+    const s1T2Res = await createItem({ itemType: 'task', title: 'S1-T2', statusId: doneStatusId, storyPoints: 5 });
+    const s1T2Id = s1T2Res.body.data.item.id;
+    await createAssociation(s1T1Id, s1Id, 'belongs_to');
+    await createAssociation(s1T2Id, s1Id, 'belongs_to');
+
+    // S2: 1 done + 1 backlog
+    const s2T1Res = await createItem({ itemType: 'task', title: 'S2-T1', statusId: doneStatusId, storyPoints: 2 });
+    const s2T1Id = s2T1Res.body.data.item.id;
+    const s2T2Res = await createItem({ itemType: 'task', title: 'S2-T2', storyPoints: 6 });
+    const s2T2Id = s2T2Res.body.data.item.id;
+    await createAssociation(s2T1Id, s2Id, 'belongs_to');
+    await createAssociation(s2T2Id, s2Id, 'belongs_to');
+
+    // S3: no descendants
+
+    const res = await listStories().expect(200);
+    expect(res.body.data.list).toHaveLength(3);
+
+    const byId: Record<number, any> = {};
+    for (const s of res.body.data.list) byId[s.id] = s;
+
+    // S1: 2 tasks, both done
+    expect(byId[s1Id].progress.totalItems).toBe(2);
+    expect(byId[s1Id].progress.completedItems).toBe(2);
+    expect(byId[s1Id].progress.progressPercent).toBe(100);
+    expect(byId[s1Id].progress.totalPoints).toBe(8);
+    expect(byId[s1Id].progress.completedPoints).toBe(8);
+    expect(byId[s1Id].childBreakdown.tasks).toBe(2);
+    expect(byId[s1Id].childBreakdown.stories).toBe(0);
+
+    // S2: 2 tasks, 1 done
+    expect(byId[s2Id].progress.totalItems).toBe(2);
+    expect(byId[s2Id].progress.completedItems).toBe(1);
+    expect(byId[s2Id].progress.progressPercent).toBe(50);
+    expect(byId[s2Id].progress.totalPoints).toBe(8);
+    expect(byId[s2Id].progress.completedPoints).toBe(2);
+    expect(byId[s2Id].childBreakdown.tasks).toBe(2);
+
+    // S3: empty
+    expect(byId[s3Id].progress.totalItems).toBe(0);
+    expect(byId[s3Id].progress.completedItems).toBe(0);
+    expect(byId[s3Id].progress.progressPercent).toBe(0);
+    expect(byId[s3Id].progress.totalPoints).toBe(0);
+    expect(byId[s3Id].progress.completedPoints).toBe(0);
+    expect(byId[s3Id].childBreakdown.tasks).toBe(0);
+    expect(byId[s3Id].childBreakdown.subtasks).toBe(0);
+    expect(byId[s3Id].childBreakdown.bugs).toBe(0);
+  });
+
   it('story with no associations has zero progress', async () => {
     await createItem({ itemType: 'story', title: 'Empty' });
 

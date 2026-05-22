@@ -1079,9 +1079,15 @@ export class WorkItemsService {
       .take(limit)
       .getManyAndCount();
 
-    // For each epic, compute progress + childBreakdown using recursive CTE
-    const list = await Promise.all(epics.map(async (epic) => {
-      const { progress, childBreakdown } = await this.computeDescendantStats(epic.id);
+    // Batch compute progress + childBreakdown using a single multi-root recursive CTE
+    const statsMap = await this.computeDescendantStatsBatch(epics.map((e) => e.id));
+    const emptyStats = {
+      progress: { totalItems: 0, completedItems: 0, totalPoints: 0, completedPoints: 0, progressPercent: 0 },
+      childBreakdown: { stories: 0, tasks: 0, subtasks: 0, bugs: 0 },
+    };
+
+    const list = epics.map((epic) => {
+      const { progress, childBreakdown } = statsMap.get(epic.id) ?? emptyStats;
 
       return {
         id: epic.id,
@@ -1113,7 +1119,7 @@ export class WorkItemsService {
         labels: (epic.labels || []).map((l) => ({ id: l.id, name: l.name, color: (l as any).color })),
         createdAt: epic.createdAt,
       };
-    }));
+    });
 
     const paginated = new PaginatedResponse(list, total, page, limit);
     return paginated.toEnvelopeData();
@@ -1144,8 +1150,15 @@ export class WorkItemsService {
       .take(limit)
       .getManyAndCount();
 
-    const list = await Promise.all(stories.map(async (story) => {
-      const { progress, childBreakdown } = await this.computeDescendantStats(story.id);
+    // Batch compute progress + childBreakdown using a single multi-root recursive CTE
+    const statsMap = await this.computeDescendantStatsBatch(stories.map((s) => s.id));
+    const emptyStats = {
+      progress: { totalItems: 0, completedItems: 0, totalPoints: 0, completedPoints: 0, progressPercent: 0 },
+      childBreakdown: { stories: 0, tasks: 0, subtasks: 0, bugs: 0 },
+    };
+
+    const list = stories.map((story) => {
+      const { progress, childBreakdown } = statsMap.get(story.id) ?? emptyStats;
 
       return {
         id: story.id,
@@ -1180,7 +1193,7 @@ export class WorkItemsService {
         labels: (story.labels || []).map((l) => ({ id: l.id, name: l.name, color: (l as any).color })),
         createdAt: story.createdAt,
       };
-    }));
+    });
 
     const paginated = new PaginatedResponse(list, total, page, limit);
     return paginated.toEnvelopeData();
@@ -1357,6 +1370,104 @@ export class WorkItemsService {
       tree: cleanTree(filteredRoots),
       stats,
     };
+  }
+
+  /**
+   * Batch variant of computeDescendantStats. Computes descendant stats for many
+   * root items in a single multi-root recursive CTE — avoids the per-row N+1 in
+   * listEpics/listStories.
+   *
+   * The CTE carries the originating root id through every recursion step, so a
+   * single GROUP BY at the end produces one row per root that has descendants.
+   * Roots with no descendants are absent from the result map; callers should
+   * fall back to all-zero stats via `?? defaultStats`.
+   */
+  private async computeDescendantStatsBatch(
+    rootIds: number[],
+  ): Promise<
+    Map<
+      number,
+      {
+        progress: {
+          totalItems: number;
+          completedItems: number;
+          totalPoints: number;
+          completedPoints: number;
+          progressPercent: number;
+        };
+        childBreakdown: { stories: number; tasks: number; subtasks: number; bugs: number };
+      }
+    >
+  > {
+    const map = new Map<
+      number,
+      {
+        progress: {
+          totalItems: number;
+          completedItems: number;
+          totalPoints: number;
+          completedPoints: number;
+          progressPercent: number;
+        };
+        childBreakdown: { stories: number; tasks: number; subtasks: number; bugs: number };
+      }
+    >();
+
+    if (rootIds.length === 0) return map;
+
+    const rows = await this.dataSource.query(
+      `
+      WITH RECURSIVE descendants AS (
+        SELECT a.linked_item_id AS root_id, a.item_id AS id, wi.item_type, wi.status_id, wi.story_points, 1 AS depth
+        FROM work_item_associations a
+        JOIN work_items wi ON wi.id = a.item_id
+        WHERE a.linked_item_id = ANY($1) AND a.link_type = 'belongs_to'
+        UNION ALL
+        SELECT d.root_id, a2.item_id, wi2.item_type, wi2.status_id, wi2.story_points, d.depth + 1
+        FROM work_item_associations a2
+        JOIN work_items wi2 ON wi2.id = a2.item_id
+        JOIN descendants d ON a2.linked_item_id = d.id
+        WHERE a2.link_type = 'belongs_to' AND d.depth < 4
+      )
+      SELECT
+        d.root_id AS root_id,
+        COUNT(*)::int AS total_items,
+        COUNT(*) FILTER (WHERE ps.category = 'done')::int AS completed_items,
+        COALESCE(SUM(d.story_points), 0)::int AS total_points,
+        COALESCE(SUM(d.story_points) FILTER (WHERE ps.category = 'done'), 0)::int AS completed_points,
+        COUNT(*) FILTER (WHERE d.item_type = 'story')::int AS story_count,
+        COUNT(*) FILTER (WHERE d.item_type = 'task')::int AS task_count,
+        COUNT(*) FILTER (WHERE d.item_type = 'subtask')::int AS subtask_count,
+        COUNT(*) FILTER (WHERE d.item_type = 'bug')::int AS bug_count
+      FROM descendants d
+      JOIN project_statuses ps ON ps.id = d.status_id
+      GROUP BY d.root_id
+    `,
+      [rootIds],
+    );
+
+    for (const row of rows) {
+      const rootId = Number(row.root_id);
+      const totalItems = Number(row.total_items);
+      const completedItems = Number(row.completed_items);
+      map.set(rootId, {
+        progress: {
+          totalItems,
+          completedItems,
+          totalPoints: Number(row.total_points),
+          completedPoints: Number(row.completed_points),
+          progressPercent: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
+        },
+        childBreakdown: {
+          stories: Number(row.story_count),
+          tasks: Number(row.task_count),
+          subtasks: Number(row.subtask_count),
+          bugs: Number(row.bug_count),
+        },
+      });
+    }
+
+    return map;
   }
 
   /**
