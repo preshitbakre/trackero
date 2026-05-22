@@ -210,6 +210,16 @@ export class ProjectsService {
     if (!member) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
+    // Refuse to remove the last project_manager — a project with zero managers
+    // is unadministrable (member/status/settings routes become inaccessible).
+    if (member.role === 'project_manager') {
+      const managerCount = await this.memberRepo.count({
+        where: { projectId, role: 'project_manager' },
+      });
+      if (managerCount <= 1) {
+        throw new AppLogicException('LAST_PROJECT_MANAGER', HttpStatus.CONFLICT);
+      }
+    }
     await this.memberRepo.remove(member);
     const list = await this.listMembers(projectId);
     return PaginatedMutationResponse.forPaginated(null, list);
@@ -219,6 +229,16 @@ export class ProjectsService {
     const member = await this.memberRepo.findOne({ where: { projectId, userId } });
     if (!member) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    // Refuse to demote the last project_manager — same reasoning as removeMember.
+    // Promoting / keeping project_manager is always fine.
+    if (member.role === 'project_manager' && role !== 'project_manager') {
+      const managerCount = await this.memberRepo.count({
+        where: { projectId, role: 'project_manager' },
+      });
+      if (managerCount <= 1) {
+        throw new AppLogicException('LAST_PROJECT_MANAGER', HttpStatus.CONFLICT);
+      }
     }
     member.role = role;
     const saved = await this.memberRepo.save(member);

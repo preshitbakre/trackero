@@ -217,6 +217,159 @@ describe('Projects Module (e2e)', () => {
     });
   });
 
+  describe('Last project manager guard', () => {
+    let projectId: number;
+    let creatorId: number;
+    let secondPmId: number;
+    let plainMemberId: number;
+
+    beforeEach(async () => {
+      creatorId = (await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Authorization', `Bearer ${adminToken}`)).body.data.id;
+
+      const res = await request(app.getHttpServer())
+        .post('/api/projects')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Last PM Project', prefix: 'LPM' });
+      projectId = res.body.data.item.id;
+
+      const secondPm = await registerInvitedUser(app, adminToken, 'second-pm@test.com', 'member');
+      secondPmId = secondPm.id;
+      const plain = await registerInvitedUser(app, adminToken, 'plain-mem@test.com', 'member');
+      plainMemberId = plain.id;
+    });
+
+    it('rejects removing the sole project_manager -> 409 and manager still a member', async () => {
+      const res = await request(app.getHttpServer())
+        .delete(`/api/projects/${projectId}/members/${creatorId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(409);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('F-L-0054');
+
+      // creator is still a member with project_manager role
+      const membersRes = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/members`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      const creator = membersRes.body.data.list.find((m: any) => m.userId === creatorId);
+      expect(creator).toBeDefined();
+      expect(creator.role).toBe('project_manager');
+    });
+
+    it('allows removing a project_manager when another project_manager exists', async () => {
+      // add a second project_manager
+      await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/members`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ userId: secondPmId, role: 'project_manager' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .delete(`/api/projects/${projectId}/members/${creatorId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.code).toBe('S-0027');
+
+      const membersRes = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/members`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(membersRes.body.data.list.find((m: any) => m.userId === creatorId)).toBeUndefined();
+    });
+
+    it('allows removing a plain member regardless of manager count', async () => {
+      await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/members`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ userId: plainMemberId, role: 'member' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .delete(`/api/projects/${projectId}/members/${plainMemberId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    it('allows removing a viewer regardless of manager count', async () => {
+      await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/members`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ userId: plainMemberId, role: 'viewer' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .delete(`/api/projects/${projectId}/members/${plainMemberId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    it('rejects demoting the sole project_manager to member -> 409 and role unchanged', async () => {
+      const res = await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/members/${creatorId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ userId: creatorId, role: 'member' })
+        .expect(409);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('F-L-0054');
+
+      const membersRes = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/members`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      const creator = membersRes.body.data.list.find((m: any) => m.userId === creatorId);
+      expect(creator.role).toBe('project_manager');
+    });
+
+    it('allows demoting a project_manager when another project_manager exists', async () => {
+      await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/members`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ userId: secondPmId, role: 'project_manager' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/members/${creatorId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ userId: creatorId, role: 'member' })
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.code).toBe('S-0028');
+
+      const membersRes = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/members`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      const creator = membersRes.body.data.list.find((m: any) => m.userId === creatorId);
+      expect(creator.role).toBe('member');
+    });
+
+    it('allows promoting a member to project_manager', async () => {
+      await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/members`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ userId: plainMemberId, role: 'member' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/members/${plainMemberId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ userId: plainMemberId, role: 'project_manager' })
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.code).toBe('S-0028');
+    });
+  });
+
   describe('Project Statuses', () => {
     let projectId: number;
 
