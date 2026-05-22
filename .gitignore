@@ -19,5 +19,6 @@ Thumbs.db
 .idea/
 
 # Project-specific ignores
-docs/
+docs/*
+!docs/DESIGN.md
 .claude/
