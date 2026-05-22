@@ -508,6 +508,11 @@ export class WorkItemsService {
       throw new AppLogicException('SUBTASK_NO_SPRINT', HttpStatus.BAD_REQUEST);
     }
 
+    // Capture the previous statusId BEFORE any status mutation, so the
+    // emitted event can carry it for status-change activity logging (D-C6).
+    const previousStatusId = item.statusId;
+    let statusChanged = false;
+
     // Handle status change
     if (dto.statusId !== undefined && dto.statusId !== item.statusId) {
       // Load new status to check category
@@ -551,6 +556,7 @@ export class WorkItemsService {
       }
 
       item.statusId = dto.statusId;
+      statusChanged = true;
     }
 
     // Apply simple field updates
@@ -611,6 +617,9 @@ export class WorkItemsService {
       userId,
       projectId,
       changes: dto,
+      // Only meaningful when the status actually changed — lets the activity
+      // listener record a status-change row with the old value (D-C6).
+      previous: statusChanged ? { statusId: previousStatusId } : undefined,
     });
 
     return { item: response };

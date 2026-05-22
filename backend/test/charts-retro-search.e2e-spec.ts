@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { INestApplication } from '@nestjs/common';
+import { DataSource } from 'typeorm';
 import request from 'supertest';
 import { createTestApp, clearDatabase, registerAdmin, registerInvitedUser } from './setup';
 
@@ -70,6 +71,77 @@ describe('Charts, Retro, Search (e2e)', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.code).toBe('S-0181');
       expect(Array.isArray(res.body.data)).toBe(true);
+    });
+
+    it('reflects status history after status changes (D-C6)', async () => {
+      // Fetch the project's default statuses (Open=backlog, In Progress=in_progress, Done=done)
+      const statusRes = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/statuses`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      const statuses = statusRes.body.data.list ?? statusRes.body.data;
+      const inProgressStatus = statuses.find((s: any) => s.category === 'in_progress');
+      const doneStatus = statuses.find((s: any) => s.category === 'done');
+      expect(inProgressStatus).toBeDefined();
+      expect(doneStatus).toBeDefined();
+
+      // Create a task (starts in the default backlog status)
+      const taskRes = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/items`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ itemType: 'task', title: 'CFD history task' })
+        .expect(201);
+      const taskId = taskRes.body.data.item.id;
+
+      // Move it through 2 status changes: backlog -> in_progress -> done
+      await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/items/${taskId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ statusId: inProgressStatus.id })
+        .expect(200);
+      await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/items/${taskId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ statusId: doneStatus.id })
+        .expect(200);
+
+      // Give the async @OnEvent handlers time to commit the activity rows
+      await new Promise((r) => setTimeout(r, 100));
+
+      // A status-change activity_logs row must now exist for this item
+      const dataSource = app.get(DataSource);
+      const statusRows = await dataSource.query(
+        `SELECT old_value, new_value FROM activity_logs
+         WHERE work_item_id = $1 AND field_changed = 'status'
+         ORDER BY created_at ASC`,
+        [taskId],
+      );
+      expect(statusRows.length).toBeGreaterThanOrEqual(2);
+      // The latest status-change row records the move to the done status
+      expect(statusRows[statusRows.length - 1].new_value).toBe(String(doneStatus.id));
+
+      // The CFD endpoint returns a non-empty series of typed buckets
+      const res = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/cumulative-flow`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      const series = res.body.data;
+      expect(Array.isArray(series)).toBe(true);
+      expect(series.length).toBeGreaterThan(0);
+      for (const bucket of series) {
+        expect(bucket).toHaveProperty('date');
+        expect(bucket).toHaveProperty('backlog');
+        expect(bucket).toHaveProperty('in_progress');
+        expect(bucket).toHaveProperty('done');
+      }
+
+      // Today's bucket reflects the latest status: the task is now done
+      const today = series[series.length - 1];
+      expect(today.done).toBe(1);
+      expect(today.in_progress).toBe(0);
+      expect(today.backlog).toBe(0);
     });
   });
 

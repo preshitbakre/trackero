@@ -54,13 +54,40 @@ export class ActivityService {
   }
 
   @OnEvent('work_item.updated')
-  async onWorkItemUpdated(payload: { item: any; userId: number; projectId: number; changes: any }) {
+  async onWorkItemUpdated(payload: {
+    item: any;
+    userId: number;
+    projectId: number;
+    changes: any;
+    previous?: { statusId: number | null };
+  }) {
+    // Generic 'updated' row — feeds the activity feed.
     await this.activityRepo.save(this.activityRepo.create({
       projectId: payload.projectId,
       workItemId: payload.item?.id,
       userId: payload.userId,
       action: 'updated',
     }));
+
+    // Status-change row — feeds the cumulative-flow chart's history
+    // reconstruction (D-C6). The CFD query does CAST(new_value AS INTEGER),
+    // so new_value MUST be the numeric status id as a string.
+    const newStatusId = payload.changes?.statusId;
+    if (newStatusId !== undefined && newStatusId !== null) {
+      const oldStatusId = payload.previous?.statusId;
+      await this.activityRepo.save(this.activityRepo.create({
+        projectId: payload.projectId,
+        workItemId: payload.item?.id,
+        userId: payload.userId,
+        action: 'updated',
+        fieldChanged: 'status',
+        oldValue:
+          oldStatusId === undefined || oldStatusId === null
+            ? null
+            : String(oldStatusId),
+        newValue: String(newStatusId),
+      }));
+    }
   }
 
   @OnEvent('work_item.deleted')
