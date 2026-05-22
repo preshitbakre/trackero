@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import { DataSource } from 'typeorm';
 import { createTestApp, clearDatabase, registerAdmin, registerInvitedUser } from './setup';
 
 describe('Admin, Settings & Invitations (e2e)', () => {
@@ -61,6 +62,99 @@ describe('Admin, Settings & Invitations (e2e)', () => {
         .expect(200);
 
       expect(res.body.code).toBe('S-0012');
+    });
+  });
+
+  describe('Concurrency races (last-admin protection)', () => {
+    // Race C — concurrent demotions/deactivations must never remove the last admin.
+    it('concurrent role demotions cannot remove the last admin', async () => {
+      for (let round = 0; round < 5; round++) {
+        await clearDatabase(app);
+        const admin = await registerAdmin(app);
+        // Create two more admins so there are 3 admins total, two of which are demotable.
+        const admin2 = await registerInvitedUser(app, admin.token, 'rc-a2@test.com', 'admin');
+        const admin3 = await registerInvitedUser(app, admin.token, 'rc-a3@test.com', 'admin');
+
+        // Demote admin2 first so exactly TWO admins remain (admin + admin3).
+        await request(app.getHttpServer())
+          .put(`/api/users/${admin2.id}/role`)
+          .set('Authorization', `Bearer ${admin.token}`)
+          .send({ role: 'member' })
+          .expect(200);
+
+        // Now fire two concurrent demotions of the two remaining admins.
+        const results = await Promise.allSettled([
+          request(app.getHttpServer())
+            .put(`/api/users/${admin.id}/role`)
+            .set('Authorization', `Bearer ${admin3.token}`)
+            .send({ role: 'member' }),
+          request(app.getHttpServer())
+            .put(`/api/users/${admin3.id}/role`)
+            .set('Authorization', `Bearer ${admin.token}`)
+            .send({ role: 'member' }),
+        ]);
+
+        const fulfilled = results
+          .filter((r) => r.status === 'fulfilled')
+          .map((r) => (r as PromiseFulfilledResult<any>).value);
+        const successes = fulfilled.filter((v) => v.status === 200);
+        const lastAdminFails = fulfilled.filter(
+          (v) => v.status === 409 && v.body.code === 'F-L-0050',
+        );
+
+        // Exactly one demotion succeeds; the other is rejected as LAST_ADMIN.
+        expect(successes.length).toBe(1);
+        expect(lastAdminFails.length).toBe(1);
+
+        // At least one active admin remains.
+        const dataSource = app.get(DataSource);
+        const rows = await dataSource.query(
+          `SELECT count(*)::int AS c FROM users WHERE role = 'admin' AND is_active = true`,
+        );
+        expect(rows[0].c).toBeGreaterThanOrEqual(1);
+      }
+    });
+
+    it('concurrent deactivations cannot remove the last admin', async () => {
+      for (let round = 0; round < 5; round++) {
+        await clearDatabase(app);
+        const admin = await registerAdmin(app);
+        const admin2 = await registerInvitedUser(app, admin.token, 'rd-a2@test.com', 'admin');
+        const admin3 = await registerInvitedUser(app, admin.token, 'rd-a3@test.com', 'admin');
+
+        // Deactivate admin2 first so exactly TWO active admins remain.
+        await request(app.getHttpServer())
+          .put(`/api/users/${admin2.id}/deactivate`)
+          .set('Authorization', `Bearer ${admin.token}`)
+          .expect(200);
+
+        // Fire two concurrent deactivations of the two remaining active admins.
+        const results = await Promise.allSettled([
+          request(app.getHttpServer())
+            .put(`/api/users/${admin.id}/deactivate`)
+            .set('Authorization', `Bearer ${admin3.token}`),
+          request(app.getHttpServer())
+            .put(`/api/users/${admin3.id}/deactivate`)
+            .set('Authorization', `Bearer ${admin.token}`),
+        ]);
+
+        const fulfilled = results
+          .filter((r) => r.status === 'fulfilled')
+          .map((r) => (r as PromiseFulfilledResult<any>).value);
+        const successes = fulfilled.filter((v) => v.status === 200);
+        const lastAdminFails = fulfilled.filter(
+          (v) => v.status === 409 && v.body.code === 'F-L-0050',
+        );
+
+        expect(successes.length).toBe(1);
+        expect(lastAdminFails.length).toBe(1);
+
+        const dataSource = app.get(DataSource);
+        const rows = await dataSource.query(
+          `SELECT count(*)::int AS c FROM users WHERE role = 'admin' AND is_active = true`,
+        );
+        expect(rows[0].c).toBeGreaterThanOrEqual(1);
+      }
     });
   });
 

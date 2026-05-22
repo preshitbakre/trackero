@@ -41,6 +41,13 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
     const saved = await this.dataSource.transaction(async (manager) => {
+      // Serialize the "first user becomes admin" determination across concurrent
+      // registrations. pg_advisory_xact_lock is a transaction-scoped lock held until
+      // commit/rollback, so a second concurrent registration blocks here until the
+      // first commits, then correctly counts a non-zero user count. The key 991001
+      // is an arbitrary fixed constant reserved for the registration/first-admin race.
+      await manager.query('SELECT pg_advisory_xact_lock($1)', [991001]);
+
       const existing = await manager.findOne(User, { where: { email: dto.email } });
       if (existing) {
         throw new AppLogicException('EMAIL_ALREADY_REGISTERED', HttpStatus.CONFLICT);
@@ -67,8 +74,19 @@ export class AuthService {
           throw new AppLogicException('INVITATION_EXPIRED', HttpStatus.BAD_REQUEST);
         }
         role = invitation.role;
-        invitation.status = 'accepted';
-        await manager.save(invitation);
+        // Consume the invitation with a conditional UPDATE so it is single-use even
+        // under concurrent registration. Under READ COMMITTED a second transaction's
+        // UPDATE blocks on the row lock until the first commits, then matches zero
+        // rows — so an affected count of exactly 1 is the reliable single-use guarantee.
+        const updateResult = await manager.query(
+          `UPDATE invitations SET status = 'accepted' WHERE id = $1 AND status = 'pending'`,
+          [invitation.id],
+        );
+        // TypeORM returns [rows, affectedCount] for an UPDATE query.
+        const affected = Array.isArray(updateResult) ? updateResult[1] : undefined;
+        if (affected !== 1) {
+          throw new AppLogicException('INVITATION_EXPIRED', HttpStatus.BAD_REQUEST);
+        }
       } else {
         // No invite token and not first user → registration closed
         throw new AppLogicException('FORBIDDEN', HttpStatus.FORBIDDEN);

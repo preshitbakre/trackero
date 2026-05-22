@@ -471,4 +471,100 @@ describe('Auth Module (e2e)', () => {
       expect(res.body.data.isSetup).toBe(true);
     });
   });
+
+  describe('Concurrency races (registration)', () => {
+    // Race A — an invitation must be single-use even under concurrent registration.
+    it('invitation is single-use under concurrent registration', async () => {
+      // Loop several rounds with a fresh invite each round to make the race reliable.
+      for (let round = 0; round < 5; round++) {
+        await clearDatabase(app);
+
+        // First user becomes admin.
+        const adminRes = await request(app.getHttpServer())
+          .post('/api/auth/register')
+          .send({ email: `admin${round}@example.com`, password: 'password123', displayName: 'Admin' });
+        const adminToken = adminRes.body.data.accessToken;
+
+        // Create a single invitation.
+        const inviteRes = await request(app.getHttpServer())
+          .post('/api/users/invite')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ email: `invitee${round}@example.com`, role: 'member' });
+        const inviteToken = inviteRes.body.data.item.token;
+
+        // Fire two concurrent registrations with the SAME invite token, different emails.
+        const results = await Promise.allSettled([
+          request(app.getHttpServer())
+            .post('/api/auth/register')
+            .send({ email: `racea1-${round}@example.com`, password: 'password123', displayName: 'A1', inviteToken }),
+          request(app.getHttpServer())
+            .post('/api/auth/register')
+            .send({ email: `racea2-${round}@example.com`, password: 'password123', displayName: 'A2', inviteToken }),
+        ]);
+
+        const statuses = results.map((r) =>
+          r.status === 'fulfilled' ? (r.value as any).status : 500,
+        );
+        const successes = statuses.filter((s) => s === 201);
+        const failures = results.filter(
+          (r) => r.status === 'fulfilled' && (r.value as any).status !== 201,
+        );
+
+        // Exactly one registration succeeds — the invite is single-use.
+        expect(successes.length).toBe(1);
+        expect(failures.length).toBe(1);
+        for (const f of failures) {
+          const v = (f as PromiseFulfilledResult<any>).value;
+          expect(v.status).toBeGreaterThanOrEqual(400);
+          expect(v.status).toBeLessThan(500);
+          expect(v.body.code).toBe('F-L-0009'); // INVITATION_EXPIRED
+        }
+
+        // Only the admin + one invitee exist (3 users total: admin + 1 invitee).
+        const dataSource = app.get(DataSource);
+        const rows = await dataSource.query(
+          `SELECT count(*)::int AS c FROM users WHERE email LIKE 'racea%'`,
+        );
+        expect(rows[0].c).toBe(1);
+      }
+    });
+
+    // Race B — only one "first admin" may ever be created on an empty database.
+    it('only one admin is created under concurrent first registration', async () => {
+      for (let round = 0; round < 5; round++) {
+        await clearDatabase(app);
+
+        // Fire two concurrent registrations for the first users on an empty DB.
+        const results = await Promise.allSettled([
+          request(app.getHttpServer())
+            .post('/api/auth/register')
+            .send({ email: `raceb1-${round}@example.com`, password: 'password123', displayName: 'B1' }),
+          request(app.getHttpServer())
+            .post('/api/auth/register')
+            .send({ email: `raceb2-${round}@example.com`, password: 'password123', displayName: 'B2' }),
+        ]);
+
+        const fulfilled = results
+          .filter((r) => r.status === 'fulfilled')
+          .map((r) => (r as PromiseFulfilledResult<any>).value);
+
+        const successes = fulfilled.filter((v) => v.status === 201);
+        // Exactly one registration succeeds; it is the admin.
+        expect(successes.length).toBe(1);
+        expect(successes[0].body.data.user.role).toBe('admin');
+
+        // The other was rejected — not first, no invite token → FORBIDDEN.
+        const failures = fulfilled.filter((v) => v.status !== 201);
+        expect(failures.length).toBe(1);
+        expect(failures[0].status).toBe(403);
+
+        // Exactly one admin exists in the database.
+        const dataSource = app.get(DataSource);
+        const rows = await dataSource.query(
+          `SELECT count(*)::int AS c FROM users WHERE role = 'admin'`,
+        );
+        expect(rows[0].c).toBe(1);
+      }
+    });
+  });
 });

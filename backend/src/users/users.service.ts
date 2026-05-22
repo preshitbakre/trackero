@@ -59,27 +59,32 @@ export class UsersService {
   }
 
   async changeRole(id: number, newRole: string, actorId: number) {
-    const user = await this.userRepo.findOne({ where: { id } });
-    if (!user) {
-      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
-    }
-
-    // Check if removing last admin (before self-role check so this error takes priority)
-    if (user.role === 'admin' && newRole !== 'admin') {
-      const adminCount = await this.userRepo.count({
-        where: { role: 'admin', isActive: true },
-      });
-      if (adminCount <= 1) {
-        throw new AppLogicException('LAST_ADMIN', HttpStatus.CONFLICT);
+    const saved = await this.dataSource.transaction(async (manager) => {
+      const user = await manager.findOne(User, { where: { id } });
+      if (!user) {
+        throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
       }
-    }
 
-    if (id === actorId) {
-      throw new AppLogicException('SELF_ROLE_CHANGE', HttpStatus.CONFLICT);
-    }
+      // Check if removing the last admin (before the self-role check so this error
+      // takes priority). Lock the admin rows FOR UPDATE so concurrent demotions
+      // serialize: a second transaction blocks until the first commits, then re-reads
+      // the now-smaller admin set and correctly throws LAST_ADMIN.
+      if (user.role === 'admin' && newRole !== 'admin') {
+        const admins = await manager.query(
+          `SELECT id FROM users WHERE role = 'admin' AND is_active = true FOR UPDATE`,
+        );
+        if (admins.length <= 1) {
+          throw new AppLogicException('LAST_ADMIN', HttpStatus.CONFLICT);
+        }
+      }
 
-    user.role = newRole as User['role'];
-    const saved = await this.userRepo.save(user);
+      if (id === actorId) {
+        throw new AppLogicException('SELF_ROLE_CHANGE', HttpStatus.CONFLICT);
+      }
+
+      user.role = newRole as User['role'];
+      return manager.save(user);
+    });
 
     const list = await this.listUsers(1, 20);
     return PaginatedMutationResponse.forPaginated(
@@ -93,27 +98,34 @@ export class UsersService {
       throw new AppLogicException('CANNOT_DEACTIVATE_SELF', HttpStatus.BAD_REQUEST);
     }
 
-    const user = await this.userRepo.findOne({ where: { id } });
-    if (!user) {
-      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
-    }
-
-    // Cannot deactivate last admin
-    if (user.role === 'admin') {
-      const adminCount = await this.userRepo.count({ where: { role: 'admin', isActive: true } });
-      if (adminCount <= 1) {
-        throw new AppLogicException('LAST_ADMIN', HttpStatus.CONFLICT);
+    const saved = await this.dataSource.transaction(async (manager) => {
+      const user = await manager.findOne(User, { where: { id } });
+      if (!user) {
+        throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
       }
-    }
 
-    user.isActive = false;
-    const saved = await this.userRepo.save(user);
+      // Cannot deactivate the last admin. Lock the admin rows FOR UPDATE so concurrent
+      // deactivations serialize and the last-admin check stays correct.
+      if (user.role === 'admin') {
+        const admins = await manager.query(
+          `SELECT id FROM users WHERE role = 'admin' AND is_active = true FOR UPDATE`,
+        );
+        if (admins.length <= 1) {
+          throw new AppLogicException('LAST_ADMIN', HttpStatus.CONFLICT);
+        }
+      }
 
-    // Unassign all tasks and subtasks from this user
-    await this.dataSource.query(
-      `UPDATE work_items SET assignee_id = NULL WHERE assignee_id = $1`,
-      [id],
-    );
+      user.isActive = false;
+      const result = await manager.save(user);
+
+      // Unassign all tasks and subtasks from this user (inside the transaction).
+      await manager.query(
+        `UPDATE work_items SET assignee_id = NULL WHERE assignee_id = $1`,
+        [id],
+      );
+
+      return result;
+    });
 
     const list = await this.listUsers(1, 20);
     return PaginatedMutationResponse.forPaginated(
