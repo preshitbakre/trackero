@@ -1,8 +1,8 @@
-import { Injectable, HttpStatus } from '@nestjs/common';
+import { Injectable, HttpStatus, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { Attachment } from './entities/attachment.entity';
 import { FileStorageService } from '../file-storage/file-storage.service';
 import { AppLogicException } from '../common/exceptions/app-exceptions';
@@ -12,6 +12,7 @@ import { PaginatedMutationResponse } from '../common/dto/paginated-mutation-resp
 @Injectable()
 export class AttachmentsService {
   private readonly maxSizeMb: number;
+  private readonly logger = new Logger(AttachmentsService.name);
 
   constructor(
     @InjectRepository(Attachment)
@@ -96,20 +97,37 @@ export class AttachmentsService {
       projectId, workItemId, file.originalname, file.buffer, effectiveMime,
     );
 
-    const attachment = this.attachmentRepo.create({
-      workItemId,
-      uploadedBy: userId,
-      originalFilename: file.originalname,
-      storageKey,
-      mimeType: effectiveMime,
-      sizeBytes: file.size,
-    });
-    const saved = await this.attachmentRepo.save(attachment);
+    // The object bytes are now in storage. If the DB save (or anything after
+    // it) throws, that object would be orphaned with no row pointing at it —
+    // so wrap the post-upload work and, on failure, compensate by deleting the
+    // just-uploaded object before re-propagating the original error. The
+    // compensation is best-effort: its own failure must not mask the cause.
+    try {
+      const attachment = this.attachmentRepo.create({
+        workItemId,
+        uploadedBy: userId,
+        originalFilename: file.originalname,
+        storageKey,
+        mimeType: effectiveMime,
+        sizeBytes: file.size,
+      });
+      const saved = await this.attachmentRepo.save(attachment);
 
-    this.eventEmitter.emit('attachment.added', { workItemId, projectId, actorId: userId, attachmentId: saved.id });
+      this.eventEmitter.emit('attachment.added', { workItemId, projectId, actorId: userId, attachmentId: saved.id });
 
-    const list = await this.listAttachments(projectId, workItemId);
-    return PaginatedMutationResponse.forPaginated(saved, list);
+      const list = await this.listAttachments(projectId, workItemId);
+      return PaginatedMutationResponse.forPaginated(saved, list);
+    } catch (err) {
+      try {
+        await this.fileStorage.delete(storageKey);
+      } catch (cleanupErr) {
+        this.logger.error(
+          `Failed to compensate orphaned object ${storageKey} after upload failure: ${cleanupErr}`,
+          (cleanupErr as Error)?.stack,
+        );
+      }
+      throw err;
+    }
   }
 
   async listAttachments(projectId: number, workItemId: number) {
@@ -137,6 +155,55 @@ export class AttachmentsService {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
     await this.attachmentRepo.remove(attachment);
+    // FileStorageService.delete swallows storage errors internally (logged via
+    // console.error). A failed object delete here leaves an orphan but must not
+    // fail the request — the DB row is already gone.
     await this.fileStorage.delete(attachment.storageKey);
+  }
+
+  /**
+   * When a work item is deleted, the DB cascade-deletes its `attachments`
+   * rows — but the storage objects those rows pointed at remain. By the time
+   * this listener runs the rows are already gone, so they cannot be queried;
+   * instead we delete every object under the work item's key prefix
+   * `${projectId}/${itemId}/`.
+   *
+   * Fire-and-forget / failure-isolated (Task 3.8): the body is fully wrapped in
+   * try/catch + Logger so a cleanup failure can never destabilise the process.
+   */
+  @OnEvent('work_item.deleted')
+  async onWorkItemDeleted(payload: {
+    itemId: number;
+    itemType: string;
+    userId: number;
+    projectId: number;
+  }) {
+    try {
+      await this.fileStorage.deleteByPrefix(`${payload.projectId}/${payload.itemId}/`);
+    } catch (err) {
+      this.logger.error(
+        `onWorkItemDeleted storage cleanup failed for item ${payload.itemId}: ${err}`,
+        (err as Error)?.stack,
+      );
+    }
+  }
+
+  /**
+   * When a project is hard-deleted, its work items and attachment rows all
+   * cascade away — orphaning every storage object under the project. Delete
+   * every object under the project's key prefix `${projectId}/`.
+   *
+   * Fire-and-forget / failure-isolated (Task 3.8).
+   */
+  @OnEvent('project.deleted')
+  async onProjectDeleted(payload: { projectId: number }) {
+    try {
+      await this.fileStorage.deleteByPrefix(`${payload.projectId}/`);
+    } catch (err) {
+      this.logger.error(
+        `onProjectDeleted storage cleanup failed for project ${payload.projectId}: ${err}`,
+        (err as Error)?.stack,
+      );
+    }
   }
 }

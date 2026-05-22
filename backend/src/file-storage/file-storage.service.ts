@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand,
   CreateBucketCommand, HeadBucketCommand,
+  ListObjectsV2Command, DeleteObjectsCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import * as crypto from 'crypto';
@@ -114,6 +115,53 @@ export class FileStorageService implements OnModuleInit {
       }));
     } catch (err) {
       console.error(`[FileStorage] Failed to delete ${key}:`, err);
+    }
+  }
+
+  /**
+   * Best-effort deletion of every object whose key starts with `prefix`.
+   *
+   * Used to reclaim storage when the DB rows that pointed at those objects
+   * have been cascade-deleted (work-item or project deletion) and can no
+   * longer be enumerated. Storage keys are `${projectId}/${taskId}/${uuid}-...`,
+   * so a work item's objects live under `${projectId}/${itemId}/` and a
+   * project's objects under `${projectId}/`.
+   *
+   * This is a cleanup path: it NEVER throws. A failure here must not crash
+   * the deletion that triggered it — failures are logged and swallowed.
+   * In test mode (`this.s3` is null) it is a no-op, consistent with the
+   * other methods.
+   */
+  async deleteByPrefix(prefix: string): Promise<void> {
+    if (!this.s3) return;
+    try {
+      let continuationToken: string | undefined;
+      do {
+        const listed = await this.s3.send(new ListObjectsV2Command({
+          Bucket: this.bucket,
+          Prefix: prefix,
+          ContinuationToken: continuationToken,
+        }));
+
+        const keys = (listed.Contents ?? [])
+          .map((obj) => obj.Key)
+          .filter((k): k is string => !!k);
+
+        // DeleteObjects accepts up to 1000 keys per request.
+        for (let i = 0; i < keys.length; i += 1000) {
+          const batch = keys.slice(i, i + 1000);
+          await this.s3.send(new DeleteObjectsCommand({
+            Bucket: this.bucket,
+            Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: true },
+          }));
+        }
+
+        continuationToken = listed.IsTruncated
+          ? listed.NextContinuationToken
+          : undefined;
+      } while (continuationToken);
+    } catch (err) {
+      console.error(`[FileStorage] Failed to delete objects under prefix ${prefix}:`, err);
     }
   }
 

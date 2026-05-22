@@ -165,6 +165,12 @@ export class ProjectsService {
       throw new AppLogicException('PROJECT_NOT_ARCHIVED', HttpStatus.CONFLICT);
     }
     await this.projectRepo.remove(project);
+
+    // Emit only after the project row is gone. A `project.deleted` listener
+    // reclaims the project's orphaned storage objects (its work items +
+    // attachment rows have all cascade-deleted with the project).
+    this.eventEmitter.emit('project.deleted', { projectId: id, userId });
+
     const list = await this.listProjects(userId, role, 1, 20);
     return PaginatedMutationResponse.forPaginated(null, list);
   }
