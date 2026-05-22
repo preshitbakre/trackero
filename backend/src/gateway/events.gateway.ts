@@ -5,6 +5,7 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
+import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { OnEvent } from '@nestjs/event-emitter';
@@ -19,6 +20,8 @@ import { DataSource } from 'typeorm';
 export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
+
+  private readonly logger = new Logger(EventsGateway.name);
 
   constructor(
     private readonly jwtService: JwtService,
@@ -84,47 +87,79 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @OnEvent('work_item.created')
   onWorkItemCreated(payload: { item: any; userId: number; projectId: number }) {
-    this.server?.to(`project:${payload.projectId}`).emit('work-item:created', { itemId: payload.item?.id });
+    try {
+      this.server?.to(`project:${payload.projectId}`).emit('work-item:created', { itemId: payload.item?.id });
+    } catch (err) {
+      this.logger.error(`onWorkItemCreated failed: ${err}`, (err as Error)?.stack);
+    }
   }
 
   @OnEvent('work_item.updated')
   onWorkItemUpdated(payload: { item: any; userId: number; projectId: number; changes: any }) {
-    this.server?.to(`project:${payload.projectId}`).emit('work-item:updated', { itemId: payload.item?.id });
+    try {
+      this.server?.to(`project:${payload.projectId}`).emit('work-item:updated', { itemId: payload.item?.id });
+    } catch (err) {
+      this.logger.error(`onWorkItemUpdated failed: ${err}`, (err as Error)?.stack);
+    }
   }
 
   @OnEvent('work_item.deleted')
   onWorkItemDeleted(payload: { itemId: number; itemType: string; userId: number; projectId: number }) {
-    this.server?.to(`project:${payload.projectId}`).emit('work-item:deleted', { itemId: payload.itemId });
+    try {
+      this.server?.to(`project:${payload.projectId}`).emit('work-item:deleted', { itemId: payload.itemId });
+    } catch (err) {
+      this.logger.error(`onWorkItemDeleted failed: ${err}`, (err as Error)?.stack);
+    }
   }
 
   @OnEvent('board.moved')
   onBoardMoved(payload: { projectId: number; itemId: number; statusId: number; sortOrder: string; completedAt: Date | null; actorId: number }) {
-    this.server?.to(`project:${payload.projectId}`).emit('board:moved', {
-      itemId: payload.itemId,
-      statusId: payload.statusId,
-      sortOrder: payload.sortOrder,
-      completedAt: payload.completedAt,
-      actorId: payload.actorId,
-    });
+    try {
+      this.server?.to(`project:${payload.projectId}`).emit('board:moved', {
+        itemId: payload.itemId,
+        statusId: payload.statusId,
+        sortOrder: payload.sortOrder,
+        completedAt: payload.completedAt,
+        actorId: payload.actorId,
+      });
+    } catch (err) {
+      this.logger.error(`onBoardMoved failed: ${err}`, (err as Error)?.stack);
+    }
   }
 
   @OnEvent('sprint.started')
   onSprintStarted(payload: { sprintId: number; projectId: number }) {
-    this.server?.to(`project:${payload.projectId}`).emit('sprint:updated', { sprintId: payload.sprintId, status: 'active' });
+    try {
+      this.server?.to(`project:${payload.projectId}`).emit('sprint:updated', { sprintId: payload.sprintId, status: 'active' });
+    } catch (err) {
+      this.logger.error(`onSprintStarted failed: ${err}`, (err as Error)?.stack);
+    }
   }
 
   @OnEvent('sprint.completed')
   onSprintCompleted(payload: { sprintId: number; projectId: number }) {
-    this.server?.to(`project:${payload.projectId}`).emit('sprint:updated', { sprintId: payload.sprintId, status: 'completed' });
+    try {
+      this.server?.to(`project:${payload.projectId}`).emit('sprint:updated', { sprintId: payload.sprintId, status: 'completed' });
+    } catch (err) {
+      this.logger.error(`onSprintCompleted failed: ${err}`, (err as Error)?.stack);
+    }
   }
 
   @OnEvent('comment.added')
   onCommentAdded(payload: { taskId: number; projectId: number; commentId: number }) {
-    this.server?.to(`project:${payload.projectId}`).emit('comment:added', { taskId: payload.taskId, commentId: payload.commentId });
+    try {
+      this.server?.to(`project:${payload.projectId}`).emit('comment:added', { taskId: payload.taskId, commentId: payload.commentId });
+    } catch (err) {
+      this.logger.error(`onCommentAdded failed: ${err}`, (err as Error)?.stack);
+    }
   }
 
   @OnEvent('notification.created')
   onNotificationCreated(payload: { notification: any }) {
-    this.server?.to(`user:${payload.notification.userId}`).emit('notification:new', payload.notification);
+    try {
+      this.server?.to(`user:${payload.notification.userId}`).emit('notification:new', payload.notification);
+    } catch (err) {
+      this.logger.error(`onNotificationCreated failed: ${err}`, (err as Error)?.stack);
+    }
   }
 }

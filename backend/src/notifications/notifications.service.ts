@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, MoreThan } from 'typeorm';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
@@ -9,6 +9,8 @@ import { clampLimit } from '../common/helpers/pagination.helper';
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
+
   constructor(
     @InjectRepository(Notification)
     private readonly notifRepo: Repository<Notification>,
@@ -118,118 +120,138 @@ export class NotificationsService {
     actorId: number;
     assigneeId: number | null;
   }) {
-    if (!payload.assigneeId) return;
+    try {
+      if (!payload.assigneeId) return;
 
-    const [item] = await this.dataSource.query(
-      'SELECT item_number, title FROM work_items WHERE id = $1', [payload.itemId],
-    );
-    if (!item) return;
+      const [item] = await this.dataSource.query(
+        'SELECT item_number, title FROM work_items WHERE id = $1', [payload.itemId],
+      );
+      if (!item) return;
 
-    const [project] = await this.dataSource.query(
-      'SELECT prefix FROM projects WHERE id = $1', [payload.projectId],
-    );
-    const itemKey = `${project?.prefix || ''}-${item.item_number}`;
+      const [project] = await this.dataSource.query(
+        'SELECT prefix FROM projects WHERE id = $1', [payload.projectId],
+      );
+      const itemKey = `${project?.prefix || ''}-${item.item_number}`;
 
-    await this.createNotification(
-      payload.assigneeId,
-      payload.actorId,
-      'task_assigned',
-      'task',
-      payload.itemId,
-      `You were assigned to ${itemKey}`,
-      item.title || null,
-      payload.projectId,
-    );
+      await this.createNotification(
+        payload.assigneeId,
+        payload.actorId,
+        'task_assigned',
+        'task',
+        payload.itemId,
+        `You were assigned to ${itemKey}`,
+        item.title || null,
+        payload.projectId,
+      );
+    } catch (err) {
+      this.logger.error(`onWorkItemAssigned failed: ${err}`, (err as Error)?.stack);
+    }
   }
 
   @OnEvent('comment.added')
   async onCommentAdded(payload: { taskId: number; projectId: number; actorId: number; commentId: number }) {
-    // Notify assignee + reporter (not author)
-    const [task] = await this.dataSource.query(
-      'SELECT assignee_id, reporter_id, item_number, title FROM work_items WHERE id = $1', [payload.taskId],
-    );
-    if (!task) return;
-
-    const [project] = await this.dataSource.query(
-      'SELECT prefix FROM projects WHERE id = $1', [payload.projectId],
-    );
-    const taskKey = `${project?.prefix || ''}-${task.item_number}`;
-    const recipients = new Set<number>();
-
-    if (task.assignee_id) recipients.add(task.assignee_id);
-    if (task.reporter_id) recipients.add(task.reporter_id);
-
-    for (const userId of recipients) {
-      await this.createNotification(
-        userId,
-        payload.actorId,
-        'comment_added',
-        'work_item',
-        payload.taskId,
-        `New comment on ${taskKey}`,
-        task.title,
-        payload.projectId,
+    try {
+      // Notify assignee + reporter (not author)
+      const [task] = await this.dataSource.query(
+        'SELECT assignee_id, reporter_id, item_number, title FROM work_items WHERE id = $1', [payload.taskId],
       );
+      if (!task) return;
+
+      const [project] = await this.dataSource.query(
+        'SELECT prefix FROM projects WHERE id = $1', [payload.projectId],
+      );
+      const taskKey = `${project?.prefix || ''}-${task.item_number}`;
+      const recipients = new Set<number>();
+
+      if (task.assignee_id) recipients.add(task.assignee_id);
+      if (task.reporter_id) recipients.add(task.reporter_id);
+
+      for (const userId of recipients) {
+        await this.createNotification(
+          userId,
+          payload.actorId,
+          'comment_added',
+          'work_item',
+          payload.taskId,
+          `New comment on ${taskKey}`,
+          task.title,
+          payload.projectId,
+        );
+      }
+    } catch (err) {
+      this.logger.error(`onCommentAdded failed: ${err}`, (err as Error)?.stack);
     }
   }
 
   @OnEvent('project.member_added')
   async onMemberAdded(payload: { userId: number; projectId: number; actorId: number; projectName: string }) {
-    await this.createNotification(
-      payload.userId,
-      payload.actorId,
-      'added_to_project',
-      'project',
-      payload.projectId,
-      `You were added to ${payload.projectName}`,
-      null,
-      payload.projectId,
-    );
+    try {
+      await this.createNotification(
+        payload.userId,
+        payload.actorId,
+        'added_to_project',
+        'project',
+        payload.projectId,
+        `You were added to ${payload.projectName}`,
+        null,
+        payload.projectId,
+      );
+    } catch (err) {
+      this.logger.error(`onMemberAdded failed: ${err}`, (err as Error)?.stack);
+    }
   }
 
   @OnEvent('comment.mentioned')
   async onMentioned(payload: { userId: number; actorId: number; taskId: number; projectId: number; commentId: number }) {
-    const [task] = await this.dataSource.query(
-      'SELECT item_number, title FROM work_items WHERE id = $1', [payload.taskId],
-    );
-    const [project] = await this.dataSource.query(
-      'SELECT prefix FROM projects WHERE id = $1', [payload.projectId],
-    );
-    const taskKey = `${project?.prefix || ''}-${task?.item_number || ''}`;
+    try {
+      const [task] = await this.dataSource.query(
+        'SELECT item_number, title FROM work_items WHERE id = $1', [payload.taskId],
+      );
+      const [project] = await this.dataSource.query(
+        'SELECT prefix FROM projects WHERE id = $1', [payload.projectId],
+      );
+      const taskKey = `${project?.prefix || ''}-${task?.item_number || ''}`;
 
-    await this.createNotification(
-      payload.userId,
-      payload.actorId,
-      'mentioned',
-      'comment',
-      payload.commentId,
-      `You were mentioned in ${taskKey}`,
-      task?.title || null,
-      payload.projectId,
-    );
+      await this.createNotification(
+        payload.userId,
+        payload.actorId,
+        'mentioned',
+        'comment',
+        payload.commentId,
+        `You were mentioned in ${taskKey}`,
+        task?.title || null,
+        payload.projectId,
+      );
+    } catch (err) {
+      this.logger.error(`onMentioned failed: ${err}`, (err as Error)?.stack);
+    }
   }
 
   @OnEvent('sprint.started')
   async onSprintStarted(payload: { sprintId: number; projectId: number; actorId: number }) {
-    const [sprint] = await this.dataSource.query(
-      'SELECT name FROM sprints WHERE id = $1', [payload.sprintId],
-    );
-    const members = await this.dataSource.query(
-      'SELECT user_id FROM project_members WHERE project_id = $1',
-      [payload.projectId],
-    );
-
-    for (const member of members) {
-      await this.createNotification(
-        member.user_id,
-        payload.actorId,
-        'sprint_starting',
-        'sprint',
-        payload.sprintId,
-        `Sprint "${sprint?.name || ''}" has started`,
-        null,
-        payload.projectId,
+    try {
+      const [sprint] = await this.dataSource.query(
+        'SELECT name FROM sprints WHERE id = $1', [payload.sprintId],
       );
+      const members = await this.dataSource.query(
+        'SELECT user_id FROM project_members WHERE project_id = $1',
+        [payload.projectId],
+      );
+
+      for (const member of members) {
+        await this.createNotification(
+          member.user_id,
+          payload.actorId,
+          'sprint_starting',
+          'sprint',
+          payload.sprintId,
+          `Sprint "${sprint?.name || ''}" has started`,
+          null,
+          payload.projectId,
+        );
+      }
+    } catch (err) {
+      this.logger.error(`onSprintStarted failed: ${err}`, (err as Error)?.stack);
     }
   }
 }

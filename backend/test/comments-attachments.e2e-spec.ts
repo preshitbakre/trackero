@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp, clearDatabase, registerAdmin, registerInvitedUser } from './setup';
+import { ActivityService } from '../src/activity/activity.service';
 
 describe('Comments & Attachments (e2e)', () => {
   let app: INestApplication;
@@ -256,6 +257,45 @@ describe('Comments & Attachments (e2e)', () => {
         .delete(`/api/projects/${projectId}/items/${taskId}/attachments/${attachmentId}`)
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
+    });
+  });
+
+  describe('Event-listener failure isolation (Task 3.8)', () => {
+    it('comment creation still returns 201 when the activity @OnEvent handler throws', async () => {
+      // Inject a failure into the ActivityService.onCommentAdded @OnEvent
+      // handler: replace its body with one that always throws. Because the
+      // handler is wrapped in try/catch + Logger, the throw is swallowed and
+      // never becomes an unhandled rejection — the originating request, which
+      // fires `comment.added` AFTER its own work, must still succeed.
+      const activityService = app.get(ActivityService);
+      const original = activityService.onCommentAdded.bind(activityService);
+      (activityService as any).onCommentAdded = async () => {
+        throw new Error('injected activity-handler failure');
+      };
+
+      try {
+        const res = await request(app.getHttpServer())
+          .post(`/api/projects/${projectId}/items/${taskId}/comments`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ body: 'Comment that triggers a failing listener' })
+          .expect(201);
+
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.item.body).toBe('Comment that triggers a failing listener');
+
+        // Give the async listener a tick to run (and swallow) its failure.
+        await new Promise((r) => setTimeout(r, 60));
+
+        // The app must remain fully responsive after a handler failure —
+        // proves the process did not crash / destabilize.
+        const ping = await request(app.getHttpServer())
+          .get(`/api/projects/${projectId}/items/${taskId}/comments`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .expect(200);
+        expect(ping.body.code).toBe('S-0140');
+      } finally {
+        (activityService as any).onCommentAdded = original;
+      }
     });
   });
 
