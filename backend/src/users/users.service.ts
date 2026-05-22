@@ -8,6 +8,7 @@ import { AppLogicException } from '../common/exceptions/app-exceptions';
 import { PaginatedResponse } from '../common/dto/paginated-response.dto';
 import { PaginatedMutationResponse } from '../common/dto/paginated-mutation-response.dto';
 import { clampLimit } from '../common/helpers/pagination.helper';
+import { rethrowAsDuplicate } from '../common/helpers/db-error.helper';
 import { EmailService } from '../common/services/email.service';
 
 @Injectable()
@@ -184,7 +185,15 @@ export class UsersService {
       status: 'pending',
       expiresAt,
     });
-    await this.invitationRepo.save(invitation);
+    // The findOne pre-check above handles the fast common case (a pending
+    // invite already exists for this email). The catch is the race backstop:
+    // a concurrent invite, or the unlikely token-hash collision, raises a
+    // 23505 on the unique token index, which becomes a clean 409.
+    try {
+      await this.invitationRepo.save(invitation);
+    } catch (error) {
+      rethrowAsDuplicate(error);
+    }
 
     // Send invitation email
     await this.emailService.sendInvitation(email, token, role);

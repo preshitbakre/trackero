@@ -1,6 +1,6 @@
 import {
   Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn,
-  ManyToOne, JoinColumn, Index,
+  ManyToOne, JoinColumn, Index, Unique,
 } from 'typeorm';
 import { Project } from '../../projects/entities/project.entity';
 
@@ -13,6 +13,10 @@ import { Project } from '../../projects/entities/project.entity';
   unique: true,
   where: "status = 'active'",
 })
+// sprint_number is auto-assigned (MAX+1) per project. This unique constraint is
+// the DB backstop against two concurrent create() calls reading the same MAX
+// and inserting duplicate sprint numbers.
+@Unique('UQ_sprint_number_project', ['projectId', 'sprintNumber'])
 export class Sprint {
   @PrimaryGeneratedColumn('increment')
   id: number;

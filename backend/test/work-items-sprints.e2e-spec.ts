@@ -275,6 +275,49 @@ describe('WorkItems Sprints (e2e)', () => {
       }
     });
 
+    it('concurrent sprint creates -> no duplicate sprintNumber, every create resolves cleanly', async () => {
+      // sprintNumber is auto-assigned from MAX(sprintNumber)+1. Two concurrent
+      // create() calls can both read the same MAX and pick the same number.
+      // The unique index UQ_sprint_number_project is the real guard — the
+      // loser's INSERT raises 23505, which create() translates to a clean 409.
+      const service = app.get(SprintsService);
+      const ds = app.get(DataSource);
+      const adminId = (await ds.query(
+        `SELECT id FROM users WHERE email = 'admin@test.com'`,
+      ))[0].id;
+
+      const ROUNDS = 15;
+      for (let round = 0; round < ROUNDS; round++) {
+        const projRes = await request(app.getHttpServer())
+          .post('/api/projects')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ name: `SN Race ${round}`, prefix: `SN${round}` });
+        const raceProjectId = projRes.body.data.item.id;
+
+        const dto = { name: 'S', startDate: futureDate(1), endDate: futureDate(15) };
+        const settled = await Promise.allSettled([
+          service.create(raceProjectId, { ...dto }, adminId),
+          service.create(raceProjectId, { ...dto }, adminId),
+        ]);
+
+        // No raw 500-style errors: any rejection must be a clean 409 conflict.
+        for (const r of settled) {
+          if (r.status === 'rejected') {
+            const err = r.reason as any;
+            expect(err.appCode).toBe('F-L-0002');
+            expect(err.getStatus()).toBe(409);
+          }
+        }
+
+        // sprintNumbers must be unique within the project.
+        const numbers = (await ds.query(
+          `SELECT sprint_number FROM sprints WHERE project_id = $1`,
+          [raceProjectId],
+        )).map((r: any) => r.sprint_number);
+        expect(new Set(numbers).size).toBe(numbers.length);
+      }
+    });
+
     it('lists sprints -> 200', async () => {
       await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)

@@ -201,6 +201,23 @@ describe('Admin, Settings & Invitations (e2e)', () => {
         .send({ email: 'x@test.com', role: 'member' })
         .expect(403);
     });
+
+    it('rejects a duplicate pending invitation for the same email -> 409', async () => {
+      await request(app.getHttpServer())
+        .post('/api/users/invite')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ email: 'dupe@test.com', role: 'member' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .post('/api/users/invite')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ email: 'dupe@test.com', role: 'member' })
+        .expect(409);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('F-L-0002');
+    });
   });
 
   describe('Health', () => {

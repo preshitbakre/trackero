@@ -420,6 +420,40 @@ describe('Projects Module (e2e)', () => {
       expect(res.body.code).toBe('S-0031');
     });
 
+    it('rejects a duplicate status name in the same project -> 409', async () => {
+      await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/statuses`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Code Review', category: 'in_progress', color: '#9333EA' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/statuses`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Code Review', category: 'in_progress', color: '#3B82F6' })
+        .expect(409);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('F-L-0002');
+    });
+
+    it('concurrent creates of the same status name -> exactly one 201, the other 409', async () => {
+      const results = await Promise.all([
+        request(app.getHttpServer())
+          .post(`/api/projects/${projectId}/statuses`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ name: 'Race Status', category: 'in_progress', color: '#9333EA' }),
+        request(app.getHttpServer())
+          .post(`/api/projects/${projectId}/statuses`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ name: 'Race Status', category: 'in_progress', color: '#3B82F6' }),
+      ]);
+      const statuses = results.map((r) => r.status).sort();
+      expect(statuses).toEqual([201, 409]);
+      const loser = results.find((r) => r.status === 409)!;
+      expect(loser.body.code).toBe('F-L-0002');
+    });
+
     it('cannot delete fixed status -> 403', async () => {
       const statusRes = await request(app.getHttpServer())
         .get(`/api/projects/${projectId}/statuses`)
@@ -660,6 +694,99 @@ describe('Projects Module (e2e)', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.code).toBe('S-0036');
       expect(res.body.data.length).toBeGreaterThan(0);
+    });
+
+    it('rejects a duplicate label name in the same project -> 409', async () => {
+      await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/labels`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Bug', color: '#EF4444' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/labels`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Bug', color: '#3B82F6' })
+        .expect(409);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('F-L-0002');
+    });
+
+    it('rejects renaming a label to collide with a sibling label name -> 409', async () => {
+      await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/labels`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Bug', color: '#EF4444' })
+        .expect(201);
+
+      const second = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/labels`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Feature', color: '#3B82F6' })
+        .expect(201);
+
+      // figure out the second label's id from the list
+      const list = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/labels`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      const featureLabel = list.body.data.find((l: any) => l.name === 'Feature');
+      expect(featureLabel).toBeDefined();
+
+      const res = await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/labels/${featureLabel.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Bug' })
+        .expect(409);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('F-L-0002');
+
+      // the rename did not take effect
+      const after = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/labels`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(after.body.data.find((l: any) => l.id === featureLabel.id).name).toBe('Feature');
+    });
+
+    it('allows renaming a label to its own current name -> 200', async () => {
+      await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/labels`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Chore', color: '#EF4444' })
+        .expect(201);
+      const list = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/labels`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      const chore = list.body.data.find((l: any) => l.name === 'Chore');
+
+      // renaming to the same name (only changing color) must succeed
+      await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/labels/${chore.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Chore', color: '#3B82F6' })
+        .expect(200);
+    });
+
+    it('concurrent creates of the same label name -> exactly one 201, the other 409', async () => {
+      const results = await Promise.all([
+        request(app.getHttpServer())
+          .post(`/api/projects/${projectId}/labels`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ name: 'Race', color: '#EF4444' }),
+        request(app.getHttpServer())
+          .post(`/api/projects/${projectId}/labels`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ name: 'Race', color: '#3B82F6' }),
+      ]);
+      const statuses = results.map((r) => r.status).sort();
+      expect(statuses).toEqual([201, 409]);
+      // the loser must be a clean 409, never a raw 500
+      const loser = results.find((r) => r.status === 409)!;
+      expect(loser.body.code).toBe('F-L-0002');
     });
   });
 

@@ -16,6 +16,7 @@ import { CreateStatusDto } from './dto/create-status.dto';
 import { CreateLabelDto } from './dto/create-label.dto';
 import { UpdateLabelDto } from './dto/update-label.dto';
 import { clampLimit } from '../common/helpers/pagination.helper';
+import { rethrowAsDuplicate } from '../common/helpers/db-error.helper';
 
 const DEFAULT_STATUSES = [
   { name: 'Open', category: 'backlog' as const, sortOrder: 0, isDefault: true, color: '#6D7F8E', isFixed: true },
@@ -47,32 +48,40 @@ export class ProjectsService {
     // Atomically create the project, its default statuses and the creator
     // membership — if any write fails the whole thing rolls back, so we never
     // leave a half-created project with no statuses and/or no members.
-    const saved = await this.dataSource.transaction(async (manager) => {
-      const project = manager.create(Project, {
-        name: dto.name,
-        prefix: dto.prefix,
-        description: dto.description || null,
-        leadId: dto.leadId || null,
+    // The findOne pre-check above gives the fast common-case error; the catch
+    // is the race backstop — a concurrent duplicate prefix raises a 23505 on
+    // the unique prefix column, which becomes a clean 409 DUPLICATE_ENTRY.
+    let saved: Project;
+    try {
+      saved = await this.dataSource.transaction(async (manager) => {
+        const project = manager.create(Project, {
+          name: dto.name,
+          prefix: dto.prefix,
+          description: dto.description || null,
+          leadId: dto.leadId || null,
+        });
+        const savedProject = await manager.save(Project, project);
+
+        // Create default statuses
+        const statuses = DEFAULT_STATUSES.map((s) =>
+          manager.create(ProjectStatus, { ...s, projectId: savedProject.id }),
+        );
+        await manager.save(ProjectStatus, statuses);
+
+        // Add creator as project_manager
+        const member = manager.create(ProjectMember, {
+          projectId: savedProject.id,
+          userId,
+          role: 'project_manager',
+          addedBy: userId,
+        });
+        await manager.save(ProjectMember, member);
+
+        return savedProject;
       });
-      const savedProject = await manager.save(Project, project);
-
-      // Create default statuses
-      const statuses = DEFAULT_STATUSES.map((s) =>
-        manager.create(ProjectStatus, { ...s, projectId: savedProject.id }),
-      );
-      await manager.save(ProjectStatus, statuses);
-
-      // Add creator as project_manager
-      const member = manager.create(ProjectMember, {
-        projectId: savedProject.id,
-        userId,
-        role: 'project_manager',
-        addedBy: userId,
-      });
-      await manager.save(ProjectMember, member);
-
-      return savedProject;
-    });
+    } catch (error) {
+      rethrowAsDuplicate(error);
+    }
 
     const list = await this.listProjects(userId, 'admin', 1, 20);
     return PaginatedMutationResponse.forPaginated(saved, list);
@@ -264,6 +273,15 @@ export class ProjectsService {
   async createStatus(projectId: number, dto: CreateStatusDto) {
     await this.findOne(projectId);
 
+    // Fast common-case duplicate check. The DB UQ_status_name_project unique
+    // constraint is the race backstop (see catch below).
+    const existing = await this.statusRepo.findOne({
+      where: { projectId, name: dto.name },
+    });
+    if (existing) {
+      throw new AppLogicException('DUPLICATE_ENTRY', HttpStatus.CONFLICT);
+    }
+
     const maxOrder = await this.statusRepo
       .createQueryBuilder('s')
       .where('s.projectId = :projectId', { projectId })
@@ -277,7 +295,11 @@ export class ProjectsService {
       color: dto.color,
       sortOrder: (maxOrder?.max ?? -1) + 1,
     });
-    return this.statusRepo.save(status);
+    try {
+      return await this.statusRepo.save(status);
+    } catch (error) {
+      rethrowAsDuplicate(error);
+    }
   }
 
   async updateStatus(projectId: number, statusId: number, dto: { name?: string; color?: string; category?: string; wipLimit?: number }) {
@@ -286,6 +308,16 @@ export class ProjectsService {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
     // All statuses: allow name, color, wipLimit changes
+    // Reject renaming this status onto a sibling status's name. The DB
+    // UQ_status_name_project unique constraint is the race backstop.
+    if (dto.name !== undefined && dto.name !== status.name) {
+      const clash = await this.statusRepo.findOne({
+        where: { projectId, name: dto.name },
+      });
+      if (clash) {
+        throw new AppLogicException('DUPLICATE_ENTRY', HttpStatus.CONFLICT);
+      }
+    }
     if (dto.name !== undefined) status.name = dto.name;
     if (dto.color !== undefined) status.color = dto.color;
     if (dto.wipLimit !== undefined) status.wipLimit = dto.wipLimit;
@@ -293,7 +325,11 @@ export class ProjectsService {
     if (!status.isFixed && dto.category !== undefined) {
       status.category = dto.category as any;
     }
-    return this.statusRepo.save(status);
+    try {
+      return await this.statusRepo.save(status);
+    } catch (error) {
+      rethrowAsDuplicate(error);
+    }
   }
 
   async reorderStatuses(projectId: number, statusIds: number[]) {
@@ -379,7 +415,14 @@ export class ProjectsService {
       name: dto.name,
       color: dto.color,
     });
-    return this.labelRepo.save(label);
+    // The findOne pre-check above handles the fast common case; the catch is
+    // the race backstop — a concurrent duplicate raises a 23505 on the
+    // UQ_label_name_project unique constraint, which becomes a clean 409.
+    try {
+      return await this.labelRepo.save(label);
+    } catch (error) {
+      rethrowAsDuplicate(error);
+    }
   }
 
   async updateLabel(projectId: number, labelId: number, dto: UpdateLabelDto) {
@@ -387,9 +430,24 @@ export class ProjectsService {
     if (!label) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
+    // Reject renaming this label onto a sibling label's name. Renaming to the
+    // label's own current name is fine. The DB UQ_label_name_project unique
+    // constraint is the race backstop.
+    if (dto.name !== undefined && dto.name !== label.name) {
+      const clash = await this.labelRepo.findOne({
+        where: { projectId, name: dto.name },
+      });
+      if (clash) {
+        throw new AppLogicException('DUPLICATE_ENTRY', HttpStatus.CONFLICT);
+      }
+    }
     if (dto.name !== undefined) label.name = dto.name;
     if (dto.color !== undefined) label.color = dto.color;
-    return this.labelRepo.save(label);
+    try {
+      return await this.labelRepo.save(label);
+    } catch (error) {
+      rethrowAsDuplicate(error);
+    }
   }
 
   async deleteLabel(projectId: number, labelId: number) {

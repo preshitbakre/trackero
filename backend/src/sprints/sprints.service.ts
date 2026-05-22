@@ -10,6 +10,7 @@ import { PaginatedMutationResponse } from '../common/dto/paginated-mutation-resp
 import { CreateSprintDto } from './dto/create-sprint.dto';
 import { UpdateSprintDto } from './dto/update-sprint.dto';
 import { clampLimit } from '../common/helpers/pagination.helper';
+import { rethrowAsDuplicate } from '../common/helpers/db-error.helper';
 
 @Injectable()
 export class SprintsService {
@@ -50,7 +51,16 @@ export class SprintsService {
       sprintNumber,
       createdBy: userId,
     });
-    const saved = await this.sprintRepo.save(sprint);
+    // sprintNumber is computed from MAX+1 above — two concurrent create() calls
+    // can read the same MAX and pick the same number. The UQ_sprint_number_project
+    // unique constraint is the backstop: the loser's INSERT raises a 23505,
+    // which we translate to a clean 409 DUPLICATE_ENTRY.
+    let saved: Sprint;
+    try {
+      saved = await this.sprintRepo.save(sprint);
+    } catch (error) {
+      rethrowAsDuplicate(error);
+    }
 
     const list = await this.listSprints(projectId);
     return PaginatedMutationResponse.forPaginated(saved, list);
