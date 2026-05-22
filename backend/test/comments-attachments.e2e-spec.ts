@@ -1,8 +1,75 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import * as zlib from 'zlib';
 import { createTestApp, clearDatabase, registerAdmin, registerInvitedUser } from './setup';
 import { ActivityService } from '../src/activity/activity.service';
+
+// CRC-32 (needed for valid ZIP local/central headers).
+function crc32(buf: Buffer): number {
+  const table: number[] = [];
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table[n] = c;
+  }
+  let crc = 0 ^ -1;
+  for (let i = 0; i < buf.length; i++) crc = (crc >>> 8) ^ table[(crc ^ buf[i]) & 0xff];
+  return (crc ^ -1) >>> 0;
+}
+
+// Builds a minimal but structurally valid ZIP archive from name/content pairs.
+function buildZip(files: Array<[string, string]>): Buffer {
+  const chunks: Buffer[] = [];
+  const central: Buffer[] = [];
+  let offset = 0;
+  for (const [name, content] of files) {
+    const nameBuf = Buffer.from(name);
+    const data = Buffer.from(content);
+    const comp = zlib.deflateRawSync(data);
+    const crc = crc32(data);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(8, 8); // deflate
+    local.writeUInt32LE(crc, 14);
+    local.writeUInt32LE(comp.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(nameBuf.length, 26);
+    chunks.push(local, nameBuf, comp);
+    const cd = Buffer.alloc(46);
+    cd.writeUInt32LE(0x02014b50, 0);
+    cd.writeUInt16LE(20, 4);
+    cd.writeUInt16LE(20, 6);
+    cd.writeUInt16LE(8, 10);
+    cd.writeUInt32LE(crc, 16);
+    cd.writeUInt32LE(comp.length, 20);
+    cd.writeUInt32LE(data.length, 24);
+    cd.writeUInt16LE(nameBuf.length, 28);
+    cd.writeUInt32LE(offset, 42);
+    central.push(cd, nameBuf);
+    offset += local.length + nameBuf.length + comp.length;
+  }
+  const cdStart = offset;
+  const cdSize = central.reduce((s, c) => s + c.length, 0);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(files.length, 8);
+  end.writeUInt16LE(files.length, 10);
+  end.writeUInt32LE(cdSize, 12);
+  end.writeUInt32LE(cdStart, 16);
+  return Buffer.concat([...chunks, ...central, end]);
+}
+
+// Builds a minimal OOXML container (docx/xlsx) with the given marker part.
+// `file-type@16` detects docx via `word/document.xml` and xlsx via `xl/workbook.xml`.
+function buildOoxml(markerPart: string): Buffer {
+  return buildZip([
+    ['[Content_Types].xml', '<?xml version="1.0"?><Types/>'],
+    ['_rels/.rels', '<?xml version="1.0"?><Relationships/>'],
+    [markerPart, '<?xml version="1.0"?><part/>'],
+  ]);
+}
 
 describe('Comments & Attachments (e2e)', () => {
   let app: INestApplication;
@@ -265,6 +332,113 @@ describe('Comments & Attachments (e2e)', () => {
         .delete(`/api/projects/${projectId}/items/${taskId}/attachments/${attachmentId}`)
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
+    });
+  });
+
+  describe('Attachment MIME validation (§4.2 — store/serve detected MIME)', () => {
+    // A minimal valid PNG (8-byte signature + IHDR header).
+    const PNG_BUFFER = Buffer.from(
+      '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489',
+      'hex',
+    );
+
+    it('stores the DETECTED mime type for a real PNG, not the client claim', async () => {
+      // Upload a genuine PNG buffer but lie in the Content-Type header.
+      const res = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/items/${taskId}/attachments`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .attach('file', PNG_BUFFER, { filename: 'pic.png', contentType: 'image/png' })
+        .expect(201);
+
+      expect(res.body.data.item.mimeType).toBe('image/png');
+    });
+
+    it('a PNG sent with a lying text/plain Content-Type is still stored as image/png', async () => {
+      // Attacker claims text/plain but the bytes are a PNG. The stored mime
+      // must reflect the magic-byte-detected type, not the spoofed header.
+      const res = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/items/${taskId}/attachments`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .attach('file', PNG_BUFFER, { filename: 'evil.txt', contentType: 'text/plain' })
+        .expect(201);
+
+      // Detected type wins — never the client lie.
+      expect(res.body.data.item.mimeType).toBe('image/png');
+    });
+
+    it('a text buffer falsely claimed as image/png is rejected (undetectable non-text)', async () => {
+      // Plain text has no magic-byte signature -> file-type returns undefined.
+      // The client claims image/png, which is NOT text/plain or text/csv,
+      // so the upload must be rejected as spoofed/corrupt.
+      const res = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/items/${taskId}/attachments`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .attach('file', Buffer.from('this is not really a png'), {
+          filename: 'fake.png',
+          contentType: 'image/png',
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('F-L-0062');
+    });
+
+    it('garbage bytes claimed as application/pdf are rejected', async () => {
+      const garbage = Buffer.from([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+      const res = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/items/${taskId}/attachments`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .attach('file', garbage, { filename: 'fake.pdf', contentType: 'application/pdf' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('F-L-0062');
+    });
+
+    it('a genuine plain .txt upload still works (text/plain has no magic bytes)', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/items/${taskId}/attachments`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .attach('file', Buffer.from('legitimate text content'), {
+          filename: 'notes.txt',
+          contentType: 'text/plain',
+        })
+        .expect(201);
+
+      expect(res.body.data.item.mimeType).toBe('text/plain');
+    });
+
+    it('a real .docx upload still works and stores the OOXML mime', async () => {
+      const docx = buildOoxml('word/document.xml');
+      const res = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/items/${taskId}/attachments`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .attach('file', docx, {
+          filename: 'doc.docx',
+          contentType:
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        })
+        .expect(201);
+
+      expect(res.body.data.item.mimeType).toBe(
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      );
+    });
+
+    it('a real .xlsx upload still works and stores the OOXML mime', async () => {
+      const xlsx = buildOoxml('xl/workbook.xml');
+      const res = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/items/${taskId}/attachments`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .attach('file', xlsx, {
+          filename: 'sheet.xlsx',
+          contentType:
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
+        .expect(201);
+
+      expect(res.body.data.item.mimeType).toBe(
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
     });
   });
 

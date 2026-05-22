@@ -55,16 +55,43 @@ export class AttachmentsService {
       'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     ];
+    // MIME types whose containers `file-type` reports as `application/zip`.
+    // (OOXML docx/xlsx genuinely ARE zip containers; file-type@16 normally
+    // detects them precisely, but a generic-zip fallback is handled here too.)
+    const ZIP_BASED_OOXML = [
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ];
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const fileType = require('file-type');
     const detected = await fileType.fromBuffer(file.buffer);
-    const effectiveMime = detected?.mime || file.mimetype;
+
+    let effectiveMime: string;
+    if (detected) {
+      // file-type detected a concrete signature.
+      if (detected.mime === 'application/zip' && ZIP_BASED_OOXML.includes(file.mimetype)) {
+        // OOXML files are zip containers. If the detector falls back to the
+        // generic zip type, trust the claimed OOXML type (still allow-listed).
+        effectiveMime = file.mimetype;
+      } else {
+        effectiveMime = detected.mime;
+      }
+    } else {
+      // No magic-byte signature. Only text/plain and text/csv legitimately
+      // have no signature — anything else with undetectable bytes is spoofed
+      // or corrupt and must be rejected.
+      if (file.mimetype !== 'text/plain' && file.mimetype !== 'text/csv') {
+        throw new AppLogicException('FILE_TYPE_NOT_ALLOWED', HttpStatus.BAD_REQUEST);
+      }
+      effectiveMime = file.mimetype;
+    }
+
     if (!ALLOWED_MIMES.includes(effectiveMime)) {
       throw new AppLogicException('FILE_TYPE_NOT_ALLOWED', HttpStatus.BAD_REQUEST);
     }
 
     const storageKey = await this.fileStorage.upload(
-      projectId, workItemId, file.originalname, file.buffer, file.mimetype,
+      projectId, workItemId, file.originalname, file.buffer, effectiveMime,
     );
 
     const attachment = this.attachmentRepo.create({
@@ -72,7 +99,7 @@ export class AttachmentsService {
       uploadedBy: userId,
       originalFilename: file.originalname,
       storageKey,
-      mimeType: file.mimetype,
+      mimeType: effectiveMime,
       sizeBytes: file.size,
     });
     const saved = await this.attachmentRepo.save(attachment);
