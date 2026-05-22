@@ -1,6 +1,6 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Retrospective } from './entities/retrospective.entity';
 import { RetroCard } from './entities/retro-card.entity';
 import { RetroVote } from './entities/retro-vote.entity';
@@ -16,9 +16,21 @@ export class RetrospectivesService {
     private readonly cardRepo: Repository<RetroCard>,
     @InjectRepository(RetroVote)
     private readonly voteRepo: Repository<RetroVote>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(projectId: number, sprintId: number, userId: number) {
+    // §4.9: verify the sprint actually belongs to the project. The route
+    // params (projectId, sprintId) are independent, so without this check a
+    // caller could cross-link a retro in project A to a sprint in project B.
+    const sprintRows = await this.dataSource.query(
+      'SELECT 1 FROM sprints WHERE id = $1 AND project_id = $2',
+      [sprintId, projectId],
+    );
+    if (sprintRows.length === 0) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
     const existing = await this.retroRepo.findOne({ where: { sprintId } });
     if (existing) {
       throw new AppLogicException('RETRO_EXISTS', HttpStatus.CONFLICT);

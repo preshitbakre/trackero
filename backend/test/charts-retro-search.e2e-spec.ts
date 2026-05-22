@@ -291,6 +291,50 @@ describe('Charts, Retro, Search (e2e)', () => {
       expect(res.body.data.column).toBe('went_well');
     });
 
+    it('rejects creating a retro for a sprint from another project -> 4xx (§4.9)', async () => {
+      // Project B — owned by the SAME admin (the caller has access to both).
+      const projBres = await request(app.getHttpServer())
+        .post('/api/projects')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Retro Project B', prefix: 'RPB' });
+      const projBId = projBres.body.data.item.id;
+
+      // A sprint that belongs to project B.
+      const sprintBres = await request(app.getHttpServer())
+        .post(`/api/projects/${projBId}/sprints`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'B Sprint', startDate: futureDate(1), endDate: futureDate(15) });
+      const sprintBId = sprintBres.body.data.item.id;
+
+      // Cross-link: create a retro under project A pointing at project B's sprint.
+      const res = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/sprints/${sprintBId}/retro`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBeGreaterThanOrEqual(400);
+      expect(res.status).toBeLessThan(500);
+    });
+
+    it('rejects creating a retro for a non-existent sprint -> 4xx (§4.9)', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/sprints/999999/retro`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBeGreaterThanOrEqual(400);
+      expect(res.status).toBeLessThan(500);
+    });
+
+    it('still creates a retro for a sprint that belongs to the same project -> 201', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/sprints/${sprintId}/retro`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(201);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.sprintId).toBe(sprintId);
+      expect(res.body.data.projectId).toBe(projectId);
+    });
+
     it('vote toggles and enforces one per user per card', async () => {
       const retroRes = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints/${sprintId}/retro`)
