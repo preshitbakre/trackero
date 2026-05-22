@@ -97,5 +97,21 @@ export class AppModule implements OnModuleInit {
       END $$
     `);
     await this.dataSource.query(`CREATE INDEX IF NOT EXISTS "IDX_wi_search" ON work_items USING gin(search_vector)`);
+
+    // Partial unique EXPRESSION index for daily-notification idempotency.
+    // synchronize cannot build (created_at::date) expression indexes, so — like
+    // the search_vector index above — it is created here so test/dev/prod stay
+    // consistent. Migration 1716000018000 creates the same index for prod
+    // deployments; IF NOT EXISTS makes the two harmless together.
+    // Scoped (WHERE type IN ...) to ONLY cron-generated notification types so
+    // legitimate same-day event-notification duplicates are not blocked.
+    // ((created_at AT TIME ZONE 'UTC')::date) — the bare created_at::date cast
+    // is only STABLE (depends on the session TimeZone) and Postgres rejects it
+    // in an index expression; pinning to UTC makes the expression IMMUTABLE.
+    await this.dataSource.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS "UQ_notif_daily_dedup"
+      ON notifications (user_id, type, reference_id, ((created_at AT TIME ZONE 'UTC')::date))
+      WHERE type IN ('sprint_ending', 'task_due_soon', 'task_overdue')
+    `);
   }
 }
