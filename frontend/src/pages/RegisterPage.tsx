@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/auth.store';
+import { Button } from '../components/ui/Button';
 
 export function RegisterPage() {
   const [searchParams] = useSearchParams();
@@ -69,7 +70,7 @@ export function RegisterPage() {
 
   if (isSetup === null) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-neutral-50 dark:bg-dneutral-50">
+      <div className="flex min-h-screen items-center justify-center bg-[#F2F9F3] dark:bg-dneutral-50">
         <div className="text-neutral-400">Loading...</div>
       </div>
     );
@@ -77,16 +78,16 @@ export function RegisterPage() {
 
   if (!canRegister) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-neutral-50 dark:bg-dneutral-50 px-4">
+      <div className="flex min-h-screen items-center justify-center bg-[#F2F9F3] dark:bg-dneutral-50 px-4">
         <div className="w-full max-w-sm space-y-6 text-center">
-          <h1 className="text-2xl font-bold text-neutral-700 dark:text-dneutral-700">Trackero</h1>
-          <div className="rounded-md bg-accent-50 dark:bg-daccent-100 p-4">
-            <p className="text-sm text-accent-700 dark:text-daccent-600 font-medium">Registration is invite-only</p>
-            <p className="mt-1 text-sm text-accent-600 dark:text-daccent-500">
+          <h1 className="text-[28px] font-bold text-neutral-700 dark:text-dneutral-700">Trackero</h1>
+          <div className="rounded-md bg-tan-light dark:bg-tan-dm/30 p-4">
+            <p className="text-[16px] text-neutral-600 dark:text-tan-dm font-medium">Registration is invite-only</p>
+            <p className="mt-1 text-[16px] text-tan dark:text-tan-dm">
               Ask your admin to send you an invitation link.
             </p>
           </div>
-          <Link to="/login" className="text-sm text-primary-500 hover:underline">
+          <Link to="/login" className="text-[16px] text-peri hover:underline">
             Back to login
           </Link>
         </div>
@@ -95,73 +96,70 @@ export function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-neutral-50 dark:bg-dneutral-50 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-[#F2F9F3] dark:bg-dneutral-50 px-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-neutral-700 dark:text-dneutral-700">Trackero</h1>
+          <h1 className="text-[28px] font-bold text-neutral-700 dark:text-dneutral-700">Trackero</h1>
           {isFirstRun ? (
             <>
-              <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">Set up your instance</p>
-              <p className="mt-1 text-sm text-primary-500">Your account will be the admin.</p>
+              <p className="mt-2 text-[16px] text-neutral-500 dark:text-neutral-400">Set up your instance</p>
+              <p className="mt-1 text-[16px] text-peri">Your account will be the admin.</p>
             </>
           ) : (
-            <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">Create your account</p>
+            <p className="mt-2 text-[16px] text-neutral-500 dark:text-neutral-400">Create your account</p>
           )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="rounded-md bg-danger/10 dark:bg-danger/10 p-3 text-sm text-danger dark:text-danger">
+            <div className="rounded-md bg-danger/10 dark:bg-danger/10 p-3 text-[16px] text-danger dark:text-danger">
               {error}
             </div>
           )}
 
           <div>
-            <label htmlFor="displayName" className="block text-sm font-medium text-neutral-600 dark:text-dneutral-600">
+            <label htmlFor="displayName" className="block text-[16px] font-medium text-neutral-600 dark:text-dneutral-600">
               Display name
             </label>
             <input
               id="displayName" type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} required
-              className="mt-1 block w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-100 px-3 py-2 text-sm text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              className="mt-1 block w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-100 px-3 py-2 text-[16px] text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400 focus:border-peri focus:outline-none focus:ring-1 focus:ring-peri"
             />
           </div>
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-neutral-600 dark:text-dneutral-600">Email</label>
+            <label htmlFor="email" className="block text-[16px] font-medium text-neutral-600 dark:text-dneutral-600">Email</label>
             <input
               id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
               readOnly={!!inviteToken && email !== ''}
-              className={`mt-1 block w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-100 px-3 py-2 text-sm text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 ${inviteToken && email ? 'bg-neutral-100 dark:bg-dneutral-200 cursor-not-allowed' : ''}`}
+              className={`mt-1 block w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-100 px-3 py-2 text-[16px] text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400 focus:border-peri focus:outline-none focus:ring-1 focus:ring-peri ${inviteToken && email ? 'bg-neutral-100 dark:bg-dneutral-200 cursor-not-allowed' : ''}`}
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-neutral-600 dark:text-dneutral-600">Password</label>
+            <label htmlFor="password" className="block text-[16px] font-medium text-neutral-600 dark:text-dneutral-600">Password</label>
             <input
               id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8}
-              className="mt-1 block w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-100 px-3 py-2 text-sm text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              className="mt-1 block w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-100 px-3 py-2 text-[16px] text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400 focus:border-peri focus:outline-none focus:ring-1 focus:ring-peri"
             />
           </div>
 
           <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-neutral-600 dark:text-dneutral-600">Confirm password</label>
+            <label htmlFor="confirmPassword" className="block text-[16px] font-medium text-neutral-600 dark:text-dneutral-600">Confirm password</label>
             <input
               id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required
-              className="mt-1 block w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-100 px-3 py-2 text-sm text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              className="mt-1 block w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-100 px-3 py-2 text-[16px] text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400 focus:border-peri focus:outline-none focus:ring-1 focus:ring-peri"
             />
           </div>
 
-          <button
-            type="submit" disabled={loading}
-            className="w-full rounded-md bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
-          >
+          <Button type="submit" variant="primary" disabled={loading} className="w-full">
             {loading ? 'Creating account...' : isFirstRun ? 'Set up Trackero' : 'Create account'}
-          </button>
+          </Button>
         </form>
 
         {!isFirstRun && (
-          <p className="text-center text-sm text-neutral-400 dark:text-neutral-400">
-            <Link to="/login" className="text-primary-500 hover:underline">Back to login</Link>
+          <p className="text-center text-[16px] text-neutral-400 dark:text-neutral-400">
+            <Link to="/login" className="text-peri hover:underline">Back to login</Link>
           </p>
         )}
       </div>

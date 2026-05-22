@@ -2,17 +2,17 @@ import {
   Entity, PrimaryGeneratedColumn, Column, CreateDateColumn,
   ManyToOne, JoinColumn, Index,
 } from 'typeorm';
-import { Task } from '../../tasks/entities/task.entity';
+import { WorkItem } from '../../work-items/entities/work-item.entity';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('attachments')
-@Index('IDX_attachment_task', ['taskId'])
+@Index('IDX_attachment_work_item', ['workItemId'])
 export class Attachment {
   @PrimaryGeneratedColumn('increment')
   id: number;
 
-  @Column({ name: 'task_id', type: 'int' })
-  taskId: number;
+  @Column({ name: 'work_item_id', type: 'int' })
+  workItemId: number;
 
   @Column({ name: 'uploaded_by', type: 'int' })
   uploadedBy: number;
@@ -32,9 +32,9 @@ export class Attachment {
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 
-  @ManyToOne(() => Task, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'task_id' })
-  task: Task;
+  @ManyToOne(() => WorkItem, (wi) => wi.attachments, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'work_item_id' })
+  workItem: WorkItem;
 
   @ManyToOne(() => User, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'uploaded_by' })

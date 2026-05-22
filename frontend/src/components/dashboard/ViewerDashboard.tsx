@@ -25,16 +25,16 @@ export function ViewerDashboard({ data }: { data: any }) {
       <GreetingBar userName={greeting.userName} date={greeting.date} summaryText={summaryText} />
 
       <StatCardGrid>
-        <StatCard icon="&#x1F4C1;" label="Projects" value={overviewStats.projectsCount} />
-        <StatCard icon="&#x2611;" label="Total tasks" value={overviewStats.totalTasks} />
-        <StatCard icon="&#x2705;" label="Completed" value={overviewStats.completedTasks} />
-        <StatCard icon="&#x1F4CA;" label="Progress" value={`${overviewStats.overallProgress}%`} progressBar={{ percent: overviewStats.overallProgress, color: '#4A6FA5' }} />
+        <StatCard icon="&#x1F4C1;" iconColor="text-peri" iconBg="bg-peri-light" label="Projects" value={overviewStats.projectsCount} />
+        <StatCard icon="&#x2611;" iconColor="text-tan" iconBg="bg-tan-light" label="Total tasks" value={overviewStats.totalTasks} />
+        <StatCard icon="&#x2705;" iconColor="text-mint" iconBg="bg-mint-light" label="Completed" value={overviewStats.completedTasks} />
+        <StatCard icon="&#x1F4CA;" iconColor="text-mint" iconBg="bg-mint-light" label="Progress" value={`${overviewStats.overallProgress}%`} progressBar={{ percent: overviewStats.overallProgress, color: '#4A6FA5' }} />
       </StatCardGrid>
 
       {projects.length === 0 ? (
-        <div className="rounded-lg border border-neutral-200 dark:border-dneutral-200 bg-neutral-50 dark:bg-dneutral-100 p-8 text-center">
+        <div className="rounded-lg shadow-sm dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)] bg-white dark:bg-dneutral-100 p-8 text-center">
           <p className="text-neutral-400 dark:text-dneutral-500">You haven't been added to any projects yet.</p>
-          <p className="text-sm text-neutral-400 dark:text-dneutral-500 mt-1">Ask your admin to add you.</p>
+          <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 mt-1">Ask your admin to add you.</p>
         </div>
       ) : (
         <>
@@ -54,17 +54,17 @@ export function ViewerDashboard({ data }: { data: any }) {
                   {sprintProgress.map((sp: any, i: number) => (
                     <div key={i}>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-medium text-neutral-700 dark:text-dneutral-700">{sp.projectName}</span>
-                        <span className="text-sm text-neutral-400 dark:text-dneutral-500">— {sp.sprintName}</span>
+                        <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700">{sp.projectName}</span>
+                        <span className="text-[16px] text-neutral-400 dark:text-dneutral-500">— {sp.sprintName}</span>
                       </div>
-                      <div className="flex items-center justify-between text-sm text-neutral-400 dark:text-dneutral-500 mb-1">
+                      <div className="flex items-center justify-between text-[16px] text-neutral-400 dark:text-dneutral-500 mb-1">
                         <span>{sp.daysRemaining} days left</span>
                         <span>{sp.progressPercent}%</span>
                       </div>
                       <div className="h-1.5 rounded-full bg-neutral-200 dark:bg-dneutral-300 mb-2">
-                        <div className="h-full rounded-full bg-primary-500 transition-all" style={{ width: `${sp.progressPercent}%` }} />
+                        <div className="h-full rounded-full bg-peri transition-all" style={{ width: `${sp.progressPercent}%` }} />
                       </div>
-                      <div className="flex gap-2 text-sm text-neutral-400 dark:text-dneutral-500 flex-wrap">
+                      <div className="flex gap-2 text-[16px] text-neutral-400 dark:text-dneutral-500 flex-wrap">
                         <span>Backlog:{sp.tasksByStatus.backlog}</span>
                         <span>In Progress:{sp.tasksByStatus.in_progress}</span>
                         <span>Done:{sp.tasksByStatus.done}</span>
@@ -73,7 +73,7 @@ export function ViewerDashboard({ data }: { data: any }) {
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-neutral-400 dark:text-dneutral-500 py-4 text-center">No active sprints</p>
+                <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 py-4 text-center">No active sprints</p>
               )}
             </DashboardSection>
           </TwoColumnLayout>
@@ -87,8 +87,8 @@ export function ViewerDashboard({ data }: { data: any }) {
                     <div key={i}>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: e.color }} />
-                        <span className="text-sm font-medium text-neutral-700 dark:text-dneutral-700 truncate">{e.title}</span>
-                        <span className="text-sm text-neutral-400 dark:text-dneutral-500 ml-auto">{e.progressPercent}% ({e.completedTasks}/{e.totalTasks})</span>
+                        <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700 truncate">{e.title}</span>
+                        <span className="text-[16px] text-neutral-400 dark:text-dneutral-500 ml-auto">{e.progressPercent}% ({e.completedTasks}/{e.totalTasks})</span>
                       </div>
                       <div className="h-1.5 rounded-full bg-neutral-200 dark:bg-dneutral-300">
                         <div className="h-full rounded-full transition-all" style={{ width: `${e.progressPercent}%`, backgroundColor: e.color }} />
@@ -97,7 +97,7 @@ export function ViewerDashboard({ data }: { data: any }) {
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-neutral-400 dark:text-dneutral-500 py-4 text-center">No active epics</p>
+                <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 py-4 text-center">No active epics</p>
               )}
             </DashboardSection>
 
@@ -105,17 +105,17 @@ export function ViewerDashboard({ data }: { data: any }) {
               {recentCompletions.length > 0 ? (
                 <div className="space-y-2">
                   {recentCompletions.map((c: any, i: number) => (
-                    <div key={i} className="flex items-center gap-2 text-sm">
+                    <div key={i} className="flex items-center gap-2 text-[16px]">
                       <span className="text-success flex-shrink-0">&#x2713;</span>
-                      <span className="font-mono text-neutral-400 dark:text-dneutral-500 text-sm">{c.taskKey}</span>
+                      <span className="font-mono text-neutral-400 dark:text-dneutral-500 text-[16px]">{c.taskKey}</span>
                       <span className="text-neutral-700 dark:text-dneutral-700 truncate flex-1">{c.title}</span>
-                      <span className="text-sm text-neutral-400 dark:text-dneutral-500 flex-shrink-0">{c.completedBy.displayName}</span>
-                      <span className="text-sm text-neutral-400 dark:text-dneutral-500 flex-shrink-0">{timeAgo(c.completedAt)}</span>
+                      <span className="text-[16px] text-neutral-400 dark:text-dneutral-500 flex-shrink-0">{c.completedBy.displayName}</span>
+                      <span className="text-[16px] text-neutral-400 dark:text-dneutral-500 flex-shrink-0">{timeAgo(c.completedAt)}</span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-neutral-400 dark:text-dneutral-500 py-4 text-center">No recent completions</p>
+                <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 py-4 text-center">No recent completions</p>
               )}
             </DashboardSection>
           </TwoColumnLayout>
@@ -126,21 +126,21 @@ export function ViewerDashboard({ data }: { data: any }) {
               {teamMembers.map((m: any, i: number) => {
                 const initial = m.displayName?.charAt(0)?.toUpperCase() || '?';
                 const roleBadge: Record<string, string> = {
-                  admin: 'bg-primary-100 dark:bg-dprimary-100 text-primary-700 dark:text-dprimary-600',
-                  project_manager: 'bg-accent-100 dark:bg-daccent-100 text-accent-700 dark:text-daccent-600',
-                  member: 'bg-secondary-100 dark:bg-dsecondary-100 text-secondary-700 dark:text-dsecondary-600',
+                  admin: 'bg-peri-light dark:bg-peri-dm/30 text-neutral-700 dark:text-peri-dm',
+                  project_manager: 'bg-tan-light dark:bg-tan-dm/30 text-neutral-600 dark:text-tan-dm',
+                  member: 'bg-mint-light dark:bg-mint-dm/30 text-neutral-700 dark:text-mint-dm',
                   viewer: 'bg-neutral-100 dark:bg-dneutral-200 text-neutral-500 dark:text-dneutral-500',
                 };
                 return (
                   <div key={i} className="flex items-center gap-3 py-1.5">
-                    <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-dprimary-100 flex items-center justify-center text-sm font-medium text-primary-600 dark:text-dprimary-600 flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-peri-light dark:bg-peri-dm/30 flex items-center justify-center text-[16px] font-medium text-peri dark:text-peri-dm flex-shrink-0">
                       {initial}
                     </div>
-                    <span className="text-sm font-medium text-neutral-700 dark:text-dneutral-700 flex-1">{m.displayName}</span>
-                    <span className={`text-sm px-1.5 py-0.5 rounded font-medium ${roleBadge[m.role] || roleBadge.member}`}>
+                    <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700 flex-1">{m.displayName}</span>
+                    <span className={`text-[16px] px-1.5 py-0.5 rounded font-medium ${roleBadge[m.role] || roleBadge.member}`}>
                       {m.role === 'project_manager' ? 'PM' : m.role}
                     </span>
-                    <span className="text-sm text-neutral-400 dark:text-dneutral-500">{m.openTaskCount} open</span>
+                    <span className="text-[16px] text-neutral-400 dark:text-dneutral-500">{m.openTaskCount} open</span>
                   </div>
                 );
               })}

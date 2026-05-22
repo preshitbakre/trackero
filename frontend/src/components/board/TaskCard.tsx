@@ -1,22 +1,24 @@
 import { useDraggable } from '@dnd-kit/core';
 import { Tooltip } from '../common/Tooltip';
+import { AVATAR_COLORS, PRIORITY_BADGE_COLORS } from '../../lib/colors';
 
 interface BoardTask {
   id: number;
-  taskNumber: number;
+  itemKey: string;
+  itemType: string;
   title: string;
-  type: string;
   priority: string;
-  assigneeId: number | null;
-  assignee?: { id: number; displayName: string; avatarUrl?: string | null } | null;
+  assignee: { id: number; displayName: string; avatarUrl: string | null } | null;
   storyPoints: number | null;
+  subtaskCount: number;
+  subtaskDoneCount: number;
+  commentCount: number;
+  attachmentCount: number;
+  hasBlockers: boolean;
+  labels: { id: number; name: string; color: string }[];
   sortOrder: string;
-  epicId: number | null;
-  parentId?: number | null;
-  parentTaskNumber?: number | null;
-  subtaskCount?: number;
-  subtaskDoneCount?: number;
-  hasBlockers?: boolean;
+  parentRef: { id: number; itemKey: string; title: string } | null;
+  epicColor: string | null;
 }
 
 interface TaskCardProps {
@@ -26,27 +28,31 @@ interface TaskCardProps {
 }
 
 export function TaskCard({ task, isDragging, onClick }: TaskCardProps) {
-  const { attributes, listeners, setNodeRef, transform } = useDraggable({
+  const { attributes, listeners, setNodeRef, isDragging: isBeingDragged } = useDraggable({
     id: task.id,
   });
 
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
+  const style: React.CSSProperties | undefined = isBeingDragged
+    ? { opacity: 0.4 }
     : undefined;
 
-  const priorityColors: Record<string, string> = {
-    urgent: 'bg-priority-urgent',
-    high: 'bg-priority-high',
-    medium: 'bg-priority-medium',
-    low: 'bg-priority-low',
-    none: 'bg-priority-none',
-  };
+  const ITEM_TYPE_COLORS: Record<string, string> = { task: '#D6B588', bug: '#E05252', subtask: '#A8A19A' };
+  const ITEM_TYPE_ICONS: Record<string, string> = { task: '\u25CB', bug: '\uD83D\uDC1E', subtask: '\u25E6' };
+  const typeColor = ITEM_TYPE_COLORS[task.itemType] || '#A8A19A';
+  const typeIcon = ITEM_TYPE_ICONS[task.itemType] || '\u25CB';
+  const typeName = task.itemType || 'task';
+  const avatarStyle = task.assignee ? AVATAR_COLORS[task.assignee.id % AVATAR_COLORS.length] : null;
+  const initial = task.assignee?.displayName?.charAt(0)?.toUpperCase() || '?';
+  const labels = task.labels || [];
+  const taskKey = task.itemKey;
 
-  const typeIcons: Record<string, string> = {
-    task: '○',
-    bug: '●',
-    story: '◆',
-  };
+  const priorityBadge = PRIORITY_BADGE_COLORS[task.priority];
+  const showPriority = task.priority !== 'none' && priorityBadge;
+  const showPoints = task.storyPoints != null && task.storyPoints > 0;
+  const showSubtasks = task.subtaskCount > 0;
+  const hasMetadata = showPriority || showPoints || showSubtasks;
+
+  const allSubtasksDone = showSubtasks && task.subtaskDoneCount === task.subtaskCount;
 
   return (
     <div
@@ -55,51 +61,95 @@ export function TaskCard({ task, isDragging, onClick }: TaskCardProps) {
       {...listeners}
       {...attributes}
       onClick={onClick}
-      className={`p-3 rounded-lg border bg-neutral-50 dark:bg-dneutral-100 cursor-pointer transition-shadow ${
+      className={`p-3 rounded-lg cursor-pointer transition-all duration-150 ${
+        task.hasBlockers ? 'border-l-2 border-l-danger' : ''
+      } ${
         isDragging
-          ? 'shadow-lg border-primary-500 opacity-90'
-          : 'border-neutral-200 dark:border-dneutral-300 hover:shadow-md hover:border-neutral-200 dark:hover:border-dneutral-300'
-      }`}
+          ? 'shadow-xl opacity-90 scale-105 rotate-1'
+          : 'shadow-sm dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)] hover:shadow-md dark:hover:shadow-[0_4px_12px_rgba(0,0,0,0.4)]'
+      } bg-white dark:bg-dneutral-100`}
     >
-      <div className="flex items-center gap-1.5 text-sm text-neutral-400 mb-1">
-        {task.parentId && (
-          <Tooltip label={`Subtask of #${task.parentTaskNumber}`}>
-            <span className="text-neutral-400">↳</span>
+      {/* Row 1: type icon, task key, assignee avatar */}
+      <div className="flex items-center gap-1.5">
+        {task.parentRef && (
+          <Tooltip label={`Subtask of ${task.parentRef.itemKey}: ${task.parentRef.title}`}>
+            <span className="text-neutral-400 dark:text-dneutral-400 text-[14px]">↳</span>
           </Tooltip>
         )}
-        <Tooltip label={task.type.charAt(0).toUpperCase() + task.type.slice(1)}>
-          <span className={task.type === 'bug' ? 'text-danger' : task.type === 'story' ? 'text-primary-400' : ''}>
-            {typeIcons[task.type] || '○'}
-          </span>
+        <Tooltip label={typeName.charAt(0).toUpperCase() + typeName.slice(1)}>
+          <span className="text-[16px]" style={{ color: typeColor }}>{typeIcon}</span>
         </Tooltip>
-        <span className="font-mono">#{task.taskNumber}</span>
+        <span className="font-mono text-[14px] text-neutral-400 dark:text-dneutral-400">{taskKey}</span>
+
+        {task.assignee && avatarStyle && (
+          <Tooltip label={task.assignee.displayName}>
+            <div className="ml-auto w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold" style={{ background: avatarStyle.bg, color: avatarStyle.color }}>
+              {task.assignee.avatarUrl ? (
+                <img src={task.assignee.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover" />
+              ) : initial}
+            </div>
+          </Tooltip>
+        )}
+      </div>
+
+      {/* Row 2: title */}
+      <div className="mt-1.5 flex items-start gap-1">
         {task.hasBlockers && (
           <Tooltip label="Blocked">
-            <span className="text-danger">🔒</span>
+            <span className="text-danger text-[14px] mt-0.5">🔒</span>
           </Tooltip>
         )}
-        {task.assignee && (
-          <span className="ml-auto text-sm px-2 py-0.5 rounded-full bg-primary-100 dark:bg-dprimary-100 text-primary-600 dark:text-dprimary-600 truncate max-w-[120px]">
-            {task.assignee.displayName}
-          </span>
-        )}
+        <p className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700 line-clamp-2">{task.title}</p>
       </div>
-      <p className="text-sm font-medium text-neutral-700 dark:text-dneutral-700 line-clamp-2">{task.title}</p>
-      <div className="flex items-center gap-2 mt-2">
-        <Tooltip label={`Priority: ${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}`}>
-          <span className={`w-2 h-2 rounded-full ${priorityColors[task.priority]}`} />
-        </Tooltip>
-        {task.storyPoints != null && task.storyPoints > 0 && (
-          <span className="text-sm text-neutral-400 bg-neutral-100 dark:bg-dneutral-200 px-1.5 py-0.5 rounded">
-            {task.storyPoints}pts
-          </span>
-        )}
-        {task.subtaskCount != null && task.subtaskCount > 0 && (
-          <Tooltip label={`Subtasks: ${task.subtaskDoneCount} of ${task.subtaskCount} done`}>
-            <span className="text-sm text-neutral-400">☑ {task.subtaskDoneCount}/{task.subtaskCount}</span>
-          </Tooltip>
-        )}
-      </div>
+
+      {/* Row 3: labels */}
+      {labels.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {labels.map((label) => (
+            <span
+              key={label.id}
+              className="text-[14px] px-1.5 py-0.5 rounded-full border"
+              style={{
+                backgroundColor: `${label.color}1A`,
+                color: label.color,
+                borderColor: `${label.color}33`,
+              }}
+            >
+              {label.name}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Row 4: badges */}
+      {hasMetadata && (
+        <div className="flex items-center gap-1.5 flex-wrap mt-2.5">
+          {showPriority && priorityBadge && (
+            <span className="text-[14px] font-semibold px-2 py-0.5 rounded" style={{ background: priorityBadge.bg, color: priorityBadge.color }}>
+              {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+            </span>
+          )}
+          {showPoints && (
+            <span className="text-[14px] font-medium px-1.5 py-0.5 rounded" style={{ background: '#D6B58845', color: '#8C6638' }}>
+              {task.storyPoints} pts
+            </span>
+          )}
+          {showSubtasks && (
+            <Tooltip label={`Subtasks: ${task.subtaskDoneCount} of ${task.subtaskCount} done`}>
+              <span className={`text-[14px] flex items-center gap-1 ${
+                allSubtasksDone
+                  ? 'text-mint dark:text-mint-dm'
+                  : 'text-neutral-500 dark:text-dneutral-500'
+              }`}>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+                {task.subtaskDoneCount}/{task.subtaskCount}
+              </span>
+            </Tooltip>
+          )}
+        </div>
+      )}
     </div>
   );
 }

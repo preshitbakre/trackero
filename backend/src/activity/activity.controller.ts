@@ -22,15 +22,15 @@ export class ActivityController {
     return this.activityService.listProjectActivity(projectId, page || 1, limit || 20);
   }
 
-  @Get('tasks/:taskId/activity')
+  @Get('items/:itemId/activity')
   @Roles('admin', 'project_manager', 'member', 'viewer')
   @ResponseCode('ACTIVITY_LISTED')
   async taskActivity(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Param('taskId', ParseIntPipe) taskId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.activityService.listTaskActivity(projectId, taskId, page || 1, limit || 20);
+    return this.activityService.listTaskActivity(projectId, itemId, page || 1, limit || 20);
   }
 }

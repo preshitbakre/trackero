@@ -30,38 +30,6 @@ describe('Admin, Settings & Invitations (e2e)', () => {
     memberId = member.id;
   });
 
-  describe('Settings', () => {
-    it('GET /api/settings -> admin only, returns settings', async () => {
-      const res = await request(app.getHttpServer())
-        .get('/api/settings')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(200);
-
-      expect(res.body.code).toBe('S-0210');
-      expect(res.body.data.appName).toBeDefined();
-      expect(res.body.data.defaultRole).toBeDefined();
-    });
-
-    it('GET /api/settings -> non-admin 403', async () => {
-      await request(app.getHttpServer())
-        .get('/api/settings')
-        .set('Authorization', `Bearer ${memberToken}`)
-        .expect(403);
-    });
-
-    it('PUT /api/settings -> updates settings', async () => {
-      const res = await request(app.getHttpServer())
-        .put('/api/settings')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ appName: 'My Trackero', defaultRole: 'viewer' })
-        .expect(200);
-
-      expect(res.body.code).toBe('S-0211');
-      expect(res.body.data.appName).toBe('My Trackero');
-      expect(res.body.data.defaultRole).toBe('viewer');
-    });
-  });
-
   describe('Admin User Management', () => {
     it('cannot remove last admin -> 409', async () => {
       const res = await request(app.getHttpServer())

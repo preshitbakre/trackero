@@ -72,8 +72,8 @@ export class SprintsService {
           COUNT(*)::int as task_count,
           COALESCE(SUM(story_points), 0)::int as total_points,
           COALESCE(SUM(story_points) FILTER (WHERE completed_at IS NOT NULL), 0)::int as completed_points
-        FROM tasks
-        WHERE sprint_id = $1 AND parent_id IS NULL
+        FROM work_items
+        WHERE sprint_id = $1 AND item_type IN ('task', 'epic', 'story')
       `, [sprint.id]);
 
       return {
@@ -143,7 +143,7 @@ export class SprintsService {
 
     // Check sprint has tasks
     const taskCount = await this.dataSource.query(
-      `SELECT COUNT(*) as count FROM tasks WHERE sprint_id = $1`,
+      `SELECT COUNT(*) as count FROM work_items WHERE sprint_id = $1 AND item_type IN ('task', 'epic', 'story')`,
       [sprintId],
     );
     if (parseInt(taskCount[0].count) === 0) {
@@ -171,14 +171,14 @@ export class SprintsService {
 
     // Record initial scope
     const tasks = await this.dataSource.query(
-      `SELECT id, story_points FROM tasks WHERE sprint_id = $1`,
+      `SELECT id, story_points FROM work_items WHERE sprint_id = $1`,
       [sprintId],
     );
     for (const task of tasks) {
       await this.scopeChangeRepo.save(
         this.scopeChangeRepo.create({
           sprintId,
-          taskId: task.id,
+          workItemId: task.id,
           action: 'added',
           storyPoints: task.story_points,
         }),
@@ -203,7 +203,7 @@ export class SprintsService {
 
     // Find incomplete tasks (status category NOT done)
     const incompleteTasks = await this.dataSource.query(
-      `SELECT t.id FROM tasks t
+      `SELECT t.id FROM work_items t
        JOIN project_statuses ps ON t.status_id = ps.id
        WHERE t.sprint_id = $1 AND ps.category != 'done'`,
       [sprintId],
@@ -215,13 +215,13 @@ export class SprintsService {
     // Create SprintScopeChange 'removed' records for tasks leaving this sprint
     for (const task of incompleteTasks) {
       const [taskData] = await this.dataSource.query(
-        'SELECT story_points FROM tasks WHERE id = $1',
+        'SELECT story_points FROM work_items WHERE id = $1',
         [task.id],
       );
       await this.scopeChangeRepo.save(
         this.scopeChangeRepo.create({
           sprintId,
-          taskId: task.id,
+          workItemId: task.id,
           action: 'removed',
           storyPoints: taskData?.story_points ?? null,
         }),
@@ -239,14 +239,14 @@ export class SprintsService {
         movedTo = nextSprint.name;
         const taskIds = incompleteTasks.map((t: any) => t.id);
         await this.dataSource.query(
-          `UPDATE tasks SET sprint_id = $1, added_mid_sprint = false WHERE id = ANY($2)`,
+          `UPDATE work_items SET sprint_id = $1, added_mid_sprint = false WHERE id = ANY($2)`,
           [nextSprint.id, taskIds],
         );
       } else {
         // Move to backlog
         const taskIds = incompleteTasks.map((t: any) => t.id);
         await this.dataSource.query(
-          `UPDATE tasks SET sprint_id = NULL WHERE id = ANY($1)`,
+          `UPDATE work_items SET sprint_id = NULL WHERE id = ANY($1)`,
           [taskIds],
         );
       }
@@ -269,7 +269,7 @@ export class SprintsService {
 
     // Move ALL tasks to backlog
     await this.dataSource.query(
-      `UPDATE tasks SET sprint_id = NULL WHERE sprint_id = $1`,
+      `UPDATE work_items SET sprint_id = NULL WHERE sprint_id = $1`,
       [sprintId],
     );
 
@@ -280,7 +280,7 @@ export class SprintsService {
     const sprint = await this.findOne(projectId, sprintId);
     // Move tasks to backlog before deleting
     await this.dataSource.query(
-      `UPDATE tasks SET sprint_id = NULL WHERE sprint_id = $1`,
+      `UPDATE work_items SET sprint_id = NULL WHERE sprint_id = $1`,
       [sprintId],
     );
     await this.sprintRepo.remove(sprint);
@@ -296,7 +296,7 @@ export class SprintsService {
     }
 
     const totalPointsResult = await this.dataSource.query(
-      `SELECT COALESCE(SUM(story_points), 0) as total FROM tasks WHERE sprint_id = $1`,
+      `SELECT COALESCE(SUM(story_points), 0) as total FROM work_items WHERE sprint_id = $1`,
       [sprintId],
     );
     const totalPoints = parseInt(totalPointsResult[0].total);
@@ -326,7 +326,7 @@ export class SprintsService {
 
       // Get completed points by this date
       const completedResult = await this.dataSource.query(
-        `SELECT COALESCE(SUM(story_points), 0) as completed FROM tasks
+        `SELECT COALESCE(SUM(story_points), 0) as completed FROM work_items
          WHERE sprint_id = $1 AND completed_at IS NOT NULL AND completed_at <= $2::date + interval '1 day'`,
         [sprintId, dateStr],
       );

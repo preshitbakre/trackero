@@ -14,6 +14,7 @@ export const ResponseCodes = {
   USERS_LISTED:           { code: 'S-0010', message: 'Users retrieved' },
   USER_ROLE_UPDATED:      { code: 'S-0011', message: 'User role updated' },
   USER_DEACTIVATED:       { code: 'S-0012', message: 'User deactivated' },
+  USER_REACTIVATED:       { code: 'S-0015', message: 'User reactivated' },
   INVITATION_SENT:        { code: 'S-0013', message: 'Invitation sent' },
   INVITATION_ACCEPTED:    { code: 'S-0014', message: 'Invitation accepted' },
 
@@ -88,6 +89,11 @@ export const ResponseCodes = {
   DEPENDENCY_CREATED:     { code: 'S-0131', message: 'Dependency added' },
   DEPENDENCY_DELETED:     { code: 'S-0132', message: 'Dependency removed' },
 
+  // Associations (S-0135 – S-0137)
+  ASSOCIATION_CREATED:    { code: 'S-0135', message: 'Association created' },
+  ASSOCIATION_DELETED:    { code: 'S-0136', message: 'Association removed' },
+  ASSOCIATIONS_LISTED:    { code: 'S-0137', message: 'Associations retrieved' },
+
   // Comments (S-0140 – S-0144)
   COMMENTS_LISTED:        { code: 'S-0140', message: 'Comments retrieved' },
   COMMENT_CREATED:        { code: 'S-0141', message: 'Comment added' },
@@ -137,6 +143,17 @@ export const ResponseCodes = {
   TASK_TYPE_UPDATED:      { code: 'S-0072', message: 'Task type updated' },
   TASK_TYPE_DELETED:      { code: 'S-0073', message: 'Task type deleted' },
 
+  // Work Items (S-0100 unified — reuses task code range)
+  ITEMS_LISTED:           { code: 'S-0100', message: 'Items retrieved' },
+  ITEM_CREATED:           { code: 'S-0101', message: 'Item created' },
+  ITEM_FETCHED:           { code: 'S-0102', message: 'Item retrieved' },
+  ITEM_UPDATED:           { code: 'S-0103', message: 'Item updated' },
+  ITEM_DELETED:           { code: 'S-0104', message: 'Item deleted' },
+  ITEM_MOVED:             { code: 'S-0107', message: 'Item moved' },
+  ITEM_SPRINT_ASSIGNED:   { code: 'S-0108', message: 'Sprint assigned' },
+  STORIES_LISTED:         { code: 'S-0109', message: 'Stories retrieved' },
+  BACKLOG_FETCHED:        { code: 'S-0111', message: 'Backlog retrieved' },
+
   // Health (S-0300)
   HEALTH_OK:              { code: 'S-0300', message: 'Service healthy' },
 
@@ -176,6 +193,7 @@ export const ResponseCodes = {
   STATUS_CATEGORY_REQUIRED: { code: 'F-L-0041', message: 'At least one status per category is required' },
 
   LAST_ADMIN:             { code: 'F-L-0050', message: 'Cannot remove the last admin. Promote another user first.' },
+  CANNOT_DEACTIVATE_SELF: { code: 'F-L-0051', message: 'You cannot deactivate your own account' },
   SELF_ROLE_CHANGE:       { code: 'F-L-0051', message: 'You cannot change your own role' },
   PROJECT_ARCHIVED_ERROR: { code: 'F-L-0052', message: 'This project is archived. Unarchive it to make changes.' },
   RETRO_EXISTS:           { code: 'F-L-0053', message: 'A retrospective already exists for this sprint' },
@@ -185,6 +203,20 @@ export const ResponseCodes = {
   FILE_TYPE_NOT_ALLOWED:  { code: 'F-L-0062', message: 'File type is not allowed' },
 
   HAS_DEPENDENCIES:       { code: 'F-L-0070', message: 'Cannot delete: resource has dependent records' },
+
+  // Hierarchy errors (F-L-0090 – F-L-0100)
+  SUBTASK_REQUIRES_PARENT:       { code: 'F-L-0090', message: 'Subtasks must have a parent task or story' },
+  INVALID_PARENT_CHILD_TYPE:     { code: 'F-L-0091', message: 'Invalid parent-child type combination' },
+  EPIC_CANNOT_HAVE_PARENT:       { code: 'F-L-0092', message: 'Epics cannot have a parent' },
+  MAX_DEPTH_EXCEEDED:            { code: 'F-L-0093', message: 'Maximum hierarchy depth exceeded' },
+  SUBTASK_NO_SPRINT:             { code: 'F-L-0094', message: 'Subtasks inherit sprint from their parent' },
+  STORY_HAS_DIRECT_SUBTASKS:     { code: 'F-L-0095', message: 'Cannot delete story with direct subtasks' },
+  TASK_HAS_SUBTASKS:             { code: 'F-L-0096', message: 'Cannot delete task with subtasks' },
+  CIRCULAR_REFERENCE:            { code: 'F-L-0097', message: 'This would create a circular reference' },
+  CANNOT_REPARENT_WITH_CHILDREN: { code: 'F-L-0098', message: 'Cannot move task with subtasks under another task' },
+  CROSS_PROJECT_NOT_ALLOWED:     { code: 'F-L-0099', message: 'Items must be in the same project' },
+  ITEM_TYPE_IMMUTABLE:           { code: 'F-L-0100', message: 'Item type cannot be changed after creation' },
+  ITEM_BLOCKED:                  { code: 'F-L-0101', message: 'This item is blocked. Resolve the blocker first.' },
 
   // Database failures (F-DB)
   DB_ERROR:               { code: 'F-DB-0001', message: 'Something went wrong. Please try again.' },

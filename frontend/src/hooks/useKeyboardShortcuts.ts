@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 interface ShortcutCallbacks {
-  onCreateTask?: () => void;
+  onCreateItem?: () => void;
   onOpenSearch?: () => void;
   onAssignToMe?: () => void;
 }
@@ -19,10 +19,7 @@ export function useKeyboardShortcuts(callbacks: ShortcutCallbacks) {
       const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable;
 
       // Always allow Escape
-      if (e.key === 'Escape') {
-        // Handled by individual components
-        return;
-      }
+      if (e.key === 'Escape') return;
 
       // Cmd+K handled by AppShell already
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') return;
@@ -37,10 +34,10 @@ export function useKeyboardShortcuts(callbacks: ShortcutCallbacks) {
         return;
       }
 
-      // 'C' → create new task
+      // 'C' → create new item (default type: task)
       if (e.key === 'c' || e.key === 'C') {
         e.preventDefault();
-        callbacks.onCreateTask?.();
+        callbacks.onCreateItem?.();
         return;
       }
 

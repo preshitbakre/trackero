@@ -49,6 +49,13 @@ export class UsersController {
     return this.usersService.deactivate(id, user.userId);
   }
 
+  @Put(':id/reactivate')
+  @Roles('admin')
+  @ResponseCode('USER_REACTIVATED')
+  async reactivate(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.reactivate(id);
+  }
+
   @Get('invitations')
   @Roles('admin')
   @ResponseCode('USERS_LISTED')

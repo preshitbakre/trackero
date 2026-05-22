@@ -10,11 +10,11 @@ interface DashboardSectionProps {
 
 export function DashboardSection({ title, viewAllLink, viewAllText, footer, children }: DashboardSectionProps) {
   return (
-    <div className={`rounded-lg border border-neutral-200 dark:border-dneutral-200 bg-neutral-50 dark:bg-dneutral-100 px-4 pt-4 flex flex-col h-[220px] ${footer ? 'pb-2' : 'pb-4'}`}>
+    <div className={`rounded-lg shadow-sm dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)] bg-white dark:bg-dneutral-100 px-4 pt-4 flex flex-col h-[330px] ${footer ? 'pb-2' : 'pb-4'}`}>
       <div className="flex items-center justify-between mb-3 flex-shrink-0">
-        <h3 className="text-sm font-semibold text-neutral-700 dark:text-dneutral-700">{title}</h3>
+        <h3 className="text-[16px] font-semibold text-neutral-700 dark:text-dneutral-700">{title}</h3>
         {viewAllLink && (
-          <Link to={viewAllLink} className="text-sm text-primary-500 hover:underline">
+          <Link to={viewAllLink} className="text-[16px] text-peri hover:underline">
             {viewAllText || 'View all'} &rarr;
           </Link>
         )}

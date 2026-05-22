@@ -6,7 +6,6 @@ import { Project } from './entities/project.entity';
 import { ProjectMember } from './entities/project-member.entity';
 import { ProjectStatus } from './entities/project-status.entity';
 import { Label } from './entities/label.entity';
-import { TaskType } from './entities/task-type.entity';
 import { AppLogicException } from '../common/exceptions/app-exceptions';
 import { PaginatedResponse } from '../common/dto/paginated-response.dto';
 import { PaginatedMutationResponse } from '../common/dto/paginated-mutation-response.dto';
@@ -18,14 +17,8 @@ import { CreateLabelDto } from './dto/create-label.dto';
 import { UpdateLabelDto } from './dto/update-label.dto';
 import { clampLimit } from '../common/helpers/pagination.helper';
 
-const DEFAULT_TASK_TYPES = [
-  { name: 'Task', icon: 'circle-dot', color: '#6B7280', isBuiltin: true, sortOrder: 0 },
-  { name: 'Bug', icon: 'bug', color: '#EF4444', isBuiltin: true, sortOrder: 1 },
-  { name: 'Story', icon: 'book', color: '#8B5CF6', isBuiltin: true, sortOrder: 2 },
-];
-
 const DEFAULT_STATUSES = [
-  { name: 'Backlog', category: 'backlog' as const, sortOrder: 0, isDefault: true, color: '#6D7F8E', isFixed: true },
+  { name: 'Open', category: 'backlog' as const, sortOrder: 0, isDefault: true, color: '#6D7F8E', isFixed: true },
   { name: 'In Progress', category: 'in_progress' as const, sortOrder: 1, isDefault: false, color: '#C4A882', isFixed: true },
   { name: 'Done', category: 'done' as const, sortOrder: 2, isDefault: false, color: '#558A7A', isFixed: true },
 ];
@@ -41,8 +34,6 @@ export class ProjectsService {
     private readonly statusRepo: Repository<ProjectStatus>,
     @InjectRepository(Label)
     private readonly labelRepo: Repository<Label>,
-    @InjectRepository(TaskType)
-    private readonly taskTypeRepo: Repository<TaskType>,
     private readonly dataSource: DataSource,
     private readonly eventEmitter: EventEmitter2,
   ) {}
@@ -66,12 +57,6 @@ export class ProjectsService {
       this.statusRepo.create({ ...s, projectId: saved.id }),
     );
     await this.statusRepo.save(statuses);
-
-    // Create default task types
-    const taskTypes = DEFAULT_TASK_TYPES.map((tt) =>
-      this.taskTypeRepo.create({ ...tt, projectId: saved.id }),
-    );
-    await this.taskTypeRepo.save(taskTypes);
 
     // Add creator as project_manager
     const member = this.memberRepo.create({
@@ -116,7 +101,7 @@ export class ProjectsService {
         [project.id],
       );
       const [taskCountRow] = await this.dataSource.query(
-        'SELECT COUNT(*) as count FROM tasks WHERE project_id = $1 AND parent_id IS NULL',
+        'SELECT COUNT(*) as count FROM work_items WHERE project_id = $1 AND item_type IN (\'task\')',
         [project.id],
       );
       return {
@@ -267,15 +252,13 @@ export class ProjectsService {
     if (!status) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
-    if (status.isFixed) {
-      // Fixed statuses: only allow color and wipLimit changes
-      if (dto.color !== undefined) status.color = dto.color;
-      if (dto.wipLimit !== undefined) status.wipLimit = dto.wipLimit;
-    } else {
-      if (dto.name !== undefined) status.name = dto.name;
-      if (dto.color !== undefined) status.color = dto.color;
-      if (dto.category !== undefined) status.category = dto.category as any;
-      if (dto.wipLimit !== undefined) status.wipLimit = dto.wipLimit;
+    // All statuses: allow name, color, wipLimit changes
+    if (dto.name !== undefined) status.name = dto.name;
+    if (dto.color !== undefined) status.color = dto.color;
+    if (dto.wipLimit !== undefined) status.wipLimit = dto.wipLimit;
+    // Category change only on non-fixed statuses
+    if (!status.isFixed && dto.category !== undefined) {
+      status.category = dto.category as any;
     }
     return this.statusRepo.save(status);
   }
@@ -300,7 +283,7 @@ export class ProjectsService {
 
     // Check if status has tasks assigned
     const taskCount = await this.dataSource.query(
-      'SELECT COUNT(*)::int as count FROM tasks WHERE status_id = $1',
+      'SELECT COUNT(*)::int as count FROM work_items WHERE status_id = $1',
       [statusId],
     );
     if (parseInt(taskCount[0].count) > 0) {
@@ -315,7 +298,7 @@ export class ProjectsService {
   async listLabels(projectId: number) {
     const labels = await this.dataSource.query(`
       SELECT l.id, l.name, l.color, l.created_at AS "createdAt",
-        COALESCE((SELECT COUNT(*)::int FROM task_labels tl WHERE tl.label_id = l.id), 0) AS "taskCount"
+        COALESCE((SELECT COUNT(*)::int FROM work_item_labels tl WHERE tl.label_id = l.id), 0) AS "taskCount"
       FROM labels l
       WHERE l.project_id = $1
       ORDER BY l.created_at ASC

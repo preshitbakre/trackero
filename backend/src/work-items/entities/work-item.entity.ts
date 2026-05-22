@@ -1,0 +1,187 @@
+import {
+  Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn,
+  ManyToOne, OneToMany, ManyToMany, JoinColumn, JoinTable, Index,
+} from 'typeorm';
+import { Project } from '../../projects/entities/project.entity';
+import { ProjectStatus } from '../../projects/entities/project-status.entity';
+import { Label } from '../../projects/entities/label.entity';
+import { Sprint } from '../../sprints/entities/sprint.entity';
+import { User } from '../../users/entities/user.entity';
+import { Comment } from '../../comments/entities/comment.entity';
+import { Attachment } from '../../attachments/entities/attachment.entity';
+
+@Entity('work_items')
+@Index('IDX_wi_project', ['projectId'])
+@Index('IDX_wi_parent', ['parentId'])
+@Index('IDX_wi_sprint', ['sprintId'])
+@Index('IDX_wi_item_type', ['itemType'])
+@Index('IDX_wi_assignee', ['assigneeId'])
+@Index('IDX_wi_status', ['statusId'])
+@Index('IDX_wi_project_number', ['projectId', 'itemNumber'], { unique: true })
+@Index('IDX_wi_project_type', ['projectId', 'itemType'])
+export class WorkItem {
+
+  // =======================================
+  // IDENTITY
+  // =======================================
+
+  @PrimaryGeneratedColumn('increment')
+  id: number;
+
+  @Column({ name: 'project_id', type: 'int' })
+  projectId: number;
+
+  @Column({ name: 'item_number', type: 'int' })
+  itemNumber: number;
+  // Auto-incremented per project (shared counter across ALL item types).
+  // Sourced from project.itemCounter.
+  // Used to form the item key: "{project.prefix}-{itemNumber}" e.g., "PROJ-42"
+
+  // =======================================
+  // HIERARCHY
+  // =======================================
+
+  @Column({
+    name: 'item_type',
+    type: 'varchar',
+    length: 10,
+  })
+  itemType: 'epic' | 'story' | 'task' | 'bug' | 'subtask';
+  // IMMUTABLE after creation. Cannot be changed.
+
+  @Column({ name: 'parent_id', type: 'int', nullable: true })
+  parentId: number | null;
+  // Epic:    ALWAYS null (epics cannot have parents)
+  // Story:   epicId OR null (standalone story)
+  // Task:    storyId OR epicId OR null (standalone task)
+  // Subtask: taskId OR storyId (NEVER null)
+
+  // =======================================
+  // CONTENT
+  // =======================================
+
+  @Column({ length: 500 })
+  title: string;
+
+  @Column({ type: 'text', nullable: true })
+  description: string | null;
+
+  // =======================================
+  // STATUS & PRIORITY
+  // =======================================
+
+  @Column({ name: 'status_id', type: 'int' })
+  statusId: number;
+
+  @Column({
+    type: 'varchar',
+    length: 10,
+    default: 'medium',
+  })
+  priority: 'urgent' | 'high' | 'medium' | 'low' | 'none';
+
+  // =======================================
+  // PLANNING
+  // =======================================
+
+  @Column({ name: 'sprint_id', type: 'int', nullable: true })
+  sprintId: number | null;
+
+  @Column({ name: 'story_points', type: 'int', nullable: true })
+  storyPoints: number | null;
+
+  @Column({ name: 'assignee_id', type: 'int', nullable: true })
+  assigneeId: number | null;
+
+  @Column({ name: 'reporter_id', type: 'int' })
+  reporterId: number;
+
+  // =======================================
+  // ORDERING
+  // =======================================
+
+  @Column({ name: 'sort_order', type: 'varchar', length: 255, default: 'n' })
+  sortOrder: string;
+
+  // =======================================
+  // DATES
+  // =======================================
+
+  @Column({ name: 'start_date', type: 'date', nullable: true })
+  startDate: string | null;
+
+  @Column({ name: 'end_date', type: 'date', nullable: true })
+  endDate: string | null;
+
+  @Column({ name: 'completed_at', type: 'timestamptz', nullable: true })
+  completedAt: Date | null;
+
+  // =======================================
+  // EPIC-SPECIFIC
+  // =======================================
+
+  @Column({ length: 7, default: '#7C5CFC' })
+  color: string;
+
+  // =======================================
+  // SPRINT TRACKING
+  // =======================================
+
+  @Column({ name: 'added_mid_sprint', type: 'boolean', default: false })
+  addedMidSprint: boolean;
+
+  // =======================================
+  // TIMESTAMPS
+  // =======================================
+
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
+  updatedAt: Date;
+
+  // =======================================
+  // RELATIONS
+  // =======================================
+
+  @ManyToOne(() => Project, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'project_id' })
+  project: Project;
+
+  @ManyToOne(() => WorkItem, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'parent_id' })
+  parent: WorkItem | null;
+
+  @OneToMany(() => WorkItem, (wi) => wi.parent)
+  children: WorkItem[];
+
+  @ManyToOne(() => Sprint, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'sprint_id' })
+  sprint: Sprint | null;
+
+  @ManyToOne(() => ProjectStatus, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'status_id' })
+  status: ProjectStatus;
+
+  @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'assignee_id' })
+  assignee: User | null;
+
+  @ManyToOne(() => User, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'reporter_id' })
+  reporter: User;
+
+  @ManyToMany(() => Label)
+  @JoinTable({
+    name: 'work_item_labels',
+    joinColumn: { name: 'work_item_id' },
+    inverseJoinColumn: { name: 'label_id' },
+  })
+  labels: Label[];
+
+  @OneToMany(() => Comment, (c) => c.workItem)
+  comments: Comment[];
+
+  @OneToMany(() => Attachment, (a) => a.workItem)
+  attachments: Attachment[];
+}

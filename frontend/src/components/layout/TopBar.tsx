@@ -1,11 +1,22 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../../store/auth.store';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { useRole } from '../../hooks/useRole';
 import { NotificationBell } from '../notifications/NotificationBell';
+
+const AVATAR_COLORS = [
+  { bg: 'bg-peri-light dark:bg-peri-dm/30', text: 'text-peri dark:text-peri-dm' },
+  { bg: 'bg-mint-light dark:bg-mint-dm/30', text: 'text-mint dark:text-mint-dm' },
+  { bg: 'bg-tan-light dark:bg-tan-dm/30', text: 'text-tan dark:text-tan-dm' },
+  { bg: 'bg-orchid-light dark:bg-orchid-dm/30', text: 'text-orchid dark:text-orchid-dm' },
+  { bg: 'bg-pink-300/20 dark:bg-pink-100', text: 'text-pink-500 dark:text-pink-300' },
+  { bg: 'bg-peri-light dark:bg-peri-dm/30', text: 'text-peri dark:text-peri-dm' },
+];
 
 export function TopBar() {
   return (
-    <header className="h-14 border-b border-neutral-200 dark:border-dneutral-200 bg-neutral-50 dark:bg-dneutral-50 flex items-center justify-end px-4">
+    <header className="h-14 bg-[#DFF0E0] dark:bg-dneutral-100/80 dark:backdrop-blur-sm flex items-center justify-between px-4 shadow-[0_4px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.3)] z-30 relative">
+      <Link to="/dashboard" className="text-[22px] font-bold text-[#252220] dark:text-dneutral-700">Trackero</Link>
       <div className="flex items-center gap-3">
         <ThemeToggle />
         <NotificationBell />
@@ -21,6 +32,7 @@ function AvatarMenu() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const { canAdminister: isAdmin } = useRole();
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -37,31 +49,40 @@ function AvatarMenu() {
   };
 
   const initial = user?.displayName?.charAt(0)?.toUpperCase() || '?';
+  const avatarColor = user ? AVATAR_COLORS[(user.id) % AVATAR_COLORS.length] : AVATAR_COLORS[0];
 
   return (
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-8 h-8 rounded-full bg-primary-100 dark:bg-dprimary-100 flex items-center justify-center text-sm font-medium text-primary-500 dark:text-dprimary-500 hover:ring-2 hover:ring-primary-400/40"
+        className={`w-8 h-8 rounded-full flex items-center justify-center text-[16px] font-medium hover:ring-2 hover:ring-peri dark:hover:ring-peri-dm transition-all duration-100 ${avatarColor.bg} ${avatarColor.text}`}
       >
         {initial}
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-48 rounded-lg border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-100 shadow-lg z-50 overflow-hidden">
+        <div className="absolute right-0 mt-2 w-48 rounded-lg bg-white dark:bg-dneutral-200 shadow-lg dark:shadow-[0_8px_24px_rgba(0,0,0,0.5)] z-50 overflow-hidden">
           <div className="px-4 py-3 border-b border-neutral-200 dark:border-dneutral-200">
-            <p className="text-sm font-medium text-neutral-700 dark:text-dneutral-700 truncate">{user?.displayName}</p>
-            <p className="text-sm text-neutral-400 dark:text-dneutral-500 truncate">{user?.email}</p>
+            <p className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700 truncate">{user?.displayName}</p>
+            <p className="text-[14px] text-neutral-400 dark:text-dneutral-400 truncate">{user?.email}</p>
           </div>
           <button
             onClick={() => { setOpen(false); navigate('/profile'); }}
-            className="w-full text-left px-4 py-2.5 text-sm text-neutral-600 dark:text-dneutral-600 hover:bg-neutral-100 dark:hover:bg-dneutral-200"
+            className="w-full text-left px-4 py-2.5 text-[16px] text-neutral-600 dark:text-dneutral-600 hover:bg-orchid-light dark:hover:bg-orchid-dm/15 transition-colors duration-100"
           >
             Profile
           </button>
+          {isAdmin && (
+            <button
+              onClick={() => { setOpen(false); navigate('/settings'); }}
+              className="w-full text-left px-4 py-2.5 text-[16px] text-neutral-600 dark:text-dneutral-600 hover:bg-orchid-light dark:hover:bg-orchid-dm/15 transition-colors duration-100"
+            >
+              Settings
+            </button>
+          )}
           <button
             onClick={handleLogout}
-            className="w-full text-left px-4 py-2.5 text-sm text-danger hover:bg-danger/10"
+            className="w-full text-left px-4 py-2.5 text-[16px] text-danger hover:bg-danger/10 transition-colors duration-100"
           >
             Logout
           </button>
@@ -86,7 +107,7 @@ function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-dneutral-200 text-neutral-400"
+      className="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 dark:text-dneutral-400 hover:bg-neutral-100 dark:hover:bg-dneutral-200 transition-colors duration-100"
       title="Toggle theme"
     >
       <svg className="w-4 h-4 dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">

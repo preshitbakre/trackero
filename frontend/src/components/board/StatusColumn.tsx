@@ -2,17 +2,25 @@ import { useDroppable } from '@dnd-kit/core';
 import { TaskCard } from './TaskCard';
 import { useState } from 'react';
 import { apiClient } from '../../api/client';
+import { Button } from '../ui/Button';
 
 interface BoardTask {
   id: number;
-  taskNumber: number;
+  itemKey: string;
+  itemType: string;
   title: string;
-  type: string;
   priority: string;
-  assigneeId: number | null;
+  assignee: { id: number; displayName: string; avatarUrl: string | null } | null;
   storyPoints: number | null;
+  subtaskCount: number;
+  subtaskDoneCount: number;
+  commentCount: number;
+  attachmentCount: number;
+  hasBlockers: boolean;
+  labels: { id: number; name: string; color: string }[];
   sortOrder: string;
-  epicId: number | null;
+  parentRef: { id: number; itemKey: string; title: string } | null;
+  epicColor: string | null;
 }
 
 interface StatusColumnProps {
@@ -29,17 +37,17 @@ export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId,
   const { setNodeRef, isOver } = useDroppable({ id: `column-${status.id}` });
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickTitle, setQuickTitle] = useState('');
+  const [headerHover, setHeaderHover] = useState(false);
 
   const handleQuickAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!quickTitle.trim()) return;
     try {
-      const res = await apiClient.post(`/projects/${projectId}/tasks`, { title: quickTitle });
-      const taskId = res.data.data.item.id;
-      // Move to this column's status if not the default
-      if (taskId && res.data.data.item.statusId !== status.id) {
+      const res = await apiClient.post(`/projects/${projectId}/items`, { itemType: 'task', title: quickTitle });
+      const itemId = res.data.data.item.id;
+      if (itemId && res.data.data.item.statusId !== status.id) {
         await apiClient.put(`/projects/${projectId}/board/move`, {
-          taskId,
+          itemId,
           statusId: status.id,
           sortOrder: 'n',
         });
@@ -56,33 +64,60 @@ export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId,
   return (
     <div
       ref={setNodeRef}
-      className={`flex flex-col w-[280px] flex-shrink-0 rounded-lg ${
-        isOver ? 'bg-primary-50 ring-2 ring-primary-200' : overWip ? 'bg-danger/5 dark:bg-danger/5' : 'bg-neutral-50 dark:bg-dneutral-100'
+      className={`flex flex-col w-[280px] flex-shrink-0 rounded-xl p-2 transition-colors duration-150 ${
+        isOver
+          ? 'bg-peri-light dark:bg-peri-dm/15 ring-2 ring-dashed ring-peri/30'
+          : 'bg-neutral-100/50 dark:bg-dneutral-100/30'
       }`}
     >
-      {/* Column header */}
-      <div className="flex items-center gap-2 px-3 py-2">
-        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: status.color }} />
-        <span className="text-sm font-medium text-neutral-600 dark:text-dneutral-600">{status.name}</span>
-        <span className={`text-sm ml-auto ${overWip ? 'text-danger font-medium' : 'text-neutral-400'}`}>
-          {wipLimit > 0 ? `${taskCount}/${wipLimit}` : taskCount}
-        </span>
+      {/* Column header — sticky */}
+      <div
+        className={`sticky top-0 z-10 flex items-center justify-between py-2 px-1 mb-3 rounded-lg ${
+          overWip ? 'bg-red-50/50 dark:bg-red-500/5 px-2' : ''
+        }`}
+        onMouseEnter={() => setHeaderHover(true)}
+        onMouseLeave={() => setHeaderHover(false)}
+      >
+        <div className="flex items-center">
+          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: status.color }} />
+          <span className="text-[16px] font-semibold text-neutral-700 dark:text-dneutral-700 ml-2">{status.name}</span>
+          <span className={`ml-2 text-[14px] px-1.5 py-0.5 rounded-full ${
+            overWip
+              ? 'bg-red-100 text-red-600 dark:bg-red-500/15 dark:text-red-400 font-medium'
+              : 'bg-neutral-200 text-neutral-600 dark:bg-dneutral-200 dark:text-dneutral-500 font-medium'
+          }`}>
+            {wipLimit > 0 ? `${taskCount} / ${wipLimit}` : taskCount}
+          </span>
+        </div>
+        {canEdit && (
+          <button
+            onClick={() => setShowQuickAdd(true)}
+            className={`w-6 h-6 rounded-md flex items-center justify-center text-neutral-400 dark:text-dneutral-400 hover:bg-neutral-100 dark:hover:bg-dneutral-200 transition-opacity duration-100 ${
+              headerHover ? 'opacity-100' : 'opacity-0'
+            }`}
+          >
+            +
+          </button>
+        )}
       </div>
 
       {/* Tasks */}
-      <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-2 min-h-[100px]">
+      <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 min-h-[100px]">
         {tasks.map((task) => (
           <TaskCard key={task.id} task={task} onClick={() => onTaskClick(task.id)} />
         ))}
 
         {tasks.length === 0 && !showQuickAdd && (
-          <div className="text-center py-4 text-sm text-neutral-400">No tasks</div>
+          <div className="flex flex-col items-center justify-center min-h-[160px] bg-neutral-100/30 dark:bg-dneutral-100/20 rounded-xl">
+            <span className="text-[14px] text-neutral-300 dark:text-dneutral-300">No tasks</span>
+            <span className="text-[14px] text-neutral-300 dark:text-dneutral-300 mt-1">Drop here or click + to add</span>
+          </div>
         )}
       </div>
 
-      {/* Quick add */}
+      {/* Quick add / add task area */}
       {canEdit && (
-        <div className="px-2 pb-2">
+        <div className="mt-2">
           {showQuickAdd ? (
             <form onSubmit={handleQuickAdd} className="space-y-1">
               <input
@@ -92,17 +127,17 @@ export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId,
                 placeholder="Task title..."
                 autoFocus
                 onBlur={() => !quickTitle && setShowQuickAdd(false)}
-                className="w-full text-sm px-2 py-1.5 rounded border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 text-neutral-700 dark:text-dneutral-700"
+                className="w-full text-[16px] px-2 py-1.5 rounded-lg border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 text-neutral-700 dark:text-dneutral-700 placeholder-neutral-300 dark:placeholder-dneutral-300 focus:border-peri focus:outline-none focus:ring-2 focus:ring-peri/20"
               />
               <div className="flex gap-1">
-                <button type="submit" className="text-sm px-2 py-1 bg-primary-500 text-white rounded">Add</button>
-                <button type="button" onClick={() => setShowQuickAdd(false)} className="text-sm px-2 py-1 text-neutral-400">Cancel</button>
+                <Button type="submit" variant="primary" size="sm">Add</Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setShowQuickAdd(false)}>Cancel</Button>
               </div>
             </form>
           ) : (
             <button
               onClick={() => setShowQuickAdd(true)}
-              className="w-full text-left text-sm text-neutral-400 hover:text-neutral-500 dark:hover:text-dneutral-600 px-2 py-1 rounded hover:bg-neutral-100 dark:hover:bg-dneutral-200"
+              className="w-full py-2 mx-1 rounded-lg text-center text-[14px] cursor-pointer text-neutral-400 hover:bg-neutral-200/50 hover:text-neutral-600 dark:hover:bg-dneutral-300/30 dark:hover:text-dneutral-500 transition-colors duration-150"
             >
               + Add task
             </button>

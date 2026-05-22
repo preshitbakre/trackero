@@ -14,6 +14,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { EmailService } from '../common/services/email.service';
 
 @Injectable()
 export class AuthService {
@@ -27,6 +28,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
+    private readonly emailService: EmailService,
   ) {}
 
   async getSetupStatus() {
@@ -229,12 +231,7 @@ export class AuthService {
     user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
     await this.userRepo.save(user);
 
-    // Send email or log to console
-    const appUrl = this.configService.get<string>('APP_URL', 'http://localhost:5173');
-    const resetUrl = `${appUrl}/reset-password?token=${resetToken}`;
-    if (this.configService.get<string>('NODE_ENV') !== 'production') {
-      console.log(`[PASSWORD RESET] ${email}: ${resetUrl}`);
-    }
+    await this.emailService.sendPasswordReset(email, resetToken);
   }
 
   async resetPassword(token: string, newPassword: string) {

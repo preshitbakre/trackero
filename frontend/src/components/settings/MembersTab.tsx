@@ -6,6 +6,7 @@ import { toast } from '../common/Toast';
 import { useAuthStore } from '../../store/auth.store';
 import { Select } from '../ui/Select';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import { Button } from '../ui/Button';
 
 interface MemberRow {
   id: number;
@@ -83,15 +84,10 @@ export function MembersTab() {
   return (
     <div className="max-w-3xl">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-neutral-700 dark:text-dneutral-700">
+        <h2 className="text-[16px] font-semibold text-neutral-700 dark:text-dneutral-700">
           Members ({members.length})
         </h2>
-        <button
-          onClick={() => setShowAddDialog(true)}
-          className="px-3 py-1.5 text-sm font-medium text-white bg-primary-500 rounded-md hover:bg-primary-600"
-        >
-          + Add member
-        </button>
+        <Button variant="primary" onClick={() => setShowAddDialog(true)}>+ Add member</Button>
       </div>
 
       {members.length === 0 ? (
@@ -99,7 +95,7 @@ export function MembersTab() {
           <p>No members yet. Add team members to start collaborating.</p>
         </div>
       ) : (
-        <div className="border border-neutral-200 dark:border-dneutral-200 rounded-lg overflow-hidden">
+        <div className="rounded-lg shadow-sm dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)] overflow-hidden">
           {members.map((m, i) => {
             const isInstanceAdmin = m.user.role === 'admin';
             const isSelf = m.userId === currentUser?.id;
@@ -110,16 +106,16 @@ export function MembersTab() {
                 key={m.id}
                 className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? 'border-t border-neutral-100 dark:border-dneutral-200' : ''}`}
               >
-                <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-dprimary-100 flex items-center justify-center text-sm font-medium text-primary-600 dark:text-dprimary-600 flex-shrink-0">
+                <div className="w-8 h-8 rounded-full bg-peri-light dark:bg-peri-dm/30 flex items-center justify-center text-[16px] font-medium text-peri dark:text-peri-dm flex-shrink-0">
                   {initial}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-neutral-700 dark:text-dneutral-700 truncate">{m.user.displayName}</p>
-                  <p className="text-sm text-neutral-400 dark:text-dneutral-500 truncate">{m.user.email}</p>
+                  <p className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700 truncate">{m.user.displayName}</p>
+                  <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 truncate">{m.user.email}</p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {isInstanceAdmin ? (
-                    <span className="text-sm text-neutral-400 dark:text-dneutral-500 px-2 py-1 bg-neutral-100 dark:bg-dneutral-200 rounded">Admin (instance)</span>
+                    <span className="text-[16px] text-neutral-400 dark:text-dneutral-500 px-2 py-1 bg-neutral-100 dark:bg-dneutral-200 rounded">Admin (instance)</span>
                   ) : (
                     <Select
                       value={m.role}
@@ -130,7 +126,7 @@ export function MembersTab() {
                   {!isInstanceAdmin && !isSelf && (
                     <button
                       onClick={() => setRemovingMember(m)}
-                      className="text-sm text-danger hover:text-danger/80 px-1"
+                      className="text-[16px] text-danger hover:text-danger/80 px-1"
                       title="Remove from project"
                     >
                       &#x2715;
@@ -230,29 +226,29 @@ function AddMemberDialog({ projectId, isAdmin, onClose, onAdded }: {
     ? [{ value: 'project_manager', label: 'Project Manager' }, { value: 'member', label: 'Member' }, { value: 'viewer', label: 'Viewer' }]
     : [{ value: 'member', label: 'Member' }, { value: 'viewer', label: 'Viewer' }];
 
-  const inputClass = "w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 px-3 py-2 text-sm text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400";
+  const inputClass = "w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 px-3 py-2 text-[16px] text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400";
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-700/50" onClick={onClose}>
-      <div className="bg-neutral-50 dark:bg-dneutral-100 rounded-lg p-6 w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-lg font-bold mb-4 text-neutral-700 dark:text-dneutral-700">Add member</h2>
+      <div className="bg-white dark:bg-dneutral-100 rounded-lg p-6 w-full max-w-md shadow-xl dark:shadow-[0_12px_36px_rgba(0,0,0,0.6)]" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-[22px] font-bold mb-4 text-neutral-700 dark:text-dneutral-700">Add member</h2>
 
-        {error && <div className="text-sm text-danger mb-3">{error}</div>}
+        {error && <div className="text-[16px] text-danger mb-3">{error}</div>}
 
         <div className="space-y-4">
           {/* User search */}
           <div>
-            <label className="block text-sm font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Search user</label>
+            <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Search user</label>
             {selectedUser ? (
-              <div className="flex items-center gap-2 p-2 rounded-md border border-primary-500 bg-primary-50 dark:bg-dprimary-50">
-                <div className="w-6 h-6 rounded-full bg-primary-100 dark:bg-dprimary-100 flex items-center justify-center text-sm font-medium text-primary-600 dark:text-dprimary-600">
+              <div className="flex items-center gap-2 p-2 rounded-md border border-peri bg-peri-light dark:bg-peri-dm/30">
+                <div className="w-6 h-6 rounded-full bg-peri-light dark:bg-peri-dm/30 flex items-center justify-center text-[16px] font-medium text-peri dark:text-peri-dm">
                   {selectedUser.displayName?.charAt(0)?.toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <span className="text-sm text-neutral-700 dark:text-dneutral-700">{selectedUser.displayName}</span>
-                  <span className="text-sm text-neutral-400 dark:text-dneutral-500 ml-2">{selectedUser.email}</span>
+                  <span className="text-[16px] text-neutral-700 dark:text-dneutral-700">{selectedUser.displayName}</span>
+                  <span className="text-[16px] text-neutral-400 dark:text-dneutral-500 ml-2">{selectedUser.email}</span>
                 </div>
-                <button onClick={() => { setSelectedUser(null); setSearch(''); }} className="text-sm text-neutral-400 hover:text-neutral-600">&#x2715;</button>
+                <button onClick={() => { setSelectedUser(null); setSearch(''); }} className="text-[16px] text-neutral-400 hover:text-neutral-600">&#x2715;</button>
               </div>
             ) : (
               <div className="relative" ref={dropdownRef}>
@@ -265,28 +261,28 @@ function AddMemberDialog({ projectId, isAdmin, onClose, onAdded }: {
                   autoFocus
                   className={inputClass}
                 />
-                {searching && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-neutral-400">...</span>}
+                {searching && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[16px] text-neutral-400">...</span>}
                 {showResults && results.length > 0 && (
-                  <div className="absolute z-10 mt-1 w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 shadow-lg max-h-48 overflow-y-auto">
+                  <div className="absolute z-10 mt-1 w-full rounded-md bg-white dark:bg-dneutral-200 shadow-lg dark:shadow-[0_8px_24px_rgba(0,0,0,0.5)] max-h-48 overflow-y-auto">
                     {results.map((u) => (
                       <button
                         key={u.id}
                         onClick={() => { setSelectedUser(u); setShowResults(false); setSearch(''); }}
                         className="flex items-center gap-2 w-full text-left px-3 py-2 hover:bg-neutral-100 dark:hover:bg-dneutral-300"
                       >
-                        <div className="w-6 h-6 rounded-full bg-primary-100 dark:bg-dprimary-100 flex items-center justify-center text-sm font-medium text-primary-600 dark:text-dprimary-600">
+                        <div className="w-6 h-6 rounded-full bg-peri-light dark:bg-peri-dm/30 flex items-center justify-center text-[16px] font-medium text-peri dark:text-peri-dm">
                           {u.displayName?.charAt(0)?.toUpperCase()}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm text-neutral-700 dark:text-dneutral-700 truncate">{u.displayName}</p>
-                          <p className="text-sm text-neutral-400 dark:text-dneutral-500 truncate">{u.email}</p>
+                          <p className="text-[16px] text-neutral-700 dark:text-dneutral-700 truncate">{u.displayName}</p>
+                          <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 truncate">{u.email}</p>
                         </div>
                       </button>
                     ))}
                   </div>
                 )}
                 {showResults && results.length === 0 && search.length >= 1 && !searching && (
-                  <div className="absolute z-10 mt-1 w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 shadow-lg p-3 text-sm text-neutral-400 text-center">
+                  <div className="absolute z-10 mt-1 w-full rounded-md bg-white dark:bg-dneutral-200 shadow-lg dark:shadow-[0_8px_24px_rgba(0,0,0,0.5)] p-3 text-[16px] text-neutral-400 text-center">
                     No users found
                   </div>
                 )}
@@ -296,20 +292,16 @@ function AddMemberDialog({ projectId, isAdmin, onClose, onAdded }: {
 
           {/* Role selector */}
           <div>
-            <label className="block text-sm font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Role</label>
+            <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Role</label>
             <Select value={role} onChange={setRole} options={roleOptions} className="w-full" />
           </div>
         </div>
 
         <div className="flex justify-end gap-2 mt-6">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-neutral-500 dark:text-dneutral-500 hover:text-neutral-700">Cancel</button>
-          <button
-            onClick={handleSubmit}
-            disabled={!selectedUser || loading}
-            className="px-4 py-2 text-sm font-medium text-white bg-primary-500 rounded-md hover:bg-primary-600 disabled:opacity-50"
-          >
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={handleSubmit} disabled={!selectedUser || loading}>
             {loading ? 'Adding...' : 'Add member'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>,

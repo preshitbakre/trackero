@@ -52,16 +52,16 @@ describe('Comments & Attachments (e2e)', () => {
 
     // Task
     const taskRes = await request(app.getHttpServer())
-      .post(`/api/projects/${projectId}/tasks`)
+      .post(`/api/projects/${projectId}/items`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ title: 'Test task' });
+      .send({ itemType: 'task', title: 'Test task' });
     taskId = taskRes.body.data.item.id;
   });
 
   describe('Comments', () => {
     it('creates comment -> 201', async () => {
       const res = await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks/${taskId}/comments`)
+        .post(`/api/projects/${projectId}/items/${taskId}/comments`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ body: 'Great work!' })
         .expect(201);
@@ -74,7 +74,7 @@ describe('Comments & Attachments (e2e)', () => {
 
     it('viewer cannot comment -> 403', async () => {
       await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks/${taskId}/comments`)
+        .post(`/api/projects/${projectId}/items/${taskId}/comments`)
         .set('Authorization', `Bearer ${viewerToken}`)
         .send({ body: 'Should fail' })
         .expect(403);
@@ -82,12 +82,12 @@ describe('Comments & Attachments (e2e)', () => {
 
     it('lists comments -> 200', async () => {
       await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks/${taskId}/comments`)
+        .post(`/api/projects/${projectId}/items/${taskId}/comments`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ body: 'Comment 1' });
 
       const res = await request(app.getHttpServer())
-        .get(`/api/projects/${projectId}/tasks/${taskId}/comments`)
+        .get(`/api/projects/${projectId}/items/${taskId}/comments`)
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
@@ -97,13 +97,13 @@ describe('Comments & Attachments (e2e)', () => {
 
     it('edits comment sets editedAt -> 200', async () => {
       const createRes = await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks/${taskId}/comments`)
+        .post(`/api/projects/${projectId}/items/${taskId}/comments`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ body: 'Original' });
       const commentId = createRes.body.data.item.id;
 
       const res = await request(app.getHttpServer())
-        .put(`/api/projects/${projectId}/tasks/${taskId}/comments/${commentId}`)
+        .put(`/api/projects/${projectId}/items/${taskId}/comments/${commentId}`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ body: 'Edited' })
         .expect(200);
@@ -115,13 +115,13 @@ describe('Comments & Attachments (e2e)', () => {
 
     it('deletes comment -> 200', async () => {
       const createRes = await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks/${taskId}/comments`)
+        .post(`/api/projects/${projectId}/items/${taskId}/comments`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ body: 'To delete' });
       const commentId = createRes.body.data.item.id;
 
       await request(app.getHttpServer())
-        .delete(`/api/projects/${projectId}/tasks/${taskId}/comments/${commentId}`)
+        .delete(`/api/projects/${projectId}/items/${taskId}/comments/${commentId}`)
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
     });
@@ -130,7 +130,7 @@ describe('Comments & Attachments (e2e)', () => {
   describe('Attachments', () => {
     it('uploads file -> 201', async () => {
       const res = await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks/${taskId}/attachments`)
+        .post(`/api/projects/${projectId}/items/${taskId}/attachments`)
         .set('Authorization', `Bearer ${adminToken}`)
         .attach('file', Buffer.from('test content'), 'test.txt')
         .expect(201);
@@ -146,7 +146,7 @@ describe('Comments & Attachments (e2e)', () => {
       const largeBuffer = Buffer.alloc(11 * 1024 * 1024, 'x');
 
       const res = await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks/${taskId}/attachments`)
+        .post(`/api/projects/${projectId}/items/${taskId}/attachments`)
         .set('Authorization', `Bearer ${adminToken}`)
         .attach('file', largeBuffer, 'large.bin')
         .expect(400);
@@ -156,13 +156,13 @@ describe('Comments & Attachments (e2e)', () => {
 
     it('gets presigned download URL -> 200', async () => {
       const uploadRes = await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks/${taskId}/attachments`)
+        .post(`/api/projects/${projectId}/items/${taskId}/attachments`)
         .set('Authorization', `Bearer ${adminToken}`)
         .attach('file', Buffer.from('download me'), 'file.txt');
       const attachmentId = uploadRes.body.data.item.id;
 
       const res = await request(app.getHttpServer())
-        .get(`/api/projects/${projectId}/tasks/${taskId}/attachments/${attachmentId}/url`)
+        .get(`/api/projects/${projectId}/items/${taskId}/attachments/${attachmentId}/url`)
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
@@ -173,13 +173,13 @@ describe('Comments & Attachments (e2e)', () => {
 
     it('deletes attachment -> 200', async () => {
       const uploadRes = await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks/${taskId}/attachments`)
+        .post(`/api/projects/${projectId}/items/${taskId}/attachments`)
         .set('Authorization', `Bearer ${adminToken}`)
         .attach('file', Buffer.from('delete me'), 'del.txt');
       const attachmentId = uploadRes.body.data.item.id;
 
       await request(app.getHttpServer())
-        .delete(`/api/projects/${projectId}/tasks/${taskId}/attachments/${attachmentId}`)
+        .delete(`/api/projects/${projectId}/items/${taskId}/attachments/${attachmentId}`)
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
     });
@@ -189,9 +189,9 @@ describe('Comments & Attachments (e2e)', () => {
     it('records activity on task creation', async () => {
       // Create another task (the one in beforeEach already created one)
       await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks`)
+        .post(`/api/projects/${projectId}/items`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ title: 'Activity test task' });
+        .send({ itemType: 'task', title: 'Activity test task' });
 
       const res = await request(app.getHttpServer())
         .get(`/api/projects/${projectId}/activity`)

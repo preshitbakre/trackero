@@ -12,7 +12,7 @@ import { ResponseCode } from '../common/decorators/response-code.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 
-@Controller('projects/:projectId/tasks/:taskId/attachments')
+@Controller('projects/:projectId/items/:itemId/attachments')
 @UseGuards(JwtAuthGuard, ProjectAccessGuard, RolesGuard)
 export class AttachmentsController {
   constructor(private readonly attachmentsService: AttachmentsService) {}
@@ -24,11 +24,11 @@ export class AttachmentsController {
   @ResponseCode('ATTACHMENT_UPLOADED')
   async upload(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Param('taskId', ParseIntPipe) taskId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.attachmentsService.upload(projectId, taskId, file, user.userId);
+    return this.attachmentsService.upload(projectId, itemId, file, user.userId);
   }
 
   @Get()
@@ -36,9 +36,9 @@ export class AttachmentsController {
   @ResponseCode('ATTACHMENTS_LISTED')
   async findAll(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Param('taskId', ParseIntPipe) taskId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
   ) {
-    return this.attachmentsService.listAttachments(projectId, taskId);
+    return this.attachmentsService.listAttachments(projectId, itemId);
   }
 
   @Get(':attachmentId/url')
@@ -46,10 +46,10 @@ export class AttachmentsController {
   @ResponseCode('ATTACHMENT_URL')
   async getUrl(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Param('taskId', ParseIntPipe) taskId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
     @Param('attachmentId', ParseIntPipe) attachmentId: number,
   ) {
-    return this.attachmentsService.getPresignedUrl(projectId, taskId, attachmentId);
+    return this.attachmentsService.getPresignedUrl(projectId, itemId, attachmentId);
   }
 
   @Delete(':attachmentId')
@@ -57,10 +57,10 @@ export class AttachmentsController {
   @ResponseCode('ATTACHMENT_DELETED')
   async remove(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Param('taskId', ParseIntPipe) taskId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
     @Param('attachmentId', ParseIntPipe) attachmentId: number,
   ) {
-    await this.attachmentsService.remove(projectId, taskId, attachmentId);
+    await this.attachmentsService.remove(projectId, itemId, attachmentId);
     return null;
   }
 }

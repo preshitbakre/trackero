@@ -61,7 +61,7 @@ export class DashboardService {
         COALESCE(SUM(t.story_points) FILTER (WHERE ps.category = 'done'), 0)::int AS completed_points,
         COALESCE(SUM(t.story_points), 0)::int AS total_points
       FROM sprints s
-      LEFT JOIN tasks t ON t.sprint_id = s.id AND t.parent_id IS NULL
+      LEFT JOIN work_items t ON t.sprint_id = s.id AND t.item_type IN ('task')
       LEFT JOIN project_statuses ps ON ps.id = t.status_id
       WHERE s.status = 'active'
       GROUP BY s.id
@@ -86,7 +86,7 @@ export class DashboardService {
       FROM (
         SELECT COALESCE(SUM(t.story_points) FILTER (WHERE ps.category = 'done'), 0) AS completed_points
         FROM sprints s
-        LEFT JOIN tasks t ON t.sprint_id = s.id AND t.parent_id IS NULL
+        LEFT JOIN work_items t ON t.sprint_id = s.id AND t.item_type IN ('task')
         LEFT JOIN project_statuses ps ON ps.id = t.status_id
         WHERE s.status = 'completed'
         GROUP BY s.id
@@ -96,13 +96,13 @@ export class DashboardService {
     `);
 
     const [blockedCountRow] = await db.query(`
-      SELECT COUNT(DISTINCT td.task_id)::int AS count
-      FROM task_dependencies td
-      JOIN tasks t ON t.id = td.task_id
+      SELECT COUNT(DISTINCT a.item_id)::int AS count
+      FROM work_item_associations a
+      JOIN work_items t ON t.id = a.item_id
       JOIN project_statuses ps ON ps.id = t.status_id
-      JOIN tasks blocker ON blocker.id = td.depends_on_task_id
+      JOIN work_items blocker ON blocker.id = a.linked_item_id
       JOIN project_statuses bps ON bps.id = blocker.status_id
-      WHERE td.dependency_type = 'blocks'
+      WHERE a.link_type = 'blocks'
         AND ps.category != 'done'
         AND bps.category != 'done'
     `);
@@ -121,10 +121,10 @@ export class DashboardService {
         p.name,
         p.prefix,
         p.status,
-        (SELECT COUNT(*)::int FROM tasks WHERE project_id = p.id AND parent_id IS NULL) AS "taskCount",
-        (SELECT COUNT(*)::int FROM tasks t2
+        (SELECT COUNT(*)::int FROM work_items WHERE project_id = p.id AND item_type IN ('task')) AS "taskCount",
+        (SELECT COUNT(*)::int FROM work_items t2
          JOIN project_statuses ps2 ON ps2.id = t2.status_id
-         WHERE t2.project_id = p.id AND t2.parent_id IS NULL AND ps2.category != 'done'
+         WHERE t2.project_id = p.id AND t2.item_type IN ('task') AND ps2.category != 'done'
         ) AS "openTaskCount",
         (SELECT COUNT(*)::int FROM project_members WHERE project_id = p.id) AS "memberCount"
       FROM projects p
@@ -137,7 +137,7 @@ export class DashboardService {
         COALESCE(SUM(t.story_points), 0)::int AS total_points,
         COALESCE(SUM(t.story_points) FILTER (WHERE ps.category = 'done'), 0)::int AS completed_points
       FROM sprints s
-      LEFT JOIN tasks t ON t.sprint_id = s.id AND t.parent_id IS NULL
+      LEFT JOIN work_items t ON t.sprint_id = s.id AND t.item_type IN ('task')
       LEFT JOIN project_statuses ps ON ps.id = t.status_id
       WHERE s.status = 'active'
       GROUP BY s.id
@@ -164,9 +164,9 @@ export class DashboardService {
         u.avatar_url AS "avatarUrl",
         COUNT(t.id) FILTER (WHERE ps.category != 'done')::int AS "openTaskCount",
         COUNT(t.id) FILTER (WHERE ps.category = 'in_progress')::int AS "inProgressCount",
-        COUNT(t.id) FILTER (WHERE t.due_date IS NOT NULL AND t.due_date::date < CURRENT_DATE AND ps.category != 'done')::int AS "overdueCount"
+        COUNT(t.id) FILTER (WHERE t.end_date IS NOT NULL AND t.end_date::date < CURRENT_DATE AND ps.category != 'done')::int AS "overdueCount"
       FROM users u
-      LEFT JOIN tasks t ON t.assignee_id = u.id AND t.parent_id IS NULL
+      LEFT JOIN work_items t ON t.assignee_id = u.id AND t.item_type IN ('task')
       LEFT JOIN project_statuses ps ON ps.id = t.status_id
       WHERE u.is_active = true
       GROUP BY u.id
@@ -177,23 +177,23 @@ export class DashboardService {
     const blockedTasks = await db.query(`
       SELECT
         t.id,
-        p.prefix || '-' || t.task_number AS "taskKey",
+        p.prefix || '-' || t.item_number AS "taskKey",
         t.title,
         p.name AS "projectName",
         assignee.display_name AS "assigneeDisplayName",
-        bp.prefix || '-' || blocker.task_number AS "blockerTaskKey",
+        bp.prefix || '-' || blocker.item_number AS "blockerTaskKey",
         blocker.title AS "blockerTitle",
         ba.display_name AS "blockerAssigneeDisplayName"
-      FROM task_dependencies td
-      JOIN tasks t ON t.id = td.task_id
+      FROM work_item_associations a
+      JOIN work_items t ON t.id = a.item_id
       JOIN projects p ON p.id = t.project_id
       JOIN project_statuses ps ON ps.id = t.status_id
-      JOIN tasks blocker ON blocker.id = td.depends_on_task_id
+      JOIN work_items blocker ON blocker.id = a.linked_item_id
       JOIN projects bp ON bp.id = blocker.project_id
       JOIN project_statuses bps ON bps.id = blocker.status_id
       LEFT JOIN users assignee ON assignee.id = t.assignee_id
       LEFT JOIN users ba ON ba.id = blocker.assignee_id
-      WHERE td.dependency_type = 'blocks'
+      WHERE a.link_type = 'blocks'
         AND ps.category != 'done'
         AND bps.category != 'done'
       ORDER BY t.created_at DESC
@@ -220,12 +220,12 @@ export class DashboardService {
         al.created_at AS "timestamp",
         u.display_name AS "actorDisplayName",
         u.avatar_url AS "actorAvatarUrl",
-        t.task_number AS "taskNumber",
+        t.item_number AS "taskNumber",
         p.prefix AS "projectPrefix",
         t.title AS "taskTitle"
       FROM activity_logs al
       JOIN users u ON u.id = al.user_id
-      LEFT JOIN tasks t ON t.id = al.task_id
+      LEFT JOIN work_items t ON t.id = al.work_item_id
       LEFT JOIN projects p ON p.id = al.project_id
       ORDER BY al.created_at DESC
       LIMIT 15
@@ -308,21 +308,21 @@ export class DashboardService {
       SELECT
         COUNT(DISTINCT t.id) FILTER (WHERE ps.category != 'done')::int AS "openTasksAcrossProjects",
         COUNT(DISTINCT t.id) FILTER (
-          WHERE t.due_date IS NOT NULL AND t.due_date::date < CURRENT_DATE AND ps.category != 'done'
+          WHERE t.end_date IS NOT NULL AND t.end_date::date < CURRENT_DATE AND ps.category != 'done'
         )::int AS "overdueTasks"
-      FROM tasks t
+      FROM work_items t
       JOIN project_statuses ps ON ps.id = t.status_id
-      WHERE t.project_id = ANY($1) AND t.parent_id IS NULL
+      WHERE t.project_id = ANY($1) AND t.item_type IN ('task')
     `, [pmProjectIds]);
 
     const [pmBlockedCount] = await db.query(`
-      SELECT COUNT(DISTINCT td.task_id)::int AS count
-      FROM task_dependencies td
-      JOIN tasks t ON t.id = td.task_id
+      SELECT COUNT(DISTINCT a.item_id)::int AS count
+      FROM work_item_associations a
+      JOIN work_items t ON t.id = a.item_id
       JOIN project_statuses ps ON ps.id = t.status_id
-      JOIN tasks blocker ON blocker.id = td.depends_on_task_id
+      JOIN work_items blocker ON blocker.id = a.linked_item_id
       JOIN project_statuses bps ON bps.id = blocker.status_id
-      WHERE td.dependency_type = 'blocks'
+      WHERE a.link_type = 'blocks'
         AND t.project_id = ANY($1)
         AND ps.category != 'done'
         AND bps.category != 'done'
@@ -348,7 +348,7 @@ export class DashboardService {
         COUNT(t.id) FILTER (WHERE ps.category = 'done')::int AS done
       FROM sprints s
       JOIN projects p ON p.id = s.project_id
-      LEFT JOIN tasks t ON t.sprint_id = s.id AND t.parent_id IS NULL
+      LEFT JOIN work_items t ON t.sprint_id = s.id AND t.item_type IN ('task')
       LEFT JOIN project_statuses ps ON ps.id = t.status_id
       WHERE s.status = 'active' AND s.project_id = ANY($1)
       GROUP BY s.id, p.id
@@ -415,8 +415,8 @@ export class DashboardService {
 
           const [completedRow] = await db.query(`
             SELECT COALESCE(SUM(story_points), 0)::int AS completed
-            FROM tasks
-            WHERE sprint_id = $1 AND completed_at IS NOT NULL AND completed_at <= $2::date + interval '1 day' AND parent_id IS NULL
+            FROM work_items
+            WHERE sprint_id = $1 AND completed_at IS NOT NULL AND completed_at <= $2::date + interval '1 day' AND item_type IN ('task')
           `, [sp.id, dateStr]);
 
           const actual = totalPoints - completedRow.completed;
@@ -438,10 +438,10 @@ export class DashboardService {
         u.avatar_url AS "avatarUrl",
         COUNT(t.id) FILTER (WHERE ps.category != 'done')::int AS "openTaskCount",
         COUNT(t.id) FILTER (WHERE ps.category = 'in_progress')::int AS "inProgressCount",
-        COUNT(t.id) FILTER (WHERE t.due_date IS NOT NULL AND t.due_date::date < CURRENT_DATE AND ps.category != 'done')::int AS "overdueCount"
+        COUNT(t.id) FILTER (WHERE t.end_date IS NOT NULL AND t.end_date::date < CURRENT_DATE AND ps.category != 'done')::int AS "overdueCount"
       FROM users u
       JOIN project_members pm ON pm.user_id = u.id AND pm.project_id = ANY($1)
-      LEFT JOIN tasks t ON t.assignee_id = u.id AND t.parent_id IS NULL AND t.project_id = ANY($1)
+      LEFT JOIN work_items t ON t.assignee_id = u.id AND t.item_type IN ('task') AND t.project_id = ANY($1)
       LEFT JOIN project_statuses ps ON ps.id = t.status_id
       WHERE u.is_active = true
       GROUP BY u.id
@@ -452,23 +452,23 @@ export class DashboardService {
     const blockedRows = await db.query(`
       SELECT
         t.id,
-        p.prefix || '-' || t.task_number AS "taskKey",
+        p.prefix || '-' || t.item_number AS "taskKey",
         t.title,
         p.name AS "projectName",
         assignee.display_name AS "assigneeDisplayName",
-        bp.prefix || '-' || blocker.task_number AS "blockerTaskKey",
+        bp.prefix || '-' || blocker.item_number AS "blockerTaskKey",
         blocker.title AS "blockerTitle",
         ba.display_name AS "blockerAssigneeDisplayName"
-      FROM task_dependencies td
-      JOIN tasks t ON t.id = td.task_id
+      FROM work_item_associations a
+      JOIN work_items t ON t.id = a.item_id
       JOIN projects p ON p.id = t.project_id
       JOIN project_statuses ps ON ps.id = t.status_id
-      JOIN tasks blocker ON blocker.id = td.depends_on_task_id
+      JOIN work_items blocker ON blocker.id = a.linked_item_id
       JOIN projects bp ON bp.id = blocker.project_id
       JOIN project_statuses bps ON bps.id = blocker.status_id
       LEFT JOIN users assignee ON assignee.id = t.assignee_id
       LEFT JOIN users ba ON ba.id = blocker.assignee_id
-      WHERE td.dependency_type = 'blocks'
+      WHERE a.link_type = 'blocks'
         AND t.project_id = ANY($1)
         AND ps.category != 'done'
         AND bps.category != 'done'
@@ -492,24 +492,24 @@ export class DashboardService {
     const myTaskRows = await db.query(`
       SELECT
         t.id,
-        p.prefix || '-' || t.task_number AS "taskKey",
+        p.prefix || '-' || t.item_number AS "taskKey",
         t.title,
-        t.type,
+        t.item_type AS "type",
         t.priority,
         ps.name AS "statusName", ps.category AS "statusCategory", ps.color AS "statusColor",
         p.name AS "projectName",
         t.story_points AS "storyPoints",
-        t.due_date AS "dueDate",
+        t.end_date AS "endDate",
         EXISTS (
-          SELECT 1 FROM task_dependencies td
-          JOIN tasks bl ON bl.id = td.depends_on_task_id
+          SELECT 1 FROM work_item_associations a
+          JOIN work_items bl ON bl.id = a.linked_item_id
           JOIN project_statuses bps ON bps.id = bl.status_id
-          WHERE td.task_id = t.id AND td.dependency_type = 'blocks' AND bps.category != 'done'
+          WHERE a.item_id = t.id AND a.link_type = 'blocks' AND bps.category != 'done'
         ) AS "hasBlockers"
-      FROM tasks t
+      FROM work_items t
       JOIN projects p ON p.id = t.project_id
       JOIN project_statuses ps ON ps.id = t.status_id
-      WHERE t.assignee_id = $1 AND t.parent_id IS NULL AND ps.category != 'done'
+      WHERE t.assignee_id = $1 AND t.item_type IN ('task') AND ps.category != 'done'
       ORDER BY
         CASE ps.category WHEN 'in_progress' THEN 0 WHEN 'backlog' THEN 1 ELSE 2 END,
         CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END
@@ -524,7 +524,7 @@ export class DashboardService {
       status: { name: t.statusName, category: t.statusCategory, color: t.statusColor },
       projectName: t.projectName,
       storyPoints: t.storyPoints,
-      dueDate: t.dueDate,
+      endDate: t.endDate,
       hasBlockers: t.hasBlockers,
     }));
 
@@ -532,22 +532,22 @@ export class DashboardService {
     const deadlineRows = await db.query(`
       SELECT
         t.id,
-        p.prefix || '-' || t.task_number AS "taskKey",
+        p.prefix || '-' || t.item_number AS "taskKey",
         t.title,
         p.name AS "projectName",
         assignee.display_name AS "assigneeDisplayName",
-        t.due_date AS "dueDate",
-        (t.due_date::date - CURRENT_DATE)::int AS "daysUntilDue"
-      FROM tasks t
+        t.end_date AS "endDate",
+        (t.end_date::date - CURRENT_DATE)::int AS "daysUntilEnd"
+      FROM work_items t
       JOIN projects p ON p.id = t.project_id
       JOIN project_statuses ps ON ps.id = t.status_id
       LEFT JOIN users assignee ON assignee.id = t.assignee_id
       WHERE t.project_id = ANY($1)
-        AND t.parent_id IS NULL
-        AND t.due_date IS NOT NULL
-        AND t.due_date::date <= CURRENT_DATE + INTERVAL '7 days'
+        AND t.item_type IN ('task')
+        AND t.end_date IS NOT NULL
+        AND t.end_date::date <= CURRENT_DATE + INTERVAL '7 days'
         AND ps.category != 'done'
-      ORDER BY t.due_date ASC
+      ORDER BY t.end_date ASC
       LIMIT 10
     `, [pmProjectIds]);
     const upcomingDeadlines = deadlineRows.map((d: any) => ({
@@ -556,8 +556,8 @@ export class DashboardService {
       title: d.title,
       projectName: d.projectName,
       assignee: d.assigneeDisplayName ? { displayName: d.assigneeDisplayName } : null,
-      dueDate: d.dueDate,
-      daysUntilDue: d.daysUntilDue,
+      endDate: d.endDate,
+      daysUntilEnd: d.daysUntilEnd,
     }));
 
     // ── epicProgress ───────────────────────────────────────────
@@ -568,12 +568,14 @@ export class DashboardService {
         p.name AS "projectName",
         e.color,
         COUNT(t.id)::int AS "totalTasks",
-        COUNT(t.id) FILTER (WHERE ps.category = 'done')::int AS "completedTasks"
-      FROM epics e
+        COUNT(t.id) FILTER (WHERE tps.category = 'done')::int AS "completedTasks"
+      FROM work_items e
       JOIN projects p ON p.id = e.project_id
-      LEFT JOIN tasks t ON t.epic_id = e.id AND t.parent_id IS NULL
-      LEFT JOIN project_statuses ps ON ps.id = t.status_id
-      WHERE e.project_id = ANY($1) AND e.status != 'done'
+      JOIN project_statuses eps ON eps.id = e.status_id
+      LEFT JOIN work_item_associations a ON a.linked_item_id = e.id AND a.link_type = 'belongs_to'
+      LEFT JOIN work_items t ON t.id = a.item_id AND t.item_type IN ('task')
+      LEFT JOIN project_statuses tps ON tps.id = t.status_id
+      WHERE e.project_id = ANY($1) AND e.item_type = 'epic' AND eps.category != 'done'
       GROUP BY e.id, p.id
       ORDER BY e.created_at ASC
     `, [pmProjectIds]);
@@ -594,12 +596,12 @@ export class DashboardService {
         al.created_at AS "timestamp",
         u.display_name AS "actorDisplayName",
         u.avatar_url AS "actorAvatarUrl",
-        t.task_number AS "taskNumber",
+        t.item_number AS "taskNumber",
         p.prefix AS "projectPrefix",
         t.title AS "taskTitle"
       FROM activity_logs al
       JOIN users u ON u.id = al.user_id
-      LEFT JOIN tasks t ON t.id = al.task_id
+      LEFT JOIN work_items t ON t.id = al.work_item_id
       LEFT JOIN projects p ON p.id = al.project_id
       WHERE al.project_id = ANY($1)
       ORDER BY al.created_at DESC
@@ -641,24 +643,24 @@ export class DashboardService {
         COUNT(t.id) FILTER (WHERE ps.category = 'in_progress')::int AS "myInProgress",
         COUNT(t.id) FILTER (
           WHERE ps.category != 'done'
-          AND t.due_date IS NOT NULL
-          AND t.due_date::date >= CURRENT_DATE
-          AND t.due_date::date <= (CURRENT_DATE + (6 - EXTRACT(DOW FROM CURRENT_DATE)::int) * INTERVAL '1 day')::date
+          AND t.end_date IS NOT NULL
+          AND t.end_date::date >= CURRENT_DATE
+          AND t.end_date::date <= (CURRENT_DATE + (6 - EXTRACT(DOW FROM CURRENT_DATE)::int) * INTERVAL '1 day')::date
         )::int AS "dueThisWeek"
-      FROM tasks t
+      FROM work_items t
       JOIN project_statuses ps ON ps.id = t.status_id
-      WHERE t.assignee_id = $1 AND t.parent_id IS NULL
+      WHERE t.assignee_id = $1 AND t.item_type IN ('task')
     `, [userId]);
 
     const [blockedStat] = await db.query(`
-      SELECT COUNT(DISTINCT td.task_id)::int AS count
-      FROM task_dependencies td
-      JOIN tasks t ON t.id = td.task_id
+      SELECT COUNT(DISTINCT a.item_id)::int AS count
+      FROM work_item_associations a
+      JOIN work_items t ON t.id = a.item_id
       JOIN project_statuses ps ON ps.id = t.status_id
-      JOIN tasks blocker ON blocker.id = td.depends_on_task_id
+      JOIN work_items blocker ON blocker.id = a.linked_item_id
       JOIN project_statuses bps ON bps.id = blocker.status_id
       WHERE t.assignee_id = $1
-        AND td.dependency_type = 'blocks'
+        AND a.link_type = 'blocks'
         AND ps.category != 'done'
         AND bps.category != 'done'
     `, [userId]);
@@ -674,29 +676,29 @@ export class DashboardService {
     const myTaskRows = await db.query(`
       SELECT
         t.id,
-        p.prefix || '-' || t.task_number AS "taskKey",
+        p.prefix || '-' || t.item_number AS "taskKey",
         t.title,
-        t.type,
+        t.item_type AS "type",
         t.priority,
         ps.id AS "statusId", ps.name AS "statusName", ps.category AS "statusCategory", ps.color AS "statusColor",
         p.name AS "projectName",
         t.story_points AS "storyPoints",
-        t.due_date AS "dueDate",
+        t.end_date AS "endDate",
         EXISTS (
-          SELECT 1 FROM task_dependencies td
-          JOIN tasks bl ON bl.id = td.depends_on_task_id
+          SELECT 1 FROM work_item_associations a
+          JOIN work_items bl ON bl.id = a.linked_item_id
           JOIN project_statuses bps ON bps.id = bl.status_id
-          WHERE td.task_id = t.id AND td.dependency_type = 'blocks' AND bps.category != 'done'
+          WHERE a.item_id = t.id AND a.link_type = 'blocks' AND bps.category != 'done'
         ) AS "hasBlockers",
-        (SELECT COUNT(*)::int FROM tasks st WHERE st.parent_id = t.id) AS "subtaskCount",
-        (SELECT COUNT(*)::int FROM tasks st
+        (SELECT COUNT(*)::int FROM work_items st WHERE st.parent_id = t.id) AS "subtaskCount",
+        (SELECT COUNT(*)::int FROM work_items st
          JOIN project_statuses sps ON sps.id = st.status_id
          WHERE st.parent_id = t.id AND sps.category = 'done'
         ) AS "subtaskDoneCount"
-      FROM tasks t
+      FROM work_items t
       JOIN projects p ON p.id = t.project_id
       JOIN project_statuses ps ON ps.id = t.status_id
-      WHERE t.assignee_id = $1 AND t.parent_id IS NULL AND ps.category != 'done'
+      WHERE t.assignee_id = $1 AND t.item_type IN ('task') AND ps.category != 'done'
       ORDER BY
         CASE ps.category WHEN 'in_progress' THEN 0 WHEN 'backlog' THEN 1 ELSE 2 END,
         CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END,
@@ -712,7 +714,7 @@ export class DashboardService {
       status: { id: t.statusId, name: t.statusName, category: t.statusCategory, color: t.statusColor },
       projectName: t.projectName,
       storyPoints: t.storyPoints,
-      dueDate: t.dueDate,
+      endDate: t.endDate,
       hasBlockers: t.hasBlockers,
       subtaskCount: t.subtaskCount,
       subtaskDoneCount: t.subtaskDoneCount,
@@ -722,49 +724,49 @@ export class DashboardService {
     const dueSoonRows = await db.query(`
       SELECT
         t.id,
-        p.prefix || '-' || t.task_number AS "taskKey",
+        p.prefix || '-' || t.item_number AS "taskKey",
         t.title,
         p.name AS "projectName",
-        t.due_date AS "dueDate",
-        (t.due_date::date - CURRENT_DATE)::int AS "daysUntilDue"
-      FROM tasks t
+        t.end_date AS "endDate",
+        (t.end_date::date - CURRENT_DATE)::int AS "daysUntilEnd"
+      FROM work_items t
       JOIN projects p ON p.id = t.project_id
       JOIN project_statuses ps ON ps.id = t.status_id
       WHERE t.assignee_id = $1
-        AND t.parent_id IS NULL
-        AND t.due_date IS NOT NULL
-        AND t.due_date::date <= CURRENT_DATE + INTERVAL '7 days'
+        AND t.item_type IN ('task')
+        AND t.end_date IS NOT NULL
+        AND t.end_date::date <= CURRENT_DATE + INTERVAL '7 days'
         AND ps.category != 'done'
-      ORDER BY t.due_date ASC
+      ORDER BY t.end_date ASC
     `, [userId]);
     const dueSoon = dueSoonRows.map((d: any) => ({
       id: d.id,
       taskKey: d.taskKey,
       title: d.title,
       projectName: d.projectName,
-      dueDate: d.dueDate,
-      daysUntilDue: d.daysUntilDue,
+      endDate: d.endDate,
+      daysUntilEnd: d.daysUntilEnd,
     }));
 
     // ── myBlockedTasks ─────────────────────────────────────────
     const myBlockedRows = await db.query(`
       SELECT
         t.id,
-        p.prefix || '-' || t.task_number AS "taskKey",
+        p.prefix || '-' || t.item_number AS "taskKey",
         t.title,
-        bp.prefix || '-' || blocker.task_number AS "blockerTaskKey",
+        bp.prefix || '-' || blocker.item_number AS "blockerTaskKey",
         blocker.title AS "blockerTitle",
         ba.display_name AS "blockerAssigneeDisplayName"
-      FROM task_dependencies td
-      JOIN tasks t ON t.id = td.task_id
+      FROM work_item_associations a
+      JOIN work_items t ON t.id = a.item_id
       JOIN projects p ON p.id = t.project_id
       JOIN project_statuses ps ON ps.id = t.status_id
-      JOIN tasks blocker ON blocker.id = td.depends_on_task_id
+      JOIN work_items blocker ON blocker.id = a.linked_item_id
       JOIN projects bp ON bp.id = blocker.project_id
       JOIN project_statuses bps ON bps.id = blocker.status_id
       LEFT JOIN users ba ON ba.id = blocker.assignee_id
       WHERE t.assignee_id = $1
-        AND td.dependency_type = 'blocks'
+        AND a.link_type = 'blocks'
         AND ps.category != 'done'
         AND bps.category != 'done'
       ORDER BY t.created_at DESC
@@ -794,9 +796,9 @@ export class DashboardService {
       FROM sprints s
       JOIN projects p ON p.id = s.project_id
       JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $1
-      LEFT JOIN tasks t ON t.sprint_id = s.id AND t.parent_id IS NULL
+      LEFT JOIN work_items t ON t.sprint_id = s.id AND t.item_type IN ('task')
       LEFT JOIN project_statuses ps ON ps.id = t.status_id
-      LEFT JOIN tasks t2 ON t2.sprint_id = s.id AND t2.parent_id IS NULL AND t2.assignee_id = $1
+      LEFT JOIN work_items t2 ON t2.sprint_id = s.id AND t2.item_type IN ('task') AND t2.assignee_id = $1
       LEFT JOIN project_statuses ps2 ON ps2.id = t2.status_id
       WHERE s.status = 'active'
       GROUP BY s.id, p.id
@@ -822,14 +824,14 @@ export class DashboardService {
         al.created_at AS "timestamp",
         u.display_name AS "actorDisplayName",
         u.avatar_url AS "actorAvatarUrl",
-        t.task_number AS "taskNumber",
+        t.item_number AS "taskNumber",
         p.prefix AS "projectPrefix",
         t.title AS "taskTitle",
         al.field_changed AS "fieldChanged",
         al.new_value AS "newValue"
       FROM activity_logs al
       JOIN users u ON u.id = al.user_id
-      JOIN tasks t ON t.id = al.task_id
+      JOIN work_items t ON t.id = al.work_item_id
       JOIN projects p ON p.id = al.project_id
       WHERE al.user_id != $1
         AND (t.assignee_id = $1 OR t.reporter_id = $1)
@@ -851,14 +853,14 @@ export class DashboardService {
     const completedRows = await db.query(`
       SELECT
         t.id,
-        p.prefix || '-' || t.task_number AS "taskKey",
+        p.prefix || '-' || t.item_number AS "taskKey",
         t.title,
         p.name AS "projectName",
         t.completed_at AS "completedAt"
-      FROM tasks t
+      FROM work_items t
       JOIN projects p ON p.id = t.project_id
       WHERE t.assignee_id = $1
-        AND t.parent_id IS NULL
+        AND t.item_type IN ('task')
         AND t.completed_at IS NOT NULL
         AND t.completed_at > NOW() - INTERVAL '7 days'
       ORDER BY t.completed_at DESC
@@ -912,9 +914,9 @@ export class DashboardService {
       SELECT
         COUNT(t.id)::int AS "totalTasks",
         COUNT(t.id) FILTER (WHERE ps.category = 'done')::int AS "completedTasks"
-      FROM tasks t
+      FROM work_items t
       JOIN project_statuses ps ON ps.id = t.status_id
-      WHERE t.project_id = ANY($1) AND t.parent_id IS NULL
+      WHERE t.project_id = ANY($1) AND t.item_type IN ('task')
     `, [viewerProjectIds]);
     const totalTasks = overview.totalTasks || 0;
     const completedTasks = overview.completedTasks || 0;
@@ -931,14 +933,14 @@ export class DashboardService {
         p.id,
         p.name,
         p.prefix,
-        (SELECT COUNT(*)::int FROM tasks WHERE project_id = p.id AND parent_id IS NULL) AS "taskCount",
-        (SELECT COUNT(*)::int FROM tasks t2
+        (SELECT COUNT(*)::int FROM work_items WHERE project_id = p.id AND item_type IN ('task')) AS "taskCount",
+        (SELECT COUNT(*)::int FROM work_items t2
          JOIN project_statuses ps2 ON ps2.id = t2.status_id
-         WHERE t2.project_id = p.id AND t2.parent_id IS NULL AND ps2.category != 'done'
+         WHERE t2.project_id = p.id AND t2.item_type IN ('task') AND ps2.category != 'done'
         ) AS "openTaskCount",
-        (SELECT COUNT(*)::int FROM tasks t3
+        (SELECT COUNT(*)::int FROM work_items t3
          JOIN project_statuses ps3 ON ps3.id = t3.status_id
-         WHERE t3.project_id = p.id AND t3.parent_id IS NULL AND ps3.category = 'done'
+         WHERE t3.project_id = p.id AND t3.item_type IN ('task') AND ps3.category = 'done'
         ) AS "completedTaskCount",
         (SELECT COUNT(*)::int FROM project_members WHERE project_id = p.id) AS "memberCount"
       FROM projects p
@@ -952,7 +954,7 @@ export class DashboardService {
         COALESCE(SUM(t.story_points), 0)::int AS total_points,
         COALESCE(SUM(t.story_points) FILTER (WHERE ps.category = 'done'), 0)::int AS completed_points
       FROM sprints s
-      LEFT JOIN tasks t ON t.sprint_id = s.id AND t.parent_id IS NULL
+      LEFT JOIN work_items t ON t.sprint_id = s.id AND t.item_type IN ('task')
       LEFT JOIN project_statuses ps ON ps.id = t.status_id
       WHERE s.status = 'active' AND s.project_id = ANY($1)
       GROUP BY s.id
@@ -987,7 +989,7 @@ export class DashboardService {
         COUNT(t.id) FILTER (WHERE ps.category = 'done')::int AS done
       FROM sprints s
       JOIN projects p ON p.id = s.project_id
-      LEFT JOIN tasks t ON t.sprint_id = s.id AND t.parent_id IS NULL
+      LEFT JOIN work_items t ON t.sprint_id = s.id AND t.item_type IN ('task')
       LEFT JOIN project_statuses ps ON ps.id = t.status_id
       WHERE s.status = 'active' AND s.project_id = ANY($1)
       GROUP BY s.id, p.id
@@ -1015,12 +1017,14 @@ export class DashboardService {
         p.name AS "projectName",
         e.color,
         COUNT(t.id)::int AS "totalTasks",
-        COUNT(t.id) FILTER (WHERE ps.category = 'done')::int AS "completedTasks"
-      FROM epics e
+        COUNT(t.id) FILTER (WHERE tps.category = 'done')::int AS "completedTasks"
+      FROM work_items e
       JOIN projects p ON p.id = e.project_id
-      LEFT JOIN tasks t ON t.epic_id = e.id AND t.parent_id IS NULL
-      LEFT JOIN project_statuses ps ON ps.id = t.status_id
-      WHERE e.project_id = ANY($1) AND e.status != 'done'
+      JOIN project_statuses eps ON eps.id = e.status_id
+      LEFT JOIN work_item_associations a ON a.linked_item_id = e.id AND a.link_type = 'belongs_to'
+      LEFT JOIN work_items t ON t.id = a.item_id AND t.item_type IN ('task')
+      LEFT JOIN project_statuses tps ON tps.id = t.status_id
+      WHERE e.project_id = ANY($1) AND e.item_type = 'epic' AND eps.category != 'done'
       GROUP BY e.id, p.id
       ORDER BY e.created_at ASC
     `, [viewerProjectIds]);
@@ -1036,16 +1040,16 @@ export class DashboardService {
     // ── recentCompletions ──────────────────────────────────────
     const completionRows = await db.query(`
       SELECT
-        p.prefix || '-' || t.task_number AS "taskKey",
+        p.prefix || '-' || t.item_number AS "taskKey",
         t.title,
         p.name AS "projectName",
         COALESCE(assignee.display_name, 'Unassigned') AS "completedByDisplayName",
         t.completed_at AS "completedAt"
-      FROM tasks t
+      FROM work_items t
       JOIN projects p ON p.id = t.project_id
       LEFT JOIN users assignee ON assignee.id = t.assignee_id
       WHERE t.project_id = ANY($1)
-        AND t.parent_id IS NULL
+        AND t.item_type IN ('task')
         AND t.completed_at IS NOT NULL
         AND t.completed_at > NOW() - INTERVAL '7 days'
       ORDER BY t.completed_at DESC
@@ -1065,9 +1069,9 @@ export class DashboardService {
         u.display_name AS "displayName",
         u.avatar_url AS "avatarUrl",
         u.role,
-        (SELECT COUNT(*)::int FROM tasks t
+        (SELECT COUNT(*)::int FROM work_items t
          JOIN project_statuses ps ON ps.id = t.status_id
-         WHERE t.assignee_id = u.id AND t.parent_id IS NULL AND ps.category != 'done'
+         WHERE t.assignee_id = u.id AND t.item_type IN ('task') AND ps.category != 'done'
         ) AS "openTaskCount"
       FROM users u
       JOIN project_members pm ON pm.user_id = u.id

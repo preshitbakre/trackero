@@ -1,0 +1,1600 @@
+import { Injectable, HttpStatus } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, DataSource } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { WorkItem } from './entities/work-item.entity';
+import { WorkItemAssociation } from './entities/work-item-association.entity';
+import { AppLogicException } from '../common/exceptions/app-exceptions';
+import { PaginatedResponse } from '../common/dto/paginated-response.dto';
+import { PaginatedMutationResponse } from '../common/dto/paginated-mutation-response.dto';
+import { CreateWorkItemDto } from './dto/create-work-item.dto';
+import { UpdateWorkItemDto } from './dto/update-work-item.dto';
+import { MoveWorkItemDto } from './dto/move-work-item.dto';
+import { QueryWorkItemsDto } from './dto/query-work-items.dto';
+import { AssignSprintDto } from './dto/assign-sprint.dto';
+import { AssignWorkItemDto } from './dto/assign-work-item.dto';
+import { clampLimit } from '../common/helpers/pagination.helper';
+
+@Injectable()
+export class WorkItemsService {
+  constructor(
+    @InjectRepository(WorkItem)
+    private readonly workItemRepo: Repository<WorkItem>,
+    @InjectRepository(WorkItemAssociation)
+    private readonly assocRepo: Repository<WorkItemAssociation>,
+    private readonly dataSource: DataSource,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
+
+  // =========================================================================
+  // PUBLIC API METHODS (implemented in Steps 2C–2F)
+  // =========================================================================
+
+  async create(projectId: number, dto: CreateWorkItemDto, userId: number) {
+    const itemType = dto.itemType;
+
+    // Load parent if provided
+    let parent: WorkItem | null = null;
+    if (dto.parentId) {
+      parent = await this.workItemRepo.findOne({ where: { id: dto.parentId } });
+      if (!parent) {
+        throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND, 'Parent item not found');
+      }
+      // Cross-project check
+      if (parent.projectId !== projectId) {
+        throw new AppLogicException('CROSS_PROJECT_NOT_ALLOWED', HttpStatus.BAD_REQUEST);
+      }
+    }
+
+    // Validate parent-child type combination
+    await this.validateParentChildType(itemType, parent);
+
+    // Validate depth
+    await this.validateDepth(dto.parentId ?? null);
+
+    // Atomically increment project.itemCounter
+    await this.dataSource.query(
+      `UPDATE projects SET item_counter = item_counter + 1 WHERE id = $1`,
+      [projectId],
+    );
+    const [projectRow] = await this.dataSource.query(
+      `SELECT item_counter, prefix FROM projects WHERE id = $1`,
+      [projectId],
+    );
+    const itemNumber = projectRow.item_counter;
+    const projectPrefix: string = projectRow.prefix;
+
+    // Resolve statusId — use provided or project default
+    let statusId = dto.statusId ?? null;
+    if (!statusId) {
+      const [defaultStatus] = await this.dataSource.query(
+        `SELECT id FROM project_statuses WHERE project_id = $1 AND is_default = true LIMIT 1`,
+        [projectId],
+      );
+      statusId = defaultStatus?.id;
+      if (!statusId) {
+        throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND, 'No default status found');
+      }
+    }
+
+    // Subtasks: sprintId is ALWAYS null
+    let sprintId: number | null = null;
+    if (itemType !== 'subtask') {
+      sprintId = dto.sprintId ?? null;
+    }
+
+    // Detect addedMidSprint for tasks added to an active sprint
+    let addedMidSprint = false;
+    if (itemType === 'task' && sprintId) {
+      const [sprint] = await this.dataSource.query(
+        `SELECT status FROM sprints WHERE id = $1`,
+        [sprintId],
+      );
+      if (sprint && sprint.status === 'active') {
+        addedMidSprint = true;
+      }
+    }
+
+    // Create the work item
+    const workItem = this.workItemRepo.create({
+      projectId,
+      itemType,
+      parentId: dto.parentId ?? null,
+      itemNumber,
+      title: dto.title,
+      description: dto.description ?? null,
+      statusId,
+      priority: (dto.priority as WorkItem['priority']) || 'medium',
+      sprintId,
+      storyPoints: dto.storyPoints ?? null,
+      assigneeId: dto.assigneeId ?? null,
+      reporterId: userId,
+      sortOrder: 'n',
+      endDate: dto.endDate ?? null,
+      startDate: dto.startDate ?? null,
+      color: dto.color ?? (itemType === 'epic' ? '#7C5CFC' : itemType === 'task' ? '#D6B588' : itemType === 'bug' ? '#E57373' : itemType === 'subtask' ? '#A8A19A' : '#88A9D6'),
+      addedMidSprint,
+    });
+
+    const saved = await this.workItemRepo.save(workItem);
+
+    // Handle labels
+    if (dto.labelIds && dto.labelIds.length > 0) {
+      for (const labelId of dto.labelIds) {
+        await this.dataSource.query(
+          `INSERT INTO work_item_labels (work_item_id, label_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+          [saved.id, labelId],
+        );
+      }
+    }
+
+    // Reload with relations for response
+    const result = await this.workItemRepo.findOne({
+      where: { id: saved.id },
+      relations: ['status', 'assignee', 'reporter', 'labels', 'sprint'],
+    });
+
+    // Create association if provided
+    if (dto.linkedItemId && dto.linkType) {
+      await this.createAssociation(projectId, saved.id, dto.linkedItemId, dto.linkType, userId);
+    }
+
+    // Build response shape matching API spec
+    const childCount = await this.dataSource.query(
+      `SELECT COUNT(*) as cnt FROM work_items WHERE parent_id = $1`,
+      [saved.id],
+    );
+
+    const response = this.formatItemResponse(result!, parseInt(childCount[0].cnt), projectPrefix);
+
+    // Emit domain event
+    this.eventEmitter.emit('work_item.created', {
+      item: result,
+      userId,
+      projectId,
+    });
+
+    return { item: response };
+  }
+
+  /**
+   * Formats a WorkItem entity into the API response shape.
+   */
+  private formatItemResponse(item: WorkItem, childCount = 0, projectPrefix?: string) {
+    return {
+      id: item.id,
+      itemKey: projectPrefix ? `${projectPrefix}-${item.itemNumber}` : null as string | null,
+      itemType: item.itemType,
+      title: item.title,
+      description: item.description,
+      priority: item.priority,
+      status: item.status ? {
+        id: item.status.id,
+        name: item.status.name,
+        category: (item.status as any).category,
+        color: (item.status as any).color,
+      } : null,
+      parentId: item.parentId,
+      statusId: item.statusId,
+      sprint: item.sprint ? {
+        id: item.sprint.id,
+        name: item.sprint.name,
+      } : null,
+      sprintId: item.sprintId,
+      assignee: item.assignee ? {
+        id: item.assignee.id,
+        displayName: (item.assignee as any).displayName,
+        avatarUrl: (item.assignee as any).avatarUrl,
+      } : null,
+      assigneeId: item.assigneeId,
+      reporter: item.reporter ? {
+        id: item.reporter.id,
+        displayName: (item.reporter as any).displayName,
+      } : null,
+      reporterId: item.reporterId,
+      storyPoints: item.storyPoints,
+      endDate: item.endDate,
+      startDate: item.startDate,
+      color: item.color,
+      labels: (item.labels || []).map((l) => ({
+        id: l.id,
+        name: l.name,
+        color: (l as any).color,
+      })),
+      sortOrder: item.sortOrder,
+      addedMidSprint: item.addedMidSprint,
+      completedAt: item.completedAt,
+      itemNumber: item.itemNumber,
+      childCount,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    };
+  }
+
+  async findAll(projectId: number, query: QueryWorkItemsDto) {
+    const page = Math.max(1, query.page || 1);
+    const limit = clampLimit(query.limit);
+
+    const qb = this.workItemRepo.createQueryBuilder('wi')
+      .leftJoinAndSelect('wi.status', 'status')
+      .leftJoinAndSelect('wi.assignee', 'assignee')
+      .leftJoinAndSelect('wi.sprint', 'sprint')
+      .leftJoinAndSelect('wi.labels', 'labels')
+      .where('wi.projectId = :projectId', { projectId });
+
+    // Filter: itemType (comma-separated)
+    if (query.itemType) {
+      const types = query.itemType.split(',').map(t => t.trim());
+      qb.andWhere('wi.itemType IN (:...types)', { types });
+    }
+
+    // Filter: parentId (number or 'null' for root items)
+    if (query.parentId !== undefined) {
+      if (query.parentId === 'null') {
+        qb.andWhere('wi.parentId IS NULL');
+      } else {
+        qb.andWhere('wi.parentId = :parentId', { parentId: parseInt(query.parentId) });
+      }
+    }
+
+    // Filter: status (comma-separated IDs)
+    if (query.status) {
+      const statusIds = query.status.split(',').map(s => parseInt(s.trim()));
+      qb.andWhere('wi.statusId IN (:...statusIds)', { statusIds });
+    }
+
+    // Filter: priority (comma-separated)
+    if (query.priority) {
+      const priorities = query.priority.split(',').map(p => p.trim());
+      qb.andWhere('wi.priority IN (:...priorities)', { priorities });
+    }
+
+    // Filter: assigneeId
+    if (query.assigneeId) {
+      qb.andWhere('wi.assigneeId = :assigneeId', { assigneeId: query.assigneeId });
+    }
+
+    // Filter: sprintId
+    if (query.sprintId) {
+      qb.andWhere('wi.sprintId = :sprintId', { sprintId: query.sprintId });
+    }
+
+    // Filter: labelId
+    if (query.labelId) {
+      qb.andWhere((qb2) => {
+        const subQuery = qb2.subQuery()
+          .select('wil.work_item_id')
+          .from('work_item_labels', 'wil')
+          .where('wil.label_id = :labelId')
+          .getQuery();
+        return `wi.id IN ${subQuery}`;
+      }).setParameter('labelId', query.labelId);
+    }
+
+    // Filter: full-text search
+    if (query.search) {
+      qb.andWhere(`wi.search_vector @@ plainto_tsquery('english', :search)`, { search: query.search });
+    }
+
+    // Sorting
+    const sortColumn = query.sort || 'createdAt';
+    const sortOrder = query.order || 'DESC';
+    const sortMap: Record<string, string> = {
+      createdAt: 'wi.createdAt',
+      updatedAt: 'wi.updatedAt',
+      priority: 'wi.priority',
+      endDate: 'wi.endDate',
+      sortOrder: 'wi.sortOrder',
+    };
+    const sortField = sortMap[sortColumn] || 'wi.createdAt';
+    qb.orderBy(sortField, sortOrder as 'ASC' | 'DESC');
+
+    // Pagination
+    const [items, total] = await qb
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    // Get child counts for all items in batch
+    const itemIds = items.map(i => i.id);
+    let childCounts: Record<number, number> = {};
+    if (itemIds.length > 0) {
+      const counts = await this.dataSource.query(
+        `SELECT parent_id, COUNT(*) as cnt FROM work_items WHERE parent_id = ANY($1) GROUP BY parent_id`,
+        [itemIds],
+      );
+      for (const row of counts) {
+        childCounts[row.parent_id] = parseInt(row.cnt);
+      }
+    }
+
+    // Get project prefix for itemKey
+    const [projectRow] = await this.dataSource.query(
+      `SELECT prefix FROM projects WHERE id = $1`,
+      [projectId],
+    );
+    const projectPrefix: string = projectRow?.prefix;
+
+    const list = items.map(item => this.formatItemResponse(item, childCounts[item.id] || 0, projectPrefix));
+    const paginated = new PaginatedResponse(list, total, page, limit);
+    return paginated.toEnvelopeData();
+  }
+
+  async findOne(projectId: number, id: number) {
+    const item = await this.workItemRepo.findOne({
+      where: { id, projectId },
+      relations: ['status', 'assignee', 'reporter', 'labels', 'sprint'],
+    });
+
+    if (!item) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    // Get project prefix for itemKey
+    const [projectRow] = await this.dataSource.query(
+      `SELECT prefix FROM projects WHERE id = $1`,
+      [projectId],
+    );
+    const projectPrefix: string = projectRow?.prefix;
+
+    // Children (direct only)
+    const children = await this.workItemRepo.find({
+      where: { parentId: id },
+      relations: ['status', 'assignee'],
+      order: { sortOrder: 'ASC' },
+    });
+
+    const childrenFormatted = children.map(c => ({
+      id: c.id,
+      itemKey: projectPrefix ? `${projectPrefix}-${c.itemNumber}` : `${c.itemNumber}`,
+      itemNumber: c.itemNumber,
+      itemType: c.itemType,
+      title: c.title,
+      status: c.status ? { id: c.status.id, name: c.status.name, category: (c.status as any).category, color: (c.status as any).color } : null,
+      priority: c.priority,
+      assignee: c.assignee ? { id: c.assignee.id, displayName: (c.assignee as any).displayName, avatarUrl: (c.assignee as any).avatarUrl } : null,
+      storyPoints: c.storyPoints,
+      completedAt: c.completedAt,
+    }));
+
+    // Breadcrumb (walk up ancestors to root, then reverse)
+    const breadcrumb: any[] = [];
+    let current: WorkItem | null = item;
+    const visited = new Set<number>();
+    while (current) {
+      visited.add(current.id);
+      breadcrumb.unshift({
+        id: current.id,
+        itemKey: projectPrefix ? `${projectPrefix}-${current.itemNumber}` : `${current.itemNumber}`,
+        itemType: current.itemType,
+        title: current.title,
+        color: current.color,
+      });
+      if (current.parentId && !visited.has(current.parentId)) {
+        current = await this.workItemRepo.findOne({ where: { id: current.parentId } });
+      } else {
+        current = null;
+      }
+    }
+
+    // Associations
+    const associations = await this.listAssociations(projectId, id);
+
+    // Progress (recursive CTE for epics/stories)
+    let progress: any = null;
+    const hasChildren = children.length > 0;
+    if (hasChildren && (item.itemType === 'epic' || item.itemType === 'story')) {
+      const progressResult = await this.dataSource.query(`
+        WITH RECURSIVE descendants AS (
+          SELECT a.item_id AS id, wi.status_id, wi.story_points, 1 as depth
+          FROM work_item_associations a
+          JOIN work_items wi ON wi.id = a.item_id
+          WHERE a.linked_item_id = $1 AND a.link_type = 'belongs_to'
+          UNION ALL
+          SELECT a2.item_id, wi2.status_id, wi2.story_points, d.depth + 1
+          FROM work_item_associations a2
+          JOIN work_items wi2 ON wi2.id = a2.item_id
+          JOIN descendants d ON a2.linked_item_id = d.id
+          WHERE a2.link_type = 'belongs_to' AND d.depth < 4
+        )
+        SELECT
+          COUNT(*) as total_items,
+          COUNT(*) FILTER (WHERE ps.category = 'done') as completed_items,
+          COALESCE(SUM(d.story_points), 0) as total_points,
+          COALESCE(SUM(d.story_points) FILTER (WHERE ps.category = 'done'), 0) as completed_points
+        FROM descendants d
+        JOIN project_statuses ps ON ps.id = d.status_id
+      `, [id]);
+
+      const pr = progressResult[0];
+      const totalItems = parseInt(pr.total_items);
+      const completedItems = parseInt(pr.completed_items);
+      progress = {
+        totalItems,
+        completedItems,
+        totalPoints: parseInt(pr.total_points),
+        completedPoints: parseInt(pr.completed_points),
+        progressPercent: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
+      };
+    }
+
+    // Comment and attachment counts
+    const [commentRow] = await this.dataSource.query(
+      `SELECT COUNT(*) as cnt FROM comments WHERE work_item_id = $1`,
+      [id],
+    );
+    const [attachmentRow] = await this.dataSource.query(
+      `SELECT COUNT(*) as cnt FROM attachments WHERE work_item_id = $1`,
+      [id],
+    );
+
+    const baseResponse = this.formatItemResponse(item, children.length, projectPrefix);
+    return {
+      ...baseResponse,
+      description: item.description,
+      reporter: item.reporter ? { id: item.reporter.id, displayName: (item.reporter as any).displayName } : null,
+      children: childrenFormatted,
+      breadcrumb,
+      associations,
+      progress,
+      commentCount: parseInt(commentRow.cnt),
+      attachmentCount: parseInt(attachmentRow.cnt),
+    };
+  }
+
+  async findChildren(projectId: number, id: number, page?: number, limit?: number) {
+    const p = Math.max(1, page || 1);
+    const l = clampLimit(limit);
+
+    // Verify parent exists in this project
+    const parent = await this.workItemRepo.findOne({ where: { id, projectId } });
+    if (!parent) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    const [children, total] = await this.workItemRepo.findAndCount({
+      where: { parentId: id },
+      relations: ['status', 'assignee', 'labels'],
+      order: { sortOrder: 'ASC' },
+      skip: (p - 1) * l,
+      take: l,
+    });
+
+    // Child counts for each child
+    const childIds = children.map(c => c.id);
+    let childCounts: Record<number, number> = {};
+    if (childIds.length > 0) {
+      const counts = await this.dataSource.query(
+        `SELECT parent_id, COUNT(*) as cnt FROM work_items WHERE parent_id = ANY($1) GROUP BY parent_id`,
+        [childIds],
+      );
+      for (const row of counts) {
+        childCounts[row.parent_id] = parseInt(row.cnt);
+      }
+    }
+
+    // Get project prefix for itemKey
+    const [prefixRow] = await this.dataSource.query(
+      `SELECT prefix FROM projects WHERE id = $1`,
+      [projectId],
+    );
+    const projectPrefix: string = prefixRow?.prefix;
+
+    const list = children.map(c => this.formatItemResponse(c, childCounts[c.id] || 0, projectPrefix));
+    const paginated = new PaginatedResponse(list, total, p, l);
+    return paginated.toEnvelopeData();
+  }
+
+  async update(projectId: number, id: number, dto: UpdateWorkItemDto, userId: number) {
+    const item = await this.workItemRepo.findOne({
+      where: { id, projectId },
+    });
+    if (!item) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    // Reject sprintId change on subtask
+    if (item.itemType === 'subtask' && dto.sprintId !== undefined) {
+      throw new AppLogicException('SUBTASK_NO_SPRINT', HttpStatus.BAD_REQUEST);
+    }
+
+    // Handle status change
+    if (dto.statusId !== undefined && dto.statusId !== item.statusId) {
+      // Load new status to check category
+      const [newStatus] = await this.dataSource.query(
+        `SELECT id, category FROM project_statuses WHERE id = $1 AND project_id = $2`,
+        [dto.statusId, projectId],
+      );
+      if (!newStatus) {
+        throw new AppLogicException('NOT_FOUND', HttpStatus.BAD_REQUEST, 'Status not found');
+      }
+
+      // If changing to 'done' category, check association blockers
+      if (newStatus.category === 'done') {
+        const blockers = await this.dataSource.query(
+          `SELECT a.id, wi.item_number, wi.title, ps.category
+           FROM work_item_associations a
+           JOIN work_items wi ON wi.id = a.linked_item_id
+           JOIN project_statuses ps ON ps.id = wi.status_id
+           WHERE a.item_id = $1 AND a.link_type = 'blocks'`,
+          [id],
+        );
+        const unresolvedBlockers = blockers.filter((b: any) => b.category !== 'done');
+        if (unresolvedBlockers.length > 0) {
+          throw new AppLogicException(
+            'ITEM_BLOCKED',
+            HttpStatus.BAD_REQUEST,
+            `Blocked by ${unresolvedBlockers[0].title}. Resolve the blocker first.`,
+          );
+        }
+      }
+
+      // Set or clear completedAt
+      const [oldStatus] = await this.dataSource.query(
+        `SELECT category FROM project_statuses WHERE id = $1`,
+        [item.statusId],
+      );
+      if (newStatus.category === 'done' && oldStatus?.category !== 'done') {
+        item.completedAt = new Date();
+      } else if (newStatus.category !== 'done' && oldStatus?.category === 'done') {
+        item.completedAt = null;
+      }
+
+      item.statusId = dto.statusId;
+    }
+
+    // Apply simple field updates
+    if (dto.title !== undefined) item.title = dto.title;
+    if (dto.description !== undefined) item.description = dto.description;
+    if (dto.priority !== undefined) item.priority = dto.priority as WorkItem['priority'];
+    if (dto.storyPoints !== undefined) item.storyPoints = dto.storyPoints;
+    if (dto.assigneeId !== undefined) item.assigneeId = dto.assigneeId;
+    if (dto.endDate !== undefined) item.endDate = dto.endDate;
+    if (dto.startDate !== undefined) item.startDate = dto.startDate;
+    if (dto.color !== undefined) item.color = dto.color;
+
+    // Sprint — only for non-subtasks (subtask rejection handled above)
+    if (dto.sprintId !== undefined && item.itemType !== 'subtask') {
+      item.sprintId = dto.sprintId;
+    }
+
+    await this.workItemRepo.save(item);
+
+    // Handle labels if provided
+    if (dto.labelIds !== undefined) {
+      // Remove existing labels
+      await this.dataSource.query(
+        `DELETE FROM work_item_labels WHERE work_item_id = $1`,
+        [id],
+      );
+      // Add new labels
+      for (const labelId of dto.labelIds) {
+        await this.dataSource.query(
+          `INSERT INTO work_item_labels (work_item_id, label_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+          [id, labelId],
+        );
+      }
+    }
+
+    // Reload with relations
+    const result = await this.workItemRepo.findOne({
+      where: { id },
+      relations: ['status', 'assignee', 'reporter', 'labels', 'sprint'],
+    });
+
+    const [childCount] = await this.dataSource.query(
+      `SELECT COUNT(*) as cnt FROM work_items WHERE parent_id = $1`,
+      [id],
+    );
+
+    // Get project prefix for itemKey
+    const [prefixRow] = await this.dataSource.query(
+      `SELECT prefix FROM projects WHERE id = $1`,
+      [projectId],
+    );
+    const projectPrefix: string = prefixRow?.prefix;
+
+    const response = this.formatItemResponse(result!, parseInt(childCount.cnt), projectPrefix);
+
+    this.eventEmitter.emit('work_item.updated', {
+      item: result,
+      userId,
+      projectId,
+      changes: dto,
+    });
+
+    return { item: response };
+  }
+
+  async remove(projectId: number, id: number, userId: number) {
+    const item = await this.workItemRepo.findOne({
+      where: { id, projectId },
+    });
+    if (!item) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    // Validate deletion is allowed
+    await this.validateDeletion(item);
+
+    // Handle children based on type
+    if (item.itemType === 'epic') {
+      // Orphan all children — set parentId to null
+      await this.dataSource.query(
+        `UPDATE work_items SET parent_id = NULL WHERE parent_id = $1`,
+        [id],
+      );
+    } else if (item.itemType === 'story') {
+      // validateDeletion already ensured no direct subtasks
+      // Orphan task children
+      await this.dataSource.query(
+        `UPDATE work_items SET parent_id = NULL WHERE parent_id = $1`,
+        [id],
+      );
+    }
+    // task with children: blocked by validateDeletion
+    // subtask: no children, delete directly
+
+    await this.workItemRepo.remove(item);
+
+    this.eventEmitter.emit('work_item.deleted', {
+      itemId: id,
+      itemType: item.itemType,
+      userId,
+      projectId,
+    });
+
+    return { item: null };
+  }
+
+  async move(projectId: number, id: number, dto: MoveWorkItemDto, userId: number) {
+    const item = await this.workItemRepo.findOne({ where: { id, projectId } });
+    if (!item) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    const newParentId = dto.parentId ?? null;
+
+    // Load new parent if provided
+    let newParent: WorkItem | null = null;
+    if (newParentId !== null) {
+      newParent = await this.workItemRepo.findOne({ where: { id: newParentId } });
+      if (!newParent) {
+        throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND, 'Parent item not found');
+      }
+    }
+
+    // Validate reparenting (cross-project, circular, depth, type, task-with-subtasks)
+    await this.validateReparenting(item, newParent);
+
+    // Perform the move
+    item.parentId = newParentId;
+    await this.workItemRepo.save(item);
+
+    // Reload with relations
+    const result = await this.workItemRepo.findOne({
+      where: { id },
+      relations: ['status', 'assignee', 'reporter', 'labels', 'sprint'],
+    });
+
+    const [childCount] = await this.dataSource.query(
+      `SELECT COUNT(*) as cnt FROM work_items WHERE parent_id = $1`,
+      [id],
+    );
+
+    // Get project prefix for itemKey
+    const [movePrefixRow] = await this.dataSource.query(
+      `SELECT prefix FROM projects WHERE id = $1`,
+      [projectId],
+    );
+    const moveProjectPrefix: string = movePrefixRow?.prefix;
+
+    const response = this.formatItemResponse(result!, parseInt(childCount.cnt), moveProjectPrefix);
+
+    this.eventEmitter.emit('work_item.moved', {
+      item: result,
+      oldParentId: item.parentId,
+      newParentId,
+      userId,
+      projectId,
+    });
+
+    return { item: response };
+  }
+
+  async assignSprint(projectId: number, id: number, dto: AssignSprintDto, userId: number) {
+    const item = await this.workItemRepo.findOne({ where: { id, projectId } });
+    if (!item) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    // Subtasks cannot be assigned to sprint
+    if (item.itemType === 'subtask') {
+      throw new AppLogicException('SUBTASK_NO_SPRINT', HttpStatus.BAD_REQUEST);
+    }
+
+    const sprintId = dto.sprintId ?? null;
+
+    // Track addedMidSprint for tasks assigned to active sprint
+    if (item.itemType === 'task' && sprintId !== null) {
+      const [sprint] = await this.dataSource.query(
+        `SELECT status FROM sprints WHERE id = $1`,
+        [sprintId],
+      );
+      if (sprint && sprint.status === 'active') {
+        item.addedMidSprint = true;
+      } else {
+        item.addedMidSprint = false;
+      }
+    }
+
+    item.sprintId = sprintId;
+    await this.workItemRepo.save(item);
+
+    // Reload with relations
+    const result = await this.workItemRepo.findOne({
+      where: { id },
+      relations: ['status', 'assignee', 'reporter', 'labels', 'sprint'],
+    });
+
+    const [childCount] = await this.dataSource.query(
+      `SELECT COUNT(*) as cnt FROM work_items WHERE parent_id = $1`,
+      [id],
+    );
+
+    // Get project prefix for itemKey
+    const [sprintPrefixRow] = await this.dataSource.query(
+      `SELECT prefix FROM projects WHERE id = $1`,
+      [projectId],
+    );
+    const sprintProjectPrefix: string = sprintPrefixRow?.prefix;
+
+    const response = this.formatItemResponse(result!, parseInt(childCount.cnt), sprintProjectPrefix);
+
+    this.eventEmitter.emit('work_item.sprint_assigned', {
+      item: result,
+      sprintId,
+      userId,
+      projectId,
+    });
+
+    return { item: response };
+  }
+
+  async assign(projectId: number, id: number, dto: AssignWorkItemDto, userId: number) {
+    const item = await this.workItemRepo.findOne({ where: { id, projectId } });
+    if (!item) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    const assigneeId = dto.assigneeId ?? null;
+    item.assigneeId = assigneeId;
+    await this.workItemRepo.save(item);
+
+    // Reload with relations
+    const result = await this.workItemRepo.findOne({
+      where: { id },
+      relations: ['status', 'assignee', 'reporter', 'labels', 'sprint'],
+    });
+
+    const [childCount] = await this.dataSource.query(
+      `SELECT COUNT(*) as cnt FROM work_items WHERE parent_id = $1`,
+      [id],
+    );
+
+    const [prefixRow] = await this.dataSource.query(
+      `SELECT prefix FROM projects WHERE id = $1`,
+      [projectId],
+    );
+    const projectPrefix: string = prefixRow?.prefix;
+
+    const response = this.formatItemResponse(result!, parseInt(childCount.cnt), projectPrefix);
+
+    this.eventEmitter.emit('work_item.assigned', {
+      itemId: id,
+      projectId,
+      actorId: userId,
+      assigneeId,
+    });
+    this.eventEmitter.emit('work_item.updated', {
+      item: result,
+      userId,
+      projectId,
+      changes: { assigneeId },
+    });
+
+    return { item: response };
+  }
+
+  async reorderItems(projectId: number, reorders: { itemId: number; sortOrder: string }[]) {
+    for (const { itemId, sortOrder } of reorders) {
+      await this.workItemRepo.update({ id: itemId, projectId }, { sortOrder });
+    }
+  }
+
+  // =========================================================================
+  // CHECKLIST METHODS
+  // =========================================================================
+
+  async createChecklistItem(projectId: number, workItemId: number, title: string) {
+    const item = await this.workItemRepo.findOne({ where: { id: workItemId, projectId } });
+    if (!item) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+
+    const maxOrder = await this.dataSource.query(
+      `SELECT COALESCE(MAX(sort_order), -1) as max FROM checklist_items WHERE work_item_id = $1`,
+      [workItemId],
+    );
+
+    const [created] = await this.dataSource.query(
+      `INSERT INTO checklist_items (work_item_id, title, sort_order) VALUES ($1, $2, $3) RETURNING *`,
+      [workItemId, title, (maxOrder[0]?.max ?? -1) + 1],
+    );
+    return created;
+  }
+
+  async updateChecklistItem(projectId: number, workItemId: number, itemId: number, dto: { title?: string; isCompleted?: boolean }) {
+    const item = await this.workItemRepo.findOne({ where: { id: workItemId, projectId } });
+    if (!item) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+
+    const sets: string[] = [];
+    const params: any[] = [];
+    let paramIdx = 1;
+
+    if (dto.title !== undefined) { sets.push(`title = $${paramIdx++}`); params.push(dto.title); }
+    if (dto.isCompleted !== undefined) { sets.push(`is_completed = $${paramIdx++}`); params.push(dto.isCompleted); }
+
+    if (sets.length === 0) return;
+
+    params.push(itemId, workItemId);
+    await this.dataSource.query(
+      `UPDATE checklist_items SET ${sets.join(', ')} WHERE id = $${paramIdx++} AND work_item_id = $${paramIdx}`,
+      params,
+    );
+
+    const [updated] = await this.dataSource.query(`SELECT * FROM checklist_items WHERE id = $1`, [itemId]);
+    return updated;
+  }
+
+  async deleteChecklistItem(projectId: number, workItemId: number, itemId: number) {
+    const item = await this.workItemRepo.findOne({ where: { id: workItemId, projectId } });
+    if (!item) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+
+    await this.dataSource.query(
+      `DELETE FROM checklist_items WHERE id = $1 AND work_item_id = $2`,
+      [itemId, workItemId],
+    );
+  }
+
+  // =========================================================================
+  // ASSOCIATION METHODS
+  // =========================================================================
+
+  async createAssociation(projectId: number, itemId: number, linkedItemId: number, linkType: string, userId: number) {
+    const item = await this.workItemRepo.findOne({ where: { id: itemId, projectId } });
+    if (!item) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+
+    const linked = await this.workItemRepo.findOne({ where: { id: linkedItemId, projectId } });
+    if (!linked) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+
+    if (itemId === linkedItemId) {
+      throw new AppLogicException('CIRCULAR_REFERENCE', HttpStatus.BAD_REQUEST, 'Cannot link an item to itself');
+    }
+
+    // Circular blocks check
+    if (linkType === 'blocks') {
+      // Check: would this create a circular blocking chain?
+      const visited = new Set<number>();
+      const queue = [linkedItemId];
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        if (current === itemId) {
+          throw new AppLogicException('CIRCULAR_DEPENDENCY', HttpStatus.CONFLICT);
+        }
+        if (visited.has(current)) continue;
+        visited.add(current);
+        const deps = await this.assocRepo.find({ where: { itemId: current, linkType: 'blocks' } });
+        for (const dep of deps) {
+          if (!visited.has(dep.linkedItemId)) queue.push(dep.linkedItemId);
+        }
+      }
+    }
+
+    const assoc = this.assocRepo.create({
+      itemId,
+      linkedItemId,
+      linkType: linkType as any,
+      createdBy: userId,
+    });
+    return this.assocRepo.save(assoc);
+  }
+
+  async deleteAssociation(projectId: number, itemId: number, assocId: number) {
+    const item = await this.workItemRepo.findOne({ where: { id: itemId, projectId } });
+    if (!item) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+
+    const assoc = await this.assocRepo.findOne({ where: { id: assocId, itemId } });
+    if (!assoc) {
+      // Also check incoming (for bidirectional like relates_to)
+      const incoming = await this.assocRepo.findOne({ where: { id: assocId, linkedItemId: itemId } });
+      if (!incoming) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+      await this.assocRepo.remove(incoming);
+      return;
+    }
+    await this.assocRepo.remove(assoc);
+  }
+
+  async listAssociations(projectId: number, itemId: number) {
+    const item = await this.workItemRepo.findOne({ where: { id: itemId, projectId } });
+    if (!item) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+
+    const [proj] = await this.dataSource.query('SELECT prefix FROM projects WHERE id = $1', [projectId]);
+    const prefix = proj?.prefix || '';
+
+    const assocRelations = ['linkedItem', 'linkedItem.status', 'linkedItem.assignee', 'linkedItem.labels'];
+    const assocRelationsIncoming = ['item', 'item.status', 'item.assignee', 'item.labels'];
+
+    const outgoing = await this.assocRepo.find({
+      where: { itemId },
+      relations: assocRelations,
+    });
+
+    const incoming = await this.assocRepo.find({
+      where: { linkedItemId: itemId },
+      relations: assocRelationsIncoming,
+    });
+
+    const fmt = (wi: any) => ({
+      id: wi.id,
+      itemKey: prefix ? `${prefix}-${wi.itemNumber}` : `${wi.itemNumber}`,
+      itemNumber: wi.itemNumber,
+      itemType: wi.itemType,
+      title: wi.title,
+      priority: wi.priority,
+      storyPoints: wi.storyPoints ?? null,
+      sprintId: wi.sprintId ?? null,
+      assignee: wi.assignee ? { id: wi.assignee.id, displayName: wi.assignee.displayName } : null,
+      completedAt: wi.completedAt ?? null,
+      labels: (wi.labels || []).map((l: any) => ({ id: l.id, name: l.name, color: l.color })),
+      status: wi.status ? { id: wi.status.id, name: wi.status.name, category: (wi.status as any).category, color: (wi.status as any).color } : null,
+    });
+
+    return {
+      belongsTo: outgoing.filter(a => a.linkType === 'belongs_to').map(a => ({ id: a.id, item: fmt(a.linkedItem) })),
+      members: incoming.filter(a => a.linkType === 'belongs_to').map(a => ({ id: a.id, item: fmt(a.item) })),
+      relatesTo: [
+        ...outgoing.filter(a => a.linkType === 'relates_to').map(a => ({ id: a.id, item: fmt(a.linkedItem) })),
+        ...incoming.filter(a => a.linkType === 'relates_to').map(a => ({ id: a.id, item: fmt(a.item) })),
+      ],
+      blocks: incoming.filter(a => a.linkType === 'blocks').map(a => ({ id: a.id, item: fmt(a.item) })),
+      blockedBy: outgoing.filter(a => a.linkType === 'blocks').map(a => ({ id: a.id, item: fmt(a.linkedItem) })),
+      causedBy: outgoing.filter(a => a.linkType === 'caused_by').map(a => ({ id: a.id, item: fmt(a.linkedItem) })),
+    };
+  }
+
+  // =========================================================================
+  // HIERARCHY VIEW METHODS
+  // =========================================================================
+
+  async listEpics(projectId: number, opts: { page?: number; limit?: number; status?: string }) {
+    const page = Math.max(1, opts.page || 1);
+    const limit = clampLimit(opts.limit);
+
+    const qb = this.workItemRepo.createQueryBuilder('wi')
+      .leftJoinAndSelect('wi.status', 'status')
+      .leftJoinAndSelect('wi.assignee', 'assignee')
+      .leftJoinAndSelect('wi.sprint', 'sprint')
+      .leftJoinAndSelect('wi.labels', 'labels')
+      .where('wi.projectId = :projectId', { projectId })
+      .andWhere("wi.itemType = 'epic'");
+
+    if (opts.status) {
+      const statusIds = opts.status.split(',').map(s => parseInt(s.trim()));
+      qb.andWhere('wi.statusId IN (:...statusIds)', { statusIds });
+    }
+
+    qb.orderBy('wi.sortOrder', 'ASC').addOrderBy('wi.createdAt', 'DESC');
+
+    const [epics, total] = await qb
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    // For each epic, compute progress + childBreakdown using recursive CTE
+    const list = await Promise.all(epics.map(async (epic) => {
+      const { progress, childBreakdown } = await this.computeDescendantStats(epic.id);
+
+      return {
+        id: epic.id,
+        itemKey: `${epic.itemNumber}`,
+        itemType: epic.itemType,
+        title: epic.title,
+        description: epic.description,
+        priority: epic.priority,
+        status: epic.status ? {
+          id: epic.status.id,
+          name: epic.status.name,
+          category: (epic.status as any).category,
+          color: (epic.status as any).color,
+        } : null,
+        color: epic.color,
+        assignee: epic.assignee ? {
+          id: epic.assignee.id,
+          displayName: (epic.assignee as any).displayName,
+          avatarUrl: (epic.assignee as any).avatarUrl,
+        } : null,
+        sprint: epic.sprint ? {
+          id: epic.sprint.id,
+          name: epic.sprint.name,
+        } : null,
+        endDate: epic.endDate,
+        storyPoints: epic.storyPoints,
+        progress,
+        childBreakdown,
+        labels: (epic.labels || []).map((l) => ({ id: l.id, name: l.name, color: (l as any).color })),
+        createdAt: epic.createdAt,
+      };
+    }));
+
+    const paginated = new PaginatedResponse(list, total, page, limit);
+    return paginated.toEnvelopeData();
+  }
+
+  async listStories(projectId: number, opts: { page?: number; limit?: number; epicId?: number }) {
+    const page = Math.max(1, opts.page || 1);
+    const limit = clampLimit(opts.limit);
+
+    const qb = this.workItemRepo.createQueryBuilder('wi')
+      .leftJoinAndSelect('wi.status', 'status')
+      .leftJoinAndSelect('wi.assignee', 'assignee')
+      .leftJoinAndSelect('wi.sprint', 'sprint')
+      .leftJoinAndSelect('wi.labels', 'labels')
+      .leftJoin('wi.parent', 'parent')
+      .addSelect(['parent.id', 'parent.itemNumber', 'parent.itemType', 'parent.title'])
+      .where('wi.projectId = :projectId', { projectId })
+      .andWhere("wi.itemType = 'story'");
+
+    if (opts.epicId) {
+      qb.andWhere('wi.parentId = :epicId', { epicId: opts.epicId });
+    }
+
+    qb.orderBy('wi.sortOrder', 'ASC').addOrderBy('wi.createdAt', 'DESC');
+
+    const [stories, total] = await qb
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    const list = await Promise.all(stories.map(async (story) => {
+      const { progress, childBreakdown } = await this.computeDescendantStats(story.id);
+
+      return {
+        id: story.id,
+        itemKey: `${story.itemNumber}`,
+        itemType: story.itemType,
+        title: story.title,
+        priority: story.priority,
+        status: story.status ? {
+          id: story.status.id,
+          name: story.status.name,
+          category: (story.status as any).category,
+          color: (story.status as any).color,
+        } : null,
+        parent: story.parent ? {
+          id: story.parent.id,
+          itemKey: `${story.parent.itemNumber}`,
+          itemType: story.parent.itemType,
+          title: story.parent.title,
+        } : null,
+        assignee: story.assignee ? {
+          id: story.assignee.id,
+          displayName: (story.assignee as any).displayName,
+          avatarUrl: (story.assignee as any).avatarUrl,
+        } : null,
+        sprint: story.sprint ? {
+          id: story.sprint.id,
+          name: story.sprint.name,
+        } : null,
+        storyPoints: story.storyPoints,
+        progress,
+        childBreakdown,
+        labels: (story.labels || []).map((l) => ({ id: l.id, name: l.name, color: (l as any).color })),
+        createdAt: story.createdAt,
+      };
+    }));
+
+    const paginated = new PaginatedResponse(list, total, page, limit);
+    return paginated.toEnvelopeData();
+  }
+
+  async getBacklog(projectId: number) {
+    // Fetch ALL items in this project that are "in backlog":
+    // - Tasks/bugs/subtasks: sprint_id IS NULL
+    // - Epics/stories: always included (sprint is informational) BUT only if they
+    //   have at least one unsprinted descendant, OR they themselves have no sprint
+    //
+    // Strategy: fetch all items with sprint_id IS NULL plus all epics/stories,
+    // then build the tree using associations and prune epics/stories that have no backlog descendants.
+
+    // Step 1: Get IDs of all tasks/bugs in a sprint (to exclude)
+    const sprintedTaskIds: number[] = (await this.dataSource.query(
+      `SELECT id FROM work_items WHERE project_id = $1 AND sprint_id IS NOT NULL AND item_type IN ('task', 'bug')`,
+      [projectId],
+    )).map((r: any) => r.id);
+
+    // Step 2: Fetch all backlog-eligible items:
+    // - All epics and stories (always candidates for the tree)
+    // - All tasks/bugs where sprint_id IS NULL
+    // - All subtasks where parent is NOT a sprinted task
+    let allItems: any[];
+    if (sprintedTaskIds.length > 0) {
+      allItems = await this.dataSource.query(`
+        SELECT wi.id, wi.item_type AS "itemType", wi.parent_id AS "parentId",
+               wi.title, wi.priority, wi.story_points AS "storyPoints",
+               wi.status_id AS "statusId", wi.sprint_id AS "sprintId",
+               wi.item_number AS "itemNumber", wi.color, wi.sort_order AS "sortOrder",
+               wi.assignee_id AS "assigneeId", wi.end_date AS "endDate",
+               ps.name AS "statusName", ps.category AS "statusCategory", ps.color AS "statusColor"
+        FROM work_items wi
+        JOIN project_statuses ps ON ps.id = wi.status_id
+        WHERE wi.project_id = $1
+          AND (
+            wi.item_type IN ('epic', 'story')
+            OR (wi.item_type IN ('task', 'bug') AND wi.sprint_id IS NULL)
+            OR (wi.item_type = 'subtask' AND wi.parent_id != ALL($2))
+          )
+        ORDER BY wi.sort_order ASC, wi.created_at ASC
+      `, [projectId, sprintedTaskIds]);
+    } else {
+      allItems = await this.dataSource.query(`
+        SELECT wi.id, wi.item_type AS "itemType", wi.parent_id AS "parentId",
+               wi.title, wi.priority, wi.story_points AS "storyPoints",
+               wi.status_id AS "statusId", wi.sprint_id AS "sprintId",
+               wi.item_number AS "itemNumber", wi.color, wi.sort_order AS "sortOrder",
+               wi.assignee_id AS "assigneeId", wi.end_date AS "endDate",
+               ps.name AS "statusName", ps.category AS "statusCategory", ps.color AS "statusColor"
+        FROM work_items wi
+        JOIN project_statuses ps ON ps.id = wi.status_id
+        WHERE wi.project_id = $1
+        ORDER BY wi.sort_order ASC, wi.created_at ASC
+      `, [projectId]);
+    }
+
+    // Step 3: Fetch belongs_to associations for tree building
+    const associations = await this.dataSource.query(`
+      SELECT a.item_id AS "itemId", a.linked_item_id AS "linkedItemId"
+      FROM work_item_associations a
+      JOIN work_items wi ON wi.id = a.item_id
+      WHERE wi.project_id = $1 AND a.link_type = 'belongs_to'
+    `, [projectId]);
+
+    // Step 4: Build lookup and tree
+    const itemMap = new Map<number, any>();
+    for (const item of allItems) {
+      itemMap.set(item.id, {
+        id: item.id,
+        itemType: item.itemType,
+        itemNumber: item.itemNumber,
+        title: item.title,
+        priority: item.priority,
+        storyPoints: item.storyPoints,
+        color: item.color,
+        status: { id: item.statusId, name: item.statusName, category: item.statusCategory, color: item.statusColor },
+        parentId: item.parentId,
+        sprintId: item.sprintId,
+        children: [] as any[],
+      });
+    }
+
+    // Link children to parents using associations (for non-subtasks) and parentId (for subtasks)
+    const roots: any[] = [];
+
+    // First: link via belongs_to associations (tasks/stories belong_to epics/stories)
+    for (const assoc of associations) {
+      const child = itemMap.get(assoc.itemId);
+      const parent = itemMap.get(assoc.linkedItemId);
+      if (child && parent) {
+        parent.children.push(child);
+        // Mark as linked so we don't add to roots
+        child._linked = true;
+      }
+    }
+
+    // Second: link subtasks via parentId
+    for (const item of itemMap.values()) {
+      if (item.itemType === 'subtask' && item.parentId && itemMap.has(item.parentId)) {
+        itemMap.get(item.parentId)!.children.push(item);
+        item._linked = true;
+      }
+    }
+
+    // Collect roots: items not linked as children
+    for (const item of itemMap.values()) {
+      if (!item._linked) {
+        roots.push(item);
+      }
+    }
+
+    // Clean up internal _linked flag
+    for (const item of itemMap.values()) {
+      delete item._linked;
+    }
+
+    // Step 5: Prune only epics/stories that have a sprint AND no backlog descendants.
+    // Per spec: an item is "in backlog" if it has no sprintId, OR (for epics/stories)
+    // if any of its unsprinted children exist.
+    // Epics/stories without sprint are always included.
+    // Epics/stories WITH sprint are included only if they have backlog descendants.
+    function hasBacklogContent(node: any): boolean {
+      // Tasks and subtasks are always backlog content (they were already filtered to unsprinted)
+      if (node.itemType === 'task' || node.itemType === 'bug' || node.itemType === 'subtask') return true;
+      // Epic/story without sprint: always backlog
+      if (!node.sprintId) return true;
+      // Epic/story WITH sprint: only if has backlog descendants
+      return node.children.some((c: any) => hasBacklogContent(c));
+    }
+
+    const filteredRoots = roots.filter(r => hasBacklogContent(r));
+
+    // Step 6: Compute stats from ALL items in the tree (flatten)
+    function flattenTree(nodes: any[]): any[] {
+      const flat: any[] = [];
+      for (const n of nodes) {
+        flat.push(n);
+        flat.push(...flattenTree(n.children));
+      }
+      return flat;
+    }
+
+    const allBacklogItems = flattenTree(filteredRoots);
+    const stats = {
+      totalItems: allBacklogItems.length,
+      totalPoints: allBacklogItems.reduce((sum: number, i: any) => sum + (i.storyPoints || 0), 0),
+      byType: {
+        epic: allBacklogItems.filter((i: any) => i.itemType === 'epic').length,
+        story: allBacklogItems.filter((i: any) => i.itemType === 'story').length,
+        task: allBacklogItems.filter((i: any) => i.itemType === 'task').length,
+        bug: allBacklogItems.filter((i: any) => i.itemType === 'bug').length,
+        subtask: allBacklogItems.filter((i: any) => i.itemType === 'subtask').length,
+      },
+      byPriority: {
+        urgent: allBacklogItems.filter((i: any) => i.priority === 'urgent').length,
+        high: allBacklogItems.filter((i: any) => i.priority === 'high').length,
+        medium: allBacklogItems.filter((i: any) => i.priority === 'medium').length,
+        low: allBacklogItems.filter((i: any) => i.priority === 'low').length,
+        none: allBacklogItems.filter((i: any) => i.priority === 'none').length,
+      },
+    };
+
+    // Clean up internal fields from response
+    function cleanTree(nodes: any[]): any[] {
+      return nodes.map(n => {
+        const { parentId, sprintId, ...rest } = n;
+        return { ...rest, children: cleanTree(n.children) };
+      });
+    }
+
+    return {
+      tree: cleanTree(filteredRoots),
+      stats,
+    };
+  }
+
+  /**
+   * Computes recursive descendant stats for an item using a CTE.
+   * Returns progress (totalItems, completedItems, totalPoints, completedPoints, progressPercent)
+   * and childBreakdown (stories, tasks, subtasks counts).
+   */
+  private async computeDescendantStats(itemId: number) {
+    const result = await this.dataSource.query(`
+      WITH RECURSIVE descendants AS (
+        SELECT a.item_id AS id, wi.item_type, wi.status_id, wi.story_points, 1 as depth
+        FROM work_item_associations a
+        JOIN work_items wi ON wi.id = a.item_id
+        WHERE a.linked_item_id = $1 AND a.link_type = 'belongs_to'
+        UNION ALL
+        SELECT a2.item_id, wi2.item_type, wi2.status_id, wi2.story_points, d.depth + 1
+        FROM work_item_associations a2
+        JOIN work_items wi2 ON wi2.id = a2.item_id
+        JOIN descendants d ON a2.linked_item_id = d.id
+        WHERE a2.link_type = 'belongs_to' AND d.depth < 4
+      )
+      SELECT
+        COUNT(*) as total_items,
+        COUNT(*) FILTER (WHERE ps.category = 'done') as completed_items,
+        COALESCE(SUM(d.story_points), 0) as total_points,
+        COALESCE(SUM(d.story_points) FILTER (WHERE ps.category = 'done'), 0) as completed_points,
+        COUNT(*) FILTER (WHERE d.item_type = 'story') as story_count,
+        COUNT(*) FILTER (WHERE d.item_type = 'task') as task_count,
+        COUNT(*) FILTER (WHERE d.item_type = 'subtask') as subtask_count,
+        COUNT(*) FILTER (WHERE d.item_type = 'bug') as bug_count
+      FROM descendants d
+      JOIN project_statuses ps ON ps.id = d.status_id
+    `, [itemId]);
+
+    const row = result[0];
+    const totalItems = parseInt(row.total_items);
+    const completedItems = parseInt(row.completed_items);
+
+    return {
+      progress: {
+        totalItems,
+        completedItems,
+        totalPoints: parseInt(row.total_points),
+        completedPoints: parseInt(row.completed_points),
+        progressPercent: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
+      },
+      childBreakdown: {
+        stories: parseInt(row.story_count),
+        tasks: parseInt(row.task_count),
+        subtasks: parseInt(row.subtask_count),
+        bugs: parseInt(row.bug_count),
+      },
+    };
+  }
+
+  // =========================================================================
+  // VALIDATION METHODS
+  // =========================================================================
+
+  /**
+   * Validates parent-child type combinations.
+   * Rules from HIERARCHY-RULES.md section 1.1 + 1.2:
+   *
+   * Parent → Allowed children:
+   *   null    → epic, story, task
+   *   epic    → story, task
+   *   story   → task, subtask
+   *   task    → subtask
+   *   subtask → (nothing — leaf node)
+   *
+   * Additional rules:
+   *   - Epic cannot have a parent (itemType 'epic' with non-null parent → reject)
+   *   - Subtask must have a parent (itemType 'subtask' with null parent → reject)
+   */
+  async validateParentChildType(
+    itemType: WorkItem['itemType'],
+    parent: WorkItem | null,
+  ): Promise<void> {
+    if (itemType === 'subtask') {
+      if (parent === null) {
+        throw new AppLogicException('SUBTASK_REQUIRES_PARENT', HttpStatus.BAD_REQUEST);
+      }
+      if (!['task', 'story'].includes(parent.itemType)) {
+        throw new AppLogicException('INVALID_PARENT_CHILD_TYPE', HttpStatus.BAD_REQUEST,
+          `A ${parent.itemType} cannot be parent of a subtask`);
+      }
+      return;
+    }
+
+    // Bug: cannot have parent, cannot have children
+    if (itemType === 'bug' && parent !== null) {
+      throw new AppLogicException('INVALID_PARENT_CHILD_TYPE', HttpStatus.BAD_REQUEST,
+        'Bugs cannot have a parent. Use associations instead.');
+    }
+
+    // All other types (epic, story, task): parentId must be null
+    if (parent !== null) {
+      throw new AppLogicException('INVALID_PARENT_CHILD_TYPE', HttpStatus.BAD_REQUEST,
+        `Only subtasks can have a parent. Use associations for ${itemType}.`);
+    }
+  }
+
+  /**
+   * Validates hierarchy depth. Maximum 4 levels.
+   * Walks UP the parent chain from the given parentId.
+   * The new item being created would be at (ancestor count + 1).
+   * If that exceeds 4 → reject.
+   */
+  async validateDepth(parentId: number | null): Promise<void> {
+    if (parentId === null) {
+      return; // depth 1, always valid
+    }
+
+    // Walk up the ancestor chain
+    let depth = 1; // the new item itself
+    let currentParentId: number | null = parentId;
+
+    while (currentParentId !== null) {
+      depth++;
+      if (depth > 4) {
+        throw new AppLogicException('MAX_DEPTH_EXCEEDED', HttpStatus.BAD_REQUEST);
+      }
+
+      const rows: any[] = await this.dataSource.query(
+        `SELECT parent_id FROM work_items WHERE id = $1`,
+        [currentParentId],
+      );
+      if (!rows[0]) {
+        break;
+      }
+      currentParentId = rows[0].parent_id;
+    }
+  }
+
+  /**
+   * Validates that setting newParentId as parent of itemId would not create
+   * a circular reference. Walks UP from newParentId looking for itemId.
+   */
+  async validateCircularReference(itemId: number, newParentId: number): Promise<void> {
+    if (itemId === newParentId) {
+      throw new AppLogicException('CIRCULAR_REFERENCE', HttpStatus.BAD_REQUEST);
+    }
+
+    let currentId: number | null = newParentId;
+    const visited = new Set<number>();
+
+    while (currentId !== null) {
+      if (currentId === itemId) {
+        throw new AppLogicException('CIRCULAR_REFERENCE', HttpStatus.BAD_REQUEST);
+      }
+      if (visited.has(currentId)) {
+        break; // safety: already visited this node
+      }
+      visited.add(currentId);
+
+      const rows: any[] = await this.dataSource.query(
+        `SELECT parent_id FROM work_items WHERE id = $1`,
+        [currentId],
+      );
+      if (!rows[0]) {
+        break;
+      }
+      currentId = rows[0].parent_id;
+    }
+  }
+
+  /**
+   * Validates whether a work item can be deleted.
+   * Rules from HIERARCHY-RULES.md section 2:
+   *
+   * | Deleting | Has children?              | Result                                    |
+   * |----------|----------------------------|-------------------------------------------|
+   * | Epic     | Yes (stories/tasks)        | ALLOW (children will be orphaned)         |
+   * | Epic     | No                         | ALLOW                                     |
+   * | Story    | Yes (has direct subtasks)   | REJECT                                    |
+   * | Story    | Yes (only tasks)            | ALLOW (tasks will be orphaned)            |
+   * | Story    | No                         | ALLOW                                     |
+   * | Task     | Yes (subtasks)             | REJECT                                    |
+   * | Task     | No                         | ALLOW                                     |
+   * | Subtask  | N/A (leaf)                 | ALLOW                                     |
+   */
+  async validateDeletion(item: WorkItem): Promise<void> {
+    if (item.itemType === 'epic') {
+      // Epics always deletable — children become orphans
+      return;
+    }
+
+    if (item.itemType === 'subtask') {
+      // Subtasks always deletable — leaf nodes
+      return;
+    }
+
+    if (item.itemType === 'bug') return; // bugs are leaf nodes
+
+    if (item.itemType === 'story') {
+      // Check if story has direct subtask children
+      const [subtaskCount] = await this.dataSource.query(
+        `SELECT COUNT(*) as cnt FROM work_items WHERE parent_id = $1 AND item_type = 'subtask'`,
+        [item.id],
+      );
+      if (parseInt(subtaskCount.cnt) > 0) {
+        throw new AppLogicException('STORY_HAS_DIRECT_SUBTASKS', HttpStatus.BAD_REQUEST);
+      }
+      // Story with only tasks (or no children) → ALLOW (tasks orphaned)
+      return;
+    }
+
+    if (item.itemType === 'task') {
+      // Task with any children → REJECT
+      const [childCount] = await this.dataSource.query(
+        `SELECT COUNT(*) as cnt FROM work_items WHERE parent_id = $1`,
+        [item.id],
+      );
+      if (parseInt(childCount.cnt) > 0) {
+        throw new AppLogicException('TASK_HAS_SUBTASKS', HttpStatus.BAD_REQUEST);
+      }
+      return;
+    }
+  }
+
+  /**
+   * Validates whether an item can be reparented to a new parent.
+   * Rules from HIERARCHY-RULES.md section 3:
+   *
+   * - Cross-project: REJECT
+   * - Circular reference: REJECT
+   * - Depth exceeded after move: REJECT
+   * - Task-with-subtasks moved under another task: REJECT
+   *   (would make task a subtask-like nesting which exceeds depth)
+   */
+  async validateReparenting(
+    item: WorkItem,
+    newParent: WorkItem | null,
+  ): Promise<void> {
+    // Detaching (parent=null) is always allowed (except subtask, handled by parent-child type validation)
+    if (newParent === null) {
+      return;
+    }
+
+    // Cross-project check
+    if (newParent.projectId !== item.projectId) {
+      throw new AppLogicException('CROSS_PROJECT_NOT_ALLOWED', HttpStatus.BAD_REQUEST);
+    }
+
+    // Circular reference check
+    await this.validateCircularReference(item.id, newParent.id);
+
+    // Cannot move task-with-subtasks under another task
+    // (this would create task → task → subtask, which violates the hierarchy)
+    if (item.itemType === 'task' && newParent.itemType === 'task') {
+      const children = await this.dataSource.query(
+        `SELECT COUNT(*) as cnt FROM work_items WHERE parent_id = $1 AND item_type = 'subtask'`,
+        [item.id],
+      );
+      if (parseInt(children[0].cnt) > 0) {
+        throw new AppLogicException('CANNOT_REPARENT_WITH_CHILDREN', HttpStatus.BAD_REQUEST);
+      }
+    }
+
+    // Validate parent-child type is valid for the move
+    await this.validateParentChildType(item.itemType, newParent);
+
+    // Validate depth after move: count ancestors of newParent + 1 (this item) + max descendant depth
+    const ancestorDepth = await this.getAncestorDepth(newParent.id);
+    const descendantDepth = await this.getMaxDescendantDepth(item.id);
+    const totalDepth = ancestorDepth + 1 + descendantDepth; // ancestors + this item + descendants
+
+    if (totalDepth > 4) {
+      throw new AppLogicException('MAX_DEPTH_EXCEEDED', HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  // =========================================================================
+  // PRIVATE HELPERS
+  // =========================================================================
+
+  /**
+   * Count the number of ancestors of an item (including itself).
+   * e.g., root item → 1, root → child → 2, etc.
+   */
+  private async getAncestorDepth(itemId: number): Promise<number> {
+    let depth = 1;
+    let currentId: number | null = itemId;
+
+    while (currentId !== null) {
+      const rows: any[] = await this.dataSource.query(
+        `SELECT parent_id FROM work_items WHERE id = $1`,
+        [currentId],
+      );
+      if (!rows[0] || rows[0].parent_id === null) {
+        break;
+      }
+      currentId = rows[0].parent_id;
+      depth++;
+    }
+
+    return depth;
+  }
+
+  /**
+   * Get the maximum depth of descendants below an item.
+   * If item has no children → 0.
+   * If item has children but no grandchildren → 1.
+   * Uses a recursive CTE with a depth limit of 4 for safety.
+   */
+  private async getMaxDescendantDepth(itemId: number): Promise<number> {
+    const result = await this.dataSource.query(`
+      WITH RECURSIVE descendants AS (
+        SELECT id, 1 as depth FROM work_items WHERE parent_id = $1
+        UNION ALL
+        SELECT wi.id, d.depth + 1
+        FROM work_items wi
+        JOIN descendants d ON wi.parent_id = d.id
+        WHERE d.depth < 4
+      )
+      SELECT COALESCE(MAX(depth), 0) as max_depth FROM descendants
+    `, [itemId]);
+
+    return parseInt(result[0].max_depth);
+  }
+}

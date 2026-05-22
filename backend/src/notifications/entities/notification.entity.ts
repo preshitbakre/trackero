@@ -18,7 +18,7 @@ export class Notification {
   type: string;
 
   @Column({ name: 'reference_type', type: 'varchar', length: 20 })
-  referenceType: 'task' | 'sprint' | 'comment' | 'project';
+  referenceType: 'work_item' | 'task' | 'sprint' | 'comment' | 'project';
 
   @Column({ name: 'reference_id', type: 'int' })
   referenceId: number;

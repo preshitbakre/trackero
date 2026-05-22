@@ -29,8 +29,8 @@ export class Project {
   @Column({ name: 'default_assignee_id', type: 'int', nullable: true })
   defaultAssigneeId: number | null;
 
-  @Column({ name: 'task_counter', type: 'int', default: 0 })
-  taskCounter: number;
+  @Column({ name: 'item_counter', type: 'int', default: 0 })
+  itemCounter: number;
 
   @Column({ name: 'default_sprint_duration', type: 'int', default: 14 })
   defaultSprintDuration: number;

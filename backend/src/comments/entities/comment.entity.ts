@@ -2,17 +2,17 @@ import {
   Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn,
   ManyToOne, JoinColumn, Index,
 } from 'typeorm';
-import { Task } from '../../tasks/entities/task.entity';
+import { WorkItem } from '../../work-items/entities/work-item.entity';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('comments')
-@Index('IDX_comment_task', ['taskId'])
+@Index('IDX_comment_work_item', ['workItemId'])
 export class Comment {
   @PrimaryGeneratedColumn('increment')
   id: number;
 
-  @Column({ name: 'task_id', type: 'int' })
-  taskId: number;
+  @Column({ name: 'work_item_id', type: 'int' })
+  workItemId: number;
 
   @Column({ name: 'author_id', type: 'int' })
   authorId: number;
@@ -29,9 +29,9 @@ export class Comment {
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
 
-  @ManyToOne(() => Task, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'task_id' })
-  task: Task;
+  @ManyToOne(() => WorkItem, (wi) => wi.comments, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'work_item_id' })
+  workItem: WorkItem;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'author_id' })

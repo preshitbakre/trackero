@@ -4,6 +4,10 @@ import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { createTestApp, clearDatabase, registerAdmin } from './setup';
 
+/** A date `daysFromNow` days ahead of today, as YYYY-MM-DD — sprints reject past start dates. */
+const futureDate = (daysFromNow: number): string =>
+  new Date(Date.now() + daysFromNow * 86400000).toISOString().split('T')[0];
+
 describe('Board Module (e2e)', () => {
   let app: INestApplication;
   let adminToken: string;
@@ -48,13 +52,13 @@ describe('Board Module (e2e)', () => {
     it('returns grouped columns with tasks -> 200', async () => {
       // Create tasks
       await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks`)
+        .post(`/api/projects/${projectId}/items`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ title: 'Task 1' });
+        .send({ itemType: 'task', title: 'Task 1' });
       await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks`)
+        .post(`/api/projects/${projectId}/items`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ title: 'Task 2' });
+        .send({ itemType: 'task', title: 'Task 2' });
 
       const res = await request(app.getHttpServer())
         .get(`/api/projects/${projectId}/board`)
@@ -77,18 +81,18 @@ describe('Board Module (e2e)', () => {
       const sprintRes = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 1', startDate: '2026-05-18', endDate: '2026-06-01' });
+        .send({ name: 'Sprint 1', startDate: futureDate(1), endDate: futureDate(15) });
       const sprintId = sprintRes.body.data.item.id;
 
       // Create tasks - one in sprint, one without
       await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks`)
+        .post(`/api/projects/${projectId}/items`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ title: 'Sprint task', sprintId });
+        .send({ itemType: 'task', title: 'Sprint task', sprintId });
       await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks`)
+        .post(`/api/projects/${projectId}/items`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ title: 'Backlog task' });
+        .send({ itemType: 'task', title: 'Backlog task' });
 
       const res = await request(app.getHttpServer())
         .get(`/api/projects/${projectId}/board?sprintId=${sprintId}`)
@@ -110,15 +114,15 @@ describe('Board Module (e2e)', () => {
   describe('PUT /api/projects/:projectId/board/move', () => {
     it('moves card and returns lightweight response -> 200', async () => {
       const taskRes = await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks`)
+        .post(`/api/projects/${projectId}/items`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ title: 'Move me' });
+        .send({ itemType: 'task', title: 'Move me' });
       const taskId = taskRes.body.data.item.id;
 
       const res = await request(app.getHttpServer())
         .put(`/api/projects/${projectId}/board/move`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ taskId, statusId: inProgressStatusId, sortOrder: 'n' })
+        .send({ itemId: taskId, statusId: inProgressStatusId, sortOrder: 'n' })
         .expect(200);
 
       expect(res.body.success).toBe(true);
@@ -133,15 +137,15 @@ describe('Board Module (e2e)', () => {
 
     it('sets completedAt when moving to done -> 200', async () => {
       const taskRes = await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks`)
+        .post(`/api/projects/${projectId}/items`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ title: 'Complete me' });
+        .send({ itemType: 'task', title: 'Complete me' });
       const taskId = taskRes.body.data.item.id;
 
       const res = await request(app.getHttpServer())
         .put(`/api/projects/${projectId}/board/move`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ taskId, statusId: doneStatusId, sortOrder: 'n' })
+        .send({ itemId: taskId, statusId: doneStatusId, sortOrder: 'n' })
         .expect(200);
 
       expect(res.body.data.completedAt).not.toBeNull();
@@ -150,51 +154,51 @@ describe('Board Module (e2e)', () => {
     it('blocked task cannot move to done -> 409', async () => {
       // Create blocker and blocked task
       const blockerRes = await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks`)
+        .post(`/api/projects/${projectId}/items`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ title: 'Blocker' });
+        .send({ itemType: 'task', title: 'Blocker' });
       const blockedRes = await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks`)
+        .post(`/api/projects/${projectId}/items`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ title: 'Blocked' });
+        .send({ itemType: 'task', title: 'Blocked' });
 
       const blockerId = blockerRes.body.data.item.id;
       const blockedId = blockedRes.body.data.item.id;
 
-      // Create dependency
+      // Create dependency: blockedId is blocked by blockerId
       await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks/${blockedId}/dependencies`)
+        .post(`/api/projects/${projectId}/items/${blockedId}/associations`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ dependsOnTaskId: blockerId, dependencyType: 'blocks' });
+        .send({ linkedItemId: blockerId, linkType: 'blocks' });
 
       // Try to move blocked to done
       const res = await request(app.getHttpServer())
         .put(`/api/projects/${projectId}/board/move`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ taskId: blockedId, statusId: doneStatusId, sortOrder: 'n' })
-        .expect(409);
+        .send({ itemId: blockedId, statusId: doneStatusId, sortOrder: 'n' })
+        .expect(400);
 
-      expect(res.body.code).toBe('F-L-0030');
+      expect(res.body.code).toBe('F-L-0101');
     });
 
     it('clears completedAt when moving out of done', async () => {
       const taskRes = await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks`)
+        .post(`/api/projects/${projectId}/items`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ title: 'Reopen me' });
+        .send({ itemType: 'task', title: 'Reopen me' });
       const taskId = taskRes.body.data.item.id;
 
       // Move to done first
       await request(app.getHttpServer())
         .put(`/api/projects/${projectId}/board/move`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ taskId, statusId: doneStatusId, sortOrder: 'n' });
+        .send({ itemId: taskId, statusId: doneStatusId, sortOrder: 'n' });
 
       // Move back to in_progress
       const res = await request(app.getHttpServer())
         .put(`/api/projects/${projectId}/board/move`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ taskId, statusId: inProgressStatusId, sortOrder: 'n' })
+        .send({ itemId: taskId, statusId: inProgressStatusId, sortOrder: 'n' })
         .expect(200);
 
       expect(res.body.data.completedAt).toBeNull();

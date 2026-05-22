@@ -1,6 +1,7 @@
 interface StatCardProps {
   icon: string;
   iconColor?: string;
+  iconBg?: string;
   label: string;
   value: string | number;
   subtext?: string;
@@ -8,18 +9,18 @@ interface StatCardProps {
   progressBar?: { percent: number; color: string };
 }
 
-export function StatCard({ icon, iconColor, label, value, subtext, valueColor, progressBar }: StatCardProps) {
+export function StatCard({ icon, iconColor, iconBg, label, value, subtext, valueColor, progressBar }: StatCardProps) {
   return (
-    <div className="rounded-lg border border-neutral-200 dark:border-dneutral-200 bg-neutral-50 dark:bg-dneutral-100 p-4">
+    <div className="rounded-lg shadow-sm dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)] bg-white dark:bg-dneutral-100 p-4">
       <div className="flex items-center gap-2 mb-2">
-        <span className={`text-base ${iconColor || 'text-neutral-400'}`}>{icon}</span>
-        <span className="text-sm font-medium text-neutral-400 dark:text-dneutral-500 uppercase tracking-wide">{label}</span>
+        <span className={`text-[18px] w-7 h-7 flex items-center justify-center rounded-md ${iconBg || ''} ${iconColor || 'text-neutral-400'}`}>{icon}</span>
+        <span className="text-[16px] font-medium text-neutral-400 dark:text-dneutral-500 uppercase tracking-wide">{label}</span>
       </div>
-      <div className={`text-2xl font-semibold ${valueColor || 'text-neutral-700 dark:text-dneutral-700'}`}>
+      <div className={`text-[28px] font-semibold ${valueColor || 'text-neutral-700 dark:text-dneutral-700'}`}>
         {value}
       </div>
       {subtext && (
-        <p className="text-sm text-neutral-400 dark:text-dneutral-500 mt-1">{subtext}</p>
+        <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 mt-1">{subtext}</p>
       )}
       {progressBar && (
         <div className="mt-2 h-1.5 rounded-full bg-neutral-200 dark:bg-dneutral-300">

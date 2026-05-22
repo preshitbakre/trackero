@@ -28,10 +28,12 @@ export function Select({ value, onChange, options, placeholder, className }: Sel
   return (
     <SelectPrimitive.Root value={radixValue} onValueChange={handleChange}>
       <SelectPrimitive.Trigger
-        className={`inline-flex items-center justify-between gap-2 rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 px-3 text-sm text-neutral-700 dark:text-dneutral-700 hover:bg-neutral-100 dark:hover:bg-dneutral-200 focus:outline-none focus:ring-2 focus:ring-primary-400/40 h-[30px] ${className || ''}`}
+        className={`inline-flex items-center justify-between gap-2 rounded-md border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 px-3 text-[16px] text-neutral-700 dark:text-dneutral-700 hover:bg-neutral-100 dark:hover:bg-dneutral-200 focus:outline-none focus:border-peri dark:focus:border-peri-dm focus:ring-2 focus:ring-peri-light dark:focus:ring-peri-dm/20 h-[30px] overflow-hidden ${className || ''}`}
       >
-        <SelectPrimitive.Value placeholder={placeholder || 'Select...'} />
-        <SelectPrimitive.Icon>
+        <span className="truncate min-w-0">
+          <SelectPrimitive.Value placeholder={placeholder || 'Select...'} />
+        </span>
+        <SelectPrimitive.Icon className="flex-shrink-0">
           <svg className="w-3.5 h-3.5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
@@ -42,16 +44,19 @@ export function Select({ value, onChange, options, placeholder, className }: Sel
         <SelectPrimitive.Content
           position="popper"
           sideOffset={4}
-          className="z-50 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 shadow-lg"
+          className="z-50 min-w-[var(--radix-select-trigger-width)] max-w-[320px] overflow-hidden rounded-md border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 shadow-lg"
         >
-          <SelectPrimitive.Viewport className="p-1">
+          <SelectPrimitive.Viewport className="p-1 max-h-[240px] overflow-y-auto">
             {radixOptions.map((opt) => (
               <SelectPrimitive.Item
                 key={opt.value}
                 value={opt.value}
-                className="relative flex items-center rounded px-3 py-2 text-sm text-neutral-700 dark:text-dneutral-700 cursor-pointer outline-none data-[highlighted]:bg-primary-500/10 data-[highlighted]:text-primary-500 data-[state=checked]:font-medium"
+                className="relative flex items-center rounded px-3 py-2 text-[16px] text-neutral-700 dark:text-dneutral-700 cursor-pointer outline-none data-[highlighted]:bg-peri/10 data-[highlighted]:text-peri data-[state=checked]:font-medium"
+                title={opt.label}
               >
-                <SelectPrimitive.ItemText>{opt.label}</SelectPrimitive.ItemText>
+                <SelectPrimitive.ItemText>
+                  <span className="block truncate max-w-[260px]">{opt.label}</span>
+                </SelectPrimitive.ItemText>
               </SelectPrimitive.Item>
             ))}
           </SelectPrimitive.Viewport>

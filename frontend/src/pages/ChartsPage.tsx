@@ -18,7 +18,16 @@ export function ChartsPage() {
     if (!projectId) return;
     apiClient.get(`/projects/${projectId}/velocity`).then((r) => setVelocityData(r.data.data)).catch(() => {});
     apiClient.get(`/projects/${projectId}/cumulative-flow`).then((r) => setFlowData(r.data.data)).catch(() => {});
-    apiClient.get(`/projects/${projectId}/sprints?limit=100`).then((r) => setSprints(r.data.data.list || [])).catch(() => {});
+    apiClient.get(`/projects/${projectId}/sprints?limit=100`).then((r) => {
+      const list = r.data.data.list || [];
+      setSprints(list);
+      if (!selectedSprintId) {
+        const active = list.find((s: any) => s.status === 'active');
+        const completed = [...list].filter((s: any) => s.status === 'completed').sort((a: any, b: any) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime())[0];
+        const defaultSprint = active || completed;
+        if (defaultSprint) setSelectedSprintId(String(defaultSprint.id));
+      }
+    }).catch(() => {});
   }, [projectId]);
 
   useEffect(() => {
@@ -36,15 +45,15 @@ export function ChartsPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold text-neutral-700 dark:text-dneutral-700 mb-4">Charts</h1>
+      <h1 className="text-[22px] font-semibold text-neutral-700 dark:text-dneutral-700 mb-4">Charts</h1>
 
       <div className="flex gap-1 mb-6 border-b border-neutral-200 dark:border-dneutral-200">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-              tab === t.key ? 'border-primary-500 text-primary-500' : 'border-transparent text-neutral-400 hover:text-neutral-600'
+            className={`px-4 py-2 text-[16px] font-medium border-b-2 -mb-px ${
+              tab === t.key ? 'border-peri text-peri' : 'border-transparent text-neutral-400 hover:text-neutral-600'
             }`}
           >
             {t.label}
@@ -61,11 +70,31 @@ export function ChartsPage() {
               indexBy="sprint"
               margin={{ top: 20, right: 20, bottom: 50, left: 50 }}
               padding={0.3}
-              colors={['#6366F1']}
+              colors={['#5A83A8']}
               axisLeft={{ legend: 'Story Points', legendPosition: 'middle', legendOffset: -40 }}
               axisBottom={{ tickRotation: -30 }}
               enableLabel={true}
               theme={{ text: { fill: '#6B7280' } }}
+              layers={['grid', 'axes', 'bars', 'markers', 'legends', 'annotations',
+                ({ bars, yScale }) => {
+                  if (bars.length === 0) return null;
+                  const avg = bars.reduce((sum: number, b: any) => sum + (b.data.value || 0), 0) / bars.length;
+                  const y = (yScale as any)(avg);
+                  const first = bars[0];
+                  const last = bars[bars.length - 1];
+                  return (
+                    <line
+                      x1={first.x}
+                      x2={last.x + last.width}
+                      y1={y}
+                      y2={y}
+                      stroke="#C4A882"
+                      strokeWidth={2}
+                      strokeDasharray="6 4"
+                    />
+                  );
+                },
+              ]}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-neutral-400">No completed sprints yet</div>
@@ -75,7 +104,8 @@ export function ChartsPage() {
 
       {tab === 'burndown' && (
         <div>
-          <div className="mb-4">
+          <div className="mb-4 max-w-xs">
+            <label className="block text-[16px] font-medium text-neutral-600 dark:text-dneutral-600 mb-1">Sprint</label>
             <Select
               value={selectedSprintId}
               onChange={setSelectedSprintId}
@@ -99,14 +129,46 @@ export function ChartsPage() {
                 xScale={{ type: 'point' }}
                 yScale={{ type: 'linear', min: 0 }}
                 axisLeft={{ legend: 'Points', legendPosition: 'middle', legendOffset: -40 }}
-                colors={['#9CA3AF', '#6366F1', '#F97316']}
+                colors={['#9BAAB8', '#4A6FA5', '#C4A882']}
+                lineWidth={2}
+                defs={[]}
                 pointSize={4}
                 enableSlices="x"
+                layers={[
+                  'grid', 'markers', 'axes', 'areas', 'crosshair', 'slices', 'points', 'mesh', 'legends',
+                  ({ series, lineGenerator, xScale, yScale }) => (
+                    <>
+                      {series.map((s: any) => {
+                        const style: Record<string, string> = {
+                          'Ideal': '8 4',
+                          'Actual': '',
+                          'Scope': '2 4',
+                        };
+                        const points = s.data.map((d: any) => ({
+                          x: (xScale as any)(d.data.x),
+                          y: (yScale as any)(d.data.y),
+                        }));
+                        return (
+                          <path
+                            key={s.id}
+                            d={lineGenerator(points) ?? undefined}
+                            fill="none"
+                            stroke={s.color}
+                            strokeWidth={2}
+                            strokeDasharray={style[s.id] || ''}
+                          />
+                        );
+                      })}
+                    </>
+                  ),
+                ]}
                 legends={[{ anchor: 'bottom-right', direction: 'column', translateX: 80, itemWidth: 60, itemHeight: 20 }]}
               />
             ) : (
-              <div className="flex items-center justify-center h-full text-neutral-400">
-                {selectedSprintId ? 'No burndown data' : 'Select a sprint to view burndown'}
+              <div className="flex items-center justify-center h-full text-[16px] text-neutral-400">
+                {sprints.filter((s: any) => s.status === 'active' || s.status === 'completed').length === 0
+                  ? 'Complete a sprint to see burndown data'
+                  : selectedSprintId ? 'No burndown data' : 'Complete a sprint to see burndown data'}
               </div>
             )}
           </div>
@@ -118,16 +180,18 @@ export function ChartsPage() {
           {flowData.length > 0 ? (
             <ResponsiveLine
               data={[
-                { id: 'Backlog', data: flowData.map((d: any) => ({ x: d.date, y: d.backlog })) },
-                { id: 'In Progress', data: flowData.map((d: any) => ({ x: d.date, y: d.in_progress })) },
-                { id: 'Done', data: flowData.map((d: any) => ({ x: d.date, y: d.done })) },
+                { id: 'Backlog', data: flowData.map((d: any) => ({ x: d.date, y: d.backlog ?? 0 })) },
+                { id: 'Todo', data: flowData.map((d: any) => ({ x: d.date, y: d.todo ?? 0 })) },
+                { id: 'In Progress', data: flowData.map((d: any) => ({ x: d.date, y: d.in_progress ?? 0 })) },
+                { id: 'In Review', data: flowData.map((d: any) => ({ x: d.date, y: d.in_review ?? 0 })) },
+                { id: 'Done', data: flowData.map((d: any) => ({ x: d.date, y: d.done ?? 0 })) },
               ]}
               margin={{ top: 20, right: 100, bottom: 50, left: 50 }}
               xScale={{ type: 'point' }}
               yScale={{ type: 'linear', stacked: true, min: 0 }}
               enableArea={true}
-              areaOpacity={0.6}
-              colors={['#6B7280', '#F59E0B', '#22C55E']}
+              areaOpacity={0.5}
+              colors={['#9BAAB880', '#7B9EBF80', '#C4A88280', '#A78BFA80', '#88B5A880']}
               axisLeft={{ legend: 'Tasks', legendPosition: 'middle', legendOffset: -40 }}
               legends={[{ anchor: 'bottom-right', direction: 'column', translateX: 90, itemWidth: 70, itemHeight: 20 }]}
             />

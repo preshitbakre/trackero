@@ -34,8 +34,8 @@ export function ActivityItem({ actor, action, target, timestamp }: ActivityItemP
   const label = actionLabels[action] || action;
 
   return (
-    <div className="flex items-center gap-2 py-1.5 text-sm">
-      <div className="w-5 h-5 rounded-full bg-primary-100 dark:bg-dprimary-100 flex items-center justify-center text-sm font-medium text-primary-600 dark:text-dprimary-600 flex-shrink-0">
+    <div className="flex items-center gap-2 py-1.5 text-[16px]">
+      <div className="w-5 h-5 rounded-full bg-peri-light dark:bg-peri-dm/30 flex items-center justify-center text-[16px] font-medium text-peri dark:text-peri-dm flex-shrink-0">
         {initial}
       </div>
       <span className="font-medium text-neutral-700 dark:text-dneutral-700 flex-shrink-0">{actor.displayName}</span>

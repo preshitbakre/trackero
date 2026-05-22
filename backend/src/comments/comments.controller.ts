@@ -12,7 +12,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 import { CreateCommentDto } from './dto/create-comment.dto';
 
-@Controller('projects/:projectId/tasks/:taskId/comments')
+@Controller('projects/:projectId/items/:itemId/comments')
 @UseGuards(JwtAuthGuard, ProjectAccessGuard, RolesGuard)
 export class CommentsController {
   constructor(private readonly commentsService: CommentsService) {}
@@ -23,11 +23,11 @@ export class CommentsController {
   @ResponseCode('COMMENT_CREATED')
   async create(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Param('taskId', ParseIntPipe) taskId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
     @Body() dto: CreateCommentDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.commentsService.create(projectId, taskId, dto.body, user.userId);
+    return this.commentsService.create(projectId, itemId, dto.body, user.userId);
   }
 
   @Get()
@@ -35,11 +35,11 @@ export class CommentsController {
   @ResponseCode('COMMENTS_LISTED')
   async findAll(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Param('taskId', ParseIntPipe) taskId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.commentsService.listComments(projectId, taskId, page || 1, limit || 20);
+    return this.commentsService.listComments(projectId, itemId, page || 1, limit || 20);
   }
 
   @Put(':commentId')
@@ -47,12 +47,12 @@ export class CommentsController {
   @ResponseCode('COMMENT_UPDATED')
   async update(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Param('taskId', ParseIntPipe) taskId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
     @Param('commentId', ParseIntPipe) commentId: number,
     @Body() dto: CreateCommentDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.commentsService.update(projectId, taskId, commentId, dto.body, user.userId);
+    return this.commentsService.update(projectId, itemId, commentId, dto.body, user.userId);
   }
 
   @Delete(':commentId')
@@ -60,11 +60,11 @@ export class CommentsController {
   @ResponseCode('COMMENT_DELETED')
   async remove(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Param('taskId', ParseIntPipe) taskId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
     @Param('commentId', ParseIntPipe) commentId: number,
     @CurrentUser() user: JwtPayload,
   ) {
-    await this.commentsService.remove(projectId, taskId, commentId, user.userId, user.role);
+    await this.commentsService.remove(projectId, itemId, commentId, user.userId, user.role);
     return null;
   }
 }

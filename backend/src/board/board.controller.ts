@@ -23,11 +23,14 @@ export class BoardController {
   async getBoard(
     @Param('projectId', ParseIntPipe) projectId: number,
     @Query('sprintId') sprintId?: number,
-    @Query('assigneeId') assigneeId?: number,
+    @Query('assigneeId') assigneeId?: string,
     @Query('priority') priority?: string,
     @Query('epicId') epicId?: number,
   ) {
-    return this.boardService.getBoard(projectId, { sprintId, assigneeId, priority, epicId });
+    const assigneeIds = assigneeId
+      ? assigneeId.split(',').map(Number).filter((n) => !isNaN(n))
+      : undefined;
+    return this.boardService.getBoard(projectId, { sprintId, assigneeIds, priority, epicId });
   }
 
   @Put('move')
@@ -38,6 +41,6 @@ export class BoardController {
     @Body() dto: BoardMoveDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.boardService.moveCard(projectId, dto.taskId, dto.statusId, dto.sortOrder, user.userId);
+    return this.boardService.moveCard(projectId, dto.itemId, dto.statusId, dto.sortOrder, user.userId);
   }
 }

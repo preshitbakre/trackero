@@ -2,7 +2,7 @@ import { IsInt, IsString } from 'class-validator';
 
 export class BoardMoveDto {
   @IsInt()
-  taskId: number;
+  itemId: number;
 
   @IsInt()
   statusId: number;

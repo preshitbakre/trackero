@@ -43,7 +43,7 @@ git clone https://github.com/your-org/trackero.git
 cd trackero
 
 # Copy environment config
-cp .env.example .env
+cp backend/.env.example backend/.env
 
 # Edit .env — at minimum set:
 #   ADMIN_EMAIL, ADMIN_PASSWORD, JWT_SECRET
@@ -62,7 +62,7 @@ docker compose up -d
 
 # Backend
 cd backend
-cp ../.env.example .env  # Edit with your DB credentials
+cp .env.example .env  # Edit with your DB credentials
 npm install
 npm run migration:run
 npm run start:dev

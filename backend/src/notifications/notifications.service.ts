@@ -57,7 +57,7 @@ export class NotificationsService {
     userId: number,
     actorId: number,
     type: string,
-    referenceType: 'task' | 'sprint' | 'comment' | 'project',
+    referenceType: 'work_item' | 'task' | 'sprint' | 'comment' | 'project',
     referenceId: number,
     title: string,
     body?: string | null,
@@ -111,51 +111,33 @@ export class NotificationsService {
 
   // --- Event Listeners ---
 
-  @OnEvent('task.assigned')
-  async onTaskAssigned(payload: { taskId: number; projectId: number; actorId: number; assigneeId: number | null }) {
+  @OnEvent('work_item.assigned')
+  async onWorkItemAssigned(payload: {
+    itemId: number;
+    projectId: number;
+    actorId: number;
+    assigneeId: number | null;
+  }) {
     if (!payload.assigneeId) return;
-    // Get task info for title
-    const [task] = await this.dataSource.query(
-      'SELECT task_number, title FROM tasks WHERE id = $1', [payload.taskId],
+
+    const [item] = await this.dataSource.query(
+      'SELECT item_number, title FROM work_items WHERE id = $1', [payload.itemId],
     );
+    if (!item) return;
+
     const [project] = await this.dataSource.query(
       'SELECT prefix FROM projects WHERE id = $1', [payload.projectId],
     );
-    const taskKey = `${project?.prefix || ''}-${task?.task_number || ''}`;
+    const itemKey = `${project?.prefix || ''}-${item.item_number}`;
 
     await this.createNotification(
       payload.assigneeId,
       payload.actorId,
       'task_assigned',
       'task',
-      payload.taskId,
-      `You were assigned to ${taskKey}`,
-      task?.title || null,
-      payload.projectId,
-    );
-  }
-
-  @OnEvent('task.status_changed')
-  async onTaskStatusChanged(payload: { taskId: number; projectId: number; actorId: number; oldStatusId: number; newStatusId: number }) {
-    // Notify reporter if different from actor
-    const [task] = await this.dataSource.query(
-      'SELECT reporter_id, task_number, title FROM tasks WHERE id = $1', [payload.taskId],
-    );
-    if (!task || task.reporter_id === payload.actorId) return;
-
-    const [project] = await this.dataSource.query(
-      'SELECT prefix FROM projects WHERE id = $1', [payload.projectId],
-    );
-    const taskKey = `${project?.prefix || ''}-${task.task_number}`;
-
-    await this.createNotification(
-      task.reporter_id,
-      payload.actorId,
-      'task_status_changed',
-      'task',
-      payload.taskId,
-      `Status changed on ${taskKey}`,
-      task.title,
+      payload.itemId,
+      `You were assigned to ${itemKey}`,
+      item.title || null,
       payload.projectId,
     );
   }
@@ -164,14 +146,14 @@ export class NotificationsService {
   async onCommentAdded(payload: { taskId: number; projectId: number; actorId: number; commentId: number }) {
     // Notify assignee + reporter (not author)
     const [task] = await this.dataSource.query(
-      'SELECT assignee_id, reporter_id, task_number, title FROM tasks WHERE id = $1', [payload.taskId],
+      'SELECT assignee_id, reporter_id, item_number, title FROM work_items WHERE id = $1', [payload.taskId],
     );
     if (!task) return;
 
     const [project] = await this.dataSource.query(
       'SELECT prefix FROM projects WHERE id = $1', [payload.projectId],
     );
-    const taskKey = `${project?.prefix || ''}-${task.task_number}`;
+    const taskKey = `${project?.prefix || ''}-${task.item_number}`;
     const recipients = new Set<number>();
 
     if (task.assignee_id) recipients.add(task.assignee_id);
@@ -182,41 +164,10 @@ export class NotificationsService {
         userId,
         payload.actorId,
         'comment_added',
-        'task',
+        'work_item',
         payload.taskId,
         `New comment on ${taskKey}`,
         task.title,
-        payload.projectId,
-      );
-    }
-  }
-
-  @OnEvent('blocker.resolved')
-  async onBlockerResolved(payload: { blockerTaskId: number; projectId: number; actorId: number }) {
-    // Find all tasks blocked by this one
-    const blockedTasks = await this.dataSource.query(
-      `SELECT td.task_id, t.assignee_id, t.task_number
-       FROM task_dependencies td
-       JOIN tasks t ON t.id = td.task_id
-       WHERE td.depends_on_task_id = $1 AND td.dependency_type = 'blocks'`,
-      [payload.blockerTaskId],
-    );
-
-    const [project] = await this.dataSource.query(
-      'SELECT prefix FROM projects WHERE id = $1', [payload.projectId],
-    );
-
-    for (const blocked of blockedTasks) {
-      if (!blocked.assignee_id) continue;
-      const taskKey = `${project?.prefix || ''}-${blocked.task_number}`;
-      await this.createNotification(
-        blocked.assignee_id,
-        payload.actorId,
-        'blocker_resolved',
-        'task',
-        blocked.task_id,
-        `Blocker resolved for ${taskKey}`,
-        null,
         payload.projectId,
       );
     }
@@ -239,12 +190,12 @@ export class NotificationsService {
   @OnEvent('comment.mentioned')
   async onMentioned(payload: { userId: number; actorId: number; taskId: number; projectId: number; commentId: number }) {
     const [task] = await this.dataSource.query(
-      'SELECT task_number, title FROM tasks WHERE id = $1', [payload.taskId],
+      'SELECT item_number, title FROM work_items WHERE id = $1', [payload.taskId],
     );
     const [project] = await this.dataSource.query(
       'SELECT prefix FROM projects WHERE id = $1', [payload.projectId],
     );
-    const taskKey = `${project?.prefix || ''}-${task?.task_number || ''}`;
+    const taskKey = `${project?.prefix || ''}-${task?.item_number || ''}`;
 
     await this.createNotification(
       payload.userId,

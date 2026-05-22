@@ -15,17 +15,17 @@ export class SearchService {
 
     if (projectId) {
       sql = `
-        SELECT t.id, t.task_number, t.title, t.project_id as "projectId",
+        SELECT t.id, t.item_number, t.item_type, t.title, t.project_id as "projectId",
           ps.name as "statusName", ps.color as "statusColor",
           p.name as "projectName", p.prefix,
           assignee.id as "assigneeId", assignee.display_name as "assigneeDisplayName",
           ts_rank(t.search_vector, plainto_tsquery('english', $1)) as "relevanceScore"
-        FROM tasks t
+        FROM work_items t
         JOIN projects p ON p.id = t.project_id
         JOIN project_statuses ps ON ps.id = t.status_id
         LEFT JOIN users assignee ON assignee.id = t.assignee_id
         WHERE t.search_vector @@ plainto_tsquery('english', $1)
-          AND t.parent_id IS NULL
+          AND t.item_type IN ('epic', 'story', 'task', 'bug', 'subtask')
           AND p.status = 'active'
           AND t.project_id = $2
         ORDER BY "relevanceScore" DESC
@@ -34,17 +34,17 @@ export class SearchService {
       params = [query, projectId];
     } else if (userRole !== 'admin') {
       sql = `
-        SELECT t.id, t.task_number, t.title, t.project_id as "projectId",
+        SELECT t.id, t.item_number, t.item_type, t.title, t.project_id as "projectId",
           ps.name as "statusName", ps.color as "statusColor",
           p.name as "projectName", p.prefix,
           assignee.id as "assigneeId", assignee.display_name as "assigneeDisplayName",
           ts_rank(t.search_vector, plainto_tsquery('english', $1)) as "relevanceScore"
-        FROM tasks t
+        FROM work_items t
         JOIN projects p ON p.id = t.project_id
         JOIN project_statuses ps ON ps.id = t.status_id
         LEFT JOIN users assignee ON assignee.id = t.assignee_id
         WHERE t.search_vector @@ plainto_tsquery('english', $1)
-          AND t.parent_id IS NULL
+          AND t.item_type IN ('epic', 'story', 'task', 'bug', 'subtask')
           AND p.status = 'active'
           AND t.project_id IN (SELECT project_id FROM project_members WHERE user_id = $2)
         ORDER BY "relevanceScore" DESC
@@ -53,17 +53,17 @@ export class SearchService {
       params = [query, userId];
     } else {
       sql = `
-        SELECT t.id, t.task_number, t.title, t.project_id as "projectId",
+        SELECT t.id, t.item_number, t.item_type, t.title, t.project_id as "projectId",
           ps.name as "statusName", ps.color as "statusColor",
           p.name as "projectName", p.prefix,
           assignee.id as "assigneeId", assignee.display_name as "assigneeDisplayName",
           ts_rank(t.search_vector, plainto_tsquery('english', $1)) as "relevanceScore"
-        FROM tasks t
+        FROM work_items t
         JOIN projects p ON p.id = t.project_id
         JOIN project_statuses ps ON ps.id = t.status_id
         LEFT JOIN users assignee ON assignee.id = t.assignee_id
         WHERE t.search_vector @@ plainto_tsquery('english', $1)
-          AND t.parent_id IS NULL
+          AND t.item_type IN ('epic', 'story', 'task', 'bug', 'subtask')
           AND p.status = 'active'
         ORDER BY "relevanceScore" DESC
         LIMIT 20
@@ -76,7 +76,8 @@ export class SearchService {
     return {
       list: results.map((r: any) => ({
         id: r.id,
-        taskKey: `${r.prefix}-${r.task_number}`,
+        itemType: r.item_type,
+        taskKey: `${r.prefix}-${r.item_number}`,
         title: r.title,
         status: { name: r.statusName, color: r.statusColor },
         projectId: r.projectId,

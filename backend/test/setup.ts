@@ -38,7 +38,7 @@ export async function createTestApp(): Promise<INestApplication> {
   const dataSource = app.get(DataSource);
   await dataSource.query(`
     DO $$ BEGIN
-      ALTER TABLE tasks ADD COLUMN search_vector tsvector
+      ALTER TABLE work_items ADD COLUMN search_vector tsvector
       GENERATED ALWAYS AS (
         setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
         setweight(to_tsvector('english', coalesce(description, '')), 'B')
@@ -46,7 +46,7 @@ export async function createTestApp(): Promise<INestApplication> {
     EXCEPTION WHEN duplicate_column THEN NULL;
     END $$
   `);
-  await dataSource.query(`CREATE INDEX IF NOT EXISTS "IDX_task_search" ON tasks USING gin(search_vector)`);
+  await dataSource.query(`CREATE INDEX IF NOT EXISTS "IDX_wi_search" ON work_items USING gin(search_vector)`);
 
   return app;
 }

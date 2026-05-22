@@ -18,27 +18,27 @@ export class CommentsService {
     private readonly dataSource: DataSource,
   ) {}
 
-  private async verifyTaskInProject(projectId: number, taskId: number): Promise<void> {
-    const [task] = await this.dataSource.query(
-      'SELECT id FROM tasks WHERE id = $1 AND project_id = $2',
-      [taskId, projectId],
+  private async verifyItemInProject(projectId: number, workItemId: number): Promise<void> {
+    const [item] = await this.dataSource.query(
+      'SELECT id FROM work_items WHERE id = $1 AND project_id = $2',
+      [workItemId, projectId],
     );
-    if (!task) {
+    if (!item) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
   }
 
-  async create(projectId: number, taskId: number, body: string, userId: number) {
-    await this.verifyTaskInProject(projectId, taskId);
+  async create(projectId: number, workItemId: number, body: string, userId: number) {
+    await this.verifyItemInProject(projectId, workItemId);
     body = stripHtml(body);
     const comment = this.commentRepo.create({
-      taskId,
+      workItemId,
       authorId: userId,
       body,
     });
     const saved = await this.commentRepo.save(comment);
 
-    this.eventEmitter.emit('comment.added', { taskId, projectId, actorId: userId, commentId: saved.id });
+    this.eventEmitter.emit('comment.added', { workItemId, projectId, actorId: userId, commentId: saved.id });
 
     // Parse @mentions
     const mentionRegex = /@(\w+)/g;
@@ -58,7 +58,7 @@ export class CommentsService {
           this.eventEmitter.emit('comment.mentioned', {
             userId: mentionedUser.id,
             actorId: userId,
-            taskId,
+            workItemId,
             projectId,
             commentId: saved.id,
           });
@@ -66,17 +66,17 @@ export class CommentsService {
       }
     }
 
-    const list = await this.listComments(projectId, taskId);
+    const list = await this.listComments(projectId, workItemId);
     return PaginatedMutationResponse.forPaginated(saved, list);
   }
 
-  async listComments(projectId: number, taskId: number, page: number = 1, limit: number = 20) {
-    await this.verifyTaskInProject(projectId, taskId);
+  async listComments(projectId: number, workItemId: number, page: number = 1, limit: number = 20) {
+    await this.verifyItemInProject(projectId, workItemId);
     limit = clampLimit(limit);
     const qb = this.commentRepo.createQueryBuilder('c')
       .leftJoin('c.author', 'author')
       .addSelect(['author.id', 'author.displayName', 'author.avatarUrl'])
-      .where('c.taskId = :taskId', { taskId })
+      .where('c.workItemId = :workItemId', { workItemId })
       .orderBy('c.createdAt', 'ASC');
 
     const total = await qb.getCount();
@@ -85,10 +85,10 @@ export class CommentsService {
     return new PaginatedResponse(data, total, page, limit);
   }
 
-  async update(projectId: number, taskId: number, commentId: number, body: string, userId: number) {
-    await this.verifyTaskInProject(projectId, taskId);
+  async update(projectId: number, workItemId: number, commentId: number, body: string, userId: number) {
+    await this.verifyItemInProject(projectId, workItemId);
     body = stripHtml(body);
-    const comment = await this.commentRepo.findOne({ where: { id: commentId, taskId } });
+    const comment = await this.commentRepo.findOne({ where: { id: commentId, workItemId } });
     if (!comment) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
@@ -100,13 +100,12 @@ export class CommentsService {
     return this.commentRepo.save(comment);
   }
 
-  async remove(projectId: number, taskId: number, commentId: number, userId: number, userRole: string) {
-    await this.verifyTaskInProject(projectId, taskId);
-    const comment = await this.commentRepo.findOne({ where: { id: commentId, taskId } });
+  async remove(projectId: number, workItemId: number, commentId: number, userId: number, userRole: string) {
+    await this.verifyItemInProject(projectId, workItemId);
+    const comment = await this.commentRepo.findOne({ where: { id: commentId, workItemId } });
     if (!comment) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
-    // Admin/PM can delete any, member only their own
     if (userRole === 'member' && comment.authorId !== userId) {
       throw new AppLogicException('FORBIDDEN', HttpStatus.FORBIDDEN);
     }

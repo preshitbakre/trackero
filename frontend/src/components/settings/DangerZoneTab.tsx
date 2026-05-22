@@ -6,6 +6,7 @@ import { toast } from '../common/Toast';
 import { useAuthStore } from '../../store/auth.store';
 import { queryClient } from '../../lib/query-client';
 import { Input } from '../ui/Input';
+import { Button } from '../ui/Button';
 
 interface ProjectInfo {
   id: number;
@@ -56,21 +57,17 @@ export function DangerZoneTab() {
       {/* Archive / Restore */}
       {isArchived ? (
         <div className="rounded-lg border-2 border-success p-5">
-          <h3 className="text-sm font-semibold text-neutral-700 dark:text-dneutral-700 mb-1">Restore this project</h3>
-          <p className="text-sm text-neutral-400 dark:text-dneutral-500 mb-4">Unarchive and allow modifications again.</p>
-          <button onClick={handleRestore} className="px-4 py-2 text-sm font-medium text-success border border-success rounded-md hover:bg-success/10">
-            Restore project
-          </button>
+          <h3 className="text-[16px] font-semibold text-neutral-700 dark:text-dneutral-700 mb-1">Restore this project</h3>
+          <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 mb-4">Unarchive and allow modifications again.</p>
+          <Button variant="success" onClick={handleRestore}>Restore project</Button>
         </div>
       ) : (
         <div className="rounded-lg border-2 border-danger p-5">
-          <h3 className="text-sm font-semibold text-neutral-700 dark:text-dneutral-700 mb-1">Archive this project</h3>
-          <p className="text-sm text-neutral-400 dark:text-dneutral-500 mb-4">
+          <h3 className="text-[16px] font-semibold text-neutral-700 dark:text-dneutral-700 mb-1">Archive this project</h3>
+          <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 mb-4">
             Archived projects are read-only. No tasks, sprints, or epics can be created or modified. Team members can still view data.
           </p>
-          <button onClick={() => setShowArchive(true)} className="px-4 py-2 text-sm font-medium text-danger border border-danger rounded-md hover:bg-danger/10">
-            Archive project
-          </button>
+          <Button variant="danger" onClick={() => setShowArchive(true)}>Archive project</Button>
         </div>
       )}
 
@@ -78,15 +75,13 @@ export function DangerZoneTab() {
       {isAdmin && (
         <div className="rounded-lg border-2 border-danger p-5">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-sm font-semibold text-neutral-700 dark:text-dneutral-700">Delete this project</h3>
-            <span className="text-sm px-1.5 py-0.5 rounded bg-danger/10 text-danger font-medium">Admin only</span>
+            <h3 className="text-[16px] font-semibold text-neutral-700 dark:text-dneutral-700">Delete this project</h3>
+            <span className="text-[16px] px-1.5 py-0.5 rounded bg-danger/10 text-danger font-medium">Admin only</span>
           </div>
-          <p className="text-sm text-neutral-400 dark:text-dneutral-500 mb-4">
+          <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 mb-4">
             Permanently delete this project and ALL its data. This action CANNOT be undone.
           </p>
-          <button onClick={() => setShowDelete(true)} className="px-4 py-2 text-sm font-medium text-white bg-danger rounded-md hover:bg-danger/90">
-            Delete project
-          </button>
+          <Button variant="danger" onClick={() => setShowDelete(true)}>Delete project</Button>
         </div>
       )}
 
@@ -145,21 +140,21 @@ function ArchiveConfirmDialog({ projectName, projectId, onClose, onArchived }: {
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-700/50" onClick={onClose}>
-      <div className="bg-neutral-50 dark:bg-dneutral-100 rounded-lg p-6 w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-lg font-bold text-neutral-700 dark:text-dneutral-700 mb-2">Archive project</h2>
-        <p className="text-sm text-neutral-500 dark:text-dneutral-500 mb-1">Are you sure you want to archive '{projectName}'?</p>
-        <p className="text-sm text-neutral-400 dark:text-dneutral-500 mb-4">This will make the project read-only. No one will be able to create or edit tasks.</p>
-        {error && <div className="text-sm text-danger mb-3">{error}</div>}
+      <div className="bg-white dark:bg-dneutral-100 rounded-lg p-6 w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-[22px] font-bold text-neutral-700 dark:text-dneutral-700 mb-2">Archive project</h2>
+        <p className="text-[16px] text-neutral-500 dark:text-dneutral-500 mb-1">Are you sure you want to archive '{projectName}'?</p>
+        <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 mb-4">This will make the project read-only. No one will be able to create or edit tasks.</p>
+        {error && <div className="text-[16px] text-danger mb-3">{error}</div>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm text-neutral-500 dark:text-dneutral-500 mb-1">Type the project name to confirm</label>
+            <label className="block text-[16px] text-neutral-500 dark:text-dneutral-500 mb-1">Type the project name to confirm</label>
             <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} autoFocus placeholder={projectName} />
           </div>
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-neutral-500">Cancel</button>
-            <button type="submit" disabled={!matches || loading} className="px-4 py-2 text-sm font-medium text-white bg-danger rounded-md disabled:opacity-50">
+            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button type="submit" variant="danger" disabled={!matches || loading}>
               {loading ? 'Archiving...' : 'Archive'}
-            </button>
+            </Button>
           </div>
         </form>
       </div>
@@ -191,22 +186,22 @@ function DeleteConfirmDialog({ projectName, projectPrefix, projectId, onClose, o
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-700/50" onClick={onClose}>
-      <div className="bg-neutral-50 dark:bg-dneutral-100 rounded-lg p-6 w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-lg font-bold text-danger mb-2">Delete project permanently</h2>
-        <p className="text-sm text-neutral-500 dark:text-dneutral-500 mb-1">This will permanently delete '{projectName}' and ALL its data.</p>
-        <p className="text-sm text-neutral-400 dark:text-dneutral-500 mb-1">Including all tasks, sprints, epics, comments, attachments, and activity logs.</p>
-        <p className="text-sm text-danger font-medium mb-4">This action cannot be undone.</p>
-        {error && <div className="text-sm text-danger mb-3">{error}</div>}
+      <div className="bg-white dark:bg-dneutral-100 rounded-lg p-6 w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-[22px] font-bold text-danger mb-2">Delete project permanently</h2>
+        <p className="text-[16px] text-neutral-500 dark:text-dneutral-500 mb-1">This will permanently delete '{projectName}' and ALL its data.</p>
+        <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 mb-1">Including all tasks, sprints, epics, comments, attachments, and activity logs.</p>
+        <p className="text-[16px] text-danger font-medium mb-4">This action cannot be undone.</p>
+        {error && <div className="text-[16px] text-danger mb-3">{error}</div>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm text-neutral-500 dark:text-dneutral-500 mb-1">Type '{projectPrefix}' to confirm</label>
+            <label className="block text-[16px] text-neutral-500 dark:text-dneutral-500 mb-1">Type '{projectPrefix}' to confirm</label>
             <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} autoFocus placeholder={projectPrefix} />
           </div>
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-neutral-500">Cancel</button>
-            <button type="submit" disabled={!matches || loading} className="px-4 py-2 text-sm font-medium text-white bg-danger rounded-md disabled:opacity-50">
+            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button type="submit" variant="danger" disabled={!matches || loading}>
               {loading ? 'Deleting...' : 'Delete permanently'}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

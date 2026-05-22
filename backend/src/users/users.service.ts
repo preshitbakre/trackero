@@ -8,6 +8,7 @@ import { AppLogicException } from '../common/exceptions/app-exceptions';
 import { PaginatedResponse } from '../common/dto/paginated-response.dto';
 import { PaginatedMutationResponse } from '../common/dto/paginated-mutation-response.dto';
 import { clampLimit } from '../common/helpers/pagination.helper';
+import { EmailService } from '../common/services/email.service';
 
 @Injectable()
 export class UsersService {
@@ -17,6 +18,7 @@ export class UsersService {
     @InjectRepository(Invitation)
     private readonly invitationRepo: Repository<Invitation>,
     private readonly dataSource: DataSource,
+    private readonly emailService: EmailService,
   ) {}
 
   async listUsers(page: number = 1, limit: number = 20) {
@@ -87,6 +89,10 @@ export class UsersService {
   }
 
   async deactivate(id: number, actorId: number) {
+    if (id === actorId) {
+      throw new AppLogicException('CANNOT_DEACTIVATE_SELF', HttpStatus.BAD_REQUEST);
+    }
+
     const user = await this.userRepo.findOne({ where: { id } });
     if (!user) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
@@ -101,6 +107,28 @@ export class UsersService {
     }
 
     user.isActive = false;
+    const saved = await this.userRepo.save(user);
+
+    // Unassign all tasks and subtasks from this user
+    await this.dataSource.query(
+      `UPDATE work_items SET assignee_id = NULL WHERE assignee_id = $1`,
+      [id],
+    );
+
+    const list = await this.listUsers(1, 20);
+    return PaginatedMutationResponse.forPaginated(
+      { id: saved.id, email: saved.email, displayName: saved.displayName, role: saved.role, isActive: saved.isActive } as any,
+      list,
+    );
+  }
+
+  async reactivate(id: number) {
+    const user = await this.userRepo.findOne({ where: { id } });
+    if (!user) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    user.isActive = true;
     const saved = await this.userRepo.save(user);
 
     const list = await this.listUsers(1, 20);
@@ -145,6 +173,9 @@ export class UsersService {
       expiresAt,
     });
     await this.invitationRepo.save(invitation);
+
+    // Send invitation email
+    await this.emailService.sendInvitation(email, token, role);
 
     const invitations = await this.listInvitations();
     return {

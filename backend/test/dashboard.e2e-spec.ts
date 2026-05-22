@@ -69,19 +69,19 @@ describe('Dashboard (e2e)', () => {
 
     // Create tasks assigned to member
     await request(app.getHttpServer())
-      .post(`/api/projects/${projectId}/tasks`)
+      .post(`/api/projects/${projectId}/items`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ title: 'Task one', priority: 'high', assigneeId: memberId });
+      .send({ itemType: 'task', title: 'Task one', priority: 'high', assigneeId: memberId });
 
     await request(app.getHttpServer())
-      .post(`/api/projects/${projectId}/tasks`)
+      .post(`/api/projects/${projectId}/items`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ title: 'Task two', priority: 'medium', assigneeId: memberId });
+      .send({ itemType: 'task', title: 'Task two', priority: 'medium', assigneeId: memberId });
 
     await request(app.getHttpServer())
-      .post(`/api/projects/${projectId}/tasks`)
+      .post(`/api/projects/${projectId}/items`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ title: 'Unassigned task', priority: 'low' });
+      .send({ itemType: 'task', title: 'Unassigned task', priority: 'low' });
   });
 
   // ── Admin Dashboard ────────────────────────────────────────
@@ -340,9 +340,9 @@ describe('Dashboard (e2e)', () => {
       const proj2Id = proj2Res.body.data.item.id;
 
       await request(app.getHttpServer())
-        .post(`/api/projects/${proj2Id}/tasks`)
+        .post(`/api/projects/${proj2Id}/items`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ title: 'Secret task' });
+        .send({ itemType: 'task', title: 'Secret task' });
 
       const res = await request(app.getHttpServer())
         .get('/api/dashboard')

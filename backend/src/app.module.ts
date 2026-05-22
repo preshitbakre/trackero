@@ -1,7 +1,8 @@
-import { Module } from '@nestjs/common';
+import { Module, OnModuleInit } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
@@ -9,9 +10,7 @@ import { getDatabaseConfig } from './config/database.config';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ProjectsModule } from './projects/projects.module';
-import { EpicsModule } from './epics/epics.module';
 import { SprintsModule } from './sprints/sprints.module';
-import { TasksModule } from './tasks/tasks.module';
 import { BoardModule } from './board/board.module';
 import { HealthModule } from './health/health.module';
 import { FileStorageModule } from './file-storage/file-storage.module';
@@ -23,10 +22,9 @@ import { GatewayModule } from './gateway/gateway.module';
 import { RetrospectivesModule } from './retrospectives/retrospectives.module';
 import { ChartsModule } from './charts/charts.module';
 import { SearchModule } from './search/search.module';
-import { SettingsModule } from './settings/settings.module';
 import { DashboardModule } from './dashboard/dashboard.module';
-import { TaskTypesModule } from './task-types/task-types.module';
 import { FiltersModule } from './filters/filters.module';
+import { WorkItemsModule } from './work-items/work-items.module';
 
 @Module({
   imports: [
@@ -54,9 +52,7 @@ import { FiltersModule } from './filters/filters.module';
     AuthModule,
     UsersModule,
     ProjectsModule,
-    EpicsModule,
     SprintsModule,
-    TasksModule,
     BoardModule,
     HealthModule,
     FileStorageModule,
@@ -68,10 +64,9 @@ import { FiltersModule } from './filters/filters.module';
     RetrospectivesModule,
     ChartsModule,
     SearchModule,
-    SettingsModule,
     DashboardModule,
-    TaskTypesModule,
     FiltersModule,
+    WorkItemsModule,
   ],
   providers: [
     {
@@ -80,4 +75,22 @@ import { FiltersModule } from './filters/filters.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements OnModuleInit {
+  constructor(private readonly dataSource: DataSource) {}
+
+  async onModuleInit() {
+    // TypeORM synchronize cannot create GENERATED ALWAYS AS columns.
+    // Ensure the full-text search vector and GIN index exist.
+    await this.dataSource.query(`
+      DO $$ BEGIN
+        ALTER TABLE work_items ADD COLUMN search_vector tsvector
+        GENERATED ALWAYS AS (
+          setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
+          setweight(to_tsvector('english', coalesce(description, '')), 'B')
+        ) STORED;
+      EXCEPTION WHEN duplicate_column THEN NULL;
+      END $$
+    `);
+    await this.dataSource.query(`CREATE INDEX IF NOT EXISTS "IDX_wi_search" ON work_items USING gin(search_vector)`);
+  }
+}

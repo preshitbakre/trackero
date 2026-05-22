@@ -17,7 +17,7 @@ export function ShortcutsHelp() {
   if (!show) return null;
 
   const shortcuts = [
-    { key: 'C', description: 'Create new task' },
+    { key: 'C', description: 'Create new item' },
     { key: '/', description: 'Focus search' },
     { key: '\u2318K', description: 'Command palette' },
     { key: 'G then B', description: 'Go to board' },
@@ -32,17 +32,17 @@ export function ShortcutsHelp() {
   return (
     <>
       <div className="fixed inset-0 z-50 bg-neutral-700/50" onClick={() => setShow(false)} />
-      <div className="fixed top-[15%] left-1/2 -translate-x-1/2 z-50 w-full max-w-md bg-neutral-50 dark:bg-dneutral-100 rounded-xl shadow-2xl p-6 border border-neutral-200 dark:border-dneutral-300">
-        <h2 className="text-lg font-bold text-neutral-700 dark:text-dneutral-700 mb-4">Keyboard Shortcuts</h2>
+      <div className="fixed top-[15%] left-1/2 -translate-x-1/2 z-50 w-full max-w-md bg-white dark:bg-dneutral-100 rounded-xl shadow-xl dark:shadow-[0_12px_36px_rgba(0,0,0,0.6)] p-6">
+        <h2 className="text-[22px] font-bold text-neutral-700 dark:text-dneutral-700 mb-4">Keyboard Shortcuts</h2>
         <div className="space-y-2">
           {shortcuts.map((s) => (
             <div key={s.key} className="flex items-center justify-between">
-              <span className="text-sm text-neutral-500 dark:text-dneutral-600">{s.description}</span>
-              <kbd className="text-sm bg-neutral-100 dark:bg-dneutral-200 px-2 py-1 rounded font-mono text-neutral-600 dark:text-dneutral-600">{s.key}</kbd>
+              <span className="text-[16px] text-neutral-500 dark:text-dneutral-600">{s.description}</span>
+              <kbd className="text-[16px] bg-neutral-100 dark:bg-dneutral-200 px-2 py-1 rounded font-mono text-neutral-600 dark:text-dneutral-600">{s.key}</kbd>
             </div>
           ))}
         </div>
-        <button onClick={() => setShow(false)} className="mt-4 w-full text-center text-sm text-neutral-400 hover:text-neutral-500">Press Esc to close</button>
+        <button onClick={() => setShow(false)} className="mt-4 w-full text-center text-[16px] text-neutral-400 hover:text-neutral-500">Press Esc to close</button>
       </div>
     </>
   );

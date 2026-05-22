@@ -3,6 +3,10 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp, clearDatabase, registerAdmin, registerInvitedUser } from './setup';
 
+/** A date `daysFromNow` days ahead of today, as YYYY-MM-DD — sprints reject past start dates. */
+const futureDate = (daysFromNow: number): string =>
+  new Date(Date.now() + daysFromNow * 86400000).toISOString().split('T')[0];
+
 describe('Charts, Retro, Search (e2e)', () => {
   let app: INestApplication;
   let adminToken: string;
@@ -76,7 +80,7 @@ describe('Charts, Retro, Search (e2e)', () => {
       const sprintRes = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 1', startDate: '2026-05-18', endDate: '2026-06-01' });
+        .send({ name: 'Sprint 1', startDate: futureDate(1), endDate: futureDate(15) });
       sprintId = sprintRes.body.data.item.id;
     });
 
@@ -169,13 +173,13 @@ describe('Charts, Retro, Search (e2e)', () => {
   describe('Search', () => {
     beforeEach(async () => {
       await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks`)
+        .post(`/api/projects/${projectId}/items`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ title: 'Fix authentication bug in login' });
+        .send({ itemType: 'task', title: 'Fix authentication bug in login' });
       await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks`)
+        .post(`/api/projects/${projectId}/items`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ title: 'Add user profile page' });
+        .send({ itemType: 'task', title: 'Add user profile page' });
     });
 
     it('searches tasks by query -> 200', async () => {
@@ -207,9 +211,9 @@ describe('Charts, Retro, Search (e2e)', () => {
       const proj2Id = proj2Res.body.data.item.id;
 
       await request(app.getHttpServer())
-        .post(`/api/projects/${proj2Id}/tasks`)
+        .post(`/api/projects/${proj2Id}/items`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ title: 'Secret authentication task' });
+        .send({ itemType: 'task', title: 'Secret authentication task' });
 
       // Member searches — should NOT see secret project tasks
       const res = await request(app.getHttpServer())

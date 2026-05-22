@@ -48,14 +48,14 @@ describe('Notifications & Real-Time (e2e)', () => {
     it('creates notification for assignee (not self)', async () => {
       // Create task
       const taskRes = await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks`)
+        .post(`/api/projects/${projectId}/items`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ title: 'Assign task' });
+        .send({ itemType: 'task', title: 'Assign task' });
       const taskId = taskRes.body.data.item.id;
 
       // Assign to member (admin is actor, member is assignee)
       await request(app.getHttpServer())
-        .put(`/api/projects/${projectId}/tasks/${taskId}/assign`)
+        .put(`/api/projects/${projectId}/items/${taskId}/assign`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ assigneeId: memberId });
 
@@ -78,14 +78,14 @@ describe('Notifications & Real-Time (e2e)', () => {
 
     it('does NOT notify actor when assigning to self', async () => {
       const taskRes = await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks`)
+        .post(`/api/projects/${projectId}/items`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ title: 'Self assign' });
+        .send({ itemType: 'task', title: 'Self assign' });
       const taskId = taskRes.body.data.item.id;
 
       // Admin assigns to self
       await request(app.getHttpServer())
-        .put(`/api/projects/${projectId}/tasks/${taskId}/assign`)
+        .put(`/api/projects/${projectId}/items/${taskId}/assign`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ assigneeId: adminId });
 
@@ -107,14 +107,14 @@ describe('Notifications & Real-Time (e2e)', () => {
   describe('Duplicate suppression', () => {
     it('suppresses duplicate notification within 5 minutes', async () => {
       const taskRes = await request(app.getHttpServer())
-        .post(`/api/projects/${projectId}/tasks`)
+        .post(`/api/projects/${projectId}/items`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ title: 'Dup test' });
+        .send({ itemType: 'task', title: 'Dup test' });
       const taskId = taskRes.body.data.item.id;
 
       // Assign twice quickly
       await request(app.getHttpServer())
-        .put(`/api/projects/${projectId}/tasks/${taskId}/assign`)
+        .put(`/api/projects/${projectId}/items/${taskId}/assign`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ assigneeId: memberId });
 
@@ -122,11 +122,11 @@ describe('Notifications & Real-Time (e2e)', () => {
 
       // Unassign and reassign
       await request(app.getHttpServer())
-        .put(`/api/projects/${projectId}/tasks/${taskId}/assign`)
+        .put(`/api/projects/${projectId}/items/${taskId}/assign`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ assigneeId: null });
       await request(app.getHttpServer())
-        .put(`/api/projects/${projectId}/tasks/${taskId}/assign`)
+        .put(`/api/projects/${projectId}/items/${taskId}/assign`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ assigneeId: memberId });
 

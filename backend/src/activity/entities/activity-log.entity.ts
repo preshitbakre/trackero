@@ -6,7 +6,7 @@ import { Project } from '../../projects/entities/project.entity';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('activity_logs')
-@Index('IDX_activity_task', ['taskId'])
+@Index('IDX_activity_work_item', ['workItemId'])
 @Index('IDX_activity_project', ['projectId'])
 @Index('IDX_activity_created', ['createdAt'])
 export class ActivityLog {
@@ -16,8 +16,8 @@ export class ActivityLog {
   @Column({ name: 'project_id', type: 'int' })
   projectId: number;
 
-  @Column({ name: 'task_id', type: 'int', nullable: true })
-  taskId: number | null;
+  @Column({ name: 'work_item_id', type: 'int', nullable: true })
+  workItemId: number | null;
 
   @Column({ name: 'user_id', type: 'int' })
   userId: number;

@@ -19,7 +19,7 @@ cd trackero
 
 # Backend setup
 cd backend
-cp ../.env.example .env
+cp .env.example .env
 # Edit .env with your local PostgreSQL credentials
 npm install
 npm run migration:run

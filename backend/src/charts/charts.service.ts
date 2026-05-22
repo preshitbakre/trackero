@@ -11,7 +11,7 @@ export class ChartsService {
       SELECT s.id, s.name, s.sprint_number,
         COALESCE(SUM(t.story_points) FILTER (WHERE ps.category = 'done'), 0)::int as completed_points
       FROM sprints s
-      LEFT JOIN tasks t ON t.sprint_id = s.id AND t.parent_id IS NULL
+      LEFT JOIN work_items t ON t.sprint_id = s.id AND t.item_type IN ('task')
       LEFT JOIN project_statuses ps ON ps.id = t.status_id
       WHERE s.project_id = $1 AND s.status = 'completed'
       GROUP BY s.id, s.name, s.sprint_number
@@ -39,15 +39,15 @@ export class ChartsService {
           COALESCE(
             (SELECT CAST(al.new_value AS INTEGER)
              FROM activity_logs al
-             WHERE al.task_id = t.id
+             WHERE al.work_item_id = t.id
                AND al.field_changed = 'status'
                AND al.created_at <= d.date + INTERVAL '1 day'
              ORDER BY al.created_at DESC LIMIT 1),
             t.status_id
           ) as effective_status_id
-        FROM tasks t
+        FROM work_items t
         WHERE t.project_id = $1
-          AND t.parent_id IS NULL
+          AND t.item_type IN ('task')
           AND t.created_at <= d.date + INTERVAL '1 day'
       ) task_on_date ON true
       LEFT JOIN project_statuses ps ON ps.id = task_on_date.effective_status_id

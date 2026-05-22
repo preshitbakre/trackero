@@ -5,6 +5,7 @@ import { apiClient } from '../../api/client';
 import { toast } from '../common/Toast';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { Input } from '../ui/Input';
+import { Button } from '../ui/Button';
 
 interface LabelRow {
   id: number;
@@ -60,8 +61,8 @@ export function LabelsTab() {
   return (
     <div className="max-w-3xl">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-neutral-700 dark:text-dneutral-700">Labels ({labels.length})</h2>
-        <button onClick={() => setShowCreate(true)} className="text-sm font-medium text-primary-500 hover:underline">+ Create label</button>
+        <h2 className="text-[16px] font-semibold text-neutral-700 dark:text-dneutral-700">Labels ({labels.length})</h2>
+        <button onClick={() => setShowCreate(true)} className="text-[16px] font-medium text-peri hover:underline">+ Create label</button>
       </div>
 
       {labels.length === 0 ? (
@@ -71,14 +72,22 @@ export function LabelsTab() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {labels.map((label) => (
-            <div key={label.id} className="flex items-center gap-3 px-4 py-3 rounded-lg border border-neutral-200 dark:border-dneutral-200">
+            <div key={label.id} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-white dark:bg-dneutral-100 shadow-[0_2px_8px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.35)]">
               <span className="w-5 h-5 rounded-full flex-shrink-0" style={{ backgroundColor: label.color }} />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-neutral-700 dark:text-dneutral-700 truncate">{label.name}</p>
-                <p className="text-sm text-neutral-400 dark:text-dneutral-500">{label.taskCount} task{label.taskCount !== 1 ? 's' : ''}</p>
+                <p className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700 truncate">{label.name}</p>
+                <p className="text-[16px] text-neutral-400 dark:text-dneutral-500">{label.taskCount} task{label.taskCount !== 1 ? 's' : ''}</p>
               </div>
-              <button onClick={() => setEditingLabel(label)} className="text-sm text-neutral-400 hover:text-primary-500">Edit</button>
-              <button onClick={() => setDeletingLabel(label)} className="text-sm text-neutral-400 hover:text-danger">Delete</button>
+              <button onClick={() => setEditingLabel(label)} className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-dneutral-200 text-neutral-400 hover:text-neutral-600" title="Edit">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+              <button onClick={() => setDeletingLabel(label)} className="p-1 rounded hover:bg-danger/10 text-neutral-400 hover:text-danger" title="Delete">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
             </div>
           ))}
         </div>
@@ -152,21 +161,21 @@ function LabelDialog({ projectId, editing, onClose, onSaved }: {
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-700/50" onClick={onClose}>
-      <div className="bg-neutral-50 dark:bg-dneutral-100 rounded-lg p-6 w-full max-w-sm shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-lg font-bold mb-4 text-neutral-700 dark:text-dneutral-700">{editing ? 'Edit label' : 'Create label'}</h2>
+      <div className="bg-white dark:bg-dneutral-100 rounded-lg p-6 w-full max-w-sm shadow-xl dark:shadow-[0_12px_36px_rgba(0,0,0,0.6)]" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-[22px] font-bold mb-4 text-neutral-700 dark:text-dneutral-700">{editing ? 'Edit label' : 'Create label'}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {error && <div className="text-sm text-danger">{error}</div>}
+          {error && <div className="text-[16px] text-danger">{error}</div>}
 
           <div>
-            <label className="block text-sm font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Name</label>
+            <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Name</label>
             <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={15} autoFocus />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Color</label>
+            <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Color</label>
             <div className="grid grid-cols-6 gap-3 mb-2">
               {PRESET_COLORS.map((c) => (
-                <button key={c} type="button" onClick={() => setColor(c)} className={`w-7 h-7 rounded-full border-2 ${color === c ? 'border-primary-500' : 'border-transparent hover:border-neutral-400'}`} style={{ backgroundColor: c }} />
+                <button key={c} type="button" onClick={() => setColor(c)} className={`w-7 h-7 rounded-full border-2 ${color === c ? 'border-peri' : 'border-transparent hover:border-neutral-400'}`} style={{ backgroundColor: c }} />
               ))}
             </div>
             <Input
@@ -180,19 +189,19 @@ function LabelDialog({ projectId, editing, onClose, onSaved }: {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Preview</label>
+            <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Preview</label>
             <div className="overflow-hidden">
-              <span className="inline-block max-w-full px-3 py-1 rounded-full text-sm text-white truncate" style={{ backgroundColor: color }}>
+              <span className="inline-block max-w-full px-3 py-1 rounded-full text-[16px] text-white truncate" style={{ backgroundColor: color }}>
                 {name || 'label'}
               </span>
             </div>
           </div>
 
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-neutral-500">Cancel</button>
-            <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-primary-500 rounded-md disabled:opacity-50">
+            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button type="submit" variant="primary" disabled={loading}>
               {loading ? 'Saving...' : editing ? 'Save' : 'Create'}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

@@ -24,18 +24,18 @@ export class AttachmentsService {
     this.maxSizeMb = this.configService.get<number>('MAX_UPLOAD_SIZE_MB', 10);
   }
 
-  private async verifyTaskInProject(projectId: number, taskId: number): Promise<void> {
-    const [task] = await this.dataSource.query(
-      'SELECT id FROM tasks WHERE id = $1 AND project_id = $2',
-      [taskId, projectId],
+  private async verifyItemInProject(projectId: number, workItemId: number): Promise<void> {
+    const [item] = await this.dataSource.query(
+      'SELECT id FROM work_items WHERE id = $1 AND project_id = $2',
+      [workItemId, projectId],
     );
-    if (!task) {
+    if (!item) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
   }
 
-  async upload(projectId: number, taskId: number, file: Express.Multer.File, userId: number) {
-    await this.verifyTaskInProject(projectId, taskId);
+  async upload(projectId: number, workItemId: number, file: Express.Multer.File, userId: number) {
+    await this.verifyItemInProject(projectId, workItemId);
     if (!file) {
       throw new AppLogicException('FILE_REQUIRED', HttpStatus.BAD_REQUEST);
     }
@@ -64,11 +64,11 @@ export class AttachmentsService {
     }
 
     const storageKey = await this.fileStorage.upload(
-      projectId, taskId, file.originalname, file.buffer, file.mimetype,
+      projectId, workItemId, file.originalname, file.buffer, file.mimetype,
     );
 
     const attachment = this.attachmentRepo.create({
-      taskId,
+      workItemId,
       uploadedBy: userId,
       originalFilename: file.originalname,
       storageKey,
@@ -77,33 +77,33 @@ export class AttachmentsService {
     });
     const saved = await this.attachmentRepo.save(attachment);
 
-    this.eventEmitter.emit('attachment.added', { taskId, projectId, actorId: userId, attachmentId: saved.id });
+    this.eventEmitter.emit('attachment.added', { workItemId, projectId, actorId: userId, attachmentId: saved.id });
 
-    const list = await this.listAttachments(projectId, taskId);
+    const list = await this.listAttachments(projectId, workItemId);
     return PaginatedMutationResponse.forPaginated(saved, list);
   }
 
-  async listAttachments(projectId: number, taskId: number) {
-    await this.verifyTaskInProject(projectId, taskId);
+  async listAttachments(projectId: number, workItemId: number) {
+    await this.verifyItemInProject(projectId, workItemId);
     const attachments = await this.attachmentRepo.find({
-      where: { taskId },
+      where: { workItemId },
       order: { createdAt: 'ASC' },
     });
     return new PaginatedResponse(attachments, attachments.length, 1, attachments.length || 1);
   }
 
-  async getPresignedUrl(projectId: number, taskId: number, attachmentId: number) {
-    await this.verifyTaskInProject(projectId, taskId);
-    const attachment = await this.attachmentRepo.findOne({ where: { id: attachmentId, taskId } });
+  async getPresignedUrl(projectId: number, workItemId: number, attachmentId: number) {
+    await this.verifyItemInProject(projectId, workItemId);
+    const attachment = await this.attachmentRepo.findOne({ where: { id: attachmentId, workItemId } });
     if (!attachment) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
     return this.fileStorage.getPresignedUrl(attachment.storageKey);
   }
 
-  async remove(projectId: number, taskId: number, attachmentId: number) {
-    await this.verifyTaskInProject(projectId, taskId);
-    const attachment = await this.attachmentRepo.findOne({ where: { id: attachmentId, taskId } });
+  async remove(projectId: number, workItemId: number, attachmentId: number) {
+    await this.verifyItemInProject(projectId, workItemId);
+    const attachment = await this.attachmentRepo.findOne({ where: { id: attachmentId, workItemId } });
     if (!attachment) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }

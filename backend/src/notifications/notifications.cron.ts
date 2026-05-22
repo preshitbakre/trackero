@@ -49,20 +49,20 @@ export class NotificationsCron {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-    const tasks = await this.dataSource.query(
-      `SELECT t.id, t.task_number, t.title, t.assignee_id, t.project_id, p.prefix
-       FROM tasks t JOIN projects p ON p.id = t.project_id
-       JOIN project_statuses ps ON ps.id = t.status_id
-       WHERE t.due_date = $1 AND t.assignee_id IS NOT NULL
+    const items = await this.dataSource.query(
+      `SELECT wi.id, wi.item_number, wi.title, wi.assignee_id, wi.project_id, p.prefix
+       FROM work_items wi JOIN projects p ON p.id = wi.project_id
+       JOIN project_statuses ps ON ps.id = wi.status_id
+       WHERE wi.end_date = $1 AND wi.assignee_id IS NOT NULL
        AND ps.category != 'done'`,
       [tomorrowStr],
     );
 
-    for (const task of tasks) {
-      const taskKey = `${task.prefix}-${task.task_number}`;
+    for (const item of items) {
+      const itemKey = `${item.prefix}-${item.item_number}`;
       await this.createIfNotDuplicate(
-        task.assignee_id, 'task_due_soon', 'task', task.id,
-        `${taskKey} is due tomorrow`, task.title,
+        item.assignee_id, 'task_due_soon', 'work_item', item.id,
+        `${itemKey} is due tomorrow`, item.title,
       );
     }
   }
@@ -70,36 +70,36 @@ export class NotificationsCron {
   private async checkTasksOverdue() {
     const today = new Date().toISOString().split('T')[0];
 
-    const tasks = await this.dataSource.query(
-      `SELECT t.id, t.task_number, t.title, t.assignee_id, t.project_id, p.prefix
-       FROM tasks t JOIN projects p ON p.id = t.project_id
-       JOIN project_statuses ps ON ps.id = t.status_id
-       WHERE t.due_date < $1 AND t.assignee_id IS NOT NULL
+    const items = await this.dataSource.query(
+      `SELECT wi.id, wi.item_number, wi.title, wi.assignee_id, wi.project_id, p.prefix
+       FROM work_items wi JOIN projects p ON p.id = wi.project_id
+       JOIN project_statuses ps ON ps.id = wi.status_id
+       WHERE wi.end_date < $1 AND wi.assignee_id IS NOT NULL
        AND ps.category != 'done'`,
       [today],
     );
 
-    for (const task of tasks) {
+    for (const item of items) {
       // Only notify once per 24 hours
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const existing = await this.notifRepo.findOne({
         where: {
-          userId: task.assignee_id,
+          userId: item.assignee_id,
           type: 'task_overdue',
-          referenceId: task.id,
+          referenceId: item.id,
           createdAt: MoreThan(oneDayAgo),
         },
       });
       if (existing) continue;
 
-      const taskKey = `${task.prefix}-${task.task_number}`;
+      const itemKey = `${item.prefix}-${item.item_number}`;
       await this.notifRepo.save(this.notifRepo.create({
-        userId: task.assignee_id,
+        userId: item.assignee_id,
         type: 'task_overdue',
-        referenceType: 'task',
-        referenceId: task.id,
-        title: `${taskKey} is overdue`,
-        body: task.title,
+        referenceType: 'work_item',
+        referenceId: item.id,
+        title: `${itemKey} is overdue`,
+        body: item.title,
       }));
     }
   }

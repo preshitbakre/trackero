@@ -5,11 +5,14 @@ import { TopBar } from './TopBar';
 import { apiClient } from '../../api/client';
 import { useAuthStore } from '../../store/auth.store';
 import { connectSocket, disconnectSocket, joinProject, leaveProject } from '../../lib/socket';
+import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
+import { CreateItemDialog } from '../common/CreateItemDialog';
 
 export function AppShell() {
   const [projects, setProjects] = useState<any[]>([]);
   const location = useLocation();
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(null);
+  const [showCreateItem, setShowCreateItem] = useState(false);
   const user = useAuthStore((s) => s.user);
 
   // Ensure user is loaded
@@ -53,17 +56,46 @@ export function AppShell() {
     return () => document.removeEventListener('projects-updated', handler);
   }, []);
 
-  return (
-    <div className="flex h-screen bg-neutral-50 dark:bg-dneutral-50">
-      {/* Sidebar */}
-      <Sidebar projects={projects} />
+  // Listen for create-item events from child pages (e.g., BacklogPage keyboard shortcut)
+  useEffect(() => {
+    const handler = () => setShowCreateItem(true);
+    document.addEventListener('shortcut-create-item', handler);
+    return () => document.removeEventListener('shortcut-create-item', handler);
+  }, []);
 
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar />
+  // Global keyboard shortcuts
+  useKeyboardShortcuts({
+    onCreateItem: () => {
+      if (currentProjectId) {
+        setShowCreateItem(true);
+      }
+    },
+  });
+
+  // Derive project ID from URL for the dialog
+  const activeProjectId = (() => {
+    const match = location.pathname.match(/\/projects\/(\d+)/);
+    return match ? parseInt(match[1]) : null;
+  })();
+
+  return (
+    <div className="flex flex-col h-screen bg-[#F2F9F3] dark:bg-dneutral-50">
+      <TopBar />
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar projects={projects} />
         <main className="flex-1 min-h-0 overflow-auto">
           <Outlet />
         </main>
       </div>
+
+      {showCreateItem && activeProjectId && (
+        <CreateItemDialog
+          projectId={activeProjectId}
+          defaultType="task"
+          onClose={() => setShowCreateItem(false)}
+          onCreated={() => setShowCreateItem(false)}
+        />
+      )}
     </div>
   );
 }

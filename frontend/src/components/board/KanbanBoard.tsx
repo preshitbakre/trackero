@@ -14,25 +14,33 @@ import {
 import { apiClient } from '../../api/client';
 import { getSocket } from '../../lib/socket';
 import { useAuthStore } from '../../store/auth.store';
+import { useRole } from '../../hooks/useRole';
+import { toast } from '../common/Toast';
 import { StatusColumn } from './StatusColumn';
 import { TaskCard } from './TaskCard';
 import { TaskDetailPanel } from '../tasks/TaskDetailPanel';
 import { CardSkeleton } from '../common/Skeleton';
 import { Select } from '../ui/Select';
 import { ErrorState } from '../common/ErrorState';
+import { AssigneeMultiSelect } from '../common/AssigneeMultiSelect';
 
 interface BoardTask {
   id: number;
-  taskNumber: number;
+  itemKey: string;
+  itemType: string;
   title: string;
-  type: string;
   priority: string;
-  assigneeId: number | null;
+  assignee: { id: number; displayName: string; avatarUrl: string | null } | null;
   storyPoints: number | null;
+  subtaskCount: number;
+  subtaskDoneCount: number;
+  commentCount: number;
+  attachmentCount: number;
+  hasBlockers: boolean;
+  labels: { id: number; name: string; color: string }[];
   sortOrder: string;
-  epicId: number | null;
-  parentId?: number | null;
-  parentTaskNumber?: number | null;
+  parentRef: { id: number; itemKey: string; title: string } | null;
+  epicColor: string | null;
 }
 
 interface BoardColumn {
@@ -41,18 +49,18 @@ interface BoardColumn {
   taskCount: number;
 }
 
-export function KanbanBoard({ epicFilter }: { epicFilter?: number } = {}) {
+export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; headerSlot?: React.ReactNode } = {}) {
   const { id: projectId } = useParams();
   const [columns, setColumns] = useState<BoardColumn[]>([]);
   const [activeTask, setActiveTask] = useState<BoardTask | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [sprintId, setSprintId] = useState<string>('');
-  const [assignedToMe, setAssignedToMe] = useState(false);
+  const [selectedAssignees, setSelectedAssignees] = useState<number[]>([]);
+  const [assigneeOptions, setAssigneeOptions] = useState<{ id: number; name: string }[]>([]);
   const [sprints, setSprints] = useState<{ id: number; name: string; status: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const user = useAuthStore((s) => s.user);
-  const canEdit = user?.role !== 'viewer';
+  const { canEdit } = useRole();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -66,14 +74,14 @@ export function KanbanBoard({ epicFilter }: { epicFilter?: number } = {}) {
       const params = new URLSearchParams();
       if (sprintId) params.set('sprintId', sprintId);
       if (epicFilter) params.set('epicId', String(epicFilter));
-      if (assignedToMe && user) params.set('assigneeId', String(user.id));
+      if (selectedAssignees.length > 0) params.set('assigneeId', selectedAssignees.join(','));
       const { data } = await apiClient.get(`/projects/${projectId}/board?${params}`);
       setColumns(data.data.columns || []);
     } catch {
       setError(true);
     }
     setLoading(false);
-  }, [projectId, sprintId, epicFilter, assignedToMe, user]);
+  }, [projectId, sprintId, epicFilter, selectedAssignees]);
 
   useEffect(() => {
     loadBoard();
@@ -84,6 +92,9 @@ export function KanbanBoard({ epicFilter }: { epicFilter?: number } = {}) {
     apiClient.get(`/projects/${projectId}/sprints?limit=100`).then((r) => {
       setSprints((r.data.data.list || []).filter((s: any) => s.status === 'active' || s.status === 'planning'));
     }).catch(() => {});
+    apiClient.get(`/projects/${projectId}/filters/assignees`).then((r) => {
+      setAssigneeOptions((r.data.data.list || []).map((o: any) => ({ id: o.value, name: o.label })));
+    }).catch(() => {});
   }, [projectId]);
 
   useEffect(() => {
@@ -91,17 +102,17 @@ export function KanbanBoard({ epicFilter }: { epicFilter?: number } = {}) {
 
     const currentUserId = useAuthStore.getState().user?.id;
 
-    const handleBoardMoved = (data: { taskId: number; statusId: number; actorId?: number }) => {
+    const handleBoardMoved = (data: { itemId: number; statusId: number; actorId?: number }) => {
       // Skip if this is our own optimistic update
       if (data.actorId === currentUserId) return;
       setColumns((prev) => {
         const newCols = prev.map((col) => ({
           ...col,
-          tasks: col.tasks.filter((t) => t.id !== data.taskId),
+          tasks: col.tasks.filter((t) => t.id !== data.itemId),
         }));
         const targetCol = newCols.find((c) => c.status.id === data.statusId);
         // Find the task in old columns
-        const task = prev.flatMap((c) => c.tasks).find((t) => t.id === data.taskId);
+        const task = prev.flatMap((c) => c.tasks).find((t) => t.id === data.itemId);
         if (targetCol && task) {
           targetCol.tasks.push(task);
           targetCol.taskCount = targetCol.tasks.length;
@@ -110,23 +121,25 @@ export function KanbanBoard({ epicFilter }: { epicFilter?: number } = {}) {
       });
     };
 
-    const handleTaskCreated = () => loadBoard();
-    const handleTaskDeleted = (data: { taskId: number }) => {
+    const handleItemCreated = () => loadBoard();
+    const handleItemDeleted = (data: { itemId: number }) => {
       setColumns((prev) => prev.map((col) => ({
         ...col,
-        tasks: col.tasks.filter((t) => t.id !== data.taskId),
-        taskCount: col.tasks.filter((t) => t.id !== data.taskId).length,
+        tasks: col.tasks.filter((t) => t.id !== data.itemId),
+        taskCount: col.tasks.filter((t) => t.id !== data.itemId).length,
       })));
     };
 
     socket.on('board:moved', handleBoardMoved);
-    socket.on('task:created', handleTaskCreated);
-    socket.on('task:deleted', handleTaskDeleted);
+    socket.on('work-item:created', handleItemCreated);
+    socket.on('work-item:updated', handleItemCreated);
+    socket.on('work-item:deleted', handleItemDeleted);
 
     return () => {
       socket.off('board:moved', handleBoardMoved);
-      socket.off('task:created', handleTaskCreated);
-      socket.off('task:deleted', handleTaskDeleted);
+      socket.off('work-item:created', handleItemCreated);
+      socket.off('work-item:updated', handleItemCreated);
+      socket.off('work-item:deleted', handleItemDeleted);
     };
   }, [loadBoard]);
 
@@ -136,9 +149,11 @@ export function KanbanBoard({ epicFilter }: { epicFilter?: number } = {}) {
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
-    setActiveTask(null);
     const { active, over } = event;
-    if (!over || !projectId) return;
+    if (!over || !projectId) {
+      setActiveTask(null);
+      return;
+    }
 
     const taskId = active.id as number;
     const overId = over.id as string;
@@ -150,7 +165,7 @@ export function KanbanBoard({ epicFilter }: { epicFilter?: number } = {}) {
     } else {
       // Dropped on another task - find its column
       const col = columns.find((c) => c.tasks.some((t) => t.id === parseInt(overId)));
-      if (!col) return;
+      if (!col) { setActiveTask(null); return; }
       targetStatusId = col.status.id;
     }
 
@@ -172,16 +187,16 @@ export function KanbanBoard({ epicFilter }: { epicFilter?: number } = {}) {
     // API call
     try {
       await apiClient.put(`/projects/${projectId}/board/move`, {
-        taskId,
+        itemId: taskId,
         statusId: targetStatusId,
         sortOrder: 'n',
       });
-      // Reload to update subtask counts, WIP counts, etc.
       loadBoard();
     } catch (err: any) {
-      // Revert on failure
-      alert(err.response?.data?.message || 'Move failed');
+      toast(err.response?.data?.message || 'Move failed', 'error');
       loadBoard();
+    } finally {
+      setActiveTask(null);
     }
   };
 
@@ -200,26 +215,23 @@ export function KanbanBoard({ epicFilter }: { epicFilter?: number } = {}) {
   return (
     <div className="flex flex-col h-full">
       {/* Filter bar */}
-      <div className="flex items-center gap-3 px-6 py-3 border-b border-neutral-200 dark:border-dneutral-200">
+      <div className="sticky top-0 z-20 flex items-center gap-2 px-4 py-2 bg-transparent dark:bg-transparent">
+        {headerSlot}
+        <div className="flex-1" />
         <Select
           value={sprintId}
           onChange={setSprintId}
-          placeholder="All tasks (no sprint filter)"
+          placeholder="All sprints"
           options={[
-            { value: '', label: 'All tasks (no sprint filter)' },
+            { value: '', label: 'All sprints' },
             ...sprints.map((s) => ({ value: String(s.id), label: `${s.name} (${s.status})` })),
           ]}
         />
-        <button
-          onClick={() => setAssignedToMe((v) => !v)}
-          className={`text-sm px-3 py-1 rounded-md border ${
-            assignedToMe
-              ? 'bg-primary-500 text-white border-primary-500'
-              : 'border-neutral-200 dark:border-dneutral-300 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-dneutral-200'
-          }`}
-        >
-          My tasks
-        </button>
+        <AssigneeMultiSelect
+          options={assigneeOptions}
+          selected={selectedAssignees}
+          onChange={setSelectedAssignees}
+        />
       </div>
 
       {/* Loading skeleton */}
@@ -242,15 +254,15 @@ export function KanbanBoard({ epicFilter }: { epicFilter?: number } = {}) {
       {error && <ErrorState message="Failed to load board" onRetry={loadBoard} />}
 
       {/* Board */}
-      <div className="flex-1 overflow-x-auto p-4">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCorners}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-          onDragOver={handleDragOver}
-        >
-          <div className="flex gap-4 h-full min-w-max">
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragOver={handleDragOver}
+      >
+        <div className="flex-1 overflow-x-auto px-4 py-2 bg-transparent dark:bg-transparent">
+          <div className="flex gap-4 h-full">
             {columns.map((col) => (
               <StatusColumn
                 key={col.status.id}
@@ -264,24 +276,24 @@ export function KanbanBoard({ epicFilter }: { epicFilter?: number } = {}) {
               />
             ))}
           </div>
+        </div>
 
-          <DragOverlay>
-            {activeTask && <TaskCard task={activeTask} isDragging />}
-          </DragOverlay>
-        </DndContext>
-      </div>
+        <DragOverlay dropAnimation={null}>
+          {activeTask && <TaskCard task={activeTask} isDragging />}
+        </DragOverlay>
+      </DndContext>
 
       {selectedTaskId && projectId && (() => {
-        // Check if the selected task is a subtask
+        // Check if the selected task is a subtask — if so, open parent with subtask stacked
         const selectedTask = columns.flatMap((c) => c.tasks).find((t) => t.id === selectedTaskId);
-        const parentId = selectedTask?.parentId;
+        const isSubtask = selectedTask?.itemType === 'subtask';
 
-        if (parentId) {
-          // Subtask: open parent drawer + stacked subtask drawer
+        if (isSubtask && selectedTask?.parentRef?.id) {
+          // Open parent drawer with subtask pre-stacked on top
           return (
             <TaskDetailPanel
               projectId={parseInt(projectId)}
-              taskId={parentId}
+              taskId={selectedTask.parentRef.id}
               projectPrefix=""
               onClose={() => setSelectedTaskId(null)}
               onUpdated={loadBoard}

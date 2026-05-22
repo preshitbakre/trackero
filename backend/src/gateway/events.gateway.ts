@@ -82,25 +82,25 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   // --- Broadcast events to project rooms ---
 
-  @OnEvent('task.created')
-  onTaskCreated(payload: { taskId: number; projectId: number }) {
-    this.server?.to(`project:${payload.projectId}`).emit('task:created', { taskId: payload.taskId });
+  @OnEvent('work_item.created')
+  onWorkItemCreated(payload: { item: any; userId: number; projectId: number }) {
+    this.server?.to(`project:${payload.projectId}`).emit('work-item:created', { itemId: payload.item?.id });
   }
 
-  @OnEvent('task.updated')
-  onTaskUpdated(payload: { taskId: number; projectId: number }) {
-    this.server?.to(`project:${payload.projectId}`).emit('task:updated', { taskId: payload.taskId });
+  @OnEvent('work_item.updated')
+  onWorkItemUpdated(payload: { item: any; userId: number; projectId: number; changes: any }) {
+    this.server?.to(`project:${payload.projectId}`).emit('work-item:updated', { itemId: payload.item?.id });
   }
 
-  @OnEvent('task.deleted')
-  onTaskDeleted(payload: { taskId: number; projectId: number }) {
-    this.server?.to(`project:${payload.projectId}`).emit('task:deleted', { taskId: payload.taskId });
+  @OnEvent('work_item.deleted')
+  onWorkItemDeleted(payload: { itemId: number; itemType: string; userId: number; projectId: number }) {
+    this.server?.to(`project:${payload.projectId}`).emit('work-item:deleted', { itemId: payload.itemId });
   }
 
   @OnEvent('board.moved')
-  onBoardMoved(payload: { projectId: number; taskId: number; statusId: number; sortOrder: string; completedAt: Date | null; actorId: number }) {
+  onBoardMoved(payload: { projectId: number; itemId: number; statusId: number; sortOrder: string; completedAt: Date | null; actorId: number }) {
     this.server?.to(`project:${payload.projectId}`).emit('board:moved', {
-      taskId: payload.taskId,
+      itemId: payload.itemId,
       statusId: payload.statusId,
       sortOrder: payload.sortOrder,
       completedAt: payload.completedAt,

@@ -1,0 +1,185 @@
+import { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { apiClient } from '../api/client';
+import { useRole } from '../hooks/useRole';
+import { Button } from '../components/ui/Button';
+import { Select } from '../components/ui/Select';
+import { CreateItemDialog } from '../components/common/CreateItemDialog';
+import { LabelList } from '../components/ui/LabelBadge';
+
+interface Story {
+  id: number;
+  itemType: string;
+  title: string;
+  priority: string;
+  status: { id: number; name: string; category: string; color: string } | null;
+  parent: { id: number; itemKey: string; itemType: string; title: string } | null;
+  assignee: { id: number; displayName: string } | null;
+  sprint: { id: number; name: string } | null;
+  storyPoints: number | null;
+  progress: {
+    totalItems: number;
+    completedItems: number;
+    totalPoints: number;
+    completedPoints: number;
+    progressPercent: number;
+  };
+  childBreakdown: {
+    tasks: number;
+    subtasks: number;
+  };
+  labels?: { id: number; name: string; color: string }[];
+  createdAt: string;
+}
+
+interface EpicOption {
+  id: number;
+  title: string;
+}
+
+export function StoriesPage() {
+  const { id: projectId } = useParams();
+  const [stories, setStories] = useState<Story[]>([]);
+  const [epics, setEpics] = useState<EpicOption[]>([]);
+  const [filterEpicId, setFilterEpicId] = useState('');
+  const [showCreate, setShowCreate] = useState(false);
+  const { canEdit } = useRole();
+
+  useEffect(() => {
+    loadStories();
+    loadEpics();
+  }, [projectId, filterEpicId]);
+
+  const loadStories = async () => {
+    if (!projectId) return;
+    try {
+      let url = `/projects/${projectId}/stories`;
+      if (filterEpicId) url += `?epicId=${filterEpicId}`;
+      const { data } = await apiClient.get(url);
+      setStories(data.data.list || []);
+    } catch {}
+  };
+
+  const loadEpics = async () => {
+    if (!projectId) return;
+    try {
+      const { data } = await apiClient.get(`/projects/${projectId}/epics?limit=100`);
+      setEpics((data.data.list || []).map((e: any) => ({ id: e.id, title: e.title })));
+    } catch {}
+  };
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-[22px] font-semibold text-neutral-700 dark:text-dneutral-700">Stories</h1>
+        <div className="flex items-center gap-3">
+          <Select
+            value={filterEpicId}
+            onChange={setFilterEpicId}
+            options={[
+              { value: '', label: 'All epics' },
+              ...epics.map((e) => ({ value: String(e.id), label: e.title })),
+            ]}
+            className="min-w-[180px]"
+          />
+          {canEdit && (
+            <Button onClick={() => setShowCreate(true)}>+ Create Story</Button>
+          )}
+        </div>
+      </div>
+
+      {stories.length === 0 ? (
+        <div className="text-center py-12 text-neutral-400 dark:text-dneutral-500">
+          <p>Stories break down epics into deliverable features. Create one to get started.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {stories.map((story) => (
+            <div
+              key={story.id}
+              className="p-4 rounded-lg bg-white dark:bg-dneutral-100 shadow-[0_2px_8px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.35)]"
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  className="w-3 h-3 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: '#88A9D6' }}
+                />
+                <h3 className="flex-1 min-w-0 text-[16px] font-medium text-neutral-700 dark:text-dneutral-700 truncate">
+                  {story.title}
+                </h3>
+                {story.status && (
+                  <span
+                    className="text-[14px] px-2 py-0.5 rounded"
+                    style={{ backgroundColor: `${story.status.color}20`, color: story.status.color }}
+                  >
+                    {story.status.name}
+                  </span>
+                )}
+              </div>
+
+              {story.parent && (
+                <div className="mt-1 text-[14px] text-neutral-400 dark:text-dneutral-500">
+                  Epic:{' '}
+                  <span className="inline-flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#7C5CFC' }} />
+                    {story.parent.title}
+                  </span>
+                </div>
+              )}
+
+              {story.progress && (
+                <>
+                  <div className="mt-2 text-[14px] text-neutral-400 dark:text-dneutral-500">
+                    {story.progress.completedItems} of {story.progress.totalItems} items complete
+                    &middot; {story.progress.completedPoints} of {story.progress.totalPoints} pts
+                  </div>
+                  <div className="mt-2 h-1.5 rounded-full bg-neutral-100 dark:bg-dneutral-200">
+                    <div
+                      className="h-1.5 rounded-full transition-all"
+                      style={{ width: `${story.progress.progressPercent}%`, backgroundColor: '#88A9D6' }}
+                    />
+                  </div>
+                </>
+              )}
+
+              {story.childBreakdown && (
+                <div className="mt-2 text-[14px] text-neutral-400 dark:text-dneutral-500">
+                  Contains: {story.childBreakdown.tasks} tasks &middot; {story.childBreakdown.subtasks} subtasks
+                </div>
+              )}
+
+              {story.labels && story.labels.length > 0 && (
+                <div className="mt-2">
+                  <LabelList labels={story.labels} max={4} />
+                </div>
+              )}
+
+              {story.assignee && (
+                <div className="mt-1 text-[14px] text-neutral-400 dark:text-dneutral-500">
+                  Assigned: {story.assignee.displayName}
+                </div>
+              )}
+              <div className="mt-3">
+                <Link to={`/projects/${projectId}/stories/${story.id}`} className="text-[14px] text-peri hover:underline">
+                  View details &rarr;
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showCreate && projectId && (
+        <CreateItemDialog
+          projectId={parseInt(projectId)}
+          defaultType="story"
+          onClose={() => setShowCreate(false)}
+          onCreated={() => {
+            setShowCreate(false);
+            loadStories();
+          }}
+        />
+      )}
+    </div>
+  );
+}

@@ -13,8 +13,8 @@ export class SprintScopeChange {
   @Column({ name: 'sprint_id', type: 'int' })
   sprintId: number;
 
-  @Column({ name: 'task_id', type: 'int' })
-  taskId: number;
+  @Column({ name: 'work_item_id', type: 'int' })
+  workItemId: number;
 
   @Column({ type: 'varchar', length: 10 })
   action: 'added' | 'removed';

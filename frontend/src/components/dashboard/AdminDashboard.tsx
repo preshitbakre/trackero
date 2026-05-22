@@ -20,16 +20,16 @@ export function AdminDashboard({ data }: { data: any }) {
       />
 
       <StatCardGrid>
-        <StatCard icon="&#x1F465;" label="Total users" value={instanceStats.totalUsers} subtext={`${instanceStats.activeUsers} active`} />
-        <StatCard icon="&#x1F4C1;" label="Active projects" value={instanceStats.activeProjects} subtext={`${instanceStats.totalProjects - instanceStats.activeProjects} archived`} />
-        <StatCard icon="&#x1F504;" label="Active sprints" value={sprintOverview.activeSprintsCount} subtext={sprintOverview.sprintsAtRisk > 0 ? `${sprintOverview.sprintsAtRisk} at risk` : 'On track'} valueColor={sprintOverview.sprintsAtRisk > 0 ? 'text-warning' : undefined} />
-        <StatCard icon="&#x1F6D1;" label="Blocked tasks" value={sprintOverview.totalBlockedTasks} subtext={sprintOverview.totalBlockedTasks > 0 ? 'Needs attention' : 'None'} valueColor={sprintOverview.totalBlockedTasks > 0 ? 'text-danger' : undefined} />
+        <StatCard icon="&#x1F465;" iconColor="text-peri" iconBg="bg-peri-light" label="Total users" value={instanceStats.totalUsers} subtext={`${instanceStats.activeUsers} active`} />
+        <StatCard icon="&#x1F4C1;" iconColor="text-mint" iconBg="bg-mint-light" label="Active projects" value={instanceStats.activeProjects} subtext={`${instanceStats.totalProjects - instanceStats.activeProjects} archived`} />
+        <StatCard icon="&#x1F504;" iconColor="text-tan" iconBg="bg-tan-light" label="Active sprints" value={sprintOverview.activeSprintsCount} subtext={sprintOverview.sprintsAtRisk > 0 ? `${sprintOverview.sprintsAtRisk} at risk` : 'On track'} valueColor={sprintOverview.sprintsAtRisk > 0 ? 'text-warning' : undefined} />
+        <StatCard icon="&#x1F6D1;" iconColor="text-danger" iconBg="bg-red-50" label="Blocked tasks" value={sprintOverview.totalBlockedTasks} subtext={sprintOverview.totalBlockedTasks > 0 ? 'Needs attention' : 'None'} valueColor={sprintOverview.totalBlockedTasks > 0 ? 'text-danger' : undefined} />
       </StatCardGrid>
 
       <TwoColumnLayout>
         <DashboardSection title="All projects">
           {projects.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-1.5">
               {projects.map((p: any) => (
                 <ProjectCard key={p.id} {...p} />
               ))}
@@ -37,7 +37,7 @@ export function AdminDashboard({ data }: { data: any }) {
           ) : (
             <div className="text-center py-8">
               <p className="text-neutral-400 dark:text-dneutral-500 mb-3">No projects yet</p>
-              <button onClick={() => setShowCreate(true)} className="text-sm text-white bg-primary-500 px-4 py-2 rounded-md hover:bg-primary-600">
+              <button onClick={() => setShowCreate(true)} className="text-[16px] text-white bg-peri px-4 py-2 rounded-md hover:bg-peri">
                 Create your first project
               </button>
             </div>
@@ -47,7 +47,7 @@ export function AdminDashboard({ data }: { data: any }) {
         <DashboardSection
           title="Team workload"
           footer={
-            <div className="flex items-center gap-4 text-sm text-neutral-400 dark:text-dneutral-500 flex-wrap">
+            <div className="flex items-center gap-4 text-[14px] text-neutral-400 dark:text-dneutral-500 flex-wrap">
               <span>Admins <strong className="text-neutral-700 dark:text-dneutral-700">{userStats.rolesBreakdown.admin}</strong></span>
               <span>PMs <strong className="text-neutral-700 dark:text-dneutral-700">{userStats.rolesBreakdown.project_manager}</strong></span>
               <span>Members <strong className="text-neutral-700 dark:text-dneutral-700">{userStats.rolesBreakdown.member}</strong></span>
@@ -59,26 +59,34 @@ export function AdminDashboard({ data }: { data: any }) {
           }
         >
           {teamWorkload.length > 0 ? (
-            <div className="flex flex-col h-full min-h-0">
-              <div className="flex items-center border-b border-neutral-200 dark:border-dneutral-200 text-sm text-neutral-400 dark:text-dneutral-500 uppercase tracking-wider pb-1.5 mb-1 flex-shrink-0">
-                <span className="flex-1 text-left font-medium">Name</span>
-                <span className="w-12 text-center font-medium">Open</span>
-                <span className="w-12 text-center font-medium">Active</span>
-                <span className="w-14 text-center font-medium">Overdue</span>
-              </div>
-              <div className="overflow-y-auto flex-1 min-h-0">
-                {teamWorkload.map((u: any) => (
-                  <div key={u.userId} className="flex items-center py-1.5 text-sm">
-                    <span className="flex-1 text-neutral-700 dark:text-dneutral-700 truncate pr-2">{u.displayName}</span>
-                    <span className="w-12 text-center text-neutral-700 dark:text-dneutral-700">{u.openTaskCount}</span>
-                    <span className="w-12 text-center text-primary-500 dark:text-dprimary-500">{u.inProgressCount}</span>
-                    <span className={`w-14 text-center ${u.overdueCount > 0 ? 'text-danger font-medium' : 'text-neutral-400 dark:text-dneutral-500'}`}>{u.overdueCount}</span>
-                  </div>
-                ))}
+            <div className="flex flex-col h-full min-h-0 overflow-hidden">
+              <table className="w-full text-[14px]">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-neutral-200 dark:bg-dneutral-300 text-[12px] text-neutral-700 dark:text-dneutral-600 uppercase tracking-wider">
+                    <th className="text-left font-medium px-2 py-1">Name</th>
+                    <th className="w-14 text-center font-medium px-2 py-1">Open</th>
+                    <th className="w-14 text-center font-medium px-2 py-1">Active</th>
+                    <th className="w-16 text-center font-medium px-2 py-1">Overdue</th>
+                  </tr>
+                </thead>
+              </table>
+              <div className="overflow-y-auto flex-1 min-h-0 custom-scrollbar">
+                <table className="w-full text-[14px]">
+                  <tbody>
+                    {teamWorkload.map((u: any) => (
+                      <tr key={u.userId} className="border-b border-neutral-100 dark:border-dneutral-200/50">
+                        <td className="px-2 py-1.5 text-neutral-700 dark:text-dneutral-700 truncate">{u.displayName}</td>
+                        <td className="w-14 px-2 py-1.5 text-center text-neutral-700 dark:text-dneutral-700">{u.openTaskCount}</td>
+                        <td className="w-14 px-2 py-1.5 text-center text-peri dark:text-peri-dm">{u.inProgressCount}</td>
+                        <td className={`w-16 px-2 py-1.5 text-center ${u.overdueCount > 0 ? 'text-danger font-medium' : 'text-neutral-400 dark:text-dneutral-500'}`}>{u.overdueCount}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           ) : (
-            <p className="text-sm text-neutral-400 dark:text-dneutral-500 py-4 text-center">No team members</p>
+            <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 py-4 text-center">No team members</p>
           )}
         </DashboardSection>
       </TwoColumnLayout>
@@ -88,13 +96,13 @@ export function AdminDashboard({ data }: { data: any }) {
           {blockedTasks.length > 0 ? (
             <div className="divide-y divide-neutral-100 dark:divide-dneutral-200">
               {blockedTasks.map((bt: any) => (
-                <div key={bt.id} className="py-2 text-sm">
+                <div key={bt.id} className="py-2 text-[16px]">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-danger text-sm">&#x1F512;</span>
+                    <span className="text-danger text-[16px]">&#x1F512;</span>
                     <span className="font-mono font-medium text-neutral-700 dark:text-dneutral-700">{bt.taskKey}</span>
                     <span className="text-neutral-500 dark:text-dneutral-500 truncate">{bt.title}</span>
                   </div>
-                  <p className="text-sm text-neutral-400 dark:text-dneutral-500 ml-5 mt-0.5 truncate">
+                  <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 ml-5 mt-0.5 truncate">
                     &larr; {bt.blockedBy.taskKey} {bt.blockedBy.title}
                     {bt.blockedBy.assignee && ` (${bt.blockedBy.assignee.displayName})`}
                   </p>
@@ -102,7 +110,7 @@ export function AdminDashboard({ data }: { data: any }) {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-neutral-400 dark:text-dneutral-500 py-4 text-center">No blocked tasks</p>
+            <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 py-4 text-center">No blocked tasks</p>
           )}
         </DashboardSection>
 
@@ -114,7 +122,7 @@ export function AdminDashboard({ data }: { data: any }) {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-neutral-400 dark:text-dneutral-500 py-4 text-center">No recent activity</p>
+            <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 py-4 text-center">No recent activity</p>
           )}
         </DashboardSection>
       </TwoColumnLayout>

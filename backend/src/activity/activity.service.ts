@@ -27,12 +27,12 @@ export class ActivityService {
     return new PaginatedResponse(data, total, page, limit);
   }
 
-  async listTaskActivity(projectId: number, taskId: number, page: number = 1, limit: number = 20) {
+  async listTaskActivity(projectId: number, workItemId: number, page: number = 1, limit: number = 20) {
     limit = clampLimit(limit);
     const qb = this.activityRepo.createQueryBuilder('a')
       .leftJoin('a.user', 'user')
       .addSelect(['user.id', 'user.displayName', 'user.avatarUrl'])
-      .where('a.projectId = :projectId AND a.taskId = :taskId', { projectId, taskId })
+      .where('a.projectId = :projectId AND a.workItemId = :workItemId', { projectId, workItemId })
       .orderBy('a.createdAt', 'DESC');
 
     const total = await qb.getCount();
@@ -43,76 +43,51 @@ export class ActivityService {
 
   // --- Event Listeners ---
 
-  @OnEvent('task.created')
-  async onTaskCreated(payload: { taskId: number; projectId: number; actorId: number }) {
+  @OnEvent('work_item.created')
+  async onWorkItemCreated(payload: { item: any; userId: number; projectId: number }) {
     await this.activityRepo.save(this.activityRepo.create({
       projectId: payload.projectId,
-      taskId: payload.taskId,
-      userId: payload.actorId,
+      workItemId: payload.item?.id,
+      userId: payload.userId,
       action: 'created',
     }));
   }
 
-  @OnEvent('task.updated')
-  async onTaskUpdated(payload: { taskId: number; projectId: number; actorId: number }) {
+  @OnEvent('work_item.updated')
+  async onWorkItemUpdated(payload: { item: any; userId: number; projectId: number; changes: any }) {
     await this.activityRepo.save(this.activityRepo.create({
       projectId: payload.projectId,
-      taskId: payload.taskId,
-      userId: payload.actorId,
+      workItemId: payload.item?.id,
+      userId: payload.userId,
       action: 'updated',
     }));
   }
 
-  @OnEvent('task.status_changed')
-  async onTaskStatusChanged(payload: { taskId: number; projectId: number; actorId: number; oldStatusId: number; newStatusId: number }) {
+  @OnEvent('work_item.deleted')
+  async onWorkItemDeleted(payload: { itemId: number; itemType: string; userId: number; projectId: number }) {
     await this.activityRepo.save(this.activityRepo.create({
       projectId: payload.projectId,
-      taskId: payload.taskId,
-      userId: payload.actorId,
-      action: 'status_changed',
-      fieldChanged: 'status',
-      oldValue: String(payload.oldStatusId),
-      newValue: String(payload.newStatusId),
-    }));
-  }
-
-  @OnEvent('task.assigned')
-  async onTaskAssigned(payload: { taskId: number; projectId: number; actorId: number; assigneeId: number | null }) {
-    await this.activityRepo.save(this.activityRepo.create({
-      projectId: payload.projectId,
-      taskId: payload.taskId,
-      userId: payload.actorId,
-      action: 'assigned',
-      fieldChanged: 'assignee',
-      newValue: payload.assigneeId ? String(payload.assigneeId) : null,
-    }));
-  }
-
-  @OnEvent('task.deleted')
-  async onTaskDeleted(payload: { taskId: number; projectId: number; actorId: number }) {
-    await this.activityRepo.save(this.activityRepo.create({
-      projectId: payload.projectId,
-      taskId: payload.taskId,
-      userId: payload.actorId,
+      workItemId: payload.itemId,
+      userId: payload.userId,
       action: 'deleted',
     }));
   }
 
   @OnEvent('comment.added')
-  async onCommentAdded(payload: { taskId: number; projectId: number; actorId: number }) {
+  async onCommentAdded(payload: { workItemId: number; projectId: number; actorId: number }) {
     await this.activityRepo.save(this.activityRepo.create({
       projectId: payload.projectId,
-      taskId: payload.taskId,
+      workItemId: payload.workItemId,
       userId: payload.actorId,
       action: 'comment_added',
     }));
   }
 
   @OnEvent('attachment.added')
-  async onAttachmentAdded(payload: { taskId: number; projectId: number; actorId: number }) {
+  async onAttachmentAdded(payload: { workItemId: number; projectId: number; actorId: number }) {
     await this.activityRepo.save(this.activityRepo.create({
       projectId: payload.projectId,
-      taskId: payload.taskId,
+      workItemId: payload.workItemId,
       userId: payload.actorId,
       action: 'attachment_added',
     }));

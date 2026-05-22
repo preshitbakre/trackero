@@ -6,7 +6,7 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { EpicsPage } from './pages/EpicsPage';
-import { EpicBoardPage } from './pages/EpicBoardPage';
+import { EpicDetailPage } from './pages/EpicDetailPage';
 import { SprintsPage } from './pages/SprintsPage';
 import { TasksPage } from './pages/TasksPage';
 import { BoardPage } from './pages/BoardPage';
@@ -17,7 +17,11 @@ import { BacklogPage } from './pages/BacklogPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ProjectSettingsPage } from './pages/ProjectSettingsPage';
+import { TaskDetailPage } from './pages/TaskDetailPage';
+import { StoriesPage } from './pages/StoriesPage';
+import { StoryDetailPage } from './pages/StoryDetailPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { AdminRoute } from './components/AdminRoute';
 import { AppShell } from './components/layout/AppShell';
 import { useEffect } from 'react';
 
@@ -49,17 +53,20 @@ export function App() {
           >
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/projects/:id/board" element={<BoardPage />} />
+            <Route path="/projects/:id/tasks/:taskId" element={<TaskDetailPage />} />
             <Route path="/projects/:id/tasks" element={<TasksPage />} />
             <Route path="/projects/:id/backlog" element={<BacklogPage />} />
             <Route path="/projects/:id/sprints" element={<SprintsPage />} />
             <Route path="/projects/:id/epics" element={<EpicsPage />} />
-            <Route path="/projects/:id/epics/:epicId/board" element={<EpicBoardPage />} />
+            <Route path="/projects/:id/stories" element={<StoriesPage />} />
+            <Route path="/projects/:id/stories/:storyId" element={<StoryDetailPage />} />
+            <Route path="/projects/:id/epics/:epicId" element={<EpicDetailPage />} />
             <Route path="/projects/:id/charts" element={<ChartsPage />} />
             <Route path="/projects/:id/settings" element={<ProjectSettingsPage />} />
             <Route path="/projects/:id/sprints/:sprintId/retro" element={<RetroPage />} />
             <Route path="/projects/:id/sprints/:sprintId/planning" element={<SprintPlanningPage />} />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>

@@ -1,25 +1,43 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
-import { useAuthStore } from '../store/auth.store';
+import { useRole } from '../hooks/useRole';
+import { Button } from '../components/ui/Button';
+import { CreateItemDialog } from '../components/common/CreateItemDialog';
+import { LabelList } from '../components/ui/LabelBadge';
 
 interface Epic {
   id: number;
+  itemType: string;
   title: string;
-  status: 'open' | 'in_progress' | 'done';
   priority: string;
   color: string;
   createdAt: string;
+  status: { id: number; name: string; category: string; color: string } | null;
+  assignee: { id: number; displayName: string } | null;
+  sprint: { id: number; name: string } | null;
+  endDate: string | null;
+  storyPoints: number | null;
+  progress: {
+    totalItems: number;
+    completedItems: number;
+    totalPoints: number;
+    completedPoints: number;
+    progressPercent: number;
+  };
+  childBreakdown: {
+    stories: number;
+    tasks: number;
+    subtasks: number;
+  };
+  labels?: { id: number; name: string; color: string }[];
 }
 
 export function EpicsPage() {
   const { id: projectId } = useParams();
   const [epics, setEpics] = useState<Epic[]>([]);
   const [showCreate, setShowCreate] = useState(false);
-  const [title, setTitle] = useState('');
-  const [loading, setLoading] = useState(false);
-  const user = useAuthStore((s) => s.user);
-  const canEdit = user?.role !== 'viewer';
+  const { canEdit } = useRole();
 
   useEffect(() => {
     loadEpics();
@@ -32,35 +50,12 @@ export function EpicsPage() {
     } catch {}
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      await apiClient.post(`/projects/${projectId}/epics`, { title });
-      setTitle('');
-      setShowCreate(false);
-      loadEpics();
-    } catch {}
-    setLoading(false);
-  };
-
-  const statusColors = {
-    open: 'bg-neutral-100 dark:bg-dneutral-200 text-neutral-500 dark:text-dneutral-500',
-    in_progress: 'bg-accent-100 dark:bg-daccent-100 text-accent-700 dark:text-daccent-500',
-    done: 'bg-secondary-100 dark:bg-dsecondary-100 text-secondary-700 dark:text-dsecondary-600',
-  };
-
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-neutral-700 dark:text-dneutral-700">Epics</h1>
+        <h1 className="text-[22px] font-semibold text-neutral-700 dark:text-dneutral-700">Epics</h1>
         {canEdit && (
-          <button
-            onClick={() => setShowCreate(true)}
-            className="px-4 py-2 text-sm font-medium text-white bg-primary-500 rounded-md hover:bg-primary-600"
-          >
-            Create Epic
-          </button>
+          <Button onClick={() => setShowCreate(true)}>+ Create Epic</Button>
         )}
       </div>
 
@@ -73,46 +68,85 @@ export function EpicsPage() {
           {epics.map((epic) => (
             <div
               key={epic.id}
-              className="flex items-center gap-3 p-4 rounded-lg border border-neutral-200 dark:border-dneutral-200"
+              className="p-4 rounded-lg bg-white dark:bg-dneutral-100 shadow-[0_2px_8px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.35)]"
             >
-              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: epic.color }} />
-              <div className="flex-1 min-w-0">
-                <h3 className="font-medium text-neutral-700 dark:text-dneutral-700 truncate">{epic.title}</h3>
+              <div className="flex items-center gap-3">
+                <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: epic.color }} />
+                <h3 className="flex-1 min-w-0 text-[16px] font-medium text-neutral-700 dark:text-dneutral-700 truncate">
+                  {epic.title}
+                </h3>
+                {epic.status && (
+                  <span
+                    className="text-[14px] px-2 py-0.5 rounded"
+                    style={{ backgroundColor: `${epic.status.color}20`, color: epic.status.color }}
+                  >
+                    {epic.status.name}
+                  </span>
+                )}
               </div>
-              <span className={`text-sm px-2 py-0.5 rounded ${statusColors[epic.status]}`}>
-                {epic.status.replace('_', ' ')}
-              </span>
-              <Link
-                to={`/projects/${projectId}/epics/${epic.id}/board`}
-                className="text-sm text-primary-500 hover:underline"
-                onClick={(e) => e.stopPropagation()}
-              >
-                Board &rarr;
-              </Link>
+
+              {epic.progress && (
+                <>
+                  <div className="mt-2 text-[14px] text-neutral-400 dark:text-dneutral-500">
+                    {epic.progress.completedItems} of {epic.progress.totalItems} items complete
+                    &middot; {epic.progress.completedPoints} of {epic.progress.totalPoints} pts done
+                  </div>
+                  <div className="mt-2 h-1.5 rounded-full bg-neutral-100 dark:bg-dneutral-200">
+                    <div
+                      className="h-1.5 rounded-full transition-all"
+                      style={{ width: `${epic.progress.progressPercent}%`, backgroundColor: epic.color }}
+                    />
+                  </div>
+                </>
+              )}
+
+              {epic.childBreakdown && (
+                <div className="mt-2 text-[14px] text-neutral-400 dark:text-dneutral-500">
+                  Contains: {epic.childBreakdown.stories} stories &middot; {epic.childBreakdown.tasks} tasks &middot; {epic.childBreakdown.subtasks} subtasks
+                </div>
+              )}
+
+              {epic.labels && epic.labels.length > 0 && (
+                <div className="mt-2">
+                  <LabelList labels={epic.labels} max={4} />
+                </div>
+              )}
+
+              {epic.assignee && (
+                <div className="mt-1 text-[14px] text-neutral-400 dark:text-dneutral-500">
+                  Assigned: {epic.assignee.displayName}
+                </div>
+              )}
+
+              {epic.endDate && (
+                <div className="mt-1 text-[14px] text-neutral-400 dark:text-dneutral-500">
+                  End: {new Date(epic.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </div>
+              )}
+
+              <div className="mt-3">
+                <Link
+                  to={`/projects/${projectId}/epics/${epic.id}`}
+                  className="text-[14px] text-peri hover:underline"
+                >
+                  View details &rarr;
+                </Link>
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-700/50" onClick={() => setShowCreate(false)}>
-          <div className="bg-neutral-50 dark:bg-dneutral-100 rounded-lg p-6 w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold mb-4 text-neutral-700 dark:text-dneutral-700">Create Epic</h2>
-            <form onSubmit={handleCreate} className="space-y-4">
-              <input
-                type="text" value={title} onChange={(e) => setTitle(e.target.value)} required
-                placeholder="Epic title"
-                className="w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 px-3 py-2 text-sm text-neutral-700 dark:text-dneutral-700"
-              />
-              <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm text-neutral-500">Cancel</button>
-                <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-primary-500 rounded-md disabled:opacity-50">
-                  {loading ? 'Creating...' : 'Create'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {showCreate && projectId && (
+        <CreateItemDialog
+          projectId={parseInt(projectId)}
+          defaultType="epic"
+          onClose={() => setShowCreate(false)}
+          onCreated={() => {
+            setShowCreate(false);
+            loadEpics();
+          }}
+        />
       )}
     </div>
   );
