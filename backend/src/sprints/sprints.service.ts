@@ -127,151 +127,192 @@ export class SprintsService {
   }
 
   async start(projectId: number, sprintId: number, userId: number) {
-    const sprint = await this.findOne(projectId, sprintId);
+    const saved = await this.dataSource.transaction(async (manager) => {
+      // Re-load with a pessimistic write lock so concurrent callers serialize.
+      const sprint = await manager.findOne(Sprint, {
+        where: { id: sprintId, projectId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!sprint) {
+        throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+      }
 
-    if (sprint.status !== 'planning') {
-      throw new AppLogicException('SPRINT_NOT_PLANNING', HttpStatus.BAD_REQUEST);
-    }
+      // Re-check status inside the lock.
+      if (sprint.status !== 'planning') {
+        throw new AppLogicException('SPRINT_NOT_PLANNING', HttpStatus.BAD_REQUEST);
+      }
 
-    // Check no other active sprint
-    const activeSprint = await this.sprintRepo.findOne({
-      where: { projectId, status: 'active' },
+      // Check no other active sprint
+      const activeSprint = await manager.findOne(Sprint, {
+        where: { projectId, status: 'active' },
+      });
+      if (activeSprint) {
+        throw new AppLogicException('SPRINT_ALREADY_ACTIVE', HttpStatus.CONFLICT);
+      }
+
+      // Check sprint has tasks
+      const taskCount = await manager.query(
+        `SELECT COUNT(*) as count FROM work_items WHERE sprint_id = $1 AND item_type IN ('task', 'epic', 'story')`,
+        [sprintId],
+      );
+      if (parseInt(taskCount[0].count) === 0) {
+        throw new AppLogicException('SPRINT_NO_TASKS', HttpStatus.BAD_REQUEST);
+      }
+
+      // Set start/end dates if not already set
+      const today = new Date().toISOString().split('T')[0];
+      if (!sprint.startDate) sprint.startDate = today;
+      if (!sprint.endDate) {
+        const project = await manager.query(
+          `SELECT default_sprint_duration FROM projects WHERE id = $1`,
+          [projectId],
+        );
+        const duration = project[0]?.default_sprint_duration || 14;
+        const endDate = new Date();
+        endDate.setDate(endDate.getDate() + duration);
+        sprint.endDate = endDate.toISOString().split('T')[0];
+      }
+
+      sprint.status = 'active';
+      const savedSprint = await manager.save(Sprint, sprint);
+
+      // Record initial scope
+      const tasks = await manager.query(
+        `SELECT id, story_points FROM work_items WHERE sprint_id = $1`,
+        [sprintId],
+      );
+      for (const task of tasks) {
+        await manager.save(
+          SprintScopeChange,
+          manager.create(SprintScopeChange, {
+            sprintId,
+            workItemId: task.id,
+            action: 'added',
+            storyPoints: task.story_points,
+          }),
+        );
+      }
+
+      return savedSprint;
     });
-    if (activeSprint) {
-      throw new AppLogicException('SPRINT_ALREADY_ACTIVE', HttpStatus.CONFLICT);
-    }
 
-    // Check sprint has tasks
-    const taskCount = await this.dataSource.query(
-      `SELECT COUNT(*) as count FROM work_items WHERE sprint_id = $1 AND item_type IN ('task', 'epic', 'story')`,
-      [sprintId],
-    );
-    if (parseInt(taskCount[0].count) === 0) {
-      throw new AppLogicException('SPRINT_NO_TASKS', HttpStatus.BAD_REQUEST);
-    }
-
-    // Set start/end dates if not already set
-    const today = new Date().toISOString().split('T')[0];
-    if (!sprint.startDate) sprint.startDate = today;
-    if (!sprint.endDate) {
-      const project = await this.dataSource.query(
-        `SELECT default_sprint_duration FROM projects WHERE id = $1`,
-        [projectId],
-      );
-      const duration = project[0]?.default_sprint_duration || 14;
-      const endDate = new Date();
-      endDate.setDate(endDate.getDate() + duration);
-      sprint.endDate = endDate.toISOString().split('T')[0];
-    }
-
-    sprint.status = 'active';
-    const saved = await this.sprintRepo.save(sprint);
-
+    // Emit only after the transaction commits.
     this.eventEmitter.emit('sprint.started', { sprintId, projectId, actorId: userId });
-
-    // Record initial scope
-    const tasks = await this.dataSource.query(
-      `SELECT id, story_points FROM work_items WHERE sprint_id = $1`,
-      [sprintId],
-    );
-    for (const task of tasks) {
-      await this.scopeChangeRepo.save(
-        this.scopeChangeRepo.create({
-          sprintId,
-          workItemId: task.id,
-          action: 'added',
-          storyPoints: task.story_points,
-        }),
-      );
-    }
 
     return saved;
   }
 
   async complete(projectId: number, sprintId: number, userId: number) {
-    const sprint = await this.findOne(projectId, sprintId);
-
-    if (sprint.status !== 'active') {
-      throw new AppLogicException('SPRINT_NOT_ACTIVE', HttpStatus.BAD_REQUEST);
-    }
-
-    sprint.status = 'completed';
-    sprint.completedAt = new Date();
-    await this.sprintRepo.save(sprint);
-
-    this.eventEmitter.emit('sprint.completed', { sprintId, projectId, actorId: userId });
-
-    // Find incomplete tasks (status category NOT done)
-    const incompleteTasks = await this.dataSource.query(
-      `SELECT t.id FROM work_items t
-       JOIN project_statuses ps ON t.status_id = ps.id
-       WHERE t.sprint_id = $1 AND ps.category != 'done'`,
-      [sprintId],
-    );
-
-    let movedTo = 'Backlog';
-    let movedTasks = incompleteTasks.length;
-
-    // Create SprintScopeChange 'removed' records for tasks leaving this sprint
-    for (const task of incompleteTasks) {
-      const [taskData] = await this.dataSource.query(
-        'SELECT story_points FROM work_items WHERE id = $1',
-        [task.id],
-      );
-      await this.scopeChangeRepo.save(
-        this.scopeChangeRepo.create({
-          sprintId,
-          workItemId: task.id,
-          action: 'removed',
-          storyPoints: taskData?.story_points ?? null,
-        }),
-      );
-    }
-
-    if (movedTasks > 0) {
-      // Find next planning sprint
-      const nextSprint = await this.sprintRepo.findOne({
-        where: { projectId, status: 'planning' },
-        order: { sprintNumber: 'ASC' },
+    const result = await this.dataSource.transaction(async (manager) => {
+      // Re-load with a pessimistic write lock so concurrent callers serialize.
+      const sprint = await manager.findOne(Sprint, {
+        where: { id: sprintId, projectId },
+        lock: { mode: 'pessimistic_write' },
       });
+      if (!sprint) {
+        throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+      }
 
-      if (nextSprint) {
-        movedTo = nextSprint.name;
-        const taskIds = incompleteTasks.map((t: any) => t.id);
-        await this.dataSource.query(
-          `UPDATE work_items SET sprint_id = $1, added_mid_sprint = false WHERE id = ANY($2)`,
-          [nextSprint.id, taskIds],
+      // Re-check status inside the lock.
+      if (sprint.status !== 'active') {
+        throw new AppLogicException('SPRINT_NOT_ACTIVE', HttpStatus.BAD_REQUEST);
+      }
+
+      sprint.status = 'completed';
+      sprint.completedAt = new Date();
+      await manager.save(Sprint, sprint);
+
+      // Find incomplete tasks (status category NOT done)
+      const incompleteTasks = await manager.query(
+        `SELECT t.id FROM work_items t
+         JOIN project_statuses ps ON t.status_id = ps.id
+         WHERE t.sprint_id = $1 AND ps.category != 'done'`,
+        [sprintId],
+      );
+
+      let movedTo = 'Backlog';
+      const movedTasks = incompleteTasks.length;
+
+      // Create SprintScopeChange 'removed' records for tasks leaving this sprint
+      for (const task of incompleteTasks) {
+        const [taskData] = await manager.query(
+          'SELECT story_points FROM work_items WHERE id = $1',
+          [task.id],
         );
-      } else {
-        // Move to backlog
-        const taskIds = incompleteTasks.map((t: any) => t.id);
-        await this.dataSource.query(
-          `UPDATE work_items SET sprint_id = NULL WHERE id = ANY($1)`,
-          [taskIds],
+        await manager.save(
+          SprintScopeChange,
+          manager.create(SprintScopeChange, {
+            sprintId,
+            workItemId: task.id,
+            action: 'removed',
+            storyPoints: taskData?.story_points ?? null,
+          }),
         );
       }
-    }
 
-    return { sprint, movedTasks, movedTo };
+      if (movedTasks > 0) {
+        // Find next planning sprint
+        const nextSprint = await manager.findOne(Sprint, {
+          where: { projectId, status: 'planning' },
+          order: { sprintNumber: 'ASC' },
+        });
+
+        if (nextSprint) {
+          movedTo = nextSprint.name;
+          const taskIds = incompleteTasks.map((t: any) => t.id);
+          await manager.query(
+            `UPDATE work_items SET sprint_id = $1, added_mid_sprint = false WHERE id = ANY($2)`,
+            [nextSprint.id, taskIds],
+          );
+        } else {
+          // Move to backlog
+          const taskIds = incompleteTasks.map((t: any) => t.id);
+          await manager.query(
+            `UPDATE work_items SET sprint_id = NULL WHERE id = ANY($1)`,
+            [taskIds],
+          );
+        }
+      }
+
+      return { sprint, movedTasks, movedTo };
+    });
+
+    // Emit only after the transaction commits.
+    this.eventEmitter.emit('sprint.completed', { sprintId, projectId, actorId: userId });
+
+    return result;
   }
 
   async cancel(projectId: number, sprintId: number, userId: number) {
-    const sprint = await this.findOne(projectId, sprintId);
+    const sprint = await this.dataSource.transaction(async (manager) => {
+      // Re-load with a pessimistic write lock so concurrent callers serialize.
+      const locked = await manager.findOne(Sprint, {
+        where: { id: sprintId, projectId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!locked) {
+        throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+      }
 
-    if (sprint.status !== 'planning' && sprint.status !== 'active') {
-      throw new AppLogicException('SPRINT_NOT_ACTIVE', HttpStatus.BAD_REQUEST);
-    }
+      // Re-check status inside the lock.
+      if (locked.status !== 'planning' && locked.status !== 'active') {
+        throw new AppLogicException('SPRINT_NOT_ACTIVE', HttpStatus.BAD_REQUEST);
+      }
 
-    sprint.status = 'cancelled';
-    await this.sprintRepo.save(sprint);
+      locked.status = 'cancelled';
+      await manager.save(Sprint, locked);
 
+      // Move ALL tasks to backlog
+      await manager.query(
+        `UPDATE work_items SET sprint_id = NULL WHERE sprint_id = $1`,
+        [sprintId],
+      );
+
+      return locked;
+    });
+
+    // Emit only after the transaction commits.
     this.eventEmitter.emit('sprint.cancelled', { sprintId, projectId, actorId: userId });
-
-    // Move ALL tasks to backlog
-    await this.dataSource.query(
-      `UPDATE work_items SET sprint_id = NULL WHERE sprint_id = $1`,
-      [sprintId],
-    );
 
     return sprint;
   }

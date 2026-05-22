@@ -145,4 +145,45 @@ describe('Sprint Completion with WorkItems (e2e)', () => {
     expect(removed.length).toBeGreaterThanOrEqual(1);
     expect(removed[0].work_item_id).toBeDefined();
   });
+
+  it('two concurrent completes: exactly one succeeds, scope-change rows not duplicated', async () => {
+    const [sprint1] = await ds.query(
+      `INSERT INTO sprints (project_id, name, status, sprint_number, created_by, start_date, end_date)
+       VALUES ($1, 'Sprint 1', 'active', 1, $2, CURRENT_DATE - 14, CURRENT_DATE) RETURNING id`,
+      [projectId, adminId],
+    );
+
+    const taskRes = await createItem({ itemType: 'task', title: 'Incomplete', sprintId: sprint1.id, storyPoints: 5 });
+    const incompleteId = taskRes.body.data.item.id;
+
+    // Fire two concurrent completes
+    const [resA, resB] = await Promise.all([
+      request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/sprints/${sprint1.id}/complete`)
+        .set('Authorization', `Bearer ${adminToken}`),
+      request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/sprints/${sprint1.id}/complete`)
+        .set('Authorization', `Bearer ${adminToken}`),
+    ]);
+
+    const statuses = [resA.status, resB.status].sort();
+    const successes = statuses.filter((s) => s >= 200 && s < 300);
+    const failures = [resA, resB].filter((r) => r.status >= 400);
+
+    // Exactly one success
+    expect(successes.length).toBe(1);
+    // Exactly one clean 4xx failure (not a 500)
+    expect(failures.length).toBe(1);
+    expect(failures[0].status).toBeGreaterThanOrEqual(400);
+    expect(failures[0].status).toBeLessThan(500);
+    // SPRINT_NOT_ACTIVE -> response code F-L-0023, clean 4xx (not a 500)
+    expect(failures[0].body.code).toBe('F-L-0023');
+
+    // Incomplete task moved exactly once: exactly one 'removed' row for it
+    const removed = await ds.query(
+      `SELECT id FROM sprint_scope_changes WHERE sprint_id = $1 AND action = 'removed' AND work_item_id = $2`,
+      [sprint1.id, incompleteId],
+    );
+    expect(removed.length).toBe(1);
+  });
 });
