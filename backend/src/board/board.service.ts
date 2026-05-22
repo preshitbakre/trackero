@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { WorkItem } from '../work-items/entities/work-item.entity';
-import { WorkItemAssociation } from '../work-items/entities/work-item-association.entity';
 import { ProjectStatus } from '../projects/entities/project-status.entity';
 import { AppLogicException } from '../common/exceptions/app-exceptions';
 
@@ -14,8 +13,6 @@ export class BoardService {
     private readonly workItemRepo: Repository<WorkItem>,
     @InjectRepository(ProjectStatus)
     private readonly statusRepo: Repository<ProjectStatus>,
-    @InjectRepository(WorkItemAssociation)
-    private readonly assocRepo: Repository<WorkItemAssociation>,
     private readonly dataSource: DataSource,
     private readonly eventEmitter: EventEmitter2,
   ) {}
