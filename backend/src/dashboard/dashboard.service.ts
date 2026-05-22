@@ -783,25 +783,35 @@ export class DashboardService {
     }));
 
     // ── activeSprintSummary ────────────────────────────────────
+    // NOTE: The previous version joined work_items twice on the same sprint
+    // (once for "all tasks in sprint", once for "my tasks in sprint"), which
+    // produced a cartesian product per sprint and inflated every aggregate
+    // by the size of the other side. Each aggregate is now an independent
+    // correlated subquery, so the four numbers are computed in isolation.
     const sprintSummaryRows = await db.query(`
       SELECT
         p.name AS "projectName",
         p.prefix AS "projectPrefix",
         s.name AS "sprintName",
         s.end_date,
-        COALESCE(SUM(t.story_points), 0)::int AS total_points,
-        COALESCE(SUM(t.story_points) FILTER (WHERE ps.category = 'done'), 0)::int AS completed_points,
-        COUNT(t2.id)::int AS "myTasksInSprint",
-        COUNT(t2.id) FILTER (WHERE ps2.category = 'done')::int AS "myCompletedInSprint"
+        (SELECT COALESCE(SUM(t.story_points), 0)::int
+         FROM work_items t
+         WHERE t.sprint_id = s.id AND t.item_type = 'task') AS total_points,
+        (SELECT COALESCE(SUM(t.story_points), 0)::int
+         FROM work_items t
+         JOIN project_statuses ps ON ps.id = t.status_id
+         WHERE t.sprint_id = s.id AND t.item_type = 'task' AND ps.category = 'done') AS completed_points,
+        (SELECT COUNT(*)::int
+         FROM work_items t2
+         WHERE t2.sprint_id = s.id AND t2.item_type = 'task' AND t2.assignee_id = $1) AS "myTasksInSprint",
+        (SELECT COUNT(*)::int
+         FROM work_items t2
+         JOIN project_statuses ps2 ON ps2.id = t2.status_id
+         WHERE t2.sprint_id = s.id AND t2.item_type = 'task' AND t2.assignee_id = $1 AND ps2.category = 'done') AS "myCompletedInSprint"
       FROM sprints s
       JOIN projects p ON p.id = s.project_id
       JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $1
-      LEFT JOIN work_items t ON t.sprint_id = s.id AND t.item_type IN ('task')
-      LEFT JOIN project_statuses ps ON ps.id = t.status_id
-      LEFT JOIN work_items t2 ON t2.sprint_id = s.id AND t2.item_type IN ('task') AND t2.assignee_id = $1
-      LEFT JOIN project_statuses ps2 ON ps2.id = t2.status_id
       WHERE s.status = 'active'
-      GROUP BY s.id, p.id
     `, [userId]);
     const activeSprintSummary = sprintSummaryRows.map((sp: any) => {
       const totalPts = sp.total_points || 1;

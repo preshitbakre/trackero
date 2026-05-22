@@ -282,6 +282,103 @@ describe('Dashboard (e2e)', () => {
       expect(tasks[0].priority).toBe('high');
       expect(tasks[1].priority).toBe('medium');
     });
+
+    test('activeSprintSummary does NOT double-count when sprint has multiple tasks (cartesian-product regression)', async () => {
+      // Build a sprint with 3 tasks total — 2 assigned to the member, 1 unassigned.
+      // The two member tasks have story points; 1 of them will be marked done.
+      // Without the cartesian-product fix:
+      //   myTasksInSprint inflates from 2 -> total_tasks(3) × my_tasks(2) = 6
+      //   myCompletedInSprint inflates from 1 -> total_tasks(3) × my_completed(1) = 3
+      //   total_points and completed_points also inflate 2× (each t row repeats per t2)
+      // With the fix:
+      //   myTasksInSprint = 2, myCompletedInSprint = 1
+      //   progressPercent = round(completed_points / total_points × 100)
+
+      // 1. Create a sprint (start date today, end date 14 days out)
+      const today = new Date().toISOString().split('T')[0];
+      const endDate = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0];
+      const sprintRes = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/sprints`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Sprint A', startDate: today, endDate });
+      expect(sprintRes.status).toBe(201);
+      const sprintId = sprintRes.body.data.item.id;
+
+      // 2. Fetch the 3 existing tasks from setup (Task one, Task two, Unassigned task)
+      const itemsRes = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/items`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(itemsRes.status).toBe(200);
+      const items = itemsRes.body.data.list as Array<{ id: number; title: string; assigneeId: number | null }>;
+      const taskOne = items.find((i) => i.title === 'Task one')!;
+      const taskTwo = items.find((i) => i.title === 'Task two')!;
+      const unassigned = items.find((i) => i.title === 'Unassigned task')!;
+      expect(taskOne).toBeDefined();
+      expect(taskTwo).toBeDefined();
+      expect(unassigned).toBeDefined();
+
+      // 3. Assign all 3 tasks to the sprint with non-zero story points
+      //    Use distinct point values so any inflation is detectable from the raw numbers.
+      await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/items/${taskOne.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ sprintId, storyPoints: 5 })
+        .expect(200);
+      await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/items/${taskTwo.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ sprintId, storyPoints: 3 })
+        .expect(200);
+      await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/items/${unassigned.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ sprintId, storyPoints: 2 })
+        .expect(200);
+
+      // 4. Start the sprint
+      await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/sprints/${sprintId}/start`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      // 5. Mark Task one (a member-assigned task with 5 story points) as done
+      const statusesRes = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/statuses`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(statusesRes.status).toBe(200);
+      const statuses = statusesRes.body.data as Array<{ id: number; category: string }>;
+      const doneStatus = statuses.find((s) => s.category === 'done')!;
+      expect(doneStatus).toBeDefined();
+      await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/items/${taskOne.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ statusId: doneStatus.id })
+        .expect(200);
+
+      // 6. Hit the member dashboard and assert correct (non-inflated) numbers
+      const dashRes = await request(app.getHttpServer())
+        .get('/api/dashboard')
+        .set('Authorization', `Bearer ${memberToken}`);
+      expect(dashRes.status).toBe(200);
+      const summary = dashRes.body.data.activeSprintSummary;
+      expect(Array.isArray(summary)).toBe(true);
+      expect(summary.length).toBe(1);
+
+      const s = summary[0];
+      expect(s.projectName).toBe('Dashboard Test');
+      expect(s.projectPrefix).toBe('DASH');
+      expect(s.sprintName).toBe('Sprint A');
+
+      // Correct member-side counts (the cartesian-product bug would return 6 and 3).
+      expect(s.myTasksInSprint).toBe(2);
+      expect(s.myCompletedInSprint).toBe(1);
+
+      // progressPercent: 5 done out of (5 + 3 + 2) = 10 total = 50%.
+      // (The bug inflates both numerator and denominator by the same factor,
+      // so this assertion mostly guards future regressions where someone
+      // changes only one side.)
+      expect(s.progressPercent).toBe(50);
+    });
   });
 
   // ── Viewer Dashboard ───────────────────────────────────────
