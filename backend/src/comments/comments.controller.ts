@@ -7,6 +7,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { ProjectAccessGuard } from '../common/guards/project-access.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { ProjectRole } from '../common/decorators/project-role.decorator';
 import { ResponseCode } from '../common/decorators/response-code.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
@@ -63,8 +64,13 @@ export class CommentsController {
     @Param('itemId', ParseIntPipe) itemId: number,
     @Param('commentId', ParseIntPipe) commentId: number,
     @CurrentUser() user: JwtPayload,
+    @ProjectRole() projectRole: string | undefined,
   ) {
-    await this.commentsService.remove(projectId, itemId, commentId, user.userId, user.role);
+    // Authorize by PROJECT role, not the global role. Global admins bypass the
+    // project-membership lookup so `projectRole` is unset for them — treat them
+    // as 'admin'. Everyone else is authorized by their project_members role.
+    const effectiveRole = user.role === 'admin' ? 'admin' : projectRole;
+    await this.commentsService.remove(projectId, itemId, commentId, user.userId, effectiveRole);
     return null;
   }
 }

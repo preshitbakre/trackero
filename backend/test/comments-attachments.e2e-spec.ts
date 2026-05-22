@@ -127,6 +127,80 @@ describe('Comments & Attachments (e2e)', () => {
     });
   });
 
+  describe('Comment deletion authorization (§4.5)', () => {
+    // Helper: a project member posts a comment, returns its id.
+    async function postComment(token: string, body = 'A comment') {
+      const res = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/items/${taskId}/comments`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ body });
+      return res.body.data.item.id;
+    }
+
+    it('global-PM but project-member cannot delete another user comment -> 403', async () => {
+      // User X has GLOBAL role project_manager...
+      const globalPm = await registerInvitedUser(
+        app, adminToken, 'globalpm@test.com', 'project_manager',
+      );
+      // ...but is added to THIS project only as a `member`.
+      await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/members`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ userId: globalPm.id, role: 'member' });
+
+      // Another project member (Y) posts a comment.
+      const commentId = await postComment(memberToken, 'Y comment');
+
+      // X attempts to delete Y's comment -> must be FORBIDDEN.
+      await request(app.getHttpServer())
+        .delete(`/api/projects/${projectId}/items/${taskId}/comments/${commentId}`)
+        .set('Authorization', `Bearer ${globalPm.token}`)
+        .expect(403);
+    });
+
+    it('project project_manager can delete another user comment -> 200', async () => {
+      const pm = await registerInvitedUser(app, adminToken, 'projpm@test.com', 'member');
+      await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/members`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ userId: pm.id, role: 'project_manager' });
+
+      const commentId = await postComment(memberToken, 'Member comment');
+
+      await request(app.getHttpServer())
+        .delete(`/api/projects/${projectId}/items/${taskId}/comments/${commentId}`)
+        .set('Authorization', `Bearer ${pm.token}`)
+        .expect(200);
+    });
+
+    it('project member can delete their OWN comment -> 200', async () => {
+      const commentId = await postComment(memberToken, 'My own comment');
+
+      await request(app.getHttpServer())
+        .delete(`/api/projects/${projectId}/items/${taskId}/comments/${commentId}`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .expect(200);
+    });
+
+    it('project member cannot delete another user comment -> 403', async () => {
+      const commentId = await postComment(adminToken, 'Admin comment');
+
+      await request(app.getHttpServer())
+        .delete(`/api/projects/${projectId}/items/${taskId}/comments/${commentId}`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .expect(403);
+    });
+
+    it('global admin can delete any user comment -> 200', async () => {
+      const commentId = await postComment(memberToken, 'Member comment');
+
+      await request(app.getHttpServer())
+        .delete(`/api/projects/${projectId}/items/${taskId}/comments/${commentId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+    });
+  });
+
   describe('Attachments', () => {
     it('uploads file -> 201', async () => {
       const res = await request(app.getHttpServer())

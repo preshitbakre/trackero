@@ -100,13 +100,23 @@ export class CommentsService {
     return this.commentRepo.save(comment);
   }
 
-  async remove(projectId: number, workItemId: number, commentId: number, userId: number, userRole: string) {
+  async remove(
+    projectId: number,
+    workItemId: number,
+    commentId: number,
+    userId: number,
+    effectiveRole: string | undefined,
+  ) {
     await this.verifyItemInProject(projectId, workItemId);
     const comment = await this.commentRepo.findOne({ where: { id: commentId, workItemId } });
     if (!comment) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
-    if (userRole === 'member' && comment.authorId !== userId) {
+    // `effectiveRole` is the caller's PROJECT-scoped role ('admin' for global
+    // admins). Only project_managers and admins may delete others' comments;
+    // a project member may delete only their own.
+    const canDeleteOthers = effectiveRole === 'admin' || effectiveRole === 'project_manager';
+    if (!canDeleteOthers && comment.authorId !== userId) {
       throw new AppLogicException('FORBIDDEN', HttpStatus.FORBIDDEN);
     }
     await this.commentRepo.remove(comment);
