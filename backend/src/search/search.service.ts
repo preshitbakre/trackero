@@ -14,6 +14,13 @@ export class SearchService {
     let params: any[];
 
     if (projectId) {
+      // Non-admins may only search a projectId they belong to: intersect the
+      // caller-supplied projectId with their memberships so a foreign projectId
+      // yields zero results. Admins keep unrestricted access to any project.
+      const membershipClause =
+        userRole !== 'admin'
+          ? 'AND t.project_id IN (SELECT project_id FROM project_members WHERE user_id = $3)'
+          : '';
       sql = `
         SELECT t.id, t.item_number, t.item_type, t.title, t.project_id as "projectId",
           ps.name as "statusName", ps.color as "statusColor",
@@ -28,10 +35,11 @@ export class SearchService {
           AND t.item_type IN ('epic', 'story', 'task', 'bug', 'subtask')
           AND p.status = 'active'
           AND t.project_id = $2
+          ${membershipClause}
         ORDER BY "relevanceScore" DESC
         LIMIT 20
       `;
-      params = [query, projectId];
+      params = userRole !== 'admin' ? [query, projectId, userId] : [query, projectId];
     } else if (userRole !== 'admin') {
       sql = `
         SELECT t.id, t.item_number, t.item_type, t.title, t.project_id as "projectId",

@@ -387,6 +387,48 @@ describe('Charts, Retro, Search (e2e)', () => {
       expect(res.body.data.list.length).toBe(1);
     });
 
+    it('does not leak foreign-project items via projectId param (IDOR §4.1)', async () => {
+      // Project A — the member is NOT a member of it.
+      const projAres = await request(app.getHttpServer())
+        .post('/api/projects')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Foreign Project', prefix: 'FGN' });
+      const projAId = projAres.body.data.item.id;
+
+      // A distinctive, searchable item in project A.
+      await request(app.getHttpServer())
+        .post(`/api/projects/${projAId}/items`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ itemType: 'task', title: 'Quokka authentication marsupial secret' });
+
+      // Member (non-admin, member of CRT only) supplies project A's id.
+      const res = await request(app.getHttpServer())
+        .get(`/api/search?q=quokka&projectId=${projAId}`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .expect(200);
+
+      // The member must get zero results referencing project A.
+      const leaked = res.body.data.list.filter((t: any) => t.projectId === projAId);
+      expect(leaked.length).toBe(0);
+      expect(res.body.data.total).toBe(0);
+
+      // Sanity: a member of project A still finds the item with the same call.
+      const adminRes = await request(app.getHttpServer())
+        .get(`/api/search?q=quokka&projectId=${projAId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(adminRes.body.data.list.length).toBe(1);
+    });
+
+    it('member can still search their own project by projectId', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/search?q=profile&projectId=${projectId}`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .expect(200);
+
+      expect(res.body.data.list.length).toBe(1);
+    });
+
     it('excludes archived project tasks', async () => {
       // Archive the project
       await request(app.getHttpServer())
