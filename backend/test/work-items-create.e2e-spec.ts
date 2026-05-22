@@ -430,4 +430,32 @@ describe('WorkItems CREATE (e2e)', () => {
     expect(new Set(numbers).size).toBe(N);
     expect(numbers[N - 1] - numbers[0]).toBe(N - 1);
   });
+
+  // =========================================================================
+  // Transactional create — a post-counter failure must not leak the counter (D-C4)
+  // =========================================================================
+
+  it('failed create with invalid linkedItemId does not leak item_counter', async () => {
+    // First valid item — itemNumber 1
+    const first = await createItem({ itemType: 'task', title: 'First' }).expect(201);
+    expect(first.body.data.item.itemNumber).toBe(1);
+
+    // Attempt a create that fails AFTER the counter increment: createAssociation
+    // runs after the UPDATE projects SET item_counter, and a non-existent
+    // linkedItemId makes it throw NOT_FOUND. Without a transaction this leaks
+    // the consumed item number.
+    const failed = await createItem({
+      itemType: 'task',
+      title: 'Doomed',
+      linkedItemId: 999999,
+      linkType: 'relates_to',
+    });
+    expect(failed.status).toBeGreaterThanOrEqual(400);
+    expect(failed.status).toBeLessThan(500);
+
+    // Next valid item must be contiguous with the first — the failed create
+    // must NOT have burned itemNumber 2.
+    const second = await createItem({ itemType: 'task', title: 'Second' }).expect(201);
+    expect(second.body.data.item.itemNumber).toBe(2);
+  });
 });

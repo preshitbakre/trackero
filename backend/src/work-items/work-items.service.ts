@@ -1,6 +1,6 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, EntityManager } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { WorkItem } from './entities/work-item.entity';
 import { WorkItemAssociation } from './entities/work-item-association.entity';
@@ -52,103 +52,112 @@ export class WorkItemsService {
     // Validate depth
     await this.validateDepth(dto.parentId ?? null);
 
-    // Atomically increment project.itemCounter and read the new value in a
-    // single statement — a separate UPDATE then SELECT races under concurrent
-    // creation and produces duplicate itemNumbers (D-C3). TypeORM's query()
-    // returns [rows, affectedCount] for UPDATE...RETURNING, so unwrap defensively.
-    const counterResult = await this.dataSource.query(
-      `UPDATE projects SET item_counter = item_counter + 1 WHERE id = $1 RETURNING item_counter, prefix`,
-      [projectId],
-    );
-    const counterRows = Array.isArray(counterResult[0]) ? counterResult[0] : counterResult;
-    const projectRow = counterRows[0];
-    const itemNumber = projectRow.item_counter;
-    const projectPrefix: string = projectRow.prefix;
-
-    // Resolve statusId — use provided or project default
-    let statusId = dto.statusId ?? null;
-    if (!statusId) {
-      const [defaultStatus] = await this.dataSource.query(
-        `SELECT id FROM project_statuses WHERE project_id = $1 AND is_default = true LIMIT 1`,
+    // Wrap the whole mutation in a transaction (D-C4) — the item-counter
+    // increment, the work_item INSERT, label INSERTs and the association
+    // INSERT must all commit together or roll back together. Otherwise a
+    // mid-way failure permanently consumes the project's item counter.
+    const { result, response } = await this.dataSource.transaction(async (manager) => {
+      // Atomically increment project.itemCounter and read the new value in a
+      // single statement — a separate UPDATE then SELECT races under concurrent
+      // creation and produces duplicate itemNumbers (D-C3). TypeORM's query()
+      // returns [rows, affectedCount] for UPDATE...RETURNING, so unwrap defensively.
+      const counterResult = await manager.query(
+        `UPDATE projects SET item_counter = item_counter + 1 WHERE id = $1 RETURNING item_counter, prefix`,
         [projectId],
       );
-      statusId = defaultStatus?.id;
+      const counterRows = Array.isArray(counterResult[0]) ? counterResult[0] : counterResult;
+      const projectRow = counterRows[0];
+      const itemNumber = projectRow.item_counter;
+      const projectPrefix: string = projectRow.prefix;
+
+      // Resolve statusId — use provided or project default
+      let statusId = dto.statusId ?? null;
       if (!statusId) {
-        throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND, 'No default status found');
-      }
-    }
-
-    // Subtasks: sprintId is ALWAYS null
-    let sprintId: number | null = null;
-    if (itemType !== 'subtask') {
-      sprintId = dto.sprintId ?? null;
-    }
-
-    // Detect addedMidSprint for tasks added to an active sprint
-    let addedMidSprint = false;
-    if (itemType === 'task' && sprintId) {
-      const [sprint] = await this.dataSource.query(
-        `SELECT status FROM sprints WHERE id = $1`,
-        [sprintId],
-      );
-      if (sprint && sprint.status === 'active') {
-        addedMidSprint = true;
-      }
-    }
-
-    // Create the work item
-    const workItem = this.workItemRepo.create({
-      projectId,
-      itemType,
-      parentId: dto.parentId ?? null,
-      itemNumber,
-      title: dto.title,
-      description: dto.description ?? null,
-      statusId,
-      priority: (dto.priority as WorkItem['priority']) || 'medium',
-      sprintId,
-      storyPoints: dto.storyPoints ?? null,
-      assigneeId: dto.assigneeId ?? null,
-      reporterId: userId,
-      sortOrder: 'n',
-      endDate: dto.endDate ?? null,
-      startDate: dto.startDate ?? null,
-      color: dto.color ?? (itemType === 'epic' ? '#7C5CFC' : itemType === 'task' ? '#D6B588' : itemType === 'bug' ? '#E57373' : itemType === 'subtask' ? '#A8A19A' : '#88A9D6'),
-      addedMidSprint,
-    });
-
-    const saved = await this.workItemRepo.save(workItem);
-
-    // Handle labels
-    if (dto.labelIds && dto.labelIds.length > 0) {
-      for (const labelId of dto.labelIds) {
-        await this.dataSource.query(
-          `INSERT INTO work_item_labels (work_item_id, label_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-          [saved.id, labelId],
+        const [defaultStatus] = await manager.query(
+          `SELECT id FROM project_statuses WHERE project_id = $1 AND is_default = true LIMIT 1`,
+          [projectId],
         );
+        statusId = defaultStatus?.id;
+        if (!statusId) {
+          throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND, 'No default status found');
+        }
       }
-    }
 
-    // Reload with relations for response
-    const result = await this.workItemRepo.findOne({
-      where: { id: saved.id },
-      relations: ['status', 'assignee', 'reporter', 'labels', 'sprint'],
+      // Subtasks: sprintId is ALWAYS null
+      let sprintId: number | null = null;
+      if (itemType !== 'subtask') {
+        sprintId = dto.sprintId ?? null;
+      }
+
+      // Detect addedMidSprint for tasks added to an active sprint
+      let addedMidSprint = false;
+      if (itemType === 'task' && sprintId) {
+        const [sprint] = await manager.query(
+          `SELECT status FROM sprints WHERE id = $1`,
+          [sprintId],
+        );
+        if (sprint && sprint.status === 'active') {
+          addedMidSprint = true;
+        }
+      }
+
+      // Create the work item
+      const workItem = manager.create(WorkItem, {
+        projectId,
+        itemType,
+        parentId: dto.parentId ?? null,
+        itemNumber,
+        title: dto.title,
+        description: dto.description ?? null,
+        statusId,
+        priority: (dto.priority as WorkItem['priority']) || 'medium',
+        sprintId,
+        storyPoints: dto.storyPoints ?? null,
+        assigneeId: dto.assigneeId ?? null,
+        reporterId: userId,
+        sortOrder: 'n',
+        endDate: dto.endDate ?? null,
+        startDate: dto.startDate ?? null,
+        color: dto.color ?? (itemType === 'epic' ? '#7C5CFC' : itemType === 'task' ? '#D6B588' : itemType === 'bug' ? '#E57373' : itemType === 'subtask' ? '#A8A19A' : '#88A9D6'),
+        addedMidSprint,
+      });
+
+      const saved = await manager.save(WorkItem, workItem);
+
+      // Handle labels
+      if (dto.labelIds && dto.labelIds.length > 0) {
+        for (const labelId of dto.labelIds) {
+          await manager.query(
+            `INSERT INTO work_item_labels (work_item_id, label_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+            [saved.id, labelId],
+          );
+        }
+      }
+
+      // Create association if provided — must run inside the transaction, so
+      // do it before the final relations reload.
+      if (dto.linkedItemId && dto.linkType) {
+        await this.createAssociation(projectId, saved.id, dto.linkedItemId, dto.linkType, userId, manager);
+      }
+
+      // Reload with relations for response
+      const result = await manager.findOne(WorkItem, {
+        where: { id: saved.id },
+        relations: ['status', 'assignee', 'reporter', 'labels', 'sprint'],
+      });
+
+      // Build response shape matching API spec
+      const childCount = await manager.query(
+        `SELECT COUNT(*) as cnt FROM work_items WHERE parent_id = $1`,
+        [saved.id],
+      );
+
+      const response = this.formatItemResponse(result!, parseInt(childCount[0].cnt), projectPrefix);
+
+      return { result, response };
     });
 
-    // Create association if provided
-    if (dto.linkedItemId && dto.linkType) {
-      await this.createAssociation(projectId, saved.id, dto.linkedItemId, dto.linkType, userId);
-    }
-
-    // Build response shape matching API spec
-    const childCount = await this.dataSource.query(
-      `SELECT COUNT(*) as cnt FROM work_items WHERE parent_id = $1`,
-      [saved.id],
-    );
-
-    const response = this.formatItemResponse(result!, parseInt(childCount[0].cnt), projectPrefix);
-
-    // Emit domain event
+    // Emit domain event only after the transaction commits.
     this.eventEmitter.emit('work_item.created', {
       item: result,
       userId,
@@ -618,26 +627,32 @@ export class WorkItemsService {
     // Validate deletion is allowed
     await this.validateDeletion(item);
 
-    // Handle children based on type
-    if (item.itemType === 'epic') {
-      // Orphan all children — set parentId to null
-      await this.dataSource.query(
-        `UPDATE work_items SET parent_id = NULL WHERE parent_id = $1`,
-        [id],
-      );
-    } else if (item.itemType === 'story') {
-      // validateDeletion already ensured no direct subtasks
-      // Orphan task children
-      await this.dataSource.query(
-        `UPDATE work_items SET parent_id = NULL WHERE parent_id = $1`,
-        [id],
-      );
-    }
-    // task with children: blocked by validateDeletion
-    // subtask: no children, delete directly
+    // Wrap the orphan-children UPDATE and the item DELETE in a transaction
+    // (D-C4) — otherwise a failure between them leaves orphaned children
+    // without their item actually being deleted.
+    await this.dataSource.transaction(async (manager) => {
+      // Handle children based on type
+      if (item.itemType === 'epic') {
+        // Orphan all children — set parentId to null
+        await manager.query(
+          `UPDATE work_items SET parent_id = NULL WHERE parent_id = $1`,
+          [id],
+        );
+      } else if (item.itemType === 'story') {
+        // validateDeletion already ensured no direct subtasks
+        // Orphan task children
+        await manager.query(
+          `UPDATE work_items SET parent_id = NULL WHERE parent_id = $1`,
+          [id],
+        );
+      }
+      // task with children: blocked by validateDeletion
+      // subtask: no children, delete directly
 
-    await this.workItemRepo.remove(item);
+      await manager.remove(item);
+    });
 
+    // Emit domain event only after the transaction commits.
     this.eventEmitter.emit('work_item.deleted', {
       itemId: id,
       itemType: item.itemType,
@@ -870,11 +885,24 @@ export class WorkItemsService {
   // ASSOCIATION METHODS
   // =========================================================================
 
-  async createAssociation(projectId: number, itemId: number, linkedItemId: number, linkType: string, userId: number) {
-    const item = await this.workItemRepo.findOne({ where: { id: itemId, projectId } });
+  async createAssociation(
+    projectId: number,
+    itemId: number,
+    linkedItemId: number,
+    linkType: string,
+    userId: number,
+    manager?: EntityManager,
+  ) {
+    // When invoked inside a transaction (e.g. from create()), route reads and
+    // the association INSERT through the transaction's EntityManager so the
+    // whole operation commits or rolls back atomically.
+    const workItemRepo = manager ? manager.getRepository(WorkItem) : this.workItemRepo;
+    const assocRepo = manager ? manager.getRepository(WorkItemAssociation) : this.assocRepo;
+
+    const item = await workItemRepo.findOne({ where: { id: itemId, projectId } });
     if (!item) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
 
-    const linked = await this.workItemRepo.findOne({ where: { id: linkedItemId, projectId } });
+    const linked = await workItemRepo.findOne({ where: { id: linkedItemId, projectId } });
     if (!linked) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
 
     if (itemId === linkedItemId) {
@@ -893,20 +921,20 @@ export class WorkItemsService {
         }
         if (visited.has(current)) continue;
         visited.add(current);
-        const deps = await this.assocRepo.find({ where: { itemId: current, linkType: 'blocks' } });
+        const deps = await assocRepo.find({ where: { itemId: current, linkType: 'blocks' } });
         for (const dep of deps) {
           if (!visited.has(dep.linkedItemId)) queue.push(dep.linkedItemId);
         }
       }
     }
 
-    const assoc = this.assocRepo.create({
+    const assoc = assocRepo.create({
       itemId,
       linkedItemId,
       linkType: linkType as any,
       createdBy: userId,
     });
-    return this.assocRepo.save(assoc);
+    return assocRepo.save(assoc);
   }
 
   async deleteAssociation(projectId: number, itemId: number, assocId: number) {
