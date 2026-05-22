@@ -12,6 +12,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ResponseCode } from '../common/decorators/response-code.decorator';
 import { RegisterDto } from './dto/register.dto';
@@ -28,12 +29,14 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Get('setup-status')
+  @Public()
   @ResponseCode('HEALTH_OK')
   async setupStatus() {
     return this.authService.getSetupStatus();
   }
 
   @Get('invite-info')
+  @Public()
   @Throttle({ default: { limit: parseInt(process.env.AUTH_THROTTLE_LIMIT || '5', 10), ttl: parseInt(process.env.AUTH_THROTTLE_TTL || '60000', 10) } })
   @ResponseCode('HEALTH_OK')
   async inviteInfo(@Query('token') token: string) {
@@ -41,6 +44,7 @@ export class AuthController {
   }
 
   @Post('register')
+  @Public()
   @Throttle({ default: { limit: parseInt(process.env.AUTH_THROTTLE_LIMIT || '5', 10), ttl: parseInt(process.env.AUTH_THROTTLE_TTL || '60000', 10) } })
   @HttpCode(HttpStatus.CREATED)
   @ResponseCode('AUTH_REGISTER')
@@ -49,6 +53,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Public()
   @Throttle({ default: { limit: parseInt(process.env.AUTH_THROTTLE_LIMIT || '5', 10), ttl: parseInt(process.env.AUTH_THROTTLE_TTL || '60000', 10) } })
   @HttpCode(HttpStatus.OK)
   @ResponseCode('AUTH_LOGIN')
@@ -57,6 +62,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @Public()
   @Throttle({ default: { limit: parseInt(process.env.AUTH_THROTTLE_LIMIT || '5', 10), ttl: parseInt(process.env.AUTH_THROTTLE_TTL || '60000', 10) } })
   @HttpCode(HttpStatus.OK)
   @ResponseCode('AUTH_REFRESH')
@@ -102,6 +108,7 @@ export class AuthController {
   }
 
   @Post('forgot-password')
+  @Public()
   @Throttle({ default: { limit: parseInt(process.env.AUTH_THROTTLE_LIMIT || '5', 10), ttl: parseInt(process.env.AUTH_THROTTLE_TTL || '60000', 10) } })
   @HttpCode(HttpStatus.OK)
   @ResponseCode('AUTH_PASSWORD_RESET_SENT')
@@ -111,6 +118,7 @@ export class AuthController {
   }
 
   @Post('reset-password')
+  @Public()
   @Throttle({ default: { limit: parseInt(process.env.AUTH_THROTTLE_LIMIT || '5', 10), ttl: parseInt(process.env.AUTH_THROTTLE_TTL || '60000', 10) } })
   @HttpCode(HttpStatus.OK)
   @ResponseCode('AUTH_PASSWORD_RESET')

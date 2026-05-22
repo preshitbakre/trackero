@@ -25,6 +25,7 @@ import { SearchModule } from './search/search.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { FiltersModule } from './filters/filters.module';
 import { WorkItemsModule } from './work-items/work-items.module';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 @Module({
   imports: [
@@ -72,6 +73,10 @@ import { WorkItemsModule } from './work-items/work-items.module';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
     },
   ],
 })

@@ -386,6 +386,44 @@ describe('Auth Module (e2e)', () => {
     });
   });
 
+  describe('Global JwtAuthGuard + @Public() opt-out', () => {
+    it('@Public() route GET /api/health returns 200 without a token', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/health')
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.status).toBeDefined();
+    });
+
+    it('@Public() route GET /api/auth/setup-status returns 200 without a token', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/auth/setup-status')
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.isSetup).toBeDefined();
+    });
+
+    it('protected route rejects with 401 when no token is supplied', async () => {
+      // /api/auth/me has no @Public() — global JwtAuthGuard must reject anonymous access
+      const res = await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .expect(401);
+
+      expect(res.body.success).toBe(false);
+    });
+
+    it('protected feature route rejects with 401 when no token is supplied', async () => {
+      // /api/dashboard is guarded; without a token the global guard fails closed
+      const res = await request(app.getHttpServer())
+        .get('/api/dashboard')
+        .expect(401);
+
+      expect(res.body.success).toBe(false);
+    });
+  });
+
   describe('First-user-is-admin', () => {
     it('first registered user gets admin role', async () => {
       // clearDatabase already ran in beforeEach — no users exist

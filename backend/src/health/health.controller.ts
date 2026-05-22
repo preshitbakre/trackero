@@ -1,12 +1,14 @@
 import { Controller, Get } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { ResponseCode } from '../common/decorators/response-code.decorator';
+import { Public } from '../common/decorators/public.decorator';
 
 @Controller('health')
 export class HealthController {
   constructor(private readonly dataSource: DataSource) {}
 
   @Get()
+  @Public()
   @ResponseCode('HEALTH_OK')
   async check() {
     let database = 'disconnected';
