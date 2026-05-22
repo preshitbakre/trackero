@@ -216,17 +216,25 @@ describe('Comments & Attachments (e2e)', () => {
       expect(res.body.data.item.sizeBytes).toBeGreaterThan(0);
     });
 
-    it('rejects file > max size -> 400', async () => {
-      // Create a buffer > 10MB
+    it('rejects file > max size with a clean FILE_TOO_LARGE envelope (not a 500)', async () => {
+      // Create a buffer > 10MB (the test env MAX_UPLOAD_SIZE_MB is 10)
       const largeBuffer = Buffer.alloc(11 * 1024 * 1024, 'x');
 
       const res = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/items/${taskId}/attachments`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .attach('file', largeBuffer, 'large.bin')
-        .expect(400);
+        .attach('file', largeBuffer, 'large.bin');
 
+      // The oversized stream must be rejected at the Multer layer with a
+      // clean 4xx (400 or 413) — never a raw 500 from an unfiltered MulterError.
+      expect(res.status).not.toBe(500);
+      expect([400, 413]).toContain(res.status);
+      expect(res.body.success).toBe(false);
       expect(res.body.code).toBe('F-L-0061');
+      expect(res.body.message).toBe('File exceeds maximum allowed size');
+      expect(res.body.errors).toEqual([
+        { code: 'F-L-0061', message: 'File exceeds maximum allowed size' },
+      ]);
     });
 
     it('gets presigned download URL -> 200', async () => {

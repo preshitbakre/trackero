@@ -1,9 +1,10 @@
 import {
-  Controller, Post, Get, Delete, Param, UseGuards,
+  Controller, Post, Get, Delete, Param, UseGuards, UseFilters,
   HttpCode, HttpStatus, ParseIntPipe, UseInterceptors, UploadedFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AttachmentsService } from './attachments.service';
+import { MulterExceptionFilter } from '../common/filters/multer-exception.filter';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { ProjectAccessGuard } from '../common/guards/project-access.guard';
@@ -14,6 +15,7 @@ import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 
 @Controller('projects/:projectId/items/:itemId/attachments')
 @UseGuards(JwtAuthGuard, ProjectAccessGuard, RolesGuard)
+@UseFilters(MulterExceptionFilter)
 export class AttachmentsController {
   constructor(private readonly attachmentsService: AttachmentsService) {}
 
