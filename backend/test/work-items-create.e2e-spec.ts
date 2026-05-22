@@ -396,6 +396,113 @@ describe('WorkItems CREATE (e2e)', () => {
   });
 
   // =========================================================================
+  // Cross-project reference validation (Task 2.5 — audit §4.2/§4.3)
+  // =========================================================================
+
+  describe('cross-project reference validation', () => {
+    let proj2Id: number;
+    let proj2StatusId: number;
+
+    beforeEach(async () => {
+      // Second project owned by the SAME admin — caller HAS access to both,
+      // the point is the work item lives in project A but the referenced
+      // id is from project B.
+      const proj2Res = await request(app.getHttpServer())
+        .post('/api/projects')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Other', prefix: 'OTH' });
+      proj2Id = proj2Res.body.data.item.id;
+
+      const proj2Statuses = await ds.query(
+        `SELECT id, category FROM project_statuses WHERE project_id = $1 ORDER BY sort_order`,
+        [proj2Id],
+      );
+      proj2StatusId = proj2Statuses.find((s: any) => s.category === 'in_progress').id;
+    });
+
+    it('create with statusId from another project → 4xx', async () => {
+      const res = await createItem({
+        itemType: 'task',
+        title: 'Foreign status',
+        statusId: proj2StatusId,
+      });
+      expect(res.status).toBeGreaterThanOrEqual(400);
+      expect(res.status).toBeLessThan(500);
+    });
+
+    it('create with sprintId from another project → 4xx', async () => {
+      const [sprint] = await ds.query(
+        `INSERT INTO sprints (project_id, name, status, sprint_number, created_by)
+         VALUES ($1, 'B Sprint', 'planning', 1, $2) RETURNING id`,
+        [proj2Id, adminId],
+      );
+
+      const res = await createItem({
+        itemType: 'task',
+        title: 'Foreign sprint',
+        sprintId: sprint.id,
+      });
+      expect(res.status).toBeGreaterThanOrEqual(400);
+      expect(res.status).toBeLessThan(500);
+    });
+
+    it('create with labelId from another project → 4xx', async () => {
+      const [label] = await ds.query(
+        `INSERT INTO labels (project_id, name, color) VALUES ($1, 'b-label', '#88A9D6') RETURNING id`,
+        [proj2Id],
+      );
+
+      const res = await createItem({
+        itemType: 'task',
+        title: 'Foreign label',
+        labelIds: [label.id],
+      });
+      expect(res.status).toBeGreaterThanOrEqual(400);
+      expect(res.status).toBeLessThan(500);
+    });
+
+    it('create with assigneeId who is not a project member → 4xx', async () => {
+      // memberId is a member of project A but NOT project B.
+      // Register an outsider who is in NO project.
+      const outsider = await registerInvitedUser(app, adminToken, 'outsider@test.com', 'member');
+
+      const res = await createItem({
+        itemType: 'task',
+        title: 'Foreign assignee',
+        assigneeId: outsider.id,
+      });
+      expect(res.status).toBeGreaterThanOrEqual(400);
+      expect(res.status).toBeLessThan(500);
+    });
+
+    it('create with same-project status/sprint/label/assignee → 201', async () => {
+      const [sprint] = await ds.query(
+        `INSERT INTO sprints (project_id, name, status, sprint_number, created_by)
+         VALUES ($1, 'A Sprint', 'planning', 1, $2) RETURNING id`,
+        [projectId, adminId],
+      );
+      const [label] = await ds.query(
+        `INSERT INTO labels (project_id, name, color) VALUES ($1, 'a-label', '#88A9D6') RETURNING id`,
+        [projectId],
+      );
+
+      const res = await createItem({
+        itemType: 'task',
+        title: 'Valid refs',
+        statusId: inProgressStatusId,
+        sprintId: sprint.id,
+        labelIds: [label.id],
+        assigneeId: memberId,
+      }).expect(201);
+
+      expect(res.body.data.item.statusId).toBe(inProgressStatusId);
+      expect(res.body.data.item.sprintId).toBe(sprint.id);
+      expect(res.body.data.item.labels).toHaveLength(1);
+      expect(res.body.data.item.assigneeId).toBe(memberId);
+    });
+  });
+
+  // =========================================================================
   // Reporter is set to creating user
   // =========================================================================
 

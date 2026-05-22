@@ -57,6 +57,22 @@ export class WorkItemsService {
     // INSERT must all commit together or roll back together. Otherwise a
     // mid-way failure permanently consumes the project's item counter.
     const { result, response } = await this.dataSource.transaction(async (manager) => {
+      // Validate every cross-referenced id belongs to this project BEFORE the
+      // counter increment — a throw here rolls the whole transaction back so
+      // the project's item counter is not consumed (Task 2.5, audit §4.2/§4.3).
+      if (dto.statusId) {
+        await this.validateStatusInProject(dto.statusId, projectId, manager);
+      }
+      if (dto.sprintId && itemType !== 'subtask') {
+        await this.validateSprintInProject(dto.sprintId, projectId, manager);
+      }
+      if (dto.labelIds && dto.labelIds.length > 0) {
+        await this.validateLabelsInProject(dto.labelIds, projectId, manager);
+      }
+      if (dto.assigneeId) {
+        await this.validateAssigneeInProject(dto.assigneeId, projectId, manager);
+      }
+
       // Atomically increment project.itemCounter and read the new value in a
       // single statement — a separate UPDATE then SELECT races under concurrent
       // creation and produces duplicate itemNumbers (D-C3). TypeORM's query()
@@ -508,6 +524,19 @@ export class WorkItemsService {
       throw new AppLogicException('SUBTASK_NO_SPRINT', HttpStatus.BAD_REQUEST);
     }
 
+    // Validate cross-referenced ids belong to this project (Task 2.5,
+    // audit §4.2/§4.3). statusId is validated separately below — null clears
+    // the field and is always allowed.
+    if (dto.sprintId) {
+      await this.validateSprintInProject(dto.sprintId, projectId);
+    }
+    if (dto.labelIds && dto.labelIds.length > 0) {
+      await this.validateLabelsInProject(dto.labelIds, projectId);
+    }
+    if (dto.assigneeId) {
+      await this.validateAssigneeInProject(dto.assigneeId, projectId);
+    }
+
     // Capture the previous statusId BEFORE any status mutation, so the
     // emitted event can carry it for status-change activity logging (D-C6).
     const previousStatusId = item.statusId;
@@ -740,11 +769,17 @@ export class WorkItemsService {
 
     const sprintId = dto.sprintId ?? null;
 
+    // Validate the sprint belongs to this project (Task 2.5, audit §4.2/§4.3).
+    // null clears the field and is always allowed.
+    if (sprintId !== null) {
+      await this.validateSprintInProject(sprintId, projectId);
+    }
+
     // Track addedMidSprint for tasks assigned to active sprint
     if (item.itemType === 'task' && sprintId !== null) {
       const [sprint] = await this.dataSource.query(
-        `SELECT status FROM sprints WHERE id = $1`,
-        [sprintId],
+        `SELECT status FROM sprints WHERE id = $1 AND project_id = $2`,
+        [sprintId, projectId],
       );
       if (sprint && sprint.status === 'active') {
         item.addedMidSprint = true;
@@ -793,6 +828,13 @@ export class WorkItemsService {
     }
 
     const assigneeId = dto.assigneeId ?? null;
+
+    // Validate the assignee is a member of this project (Task 2.5,
+    // audit §4.2/§4.3). null clears the field and is always allowed.
+    if (assigneeId !== null) {
+      await this.validateAssigneeInProject(assigneeId, projectId);
+    }
+
     item.assigneeId = assigneeId;
     await this.workItemRepo.save(item);
 
@@ -1584,6 +1626,93 @@ export class WorkItemsService {
 
     if (totalDepth > 4) {
       throw new AppLogicException('MAX_DEPTH_EXCEEDED', HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  // =========================================================================
+  // CROSS-PROJECT REFERENCE VALIDATION (Task 2.5 — audit §4.2/§4.3)
+  // =========================================================================
+  //
+  // A caller with access to project A must not be able to attach a status,
+  // sprint, label or assignee that belongs to a different project. These
+  // helpers run a single existence query scoped to the target project and
+  // throw on mismatch. When invoked inside a transaction the caller passes the
+  // transaction's EntityManager so the read participates in the same tx.
+
+  /**
+   * Validates that the status belongs to the given project.
+   */
+  private async validateStatusInProject(
+    statusId: number,
+    projectId: number,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const runner = manager ?? this.dataSource;
+    const rows = await runner.query(
+      `SELECT 1 FROM project_statuses WHERE id = $1 AND project_id = $2`,
+      [statusId, projectId],
+    );
+    if (rows.length === 0) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND, 'Status not found in this project');
+    }
+  }
+
+  /**
+   * Validates that the sprint belongs to the given project.
+   */
+  private async validateSprintInProject(
+    sprintId: number,
+    projectId: number,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const runner = manager ?? this.dataSource;
+    const rows = await runner.query(
+      `SELECT 1 FROM sprints WHERE id = $1 AND project_id = $2`,
+      [sprintId, projectId],
+    );
+    if (rows.length === 0) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND, 'Sprint not found in this project');
+    }
+  }
+
+  /**
+   * Validates that ALL given label ids belong to the given project.
+   * One query — compares the count of matches to the count of requested ids.
+   */
+  private async validateLabelsInProject(
+    labelIds: number[],
+    projectId: number,
+    manager?: EntityManager,
+  ): Promise<void> {
+    if (!labelIds || labelIds.length === 0) {
+      return;
+    }
+    const runner = manager ?? this.dataSource;
+    const uniqueIds = [...new Set(labelIds)];
+    const rows = await runner.query(
+      `SELECT id FROM labels WHERE id = ANY($1) AND project_id = $2`,
+      [uniqueIds, projectId],
+    );
+    if (rows.length !== uniqueIds.length) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.BAD_REQUEST, 'One or more labels do not belong to this project');
+    }
+  }
+
+  /**
+   * Validates that the assignee is a member of the given project.
+   */
+  private async validateAssigneeInProject(
+    assigneeId: number,
+    projectId: number,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const runner = manager ?? this.dataSource;
+    const rows = await runner.query(
+      `SELECT 1 FROM project_members WHERE user_id = $1 AND project_id = $2`,
+      [assigneeId, projectId],
+    );
+    if (rows.length === 0) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.BAD_REQUEST, 'Assignee is not a member of this project');
     }
   }
 

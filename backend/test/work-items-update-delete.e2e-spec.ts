@@ -193,6 +193,81 @@ describe('WorkItems UPDATE + DELETE (e2e)', () => {
     it('returns 404 for non-existent item', async () => {
       await updateItem(99999, { title: 'X' }).expect(404);
     });
+
+    // =======================================================================
+    // Cross-project reference validation (Task 2.5 — audit §4.2/§4.3)
+    // =======================================================================
+
+    describe('cross-project reference validation', () => {
+      let proj2Id: number;
+
+      beforeEach(async () => {
+        const proj2Res = await request(app.getHttpServer())
+          .post('/api/projects')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ name: 'Other', prefix: 'OTH' });
+        proj2Id = proj2Res.body.data.item.id;
+      });
+
+      it('update with sprintId from another project → 4xx', async () => {
+        const [sprint] = await ds.query(
+          `INSERT INTO sprints (project_id, name, status, sprint_number, created_by)
+           VALUES ($1, 'B Sprint', 'planning', 1, $2) RETURNING id`,
+          [proj2Id, adminId],
+        );
+        const res = await createItem({ itemType: 'task', title: 'T1' });
+        const id = res.body.data.item.id;
+
+        const upd = await updateItem(id, { sprintId: sprint.id });
+        expect(upd.status).toBeGreaterThanOrEqual(400);
+        expect(upd.status).toBeLessThan(500);
+      });
+
+      it('update with labelId from another project → 4xx', async () => {
+        const [label] = await ds.query(
+          `INSERT INTO labels (project_id, name, color) VALUES ($1, 'b-label', '#88A9D6') RETURNING id`,
+          [proj2Id],
+        );
+        const res = await createItem({ itemType: 'task', title: 'T1' });
+        const id = res.body.data.item.id;
+
+        const upd = await updateItem(id, { labelIds: [label.id] });
+        expect(upd.status).toBeGreaterThanOrEqual(400);
+        expect(upd.status).toBeLessThan(500);
+      });
+
+      it('update with assigneeId who is not a project member → 4xx', async () => {
+        const outsider = await registerInvitedUser(app, adminToken, 'outsider@test.com', 'member');
+        const res = await createItem({ itemType: 'task', title: 'T1' });
+        const id = res.body.data.item.id;
+
+        const upd = await updateItem(id, { assigneeId: outsider.id });
+        expect(upd.status).toBeGreaterThanOrEqual(400);
+        expect(upd.status).toBeLessThan(500);
+      });
+
+      it('update with same-project sprint/label → 200', async () => {
+        const [sprint] = await ds.query(
+          `INSERT INTO sprints (project_id, name, status, sprint_number, created_by)
+           VALUES ($1, 'A Sprint', 'planning', 1, $2) RETURNING id`,
+          [projectId, adminId],
+        );
+        const [label] = await ds.query(
+          `INSERT INTO labels (project_id, name, color) VALUES ($1, 'a-label', '#88A9D6') RETURNING id`,
+          [projectId],
+        );
+        const res = await createItem({ itemType: 'task', title: 'T1' });
+        const id = res.body.data.item.id;
+
+        const upd = await updateItem(id, {
+          sprintId: sprint.id,
+          labelIds: [label.id],
+        }).expect(200);
+
+        expect(upd.body.data.item.sprintId).toBe(sprint.id);
+        expect(upd.body.data.item.labels).toHaveLength(1);
+      });
+    });
   });
 
   // =========================================================================
