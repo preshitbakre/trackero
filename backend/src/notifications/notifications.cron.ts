@@ -18,25 +18,38 @@ export class NotificationsCron {
 
   @Cron('0 9 * * *', { name: 'daily-notifications' }) // Daily at 9 AM
   async handleDailyNotifications() {
-    // Overlap / multi-instance guard: only one run proceeds at a time.
-    const [{ locked }] = await this.dataSource.query(
-      'SELECT pg_try_advisory_lock($1) AS locked',
-      [DAILY_NOTIFICATIONS_LOCK_KEY],
-    );
-    if (!locked) {
-      this.logger.warn('daily notifications cron already running — skipping');
-      return;
-    }
-
+    // pg advisory locks are SESSION-scoped — they belong to the exact pooled
+    // connection that ran pg_try_advisory_lock. dataSource.query() checks out
+    // an arbitrary pooled connection per call, so an unlock could land on a
+    // different connection and leave the lock lingering. Pin the acquire +
+    // release to one dedicated QueryRunner connection.
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
     try {
-      await this.checkSprintEnding();
-      await this.checkTasksDueSoon();
-      await this.checkTasksOverdue();
+      // Overlap / multi-instance guard: only one run proceeds at a time.
+      const rows = await queryRunner.query(
+        'SELECT pg_try_advisory_lock($1) AS locked',
+        [DAILY_NOTIFICATIONS_LOCK_KEY],
+      );
+      if (!rows[0]?.locked) {
+        this.logger.warn('daily notifications cron already running — skipping');
+        return;
+      }
+
+      try {
+        await this.checkSprintEnding();
+        await this.checkTasksDueSoon();
+        await this.checkTasksOverdue();
+      } finally {
+        // Release on the SAME pinned connection that acquired the lock.
+        await queryRunner.query('SELECT pg_advisory_unlock($1)', [
+          DAILY_NOTIFICATIONS_LOCK_KEY,
+        ]);
+      }
     } finally {
-      // Session-scoped lock — always release, even if a check threw.
-      await this.dataSource.query('SELECT pg_advisory_unlock($1)', [
-        DAILY_NOTIFICATIONS_LOCK_KEY,
-      ]);
+      // Always return the connection to the pool. If the process crashed
+      // before this ran, closing the connection auto-drops the session lock.
+      await queryRunner.release();
     }
   }
 

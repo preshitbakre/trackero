@@ -129,6 +129,32 @@ describe('Notifications Cron — idempotency & overlap (e2e)', () => {
     expect(await countNotifs('task_due_soon', taskId)).toBe(1);
   });
 
+  it('releases the advisory lock after a normal run (no leak on the pooled connection)', async () => {
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split('T')[0];
+    await createAssignedTask('Lock-release task', tomorrow);
+
+    const cron = app.get(NotificationsCron);
+    // A normal run acquires then releases the advisory lock.
+    await cron.handleDailyNotifications();
+
+    // From a separate connection the lock must now be free: if the previous
+    // run leaked it (unlock landed on a different pooled connection), this
+    // pg_try_advisory_lock would return false.
+    const runner = ds.createQueryRunner();
+    await runner.connect();
+    try {
+      const [{ locked }] = await runner.query(
+        'SELECT pg_try_advisory_lock(991002) AS locked',
+      );
+      expect(locked).toBe(true);
+    } finally {
+      await runner.query('SELECT pg_advisory_unlock(991002)');
+      await runner.release();
+    }
+  });
+
   it('skips when the advisory lock is already held (overlap guard)', async () => {
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
       .toISOString()
