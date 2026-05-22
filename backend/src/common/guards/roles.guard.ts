@@ -23,8 +23,25 @@ export class RolesGuard implements CanActivate {
     // Admin always passes
     if (user.role === 'admin') return true;
 
-    // Use project-level role if available (set by ProjectAccessGuard)
-    const effectiveRole = request.projectRole || user.role;
+    // Determine whether this is a project-scoped route (has a :projectId param).
+    const isProjectRoute = request.params?.projectId !== undefined;
+
+    let effectiveRole: string;
+    if (isProjectRoute) {
+      // On a project route the effective role MUST be the project-level role
+      // populated by ProjectAccessGuard. NEVER fall back to the global
+      // `user.role` — that would be fail-open: a missing or mis-ordered
+      // ProjectAccessGuard would otherwise authorize by the (possibly higher)
+      // global role. If `projectRole` is unset here the caller is not an admin
+      // (admins returned early), so fail closed.
+      if (!request.projectRole) {
+        throw new AppLogicException('FORBIDDEN', HttpStatus.FORBIDDEN);
+      }
+      effectiveRole = request.projectRole;
+    } else {
+      // Non-project route — authorize by the global role.
+      effectiveRole = user.role;
+    }
 
     if (!requiredRoles.includes(effectiveRole)) {
       throw new AppLogicException('FORBIDDEN', HttpStatus.FORBIDDEN);

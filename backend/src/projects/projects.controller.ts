@@ -18,8 +18,12 @@ import { UpdateStatusDto } from './dto/update-status.dto';
 import { CreateLabelDto } from './dto/create-label.dto';
 import { UpdateLabelDto } from './dto/update-label.dto';
 
+// ProjectAccessGuard MUST run before RolesGuard so `request.projectRole` is
+// populated for project-scoped routes (:projectId). NestJS runs controller-level
+// guards in listed order. ProjectAccessGuard is a no-op on routes without a
+// :projectId param (e.g. POST /projects, GET /projects), so it is safe here.
 @Controller('projects')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, ProjectAccessGuard, RolesGuard)
 export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
@@ -46,7 +50,6 @@ export class ProjectsController {
 
   @Get(':projectId')
   @Roles('admin', 'project_manager', 'member', 'viewer')
-  @UseGuards(ProjectAccessGuard)
   @ResponseCode('PROJECT_FETCHED')
   async findOne(@Param('projectId', ParseIntPipe) projectId: number) {
     return this.projectsService.findOne(projectId);
@@ -54,7 +57,6 @@ export class ProjectsController {
 
   @Put(':projectId')
   @Roles('admin', 'project_manager')
-  @UseGuards(ProjectAccessGuard)
   @ResponseCode('PROJECT_UPDATED')
   async update(
     @Param('projectId', ParseIntPipe) projectId: number,
@@ -76,7 +78,6 @@ export class ProjectsController {
 
   @Post(':projectId/archive')
   @Roles('admin', 'project_manager')
-  @UseGuards(ProjectAccessGuard)
   @ResponseCode('PROJECT_ARCHIVED')
   async archive(
     @Param('projectId', ParseIntPipe) projectId: number,
@@ -87,7 +88,6 @@ export class ProjectsController {
 
   @Post(':projectId/unarchive')
   @Roles('admin', 'project_manager')
-  @UseGuards(ProjectAccessGuard)
   @ResponseCode('PROJECT_UPDATED')
   async unarchive(
     @Param('projectId', ParseIntPipe) projectId: number,
@@ -100,7 +100,6 @@ export class ProjectsController {
 
   @Post(':projectId/members')
   @Roles('admin', 'project_manager')
-  @UseGuards(ProjectAccessGuard)
   @HttpCode(HttpStatus.CREATED)
   @ResponseCode('PROJECT_MEMBER_ADDED')
   async addMember(
@@ -113,7 +112,6 @@ export class ProjectsController {
 
   @Get(':projectId/members')
   @Roles('admin', 'project_manager', 'member', 'viewer')
-  @UseGuards(ProjectAccessGuard)
   @ResponseCode('PROJECT_MEMBERS_LISTED')
   async listMembers(@Param('projectId', ParseIntPipe) projectId: number) {
     return this.projectsService.listMembers(projectId);
@@ -121,7 +119,6 @@ export class ProjectsController {
 
   @Delete(':projectId/members/:userId')
   @Roles('admin', 'project_manager')
-  @UseGuards(ProjectAccessGuard)
   @ResponseCode('PROJECT_MEMBER_REMOVED')
   async removeMember(
     @Param('projectId', ParseIntPipe) projectId: number,
@@ -132,7 +129,6 @@ export class ProjectsController {
 
   @Put(':projectId/members/:userId')
   @Roles('admin', 'project_manager')
-  @UseGuards(ProjectAccessGuard)
   @ResponseCode('PROJECT_MEMBER_UPDATED')
   async updateMemberRole(
     @Param('projectId', ParseIntPipe) projectId: number,
@@ -146,7 +142,6 @@ export class ProjectsController {
 
   @Get(':projectId/statuses')
   @Roles('admin', 'project_manager', 'member', 'viewer')
-  @UseGuards(ProjectAccessGuard)
   @ResponseCode('STATUSES_LISTED')
   async listStatuses(@Param('projectId', ParseIntPipe) projectId: number) {
     return this.projectsService.listStatuses(projectId);
@@ -154,7 +149,6 @@ export class ProjectsController {
 
   @Post(':projectId/statuses')
   @Roles('admin', 'project_manager')
-  @UseGuards(ProjectAccessGuard)
   @HttpCode(HttpStatus.CREATED)
   @ResponseCode('STATUS_CREATED')
   async createStatus(
@@ -166,7 +160,6 @@ export class ProjectsController {
 
   @Put(':projectId/statuses/reorder')
   @Roles('admin', 'project_manager')
-  @UseGuards(ProjectAccessGuard)
   @ResponseCode('STATUSES_REORDERED')
   async reorderStatuses(
     @Param('projectId', ParseIntPipe) projectId: number,
@@ -177,7 +170,6 @@ export class ProjectsController {
 
   @Put(':projectId/statuses/:statusId')
   @Roles('admin', 'project_manager')
-  @UseGuards(ProjectAccessGuard)
   @ResponseCode('STATUS_UPDATED')
   async updateStatus(
     @Param('projectId', ParseIntPipe) projectId: number,
@@ -189,7 +181,6 @@ export class ProjectsController {
 
   @Delete(':projectId/statuses/:statusId')
   @Roles('admin', 'project_manager')
-  @UseGuards(ProjectAccessGuard)
   @ResponseCode('STATUS_DELETED')
   async deleteStatus(
     @Param('projectId', ParseIntPipe) projectId: number,
@@ -203,7 +194,6 @@ export class ProjectsController {
 
   @Get(':projectId/labels')
   @Roles('admin', 'project_manager', 'member', 'viewer')
-  @UseGuards(ProjectAccessGuard)
   @ResponseCode('LABELS_LISTED')
   async listLabels(@Param('projectId', ParseIntPipe) projectId: number) {
     return this.projectsService.listLabels(projectId);
@@ -211,7 +201,6 @@ export class ProjectsController {
 
   @Post(':projectId/labels')
   @Roles('admin', 'project_manager')
-  @UseGuards(ProjectAccessGuard)
   @HttpCode(HttpStatus.CREATED)
   @ResponseCode('LABEL_CREATED')
   async createLabel(
@@ -223,7 +212,6 @@ export class ProjectsController {
 
   @Put(':projectId/labels/:labelId')
   @Roles('admin', 'project_manager')
-  @UseGuards(ProjectAccessGuard)
   @ResponseCode('LABEL_UPDATED')
   async updateLabel(
     @Param('projectId', ParseIntPipe) projectId: number,
@@ -235,7 +223,6 @@ export class ProjectsController {
 
   @Delete(':projectId/labels/:labelId')
   @Roles('admin', 'project_manager')
-  @UseGuards(ProjectAccessGuard)
   @ResponseCode('LABEL_DELETED')
   async deleteLabel(
     @Param('projectId', ParseIntPipe) projectId: number,
