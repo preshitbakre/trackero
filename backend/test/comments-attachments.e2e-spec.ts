@@ -442,6 +442,69 @@ describe('Comments & Attachments (e2e)', () => {
     });
   });
 
+  describe('SVG rejection & download disposition (§4.3 — SVG stored-XSS)', () => {
+    it('rejects an SVG upload with FILE_TYPE_NOT_ALLOWED', async () => {
+      // An SVG can embed <script> — served inline it is stored XSS.
+      const svg = Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+      );
+      const res = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/items/${taskId}/attachments`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .attach('file', svg, { filename: 'evil.svg', contentType: 'image/svg+xml' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('F-L-0062');
+    });
+
+    it('getPresignedUrl forces attachment disposition for a non-image type', async () => {
+      // Test mode: this.s3 is null so a full S3 round-trip cannot be asserted.
+      // We assert at the service level that a non-image MIME triggers the
+      // attachment-disposition code path. We spy on the GetObjectCommand input
+      // by exercising the service with a non-image and an image type.
+      const { FileStorageService } = await import(
+        '../src/file-storage/file-storage.service'
+      );
+      const svc = app.get(FileStorageService) as InstanceType<
+        typeof FileStorageService
+      >;
+
+      // The disposition decision is internal; expose it via a helper used by
+      // getPresignedUrl. For a PDF (non-image) it must request attachment.
+      const pdfDisposition = (svc as any).resolveDisposition(
+        'application/pdf',
+      );
+      expect(pdfDisposition.contentDisposition).toBe('attachment');
+      expect(pdfDisposition.contentType).toBe('application/octet-stream');
+
+      // For a genuine image, inline display is acceptable.
+      const imgDisposition = (svc as any).resolveDisposition('image/png');
+      expect(imgDisposition.contentDisposition).toBeUndefined();
+    });
+
+    it('getPresignedUrl still returns a URL in test mode for a non-image type', async () => {
+      const uploadRes = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/items/${taskId}/attachments`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .attach('file', Buffer.from('a document'), {
+          filename: 'doc.txt',
+          contentType: 'text/plain',
+        });
+      const attachmentId = uploadRes.body.data.item.id;
+
+      const res = await request(app.getHttpServer())
+        .get(
+          `/api/projects/${projectId}/items/${taskId}/attachments/${attachmentId}/url`,
+        )
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(res.body.data.url).toBeDefined();
+      expect(res.body.data.expiresIn).toBe(3600);
+    });
+  });
+
   describe('Event-listener failure isolation (Task 3.8)', () => {
     it('comment creation still returns 201 when the activity @OnEvent handler throws', async () => {
       // Inject a failure into the ActivityService.onCommentAdded @OnEvent

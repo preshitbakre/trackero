@@ -55,6 +55,30 @@ export class FileStorageService implements OnModuleInit {
     }
   }
 
+  /**
+   * Decides how an object of the given MIME type should be served (§4.3).
+   *
+   * Non-image types are forced to download (`Content-Disposition: attachment`)
+   * with a non-renderable `application/octet-stream` content type so a browser
+   * never renders an uploaded file inline (which would enable stored XSS for
+   * HTML/SVG-like payloads). Genuine raster images may be shown inline.
+   */
+  private resolveDisposition(mimeType: string): {
+    contentDisposition?: string;
+    contentType?: string;
+  } {
+    const INLINE_IMAGE_TYPES = [
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    ];
+    if (INLINE_IMAGE_TYPES.includes(mimeType)) {
+      return {};
+    }
+    return {
+      contentDisposition: 'attachment',
+      contentType: 'application/octet-stream',
+    };
+  }
+
   async upload(projectId: number, taskId: number, originalFilename: string, buffer: Buffer, mimeType: string): Promise<string> {
     const uuid = crypto.randomUUID();
     const safeName = originalFilename.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.{2,}/g, '.');
@@ -62,11 +86,15 @@ export class FileStorageService implements OnModuleInit {
 
     if (this.s3) {
       try {
+        // Always store objects with attachment disposition so the object
+        // metadata itself never invites inline rendering (§4.3). A safe
+        // filename is included for a sensible default download name.
         await this.s3.send(new PutObjectCommand({
           Bucket: this.bucket,
           Key: key,
           Body: buffer,
           ContentType: mimeType,
+          ContentDisposition: `attachment; filename="${safeName}"`,
         }));
       } catch (err: any) {
         console.error(`[FileStorage] Upload failed for ${key}:`, err?.message || err);
@@ -89,13 +117,22 @@ export class FileStorageService implements OnModuleInit {
     }
   }
 
-  async getPresignedUrl(key: string): Promise<{ url: string; expiresIn: number }> {
+  async getPresignedUrl(
+    key: string,
+    mimeType?: string,
+  ): Promise<{ url: string; expiresIn: number }> {
     if (!this.s3) {
       return { url: `http://localhost:9000/${this.bucket}/${key}`, expiresIn: this.presignExpiry };
     }
+    // A presigned S3 GET URL can override the response headers the object is
+    // served with. For non-image types, force a download (§4.3) so even a
+    // permissively-stored object cannot be rendered inline.
+    const { contentDisposition, contentType } = this.resolveDisposition(mimeType ?? '');
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: key,
+      ...(contentDisposition ? { ResponseContentDisposition: contentDisposition } : {}),
+      ...(contentType ? { ResponseContentType: contentType } : {}),
     });
     const url = await getSignedUrl(this.s3, command, { expiresIn: this.presignExpiry });
     return { url, expiresIn: this.presignExpiry };

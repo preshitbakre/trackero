@@ -46,8 +46,10 @@ export class AttachmentsService {
     }
 
     // Validate MIME type by magic bytes
+    // image/svg+xml is deliberately excluded: SVGs can embed <script> and
+    // would execute as stored XSS if served inline (§4.3).
     const ALLOWED_MIMES = [
-      'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
       'application/pdf',
       'text/plain', 'text/csv',
       'application/msword',
@@ -125,7 +127,7 @@ export class AttachmentsService {
     if (!attachment) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
-    return this.fileStorage.getPresignedUrl(attachment.storageKey);
+    return this.fileStorage.getPresignedUrl(attachment.storageKey, attachment.mimeType);
   }
 
   async remove(projectId: number, workItemId: number, attachmentId: number) {
