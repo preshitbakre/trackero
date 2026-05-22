@@ -12,6 +12,10 @@ import { User } from '../../users/entities/user.entity';
 @Entity('invitations')
 @Index('IDX_invite_token', ['token'], { unique: true })
 @Index('IDX_invite_email', ['email'])
+@Index('UQ_invitation_pending_email', ['email'], {
+  unique: true,
+  where: "status = 'pending'",
+})
 export class Invitation {
   @PrimaryGeneratedColumn('increment')
   id: number;

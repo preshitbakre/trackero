@@ -218,6 +218,72 @@ describe('Admin, Settings & Invitations (e2e)', () => {
       expect(res.body.success).toBe(false);
       expect(res.body.code).toBe('F-L-0002');
     });
+
+    it('two concurrent invites for the same email -> exactly one 201, one clean 409', async () => {
+      // The findOne pre-check has a TOCTOU race: two concurrent invites can both
+      // pass it and both insert a pending row. The partial unique index
+      // UQ_invitation_pending_email (email WHERE status='pending') is the DB
+      // backstop -> loser's INSERT raises 23505 -> clean 409 DUPLICATE_ENTRY.
+      for (let round = 0; round < 5; round++) {
+        const email = `concurrent-${round}@test.com`;
+        const results = await Promise.allSettled([
+          request(app.getHttpServer())
+            .post('/api/users/invite')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ email, role: 'member' }),
+          request(app.getHttpServer())
+            .post('/api/users/invite')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ email, role: 'member' }),
+        ]);
+
+        const statuses = results.map((r) =>
+          r.status === 'fulfilled' ? r.value.status : 0,
+        );
+
+        const successes = statuses.filter((s) => s === 201);
+        const conflicts = statuses.filter((s) => s === 409);
+
+        expect(successes).toHaveLength(1);
+        expect(conflicts).toHaveLength(1);
+        // No raw 500s — the duplicate must be a clean 409 DUPLICATE_ENTRY.
+        expect(statuses.filter((s) => s === 500)).toHaveLength(0);
+
+        const conflictRes = results.find(
+          (r) => r.status === 'fulfilled' && r.value.status === 409,
+        );
+        if (conflictRes && conflictRes.status === 'fulfilled') {
+          expect(conflictRes.value.body.success).toBe(false);
+          expect(conflictRes.value.body.code).toBe('F-L-0002');
+        }
+      }
+    });
+
+    it('re-inviting an email is allowed once the prior invitation is no longer pending', async () => {
+      // The partial index only constrains status='pending' rows. Once an
+      // invitation is no longer pending (accepted/expired) the same email can
+      // be invited again. Flip the prior invitation directly in the DB so the
+      // active-user check (which a full register() flow would trip) is out of
+      // the way and the partial index is the only thing under test.
+      await request(app.getHttpServer())
+        .post('/api/users/invite')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ email: 'reinvite@test.com', role: 'member' })
+        .expect(201);
+
+      const dataSource = app.get(DataSource);
+      await dataSource.query(
+        `UPDATE invitations SET status = 'expired' WHERE email = $1`,
+        ['reinvite@test.com'],
+      );
+
+      // The expired row must NOT block a fresh pending invitation for the same email.
+      await request(app.getHttpServer())
+        .post('/api/users/invite')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ email: 'reinvite@test.com', role: 'member' })
+        .expect(201);
+    });
   });
 
   describe('Health', () => {
