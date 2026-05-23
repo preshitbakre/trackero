@@ -98,6 +98,10 @@ export const ResponseCodes = {
   COMMENT_CREATED:        { code: 'S-0141', message: 'Comment added' },
   COMMENT_UPDATED:        { code: 'S-0142', message: 'Comment updated' },
   COMMENT_DELETED:        { code: 'S-0143', message: 'Comment deleted' },
+  COMMENT_REACTED:        { code: 'S-0144', message: 'Reaction toggled' },
+  WATCHER_ADDED:          { code: 'S-0145', message: 'You are now watching' },
+  WATCHER_REMOVED:        { code: 'S-0146', message: 'You stopped watching' },
+  WATCHERS_LISTED:        { code: 'S-0147', message: 'Watchers retrieved' },
 
   // Attachments (S-0150 – S-0154)
   ATTACHMENTS_LISTED:     { code: 'S-0150', message: 'Attachments retrieved' },

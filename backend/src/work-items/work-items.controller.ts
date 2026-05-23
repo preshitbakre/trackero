@@ -2,6 +2,7 @@ import {
   Controller, Post, Get, Put, Delete, Body, Param, Query,
   UseGuards, HttpCode, HttpStatus, ParseIntPipe,
 } from '@nestjs/common';
+import { DataSource } from 'typeorm';
 import { WorkItemsService } from './work-items.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -21,7 +22,10 @@ import { ReorderItemsDto } from './dto/reorder-items.dto';
 @Controller('projects/:projectId/items')
 @UseGuards(JwtAuthGuard, ProjectAccessGuard, RolesGuard)
 export class WorkItemsController {
-  constructor(private readonly workItemsService: WorkItemsService) {}
+  constructor(
+    private readonly workItemsService: WorkItemsService,
+    private readonly dataSource: DataSource,
+  ) {}
 
   @Post()
   @Roles('admin', 'project_manager', 'member')
@@ -210,5 +214,74 @@ export class WorkItemsController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.workItemsService.listAssociations(projectId, id);
+  }
+
+  // Phase 7 — watchers. Lightweight raw-SQL because the table is a pure
+  // join with no business rules beyond visibility (already enforced by
+  // ProjectAccessGuard on the controller).
+  @Post(':id/watchers/me')
+  @Roles('admin', 'project_manager', 'member', 'viewer')
+  @HttpCode(HttpStatus.OK)
+  @ResponseCode('WATCHER_ADDED')
+  async watch(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    await this.dataSource.query(
+      `INSERT INTO work_item_watchers (work_item_id, user_id)
+       VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [id, user.userId],
+    );
+    const [count] = await this.dataSource.query(
+      `SELECT COUNT(*)::int AS count FROM work_item_watchers WHERE work_item_id = $1`,
+      [id],
+    );
+    return { watching: true, watcherCount: count.count };
+  }
+
+  @Delete(':id/watchers/me')
+  @Roles('admin', 'project_manager', 'member', 'viewer')
+  @HttpCode(HttpStatus.OK)
+  @ResponseCode('WATCHER_REMOVED')
+  async unwatch(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    await this.dataSource.query(
+      `DELETE FROM work_item_watchers WHERE work_item_id = $1 AND user_id = $2`,
+      [id, user.userId],
+    );
+    const [count] = await this.dataSource.query(
+      `SELECT COUNT(*)::int AS count FROM work_item_watchers WHERE work_item_id = $1`,
+      [id],
+    );
+    return { watching: false, watcherCount: count.count };
+  }
+
+  @Get(':id/watchers')
+  @Roles('admin', 'project_manager', 'member', 'viewer')
+  @ResponseCode('WATCHERS_LISTED')
+  async listWatchers(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const rows = await this.dataSource.query(
+      `SELECT u.id, u.display_name AS "displayName", u.avatar_url AS "avatarUrl"
+       FROM work_item_watchers w
+       JOIN users u ON u.id = w.user_id
+       WHERE w.work_item_id = $1
+       ORDER BY w.created_at DESC
+       LIMIT 50`,
+      [id],
+    );
+    const [count] = await this.dataSource.query(
+      `SELECT COUNT(*)::int AS count FROM work_item_watchers WHERE work_item_id = $1`,
+      [id],
+    );
+    const byMe = rows.some((r: any) => r.id === user.userId);
+    return { watchers: rows, watcherCount: count.count, byMe };
   }
 }

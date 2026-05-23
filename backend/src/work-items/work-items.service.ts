@@ -219,6 +219,7 @@ export class WorkItemsService {
         avatarUrl: (item.reporter as any).avatarUrl ?? null,
       } : null,
       reporterId: item.reporterId,
+      reviewerId: item.reviewerId,
       storyPoints: item.storyPoints,
       endDate: item.endDate,
       startDate: item.startDate,
@@ -555,6 +556,7 @@ export class WorkItemsService {
       sprintId: item.sprintId,
       startDate: item.startDate,
       endDate: item.endDate,
+      reviewerId: item.reviewerId,
     };
     const previousStatusId = item.statusId;
     let statusChanged = false;
@@ -611,6 +613,7 @@ export class WorkItemsService {
     if (dto.priority !== undefined) item.priority = dto.priority as WorkItem['priority'];
     if (dto.storyPoints !== undefined) item.storyPoints = dto.storyPoints;
     if (dto.assigneeId !== undefined) item.assigneeId = dto.assigneeId;
+    if ((dto as any).reviewerId !== undefined) item.reviewerId = (dto as any).reviewerId;
     if (dto.endDate !== undefined) item.endDate = dto.endDate;
     if (dto.startDate !== undefined) item.startDate = dto.startDate;
     if (dto.color !== undefined) item.color = dto.color;
@@ -687,6 +690,9 @@ export class WorkItemsService {
     }
     if (dto.endDate !== undefined && dto.endDate !== before.endDate) {
       previous.endDate = { old: before.endDate, new: result!.endDate };
+    }
+    if ((dto as any).reviewerId !== undefined && (dto as any).reviewerId !== before.reviewerId) {
+      previous.reviewerId = { old: before.reviewerId, new: result!.reviewerId };
     }
 
     this.eventEmitter.emit('work_item.updated', {

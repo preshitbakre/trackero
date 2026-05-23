@@ -37,10 +37,28 @@ export class CommentsController {
   async findAll(
     @Param('projectId', ParseIntPipe) projectId: number,
     @Param('itemId', ParseIntPipe) itemId: number,
+    @CurrentUser() user: JwtPayload,
     @Query('page', new ParseIntPipe({ optional: true })) page?: number,
     @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
   ) {
-    return this.commentsService.listComments(projectId, itemId, page || 1, limit || 20);
+    // Phase 7 — listWithEngagement attaches reactions + mentions to each
+    // comment row. The shape mirrors the legacy `listComments` so existing
+    // consumers ignoring the new keys still work.
+    return this.commentsService.listWithEngagement(projectId, itemId, user.userId, page || 1, limit || 20);
+  }
+
+  @Post(':commentId/reactions')
+  @Roles('admin', 'project_manager', 'member')
+  @HttpCode(HttpStatus.OK)
+  @ResponseCode('COMMENT_REACTED')
+  async react(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Param('commentId', ParseIntPipe) commentId: number,
+    @Body() body: { emoji: string },
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.commentsService.toggleReaction(projectId, itemId, commentId, body.emoji, user.userId);
   }
 
   @Put(':commentId')

@@ -97,6 +97,9 @@ export function TaskDetailPage() {
   const [newComment, setNewComment] = useState('');
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [checklistItems, setChecklistItems] = useState<{ id: number; title: string; isCompleted: boolean }[]>([]);
+  // Phase 7 — watcher state for the "N watching" badge in the header.
+  const [watcherCount, setWatcherCount] = useState<number>(0);
+  const [byMeWatching, setByMeWatching] = useState<boolean>(false);
   const [showAddChecklist, setShowAddChecklist] = useState(false);
   const [newChecklistTitle, setNewChecklistTitle] = useState('');
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
@@ -132,6 +135,7 @@ export function TaskDetailPage() {
     loadAttachments();
     loadActivity();
     loadAssociations();
+    loadWatchers();
   }, [tid]);
 
   useEffect(() => {
@@ -159,6 +163,45 @@ export function TaskDetailPage() {
       const { data } = await apiClient.get(`/projects/${pid}/items/${tid}/comments`);
       setComments(data.data.list || []);
     } catch (err) { console.error(err); }
+  };
+
+  // Phase 7 — watcher state + toggle.
+  const loadWatchers = async () => {
+    try {
+      const { data } = await apiClient.get(`/projects/${pid}/items/${tid}/watchers`);
+      setWatcherCount(data.data?.watcherCount ?? 0);
+      setByMeWatching(!!data.data?.byMe);
+    } catch {
+      setWatcherCount(0);
+      setByMeWatching(false);
+    }
+  };
+
+  const toggleWatch = async () => {
+    try {
+      const url = `/projects/${pid}/items/${tid}/watchers/me`;
+      const { data } = byMeWatching
+        ? await apiClient.delete(url)
+        : await apiClient.post(url);
+      setByMeWatching(!!data.data?.watching);
+      setWatcherCount(data.data?.watcherCount ?? 0);
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Could not update watching status', 'error');
+    }
+  };
+
+  const toggleReaction = async (commentId: number, emoji: string) => {
+    try {
+      const { data } = await apiClient.post(
+        `/projects/${pid}/items/${tid}/comments/${commentId}/reactions`,
+        { emoji },
+      );
+      setComments((prev) => prev.map((c) =>
+        c.id === commentId ? { ...c, reactions: data.data } : c,
+      ));
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Could not toggle reaction', 'error');
+    }
   };
 
   const loadAttachments = async () => {
@@ -599,6 +642,41 @@ export function TaskDetailPage() {
                           <span className="text-[16px] text-neutral-400">{new Date(c.createdAt).toLocaleString()}{c.editedAt && ' (edited)'}</span>
                         </div>
                         <p className="text-neutral-600 dark:text-dneutral-600 whitespace-pre-wrap">{c.body}</p>
+                        {/* Phase 7 — reactions + quick-react row. Clicking
+                            an existing reaction toggles the caller's stance. */}
+                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                          {((c as any).reactions ?? []).map((r: any) => (
+                            <button
+                              key={r.emoji}
+                              type="button"
+                              onClick={() => toggleReaction(c.id, r.emoji)}
+                              disabled={!canEdit}
+                              className={`px-1.5 py-0.5 rounded-full text-[12px] inline-flex items-center gap-1 transition-colors ${
+                                r.byMe
+                                  ? 'bg-lilac-tint text-lilac-dark border border-lilac/30'
+                                  : 'bg-paper text-mute hover:bg-rule'
+                              }`}
+                            >
+                              <span>{r.emoji}</span>
+                              <span className="font-medium">{r.count}</span>
+                            </button>
+                          ))}
+                          {canEdit && (
+                            <button
+                              type="button"
+                              onClick={() => toggleReaction(c.id, '👍')}
+                              className="px-1.5 py-0.5 rounded-full text-[12px] text-faint hover:bg-paper hover:text-text"
+                              title="React with 👍"
+                            >
+                              + 👍
+                            </button>
+                          )}
+                          {((c as any).mentions ?? []).length > 0 && (
+                            <span className="text-[11px] italic text-faint ml-1">
+                              mentions: {((c as any).mentions as Array<any>).map((m: any) => `@${m.displayName}`).join(', ')}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     ))}
                     {comments.length > PREVIEW_LIMIT && (
@@ -612,12 +690,20 @@ export function TaskDetailPage() {
             )}
             {canEdit && (
               <form onSubmit={handleAddComment} className="flex gap-1">
-                <input
-                  type="text"
+                <textarea
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
-                  placeholder="Add a comment..."
-                  className="flex-1 text-[16px] px-2 py-1.5 rounded border border-neutral-200 dark:border-dneutral-300 bg-transparent text-neutral-700 dark:text-dneutral-700"
+                  onKeyDown={(e) => {
+                    // Phase 7 — ⌘↵ / Ctrl+↵ submits the comment from the
+                    // textarea so users don't have to leave the keyboard.
+                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddComment(e as any);
+                    }
+                  }}
+                  rows={2}
+                  placeholder="Add a comment… (⌘↵ to post, @ to mention)"
+                  className="flex-1 text-[16px] px-2 py-1.5 rounded border border-neutral-200 dark:border-dneutral-300 bg-transparent text-neutral-700 dark:text-dneutral-700 resize-none"
                 />
                 <Button type="submit" variant="primary" size="sm">Post</Button>
               </form>
@@ -627,6 +713,25 @@ export function TaskDetailPage() {
 
         {/* Right column — properties + activity */}
         <div className="flex flex-col overflow-hidden p-6" style={{ flexBasis: '40%', maxWidth: '400px' }}>
+          {/* Phase 7 — watcher controls */}
+          <div className="mb-4 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={toggleWatch}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-[13px] font-medium border transition-colors ${
+                byMeWatching
+                  ? 'bg-lilac-tint text-lilac-dark border-lilac/30'
+                  : 'bg-card text-text border-rule hover:bg-paper'
+              }`}
+            >
+              <span>{byMeWatching ? '★' : '☆'}</span>
+              <span>{byMeWatching ? 'Watching' : 'Watch'}</span>
+            </button>
+            <span className="text-[12px] text-mute">
+              {watcherCount} {watcherCount === 1 ? 'watcher' : 'watchers'}
+            </span>
+          </div>
+
           {/* Properties */}
           <div className="space-y-3 text-[16px] flex-shrink-0">
             <h3 className="text-[16px] font-medium text-neutral-400 uppercase">Properties</h3>

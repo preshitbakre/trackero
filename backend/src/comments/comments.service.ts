@@ -44,27 +44,53 @@ export class CommentsService {
     });
     const saved = await this.commentRepo.save(comment);
 
-    // Parse @mentions first so the comment.added payload can carry the
-    // resolved mentionedUserIds (consumed by gateway broadcast, watchers,
-    // and integrations in later phases).
-    const mentionedNames = new Set<string>();
-    const mentionRe = /@(\w+)/g;
+    // Phase 7 — mentions become first-class. Parse @tokens, resolve them
+    // against active project members (display_name OR email prefix),
+    // persist into comment_mentions, and emit one COMMENT_MENTIONED per
+    // resolved user. Self-mentions are filtered out.
+    const mentionTokens = new Set<string>();
+    const mentionRe = /@([A-Za-z0-9._-]+)/g;
     let m: RegExpExecArray | null;
     while ((m = mentionRe.exec(body)) !== null) {
-      mentionedNames.add(m[1]);
+      mentionTokens.add(m[1]);
     }
 
     const mentionedUserIds: number[] = [];
-    if (mentionedNames.size > 0) {
-      for (const name of mentionedNames) {
-        const [mentionedUser] = await this.dataSource.query(
-          `SELECT id FROM users WHERE display_name ILIKE $1 AND is_active = true LIMIT 1`,
-          [name],
-        );
-        if (mentionedUser && mentionedUser.id !== userId) {
-          mentionedUserIds.push(mentionedUser.id);
+    if (mentionTokens.size > 0) {
+      // Resolve all tokens in one query — scoped to active project members
+      // so a stray @typo doesn't pull in a random user from another org.
+      const tokens = Array.from(mentionTokens);
+      const resolved: Array<{ id: number; token: string }> = await this.dataSource.query(
+        `
+        SELECT DISTINCT ON (u.id) u.id, t.token
+        FROM users u
+        JOIN project_members pm ON pm.user_id = u.id AND pm.project_id = $1
+        CROSS JOIN UNNEST($2::text[]) AS t(token)
+        WHERE u.is_active = TRUE
+          AND (
+            LOWER(u.display_name) = LOWER(t.token)
+            OR LOWER(SPLIT_PART(u.display_name, ' ', 1)) = LOWER(t.token)
+            OR LOWER(SPLIT_PART(u.email, '@', 1)) = LOWER(t.token)
+          )
+          AND u.id <> $3
+        `,
+        [projectId, tokens, userId],
+      );
+
+      for (const row of resolved) {
+        try {
+          await this.dataSource.query(
+            `INSERT INTO comment_mentions (comment_id, user_id) VALUES ($1, $2)
+             ON CONFLICT DO NOTHING`,
+            [saved.id, row.id],
+          );
+        } catch {
+          // ignore — UQ violation means we already inserted this pair.
+        }
+        if (!mentionedUserIds.includes(row.id)) {
+          mentionedUserIds.push(row.id);
           const mentionPayload: CommentMentionedPayload = {
-            userId: mentionedUser.id,
+            userId: row.id,
             actorId: userId,
             workItemId,
             projectId,
@@ -138,5 +164,108 @@ export class CommentsService {
       throw new AppLogicException('FORBIDDEN', HttpStatus.FORBIDDEN);
     }
     await this.commentRepo.remove(comment);
+  }
+
+  /**
+   * Phase 7 — extend the listed comments with reactions and mentions.
+   * Returns the same paginated shape but each comment carries `reactions:
+   * [{ emoji, count, byMe }]` and `mentions: [{ userId, displayName }]`.
+   *
+   * Aggregates are a single grouped query so we don't N+1 on the list
+   * size (which is tiny today but trending up as discussion gets active).
+   */
+  async listWithEngagement(projectId: number, workItemId: number, viewerUserId: number, page = 1, limit = 20) {
+    const base = await this.listComments(projectId, workItemId, page, limit);
+    // PaginatedResponse stores rows on `.data`; the response interceptor
+    // unwraps it into the envelope's `list` field. We need to mutate
+    // `.data` here so the envelope sees the enriched rows.
+    const items: any[] = (base as any).data ?? [];
+    if (items.length === 0) return base;
+
+    const ids = items.map((c) => c.id);
+    const reactionRows: Array<{ comment_id: number; emoji: string; count: number; by_me: boolean }> =
+      await this.dataSource.query(
+        `
+        SELECT
+          comment_id,
+          emoji,
+          COUNT(*)::int AS count,
+          BOOL_OR(user_id = $2) AS by_me
+        FROM comment_reactions
+        WHERE comment_id = ANY($1::int[])
+        GROUP BY comment_id, emoji
+        ORDER BY count DESC
+        `,
+        [ids, viewerUserId],
+      );
+    const mentionRows: Array<{ comment_id: number; user_id: number; display_name: string }> =
+      await this.dataSource.query(
+        `
+        SELECT cm.comment_id, cm.user_id, u.display_name
+        FROM comment_mentions cm
+        JOIN users u ON u.id = cm.user_id
+        WHERE cm.comment_id = ANY($1::int[])
+        `,
+        [ids],
+      );
+
+    const reactionsByComment = new Map<number, Array<{ emoji: string; count: number; byMe: boolean }>>();
+    for (const r of reactionRows) {
+      const arr = reactionsByComment.get(r.comment_id) ?? [];
+      arr.push({ emoji: r.emoji, count: r.count, byMe: r.by_me });
+      reactionsByComment.set(r.comment_id, arr);
+    }
+    const mentionsByComment = new Map<number, Array<{ userId: number; displayName: string }>>();
+    for (const m of mentionRows) {
+      const arr = mentionsByComment.get(m.comment_id) ?? [];
+      arr.push({ userId: m.user_id, displayName: m.display_name });
+      mentionsByComment.set(m.comment_id, arr);
+    }
+
+    const enriched = items.map((c) => ({
+      ...c,
+      reactions: reactionsByComment.get(c.id) ?? [],
+      mentions: mentionsByComment.get(c.id) ?? [],
+    }));
+    (base as any).data = enriched;
+    return base;
+  }
+
+  async toggleReaction(projectId: number, workItemId: number, commentId: number, emoji: string, userId: number) {
+    await this.verifyItemInProject(projectId, workItemId);
+    const comment = await this.commentRepo.findOne({ where: { id: commentId, workItemId } });
+    if (!comment) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    const normalised = (emoji ?? '').trim();
+    if (!normalised || normalised.length > 8) {
+      throw new AppLogicException('VALIDATION_FAILED', HttpStatus.BAD_REQUEST);
+    }
+    // Upsert / delete on toggle. Use a transaction so concurrent toggles
+    // from the same user can't both insert past the UQ.
+    return this.dataSource.transaction(async (tx) => {
+      const existing = await tx.query(
+        `SELECT id FROM comment_reactions WHERE comment_id = $1 AND user_id = $2 AND emoji = $3`,
+        [commentId, userId, normalised],
+      );
+      if (existing.length > 0) {
+        await tx.query(`DELETE FROM comment_reactions WHERE id = $1`, [existing[0].id]);
+      } else {
+        try {
+          await tx.query(
+            `INSERT INTO comment_reactions (comment_id, user_id, emoji) VALUES ($1, $2, $3)`,
+            [commentId, userId, normalised],
+          );
+        } catch (err: any) {
+          if (err?.code !== '23505') throw err;
+        }
+      }
+      const rows = await tx.query(
+        `SELECT emoji, COUNT(*)::int AS count, BOOL_OR(user_id = $2) AS by_me
+         FROM comment_reactions WHERE comment_id = $1 GROUP BY emoji ORDER BY count DESC`,
+        [commentId, userId],
+      );
+      return rows.map((r: any) => ({ emoji: r.emoji, count: r.count, byMe: r.by_me }));
+    });
   }
 }

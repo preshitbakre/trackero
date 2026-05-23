@@ -101,6 +101,11 @@ export class WorkItem {
   @Column({ name: 'reporter_id', type: 'int' })
   reporterId: number;
 
+  // Phase 7 — optional reviewer pointer. Today rail's "Reviewing for"
+  // reads this; sprint-planning and the task detail right rail edit it.
+  @Column({ name: 'reviewer_id', type: 'int', nullable: true })
+  reviewerId: number | null;
+
   // =======================================
   // ORDERING
   // =======================================

@@ -4,6 +4,57 @@ All notable changes to Trackero are tracked here. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0-task-parity] — 2026-05-24
+
+Phase 7. Task detail catches up to frame-6 parity: watchers, first-class
+@mentions, comment reactions, an explicit reviewer field, and a comment
+composer that takes ⌘↵.
+
+### Added
+- Migration **036** — `work_item_watchers (work_item_id, user_id)` join
+  table with composite PK, CASCADE both sides, `IDX_user` for the
+  "items I'm watching" lookup.
+- Migration **037** — `comment_mentions` table. Replaces the fragile
+  ILIKE-on-display_name parser with a real relation; UQ(comment_id,
+  user_id) makes mention persistence idempotent across comment edits.
+- Migration **038** — `comment_reactions (comment_id, user_id, emoji)`
+  with UQ on the trio so a user can't double-react with the same emoji.
+- Migration **039** — `work_items.reviewer_id` (SET NULL FK) + partial
+  index for "items I'm reviewing".
+- New endpoints:
+  - `POST  /api/projects/:p/items/:id/watchers/me`
+  - `DELETE /api/projects/:p/items/:id/watchers/me`
+  - `GET   /api/projects/:p/items/:id/watchers` — returns `{ watchers,
+    watcherCount, byMe }`, capped at 50.
+  - `POST /api/projects/:p/items/:id/comments/:cid/reactions { emoji }`
+    — toggles; returns the post-toggle group aggregate.
+- `CommentsService.create` rewrites mentions resolution against
+  project_members with display_name / first-name / email-prefix
+  matching. Self-mentions filtered. Persists into `comment_mentions`,
+  emits one COMMENT_MENTIONED event per resolved user.
+- `WorkItemsService.update` accepts `reviewerId` in the DTO; the change
+  surfaces in the activity feed as a `reviewer` field-change row.
+- `WorkItemResponse.reviewerId` is now part of every item payload.
+- `CommentResponse` (via `listWithEngagement`) carries `reactions:
+  [{ emoji, count, byMe }]` and `mentions: [{ userId, displayName }]`
+  on every row — one grouped query, no N+1.
+
+### Changed
+- TaskDetailPage gains a Watch button + watcher-count badge in the
+  right rail, ⌘↵ submission on the comment composer, and a per-comment
+  reaction row (toggling on click); mentions render as an inline tag.
+
+### Testing
+- New regression pack `e2e/regression/phase-7/` — watch/unwatch
+  roundtrip, reviewer persistence, comment enrichment shape +
+  reaction toggle invariant.
+
+### Deferred (kept narrow scope)
+- Full frame-6 layout rebuild (Acceptance callout, sub-items "1 of 4
+  done", reply-quote affordance, @-autocomplete) remains the next
+  iteration. Phase 8's bulk-invites + notification prefs work won't
+  block on them.
+
 ## [1.7.0-retro] — 2026-05-24
 
 Phase 6. Retro widens to four columns (KEPT / DROPPED / SHIPPED · Lucky

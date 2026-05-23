@@ -54,4 +54,8 @@ export class UpdateWorkItemDto {
   @IsArray()
   @IsInt({ each: true })
   labelIds?: number[];
+
+  @IsOptional()
+  @IsInt()
+  reviewerId?: number | null;
 }

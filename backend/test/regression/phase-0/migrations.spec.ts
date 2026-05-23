@@ -51,6 +51,10 @@ import { PinnedProjectsAndVisits1716000032000 } from '../../../migrations/171600
 import { SearchPeopleProjects1716000033000 } from '../../../migrations/1716000033000-search-people-projects';
 import { SprintDailySnapshots1716000034000 } from '../../../migrations/1716000034000-sprint-daily-snapshots';
 import { RetroFourColumns1716000035000 } from '../../../migrations/1716000035000-retro-four-columns';
+import { WorkItemWatchers1716000036000 } from '../../../migrations/1716000036000-work-item-watchers';
+import { CommentMentions1716000037000 } from '../../../migrations/1716000037000-comment-mentions';
+import { CommentReactions1716000038000 } from '../../../migrations/1716000038000-comment-reactions';
+import { WorkItemsReviewer1716000039000 } from '../../../migrations/1716000039000-work-items-reviewer';
 import { EXPECTED_MIGRATION_NAMES } from '../../../src/database/migrations-registry';
 
 const ALL_MIGRATIONS: MixedList<new () => MigrationInterface> = [
@@ -90,6 +94,10 @@ const ALL_MIGRATIONS: MixedList<new () => MigrationInterface> = [
   SearchPeopleProjects1716000033000,
   SprintDailySnapshots1716000034000,
   RetroFourColumns1716000035000,
+  WorkItemWatchers1716000036000,
+  CommentMentions1716000037000,
+  CommentReactions1716000038000,
+  WorkItemsReviewer1716000039000,
 ];
 
 function uniqueDbName(): string {

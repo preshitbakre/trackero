@@ -93,6 +93,7 @@ export class ActivityService {
         sprintId: 'sprint',
         startDate: 'start_date',
         endDate: 'end_date',
+        reviewerId: 'reviewer',
       };
 
       const toStr = (v: unknown): string | null => {
