@@ -10,6 +10,7 @@ import { toast } from '../common/Toast';
 import { Select } from '../ui/Select';
 import { Input } from '../ui/Input';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import { Modal } from '../common/Modal';
 import { Button } from '../ui/Button';
 import { createPortal } from 'react-dom';
 
@@ -347,36 +348,40 @@ function AddStatusDialog({ projectId, onClose, onCreated }: { projectId: string;
     setLoading(false);
   };
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-700/50" onClick={onClose}>
-      <div className="bg-white dark:bg-dneutral-100 rounded-lg p-6 w-full max-w-sm shadow-xl dark:shadow-[0_12px_36px_rgba(0,0,0,0.6)]" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-[22px] font-bold mb-4 text-neutral-700 dark:text-dneutral-700">Add status</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && <div className="text-[16px] text-danger">{error}</div>}
-          <div>
-            <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Name</label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={50} autoFocus />
+  const titleId = 'add-status-dialog-title';
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      titleId={titleId}
+      overlayClassName="fixed inset-0 z-50 bg-neutral-700/50"
+      contentClassName="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-white dark:bg-dneutral-100 rounded-lg p-6 shadow-xl dark:shadow-[0_12px_36px_rgba(0,0,0,0.6)] focus:outline-none"
+    >
+      <h2 id={titleId} className="text-[22px] font-bold mb-4 text-neutral-700 dark:text-dneutral-700">Add status</h2>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && <div className="text-[16px] text-danger">{error}</div>}
+        <div>
+          <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Name</label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={50} autoFocus />
+        </div>
+        <div>
+          <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Color</label>
+          <div className="grid grid-cols-6 gap-2 mb-2">
+            {PRESET_COLORS.map((c) => (
+              <button key={c} type="button" onClick={() => setColor(c)} className={`w-7 h-7 rounded-full border-2 ${color === c ? 'border-peri' : 'border-transparent'}`} style={{ backgroundColor: c }} />
+            ))}
           </div>
-          <div>
-            <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Color</label>
-            <div className="grid grid-cols-6 gap-2 mb-2">
-              {PRESET_COLORS.map((c) => (
-                <button key={c} type="button" onClick={() => setColor(c)} className={`w-7 h-7 rounded-full border-2 ${color === c ? 'border-peri' : 'border-transparent'}`} style={{ backgroundColor: c }} />
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Category</label>
-            <Select value={category} onChange={setCategory} options={CATEGORY_OPTIONS} className="w-full" />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-            <Button type="submit" variant="primary" disabled={loading}>{loading ? 'Creating...' : 'Add'}</Button>
-          </div>
-        </form>
-      </div>
-    </div>,
-    document.body,
+        </div>
+        <div>
+          <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Category</label>
+          <Select value={category} onChange={setCategory} options={CATEGORY_OPTIONS} className="w-full" />
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="primary" disabled={loading}>{loading ? 'Creating...' : 'Add'}</Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

@@ -8,9 +8,11 @@ import {
   DragOverlay,
   closestCorners,
   PointerSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { apiClient } from '../../api/client';
 import { getSocket } from '../../lib/socket';
 import { useAuthStore } from '../../store/auth.store';
@@ -64,6 +66,7 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
   const dragRequestSeq = useRef<number>(0);
 
