@@ -8,22 +8,41 @@ import { CreateProjectDialog } from '../common/CreateProjectDialog';
 
 export function AdminDashboard({ data }: { data: any }) {
   const [showCreate, setShowCreate] = useState(false);
-  const { greeting, instanceStats, sprintOverview, projects, teamWorkload, blockedTasks, recentActivity, userStats } = data;
+  const safeData = data ?? {};
+  const {
+    greeting = {},
+    instanceStats = {},
+    sprintOverview = {},
+    projects = [],
+    teamWorkload = [],
+    blockedTasks = [],
+    recentActivity = [],
+    userStats = {},
+  } = safeData;
 
+  const totalUsers = instanceStats.totalUsers ?? 0;
+  const activeUsers = instanceStats.activeUsers ?? 0;
+  const activeProjects = instanceStats.activeProjects ?? 0;
+  const totalProjects = instanceStats.totalProjects ?? 0;
+  const activeSprintsCount = sprintOverview.activeSprintsCount ?? 0;
+  const sprintsAtRisk = sprintOverview.sprintsAtRisk ?? 0;
+  const totalBlockedTasks = sprintOverview.totalBlockedTasks ?? 0;
+  const rolesBreakdown = userStats.rolesBreakdown ?? {};
+  const pendingInvitations = userStats.pendingInvitations ?? 0;
 
   return (
     <div className="p-6">
       <GreetingBar
-        userName={greeting.userName}
-        date={greeting.date}
-        summaryText={`${instanceStats.activeUsers} users across ${instanceStats.activeProjects} projects`}
+        userName={greeting?.userName ?? ''}
+        date={greeting?.date ?? ''}
+        summaryText={`${activeUsers} users across ${activeProjects} projects`}
       />
 
       <StatCardGrid>
-        <StatCard icon="&#x1F465;" iconColor="text-peri" iconBg="bg-peri-light" label="Total users" value={instanceStats.totalUsers} subtext={`${instanceStats.activeUsers} active`} />
-        <StatCard icon="&#x1F4C1;" iconColor="text-mint" iconBg="bg-mint-light" label="Active projects" value={instanceStats.activeProjects} subtext={`${instanceStats.totalProjects - instanceStats.activeProjects} archived`} />
-        <StatCard icon="&#x1F504;" iconColor="text-tan" iconBg="bg-tan-light" label="Active sprints" value={sprintOverview.activeSprintsCount} subtext={sprintOverview.sprintsAtRisk > 0 ? `${sprintOverview.sprintsAtRisk} at risk` : 'On track'} valueColor={sprintOverview.sprintsAtRisk > 0 ? 'text-warning' : undefined} />
-        <StatCard icon="&#x1F6D1;" iconColor="text-danger" iconBg="bg-red-50" label="Blocked tasks" value={sprintOverview.totalBlockedTasks} subtext={sprintOverview.totalBlockedTasks > 0 ? 'Needs attention' : 'None'} valueColor={sprintOverview.totalBlockedTasks > 0 ? 'text-danger' : undefined} />
+        <StatCard icon="&#x1F465;" iconColor="text-peri" iconBg="bg-peri-light" label="Total users" value={totalUsers} subtext={`${activeUsers} active`} />
+        <StatCard icon="&#x1F4C1;" iconColor="text-mint" iconBg="bg-mint-light" label="Active projects" value={activeProjects} subtext={`${Math.max(0, totalProjects - activeProjects)} archived`} />
+        <StatCard icon="&#x1F504;" iconColor="text-tan" iconBg="bg-tan-light" label="Active sprints" value={activeSprintsCount} subtext={sprintsAtRisk > 0 ? `${sprintsAtRisk} at risk` : 'On track'} valueColor={sprintsAtRisk > 0 ? 'text-warning' : undefined} />
+        <StatCard icon="&#x1F6D1;" iconColor="text-danger" iconBg="bg-red-50" label="Blocked tasks" value={totalBlockedTasks} subtext={totalBlockedTasks > 0 ? 'Needs attention' : 'None'} valueColor={totalBlockedTasks > 0 ? 'text-danger' : undefined} />
       </StatCardGrid>
 
       <TwoColumnLayout>
@@ -48,12 +67,12 @@ export function AdminDashboard({ data }: { data: any }) {
           title="Team workload"
           footer={
             <div className="flex items-center gap-4 text-[14px] text-neutral-400 dark:text-dneutral-500 flex-wrap">
-              <span>Admins <strong className="text-neutral-700 dark:text-dneutral-700">{userStats.rolesBreakdown.admin}</strong></span>
-              <span>PMs <strong className="text-neutral-700 dark:text-dneutral-700">{userStats.rolesBreakdown.project_manager}</strong></span>
-              <span>Members <strong className="text-neutral-700 dark:text-dneutral-700">{userStats.rolesBreakdown.member}</strong></span>
-              <span>Viewers <strong className="text-neutral-700 dark:text-dneutral-700">{userStats.rolesBreakdown.viewer}</strong></span>
-              {userStats.pendingInvitations > 0 && (
-                <span className="text-warning">{userStats.pendingInvitations} pending</span>
+              <span>Admins <strong className="text-neutral-700 dark:text-dneutral-700">{rolesBreakdown.admin ?? 0}</strong></span>
+              <span>PMs <strong className="text-neutral-700 dark:text-dneutral-700">{rolesBreakdown.project_manager ?? 0}</strong></span>
+              <span>Members <strong className="text-neutral-700 dark:text-dneutral-700">{rolesBreakdown.member ?? 0}</strong></span>
+              <span>Viewers <strong className="text-neutral-700 dark:text-dneutral-700">{rolesBreakdown.viewer ?? 0}</strong></span>
+              {pendingInvitations > 0 && (
+                <span className="text-warning">{pendingInvitations} pending</span>
               )}
             </div>
           }
@@ -103,8 +122,8 @@ export function AdminDashboard({ data }: { data: any }) {
                     <span className="text-neutral-500 dark:text-dneutral-500 truncate">{bt.title}</span>
                   </div>
                   <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 ml-5 mt-0.5 truncate">
-                    &larr; {bt.blockedBy.taskKey} {bt.blockedBy.title}
-                    {bt.blockedBy.assignee && ` (${bt.blockedBy.assignee.displayName})`}
+                    &larr; {bt.blockedBy?.taskKey ?? ''} {bt.blockedBy?.title ?? ''}
+                    {bt.blockedBy?.assignee && ` (${bt.blockedBy.assignee.displayName ?? ''})`}
                   </p>
                 </div>
               ))}

@@ -14,21 +14,35 @@ function timeAgo(iso: string): string {
 }
 
 export function ViewerDashboard({ data }: { data: any }) {
-  const { greeting, overviewStats, projects, sprintProgress, epicProgress, recentCompletions, teamMembers } = data;
+  const safeData = data ?? {};
+  const {
+    greeting = {},
+    overviewStats = {},
+    projects = [],
+    sprintProgress = [],
+    epicProgress = [],
+    recentCompletions = [],
+    teamMembers = [],
+  } = safeData;
 
-  const summaryText = overviewStats.projectsCount > 0
-    ? `Viewing ${overviewStats.projectsCount} project${overviewStats.projectsCount !== 1 ? 's' : ''} — ${overviewStats.overallProgress}% overall completion`
+  const projectsCount = overviewStats.projectsCount ?? 0;
+  const totalTasks = overviewStats.totalTasks ?? 0;
+  const completedTasks = overviewStats.completedTasks ?? 0;
+  const overallProgress = overviewStats.overallProgress ?? 0;
+
+  const summaryText = projectsCount > 0
+    ? `Viewing ${projectsCount} project${projectsCount !== 1 ? 's' : ''} — ${overallProgress}% overall completion`
     : 'No projects assigned yet';
 
   return (
     <div className="p-6">
-      <GreetingBar userName={greeting.userName} date={greeting.date} summaryText={summaryText} />
+      <GreetingBar userName={greeting?.userName ?? ''} date={greeting?.date ?? ''} summaryText={summaryText} />
 
       <StatCardGrid>
-        <StatCard icon="&#x1F4C1;" iconColor="text-peri" iconBg="bg-peri-light" label="Projects" value={overviewStats.projectsCount} />
-        <StatCard icon="&#x2611;" iconColor="text-tan" iconBg="bg-tan-light" label="Total tasks" value={overviewStats.totalTasks} />
-        <StatCard icon="&#x2705;" iconColor="text-mint" iconBg="bg-mint-light" label="Completed" value={overviewStats.completedTasks} />
-        <StatCard icon="&#x1F4CA;" iconColor="text-mint" iconBg="bg-mint-light" label="Progress" value={`${overviewStats.overallProgress}%`} progressBar={{ percent: overviewStats.overallProgress, color: '#4A6FA5' }} />
+        <StatCard icon="&#x1F4C1;" iconColor="text-peri" iconBg="bg-peri-light" label="Projects" value={projectsCount} />
+        <StatCard icon="&#x2611;" iconColor="text-tan" iconBg="bg-tan-light" label="Total tasks" value={totalTasks} />
+        <StatCard icon="&#x2705;" iconColor="text-mint" iconBg="bg-mint-light" label="Completed" value={completedTasks} />
+        <StatCard icon="&#x1F4CA;" iconColor="text-mint" iconBg="bg-mint-light" label="Progress" value={`${overallProgress}%`} progressBar={{ percent: overallProgress, color: '#4A6FA5' }} />
       </StatCardGrid>
 
       {projects.length === 0 ? (
@@ -54,20 +68,20 @@ export function ViewerDashboard({ data }: { data: any }) {
                   {sprintProgress.map((sp: any, i: number) => (
                     <div key={i}>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700">{sp.projectName}</span>
-                        <span className="text-[16px] text-neutral-400 dark:text-dneutral-500">— {sp.sprintName}</span>
+                        <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700">{sp.projectName ?? ''}</span>
+                        <span className="text-[16px] text-neutral-400 dark:text-dneutral-500">— {sp.sprintName ?? ''}</span>
                       </div>
                       <div className="flex items-center justify-between text-[16px] text-neutral-400 dark:text-dneutral-500 mb-1">
-                        <span>{sp.daysRemaining} days left</span>
-                        <span>{sp.progressPercent}%</span>
+                        <span>{sp.daysRemaining ?? 0} days left</span>
+                        <span>{sp.progressPercent ?? 0}%</span>
                       </div>
                       <div className="h-1.5 rounded-full bg-neutral-200 dark:bg-dneutral-300 mb-2">
-                        <div className="h-full rounded-full bg-peri transition-all" style={{ width: `${sp.progressPercent}%` }} />
+                        <div className="h-full rounded-full bg-peri transition-all" style={{ width: `${sp.progressPercent ?? 0}%` }} />
                       </div>
                       <div className="flex gap-2 text-[16px] text-neutral-400 dark:text-dneutral-500 flex-wrap">
-                        <span>Backlog:{sp.tasksByStatus.backlog}</span>
-                        <span>In Progress:{sp.tasksByStatus.in_progress}</span>
-                        <span>Done:{sp.tasksByStatus.done}</span>
+                        <span>Backlog:{sp.tasksByStatus?.backlog ?? 0}</span>
+                        <span>In Progress:{sp.tasksByStatus?.in_progress ?? 0}</span>
+                        <span>Done:{sp.tasksByStatus?.done ?? 0}</span>
                       </div>
                     </div>
                   ))}
@@ -87,11 +101,11 @@ export function ViewerDashboard({ data }: { data: any }) {
                     <div key={i}>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: e.color }} />
-                        <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700 truncate">{e.title}</span>
-                        <span className="text-[16px] text-neutral-400 dark:text-dneutral-500 ml-auto">{e.progressPercent}% ({e.completedTasks}/{e.totalTasks})</span>
+                        <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700 truncate">{e.title ?? ''}</span>
+                        <span className="text-[16px] text-neutral-400 dark:text-dneutral-500 ml-auto">{e.progressPercent ?? 0}% ({e.completedTasks ?? 0}/{e.totalTasks ?? 0})</span>
                       </div>
                       <div className="h-1.5 rounded-full bg-neutral-200 dark:bg-dneutral-300">
-                        <div className="h-full rounded-full transition-all" style={{ width: `${e.progressPercent}%`, backgroundColor: e.color }} />
+                        <div className="h-full rounded-full transition-all" style={{ width: `${e.progressPercent ?? 0}%`, backgroundColor: e.color }} />
                       </div>
                     </div>
                   ))}
@@ -107,10 +121,10 @@ export function ViewerDashboard({ data }: { data: any }) {
                   {recentCompletions.map((c: any, i: number) => (
                     <div key={i} className="flex items-center gap-2 text-[16px]">
                       <span className="text-success flex-shrink-0">&#x2713;</span>
-                      <span className="font-mono text-neutral-400 dark:text-dneutral-500 text-[16px]">{c.taskKey}</span>
-                      <span className="text-neutral-700 dark:text-dneutral-700 truncate flex-1">{c.title}</span>
-                      <span className="text-[16px] text-neutral-400 dark:text-dneutral-500 flex-shrink-0">{c.completedBy.displayName}</span>
-                      <span className="text-[16px] text-neutral-400 dark:text-dneutral-500 flex-shrink-0">{timeAgo(c.completedAt)}</span>
+                      <span className="font-mono text-neutral-400 dark:text-dneutral-500 text-[16px]">{c.taskKey ?? ''}</span>
+                      <span className="text-neutral-700 dark:text-dneutral-700 truncate flex-1">{c.title ?? ''}</span>
+                      <span className="text-[16px] text-neutral-400 dark:text-dneutral-500 flex-shrink-0">{c.completedBy?.displayName ?? ''}</span>
+                      <span className="text-[16px] text-neutral-400 dark:text-dneutral-500 flex-shrink-0">{c.completedAt ? timeAgo(c.completedAt) : ''}</span>
                     </div>
                   ))}
                 </div>
@@ -136,11 +150,11 @@ export function ViewerDashboard({ data }: { data: any }) {
                     <div className="w-8 h-8 rounded-full bg-peri-light dark:bg-peri-dm/30 flex items-center justify-center text-[16px] font-medium text-peri dark:text-peri-dm flex-shrink-0">
                       {initial}
                     </div>
-                    <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700 flex-1">{m.displayName}</span>
+                    <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700 flex-1">{m.displayName ?? ''}</span>
                     <span className={`text-[16px] px-1.5 py-0.5 rounded font-medium ${roleBadge[m.role] || roleBadge.member}`}>
-                      {m.role === 'project_manager' ? 'PM' : m.role}
+                      {m.role === 'project_manager' ? 'PM' : (m.role ?? '')}
                     </span>
-                    <span className="text-[16px] text-neutral-400 dark:text-dneutral-500">{m.openTaskCount} open</span>
+                    <span className="text-[16px] text-neutral-400 dark:text-dneutral-500">{m.openTaskCount ?? 0} open</span>
                   </div>
                 );
               })}

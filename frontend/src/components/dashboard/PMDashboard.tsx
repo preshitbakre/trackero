@@ -14,22 +14,41 @@ function getDueLabel(daysUntilDue: number): { text: string; className: string } 
 }
 
 export function PMDashboard({ data }: { data: any }) {
-  const { greeting, myProjectsStats, activeSprintsByProject, burndownPreview, teamWorkload, blockedTasks, myTasks, upcomingDeadlines, epicProgress, recentActivity } = data;
-  const maxTasks = Math.max(...(teamWorkload.length > 0 ? teamWorkload.map((u: any) => u.openTaskCount) : [1]), 1);
+  const safeData = data ?? {};
+  const {
+    greeting = {},
+    myProjectsStats = {},
+    activeSprintsByProject = [],
+    burndownPreview = null,
+    teamWorkload = [],
+    blockedTasks = [],
+    myTasks = [],
+    upcomingDeadlines = [],
+    epicProgress = [],
+    recentActivity = [],
+  } = safeData;
 
-  const summaryText = activeSprintsByProject.length > 0 && activeSprintsByProject[0].sprint
-    ? `${activeSprintsByProject[0].sprint.name} has ${activeSprintsByProject[0].sprint.daysRemaining} days remaining — ${activeSprintsByProject[0].sprint.progressPercent}% complete`
-    : `Managing ${myProjectsStats.totalProjects} project${myProjectsStats.totalProjects !== 1 ? 's' : ''}`;
+  const totalProjects = myProjectsStats.totalProjects ?? 0;
+  const openTasksAcrossProjects = myProjectsStats.openTasksAcrossProjects ?? 0;
+  const totalBlockedTasksCount = myProjectsStats.totalBlockedTasks ?? 0;
+  const overdueTasks = myProjectsStats.overdueTasks ?? 0;
+
+  const maxTasks = Math.max(...(teamWorkload.length > 0 ? teamWorkload.map((u: any) => u.openTaskCount ?? 0) : [1]), 1);
+
+  const firstSprint = activeSprintsByProject?.[0]?.sprint;
+  const summaryText = firstSprint
+    ? `${firstSprint.name ?? ''} has ${firstSprint.daysRemaining ?? 0} days remaining — ${firstSprint.progressPercent ?? 0}% complete`
+    : `Managing ${totalProjects} project${totalProjects !== 1 ? 's' : ''}`;
 
   return (
     <div className="p-6">
-      <GreetingBar userName={greeting.userName} date={greeting.date} summaryText={summaryText} />
+      <GreetingBar userName={greeting?.userName ?? ''} date={greeting?.date ?? ''} summaryText={summaryText} />
 
       <StatCardGrid>
-        <StatCard icon="&#x1F4C1;" iconColor="text-peri" iconBg="bg-peri-light" label="My projects" value={myProjectsStats.totalProjects} />
-        <StatCard icon="&#x2611;" iconColor="text-mint" iconBg="bg-mint-light" label="Open tasks" value={myProjectsStats.openTasksAcrossProjects} subtext={`across ${myProjectsStats.totalProjects} projects`} />
-        <StatCard icon="&#x1F6D1;" iconColor="text-danger" iconBg="bg-red-50" label="Blocked" value={myProjectsStats.totalBlockedTasks} subtext={myProjectsStats.totalBlockedTasks > 0 ? 'Needs attention' : 'None'} valueColor={myProjectsStats.totalBlockedTasks > 0 ? 'text-danger' : undefined} />
-        <StatCard icon="&#x23F0;" iconColor="text-tan" iconBg="bg-tan-light" label="Overdue" value={myProjectsStats.overdueTasks} subtext={myProjectsStats.overdueTasks > 0 ? 'Past due date' : 'None'} valueColor={myProjectsStats.overdueTasks > 0 ? 'text-danger' : undefined} />
+        <StatCard icon="&#x1F4C1;" iconColor="text-peri" iconBg="bg-peri-light" label="My projects" value={totalProjects} />
+        <StatCard icon="&#x2611;" iconColor="text-mint" iconBg="bg-mint-light" label="Open tasks" value={openTasksAcrossProjects} subtext={`across ${totalProjects} projects`} />
+        <StatCard icon="&#x1F6D1;" iconColor="text-danger" iconBg="bg-red-50" label="Blocked" value={totalBlockedTasksCount} subtext={totalBlockedTasksCount > 0 ? 'Needs attention' : 'None'} valueColor={totalBlockedTasksCount > 0 ? 'text-danger' : undefined} />
+        <StatCard icon="&#x23F0;" iconColor="text-tan" iconBg="bg-tan-light" label="Overdue" value={overdueTasks} subtext={overdueTasks > 0 ? 'Past due date' : 'None'} valueColor={overdueTasks > 0 ? 'text-danger' : undefined} />
       </StatCardGrid>
 
       {/* Sprint health + Burndown */}
@@ -51,16 +70,16 @@ export function PMDashboard({ data }: { data: any }) {
                   {asp.sprint && (
                     <>
                       <div className="flex items-center justify-between text-[16px] text-neutral-400 dark:text-dneutral-500 mb-1">
-                        <span>{asp.sprint.daysRemaining} days left · {asp.sprint.completedPoints}/{asp.sprint.totalPoints} pts</span>
-                        <span>{asp.sprint.progressPercent}%</span>
+                        <span>{asp.sprint.daysRemaining ?? 0} days left · {asp.sprint.completedPoints ?? 0}/{asp.sprint.totalPoints ?? 0} pts</span>
+                        <span>{asp.sprint.progressPercent ?? 0}%</span>
                       </div>
                       <div className="h-1.5 rounded-full bg-neutral-200 dark:bg-dneutral-300 mb-2">
-                        <div className="h-full rounded-full bg-peri transition-all" style={{ width: `${asp.sprint.progressPercent}%` }} />
+                        <div className="h-full rounded-full bg-peri transition-all" style={{ width: `${asp.sprint.progressPercent ?? 0}%` }} />
                       </div>
                       <div className="flex gap-2 text-[16px] text-neutral-400 dark:text-dneutral-500">
-                        <span>Backlog:{asp.sprint.tasksByStatus.backlog}</span>
-                        <span>In Progress:{asp.sprint.tasksByStatus.in_progress}</span>
-                        <span>Done:{asp.sprint.tasksByStatus.done}</span>
+                        <span>Backlog:{asp.sprint.tasksByStatus?.backlog ?? 0}</span>
+                        <span>In Progress:{asp.sprint.tasksByStatus?.in_progress ?? 0}</span>
+                        <span>Done:{asp.sprint.tasksByStatus?.done ?? 0}</span>
                       </div>
                     </>
                   )}
@@ -72,13 +91,13 @@ export function PMDashboard({ data }: { data: any }) {
           )}
         </DashboardSection>
 
-        <DashboardSection title="Burndown preview" viewAllLink={activeSprintsByProject[0]?.projectId ? `/projects/${activeSprintsByProject[0].projectId}/charts` : undefined} viewAllText="View full chart">
-          {burndownPreview && burndownPreview.dataPoints?.length > 0 ? (
+        <DashboardSection title="Burndown preview" viewAllLink={activeSprintsByProject?.[0]?.projectId ? `/projects/${activeSprintsByProject[0].projectId}/charts` : undefined} viewAllText="View full chart">
+          {burndownPreview && (burndownPreview.dataPoints?.length ?? 0) > 0 ? (
             <div className="h-[200px]">
               <ResponsiveLine
                 data={[
-                  { id: 'Ideal', data: burndownPreview.dataPoints.map((p: any) => ({ x: p.date, y: p.ideal })) },
-                  { id: 'Actual', data: burndownPreview.dataPoints.map((p: any) => ({ x: p.date, y: p.actual })) },
+                  { id: 'Ideal', data: (burndownPreview.dataPoints ?? []).map((p: any) => ({ x: p?.date, y: p?.ideal ?? 0 })) },
+                  { id: 'Actual', data: (burndownPreview.dataPoints ?? []).map((p: any) => ({ x: p?.date, y: p?.actual ?? 0 })) },
                 ]}
                 margin={{ top: 10, right: 10, bottom: 30, left: 35 }}
                 xScale={{ type: 'point' }}
@@ -103,7 +122,7 @@ export function PMDashboard({ data }: { data: any }) {
           {teamWorkload.length > 0 ? (
             <div className="space-y-1">
               {teamWorkload.map((u: any) => (
-                <TeamWorkloadBar key={u.userId} user={{ displayName: u.displayName, avatarUrl: u.avatarUrl }} taskCount={u.openTaskCount} maxTaskCount={maxTasks} overdueCount={u.overdueCount} />
+                <TeamWorkloadBar key={u.userId} user={{ displayName: u.displayName ?? '', avatarUrl: u.avatarUrl }} taskCount={u.openTaskCount ?? 0} maxTaskCount={maxTasks} overdueCount={u.overdueCount ?? 0} />
               ))}
             </div>
           ) : (
@@ -122,7 +141,7 @@ export function PMDashboard({ data }: { data: any }) {
                     <span className="text-neutral-500 dark:text-dneutral-500 truncate">{bt.title}</span>
                   </div>
                   <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 ml-6 mt-0.5">
-                    blocked by <span className="font-mono font-medium">{bt.blockedBy.taskKey}</span> — {bt.blockedBy.title}
+                    blocked by <span className="font-mono font-medium">{bt.blockedBy?.taskKey ?? ''}</span> — {bt.blockedBy?.title ?? ''}
                   </p>
                 </div>
               ))}
@@ -151,7 +170,7 @@ export function PMDashboard({ data }: { data: any }) {
           {upcomingDeadlines.length > 0 ? (
             <div className="space-y-2">
               {upcomingDeadlines.map((d: any) => {
-                const label = getDueLabel(d.daysUntilDue);
+                const label = getDueLabel(d.daysUntilDue ?? 0);
                 return (
                   <div key={d.id} className="flex items-center gap-2 text-[16px]">
                     <span className="font-mono text-neutral-400 dark:text-dneutral-500 text-[16px]">{d.taskKey}</span>
@@ -176,11 +195,11 @@ export function PMDashboard({ data }: { data: any }) {
                 <div key={e.id}>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: e.color }} />
-                    <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700 truncate">{e.title}</span>
-                    <span className="text-[16px] text-neutral-400 dark:text-dneutral-500 ml-auto">{e.progressPercent}% ({e.completedTasks}/{e.totalTasks})</span>
+                    <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700 truncate">{e.title ?? ''}</span>
+                    <span className="text-[16px] text-neutral-400 dark:text-dneutral-500 ml-auto">{e.progressPercent ?? 0}% ({e.completedTasks ?? 0}/{e.totalTasks ?? 0})</span>
                   </div>
                   <div className="h-1.5 rounded-full bg-neutral-200 dark:bg-dneutral-300">
-                    <div className="h-full rounded-full transition-all" style={{ width: `${e.progressPercent}%`, backgroundColor: e.color }} />
+                    <div className="h-full rounded-full transition-all" style={{ width: `${e.progressPercent ?? 0}%`, backgroundColor: e.color }} />
                   </div>
                 </div>
               ))}
