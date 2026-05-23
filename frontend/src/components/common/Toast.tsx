@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
 type ToastType = 'success' | 'warning' | 'error' | 'info';
@@ -9,10 +9,18 @@ interface ToastItem {
   type: ToastType;
 }
 
-let addToastFn: ((message: string, type?: ToastType) => void) | null = null;
+type AddToastFn = (message: string, type?: ToastType) => void;
+
+// Subscriber set (approach A): supports zero, one, or many concurrent
+// ToastProviders without clobbering. In practice we mount one provider at the
+// app root, but HMR / tests / accidental double-mounts no longer break toasts.
+const subscribers: Set<AddToastFn> = new Set();
 
 export function toast(message: string, type: ToastType = 'success') {
-  if (addToastFn) addToastFn(message, type);
+  // Iterate a snapshot so a subscriber that unsubscribes mid-iteration is safe.
+  for (const fn of Array.from(subscribers)) {
+    fn(message, type);
+  }
 }
 
 const TOAST_STYLES: Record<ToastType, string> = {
@@ -26,18 +34,31 @@ let nextId = 0;
 
 export function ToastProvider() {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  // Track pending self-expiry timers so we can clear them on unmount and
+  // avoid setState-on-unmounted warnings / leaked timers.
+  const timersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
 
-  const addToast = useCallback((message: string, type: ToastType = 'success') => {
+  const addToast = useCallback<AddToastFn>((message, type = 'success') => {
     const id = nextId++;
     setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => {
+    const handle = setTimeout(() => {
+      timersRef.current.delete(id);
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 3000);
+    timersRef.current.set(id, handle);
   }, []);
 
   useEffect(() => {
-    addToastFn = addToast;
-    return () => { addToastFn = null; };
+    subscribers.add(addToast);
+    const timers = timersRef.current;
+    return () => {
+      subscribers.delete(addToast);
+      // Clear any in-flight self-expiry timers belonging to this provider.
+      for (const handle of timers.values()) {
+        clearTimeout(handle);
+      }
+      timers.clear();
+    };
   }, [addToast]);
 
   if (toasts.length === 0) return null;
