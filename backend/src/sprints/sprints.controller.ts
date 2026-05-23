@@ -3,6 +3,7 @@ import {
   UseGuards, HttpCode, HttpStatus, ParseIntPipe,
 } from '@nestjs/common';
 import { SprintsService } from './sprints.service';
+import { SprintCapacityService } from './sprint-capacity.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { ProjectAccessGuard } from '../common/guards/project-access.guard';
@@ -16,7 +17,10 @@ import { UpdateSprintDto } from './dto/update-sprint.dto';
 @Controller('projects/:projectId/sprints')
 @UseGuards(JwtAuthGuard, ProjectAccessGuard, RolesGuard)
 export class SprintsController {
-  constructor(private readonly sprintsService: SprintsService) {}
+  constructor(
+    private readonly sprintsService: SprintsService,
+    private readonly capacityService: SprintCapacityService,
+  ) {}
 
   @Post()
   @Roles('admin', 'project_manager')
@@ -127,5 +131,15 @@ export class SprintsController {
     @Param('sprintId', ParseIntPipe) sprintId: number,
   ) {
     return this.sprintsService.getBurndown(projectId, sprintId);
+  }
+
+  @Get(':sprintId/capacity')
+  @Roles('admin', 'project_manager', 'member', 'viewer')
+  @ResponseCode('SPRINT_CAPACITY')
+  async capacity(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('sprintId', ParseIntPipe) sprintId: number,
+  ) {
+    return this.capacityService.getCapacity(projectId, sprintId);
   }
 }

@@ -4,6 +4,47 @@ All notable changes to Trackero are tracked here. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0-capacity] — 2026-05-24
+
+Phase 5. Burndown becomes reproducible by reading from daily snapshots
+instead of replaying scope-change deltas against a moving target. Sprint
+Planning shows per-assignee load with an over-capacity flag, and the
+Save-draft + Start-sprint buttons are now wired to real handlers.
+
+### Added
+- Migration **034** — new `sprint_daily_snapshots` table
+  `(sprint_id, snapshot_date, total_points, completed_points,
+  in_progress_points, scope_added_points, scope_removed_points,
+  item_counts_by_status, created_at)` with UQ `(sprint_id, snapshot_date)`
+  and a (sprint_id, snapshot_date DESC) read index.
+- `SprintSnapshotsService` — `@Cron('5 0 * * *')` writes one row per
+  active sprint per UTC day, guarded by `pg_try_advisory_lock(991003)`
+  so only one instance runs in a multi-process deploy. ON CONFLICT DO
+  UPDATE keeps the same-day rewrite idempotent.
+- `SprintCapacityService` — `(sprint days / 14) * sprintAverageVelocity`
+  heuristic with a default of 8 points / 2 weeks when the project has
+  no completed sprints to learn from; per-assignee committed totals;
+  `isOver` flag.
+- `GET /api/projects/:id/sprints/:sid/capacity` — returns
+  `{ totalPoints, totalCommitted, totalRemaining, perAssignee }`.
+
+### Changed
+- `getBurndown` rewritten to read from snapshots; on-read fallback
+  materializes today's row inline when the cron hasn't run yet, so the
+  chart never serves a gap. Output shape (`sprintName, startDate,
+  endDate, totalPoints, dataPoints[]`) is unchanged — no FE migration
+  required for the existing consumer.
+- SprintPlanningPage gained a per-assignee row ("MH 5/6 · JK 6/6 · AP
+  9/7 (over)") fed from `/capacity`; over-capacity initials render in
+  the danger color.
+- SprintPlanningPage Save-draft / Start-sprint buttons now call real
+  endpoints (PUT sprint metadata; POST `/sprints/:id/start`) with toast
+  feedback; Start-sprint is disabled outside the `planning` state.
+
+### Testing
+- New regression pack `e2e/regression/phase-5/` — burndown shape,
+  burndown read-idempotency, capacity shape with isOver invariant.
+
 ## [1.5.0-search] — 2026-05-24
 
 Phase 4. The ⌘K command palette becomes a real product surface: sectioned

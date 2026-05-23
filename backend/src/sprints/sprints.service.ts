@@ -11,6 +11,7 @@ import { CreateSprintDto } from './dto/create-sprint.dto';
 import { UpdateSprintDto } from './dto/update-sprint.dto';
 import { clampLimit } from '../common/helpers/pagination.helper';
 import { rethrowAsDuplicate } from '../common/helpers/db-error.helper';
+import { SprintSnapshotsService } from './sprint-snapshots.service';
 
 @Injectable()
 export class SprintsService {
@@ -21,6 +22,7 @@ export class SprintsService {
     private readonly scopeChangeRepo: Repository<SprintScopeChange>,
     private readonly dataSource: DataSource,
     private readonly eventEmitter: EventEmitter2,
+    private readonly snapshots: SprintSnapshotsService,
   ) {}
 
   async create(projectId: number, dto: CreateSprintDto, userId: number) {
@@ -402,55 +404,76 @@ export class SprintsService {
   }
 
   async getBurndown(projectId: number, sprintId: number) {
+    // Phase 5 — read from sprint_daily_snapshots. The shape stays identical
+    // to the previous replay-based version: { sprintName, startDate, endDate,
+    // totalPoints, dataPoints: [{ date, ideal, actual, scope }] }.
+    //
+    // On-read fallback: SprintSnapshotsService.readSnapshots materializes
+    // today's row inline if the cron hasn't run yet, so the chart's last
+    // point is always current and we never serve a gap.
     const sprint = await this.findOne(projectId, sprintId);
 
     if (!sprint.startDate || !sprint.endDate) {
       return { sprintName: sprint.name, startDate: null, endDate: null, totalPoints: 0, dataPoints: [] };
     }
 
-    const totalPointsResult = await this.dataSource.query(
-      `SELECT COALESCE(SUM(story_points), 0) as total FROM work_items WHERE sprint_id = $1`,
-      [sprintId],
-    );
-    const totalPoints = parseInt(totalPointsResult[0].total);
+    const snaps = await this.snapshots.readSnapshots(sprintId);
 
-    // Compute the date window server-side so the node process timezone can't
-    // disagree with the Postgres `date` columns:
-    //   - start: sprint.startDate
-    //   - end:   LEAST(sprint.endDate, CURRENT_DATE)   (don't project past today)
-    //   - totalDays: spans full sprint (start..endDate) for ideal-line slope
+    // Total points = the most recent snapshot's total (already includes
+    // all scope adds/removes). When there are no snapshots yet (sprint not
+    // yet started or freshly active before first cron), fall back to a
+    // live work_items aggregate so the chart still draws.
+    let totalPoints = 0;
+    if (snaps.length > 0) {
+      totalPoints = snaps[snaps.length - 1].totalPoints;
+    } else {
+      const liveTotal = await this.dataSource.query(
+        `SELECT COALESCE(SUM(COALESCE(story_points, 0)), 0)::int AS total
+         FROM work_items WHERE sprint_id = $1`,
+        [sprintId],
+      );
+      totalPoints = liveTotal[0]?.total ?? 0;
+    }
+
     const startDate = new Date(sprint.startDate);
     const endDate = new Date(sprint.endDate);
-    const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-
-    // Replace the per-day JS loop with a single grouped Postgres query that
-    // uses generate_series to produce one row per day and joins/aggregates
-    // scope_delta and completed points server-side. Output shape per data
-    // point is identical: { date, ideal, actual, scope }.
-    const rows = await this.dataSource.query(
-      `SELECT
-         d.day::date::text AS date,
-         COALESCE((
-           SELECT SUM(CASE WHEN action = 'added' THEN COALESCE(story_points, 0) ELSE -COALESCE(story_points, 0) END)
-           FROM sprint_scope_changes
-           WHERE sprint_id = $1 AND created_at <= d.day + interval '1 day'
-         ), 0)::int AS scope_delta,
-         COALESCE((
-           SELECT SUM(story_points)
-           FROM work_items
-           WHERE sprint_id = $1 AND completed_at IS NOT NULL AND completed_at <= d.day + interval '1 day'
-         ), 0)::int AS completed
-       FROM generate_series($2::date, LEAST($3::date, CURRENT_DATE), '1 day') AS d(day)
-       ORDER BY d.day`,
-      [sprintId, sprint.startDate, sprint.endDate],
+    const totalDays = Math.max(
+      1,
+      Math.ceil((endDate.getTime() - startDate.getTime()) / 86400000),
     );
 
-    const dataPoints = rows.map((r: any, dayIndex: number) => {
-      const scope = totalPoints + r.scope_delta;
+    // Walk every day from sprint.startDate to LEAST(endDate, today), and
+    // for each day pick the matching snapshot (snapshot_date == day) or
+    // carry the previous one forward if missing.
+    const today = new Date();
+    const lastChartDate = endDate.getTime() < today.getTime() ? endDate : today;
+    const dataPoints: Array<{ date: string; ideal: number; actual: number; scope: number }> = [];
+
+    let carryTotal = totalPoints;
+    let carryCompleted = 0;
+    let snapIdx = 0;
+
+    for (let dayIndex = 0; dayIndex <= totalDays; dayIndex++) {
+      const day = new Date(startDate.getTime() + dayIndex * 86400000);
+      if (day.getTime() > lastChartDate.getTime() + 86400000) break;
+      const dayKey = day.toISOString().slice(0, 10);
+
+      while (snapIdx < snaps.length && snaps[snapIdx].snapshotDate <= dayKey) {
+        carryTotal = snaps[snapIdx].totalPoints;
+        carryCompleted = snaps[snapIdx].completedPoints;
+        snapIdx++;
+      }
+
+      const scope = carryTotal;
       const ideal = totalPoints * (1 - dayIndex / totalDays);
-      const actual = scope - r.completed;
-      return { date: r.date, ideal: Math.round(ideal * 10) / 10, actual, scope };
-    });
+      const actual = scope - carryCompleted;
+      dataPoints.push({
+        date: dayKey,
+        ideal: Math.round(ideal * 10) / 10,
+        actual,
+        scope,
+      });
+    }
 
     return {
       sprintName: sprint.name,

@@ -90,6 +90,21 @@ function CapacityCells({ committed, capacity }: { committed: number; capacity: n
   );
 }
 
+interface CapacityRow {
+  userId: number;
+  displayName: string;
+  committed: number;
+  capacity: number;
+  isOver: boolean;
+}
+
+interface CapacityResp {
+  totalPoints: number;
+  totalCommitted: number;
+  totalRemaining: number;
+  perAssignee: CapacityRow[];
+}
+
 export function SprintPlanningPage() {
   const { id: projectId, sprintId } = useParams();
   const [sprint, setSprint] = useState<any>(null);
@@ -97,6 +112,8 @@ export function SprintPlanningPage() {
   const [sprintItems, setSprintItems] = useState<PlanTask[]>([]);
   const [subtaskCounts, setSubtaskCounts] = useState<Map<number, number>>(new Map());
   const [velocity, setVelocity] = useState<number>(0);
+  const [capacity, setCapacity] = useState<CapacityResp | null>(null);
+  const [starting, setStarting] = useState(false);
 
   const { isReadOnly } = useRole();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -140,6 +157,15 @@ export function SprintPlanningPage() {
       if (velData.length > 0) {
         const avg = velData.reduce((sum: number, v: any) => sum + (v.completed_points || 0), 0) / velData.length;
         setVelocity(Math.round(avg));
+      }
+
+      // Phase 5 — pull server-computed per-assignee capacity. Soft-fail so
+      // the planning page keeps rendering if the new endpoint is unreachable.
+      try {
+        const cap = await apiClient.get(`/projects/${projectId}/sprints/${sprintId}/capacity`);
+        setCapacity(cap.data.data);
+      } catch {
+        setCapacity(null);
       }
     } catch (err) { console.error(err); }
   }, [projectId, sprintId]);
@@ -191,7 +217,7 @@ export function SprintPlanningPage() {
 
   const committedPoints = sprintItems.reduce((sum, t) => sum + (t.storyPoints || 0), 0);
   const backlogPoints = backlogItems.reduce((sum, t) => sum + (t.storyPoints || 0), 0);
-  const capacity = velocity || Math.max(committedPoints, backlogPoints, 1);
+  const capacityLocal = velocity || Math.max(committedPoints, backlogPoints, 1);
   const startLabel = (() => {
     const start = sprint?.startDate ?? sprint?.start_date;
     if (!start) return null;
@@ -223,8 +249,45 @@ export function SprintPlanningPage() {
           </h1>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <button className="px-4 h-9 rounded-md bg-card text-text border border-rule hover:bg-paper text-[13px] font-medium">Save draft</button>
-          <button className="px-4 h-9 rounded-md bg-lilac text-white hover:bg-lilac-dark text-[13px] font-medium">Start sprint  →</button>
+          <button
+            type="button"
+            disabled={isReadOnly}
+            onClick={async () => {
+              if (!projectId || !sprintId) return;
+              try {
+                await apiClient.put(`/projects/${projectId}/sprints/${sprintId}`, {
+                  name: sprint?.name,
+                  goal: sprint?.goal ?? null,
+                });
+                toast('Draft saved.', 'success');
+              } catch (err: any) {
+                toast(err.response?.data?.message || 'Save failed', 'error');
+              }
+            }}
+            className="px-4 h-9 rounded-md bg-card text-text border border-rule hover:bg-paper text-[13px] font-medium disabled:opacity-50"
+          >
+            Save draft
+          </button>
+          <button
+            type="button"
+            disabled={isReadOnly || starting || sprint?.status !== 'planning'}
+            onClick={async () => {
+              if (!projectId || !sprintId) return;
+              setStarting(true);
+              try {
+                await apiClient.post(`/projects/${projectId}/sprints/${sprintId}/start`);
+                toast('Sprint started.', 'success');
+                loadData();
+              } catch (err: any) {
+                toast(err.response?.data?.message || 'Could not start sprint', 'error');
+              } finally {
+                setStarting(false);
+              }
+            }}
+            className="px-4 h-9 rounded-md bg-lilac text-white hover:bg-lilac-dark text-[13px] font-medium disabled:opacity-50"
+          >
+            {starting ? 'Starting…' : sprint?.status === 'active' ? 'Sprint started' : 'Start sprint  →'}
+          </button>
         </div>
       </div>
 
@@ -233,18 +296,38 @@ export function SprintPlanningPage() {
         <div>
           <div className="flex items-baseline gap-3 mb-2">
             <span className="font-serif italic text-[32px] leading-none text-text">{committedPoints}</span>
-            <span className="text-[14px] text-mute">of <span className="font-semibold text-text">{capacity}</span> POINTS COMMITTED</span>
+            <span className="text-[14px] text-mute">of <span className="font-semibold text-text">{capacityLocal}</span> POINTS COMMITTED</span>
           </div>
-          <CapacityCells committed={committedPoints} capacity={capacity} />
+          <CapacityCells committed={committedPoints} capacity={capacityLocal} />
         </div>
         <div className="rounded-xl bg-card px-5 py-3">
           <div className="text-[10px] uppercase tracking-[0.16em] text-faint">Avg velocity · last 3 sprints</div>
           <div className="font-serif italic text-[28px] leading-none text-text mt-1">
             {velocity || '—'}
-            <span className="text-mute text-[18px]">/{capacity}</span>
+            <span className="text-mute text-[18px]">/{capacityLocal}</span>
           </div>
         </div>
       </div>
+
+      {/* Per-assignee load (Phase 5, frame 8) */}
+      {capacity && capacity.perAssignee.length > 0 && (
+        <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px]">
+          <span className="text-[10px] uppercase tracking-[0.16em] text-faint">Per assignee</span>
+          {capacity.perAssignee.map((row) => (
+            <span
+              key={row.userId}
+              className={`inline-flex items-baseline gap-1 ${row.isOver ? 'text-priority-urgent' : 'text-text'}`}
+              title={`${row.displayName}: ${row.committed} committed / ${row.capacity} capacity`}
+            >
+              <span className="font-semibold">{initials(row.displayName)}</span>
+              <span>
+                {row.committed}/{row.capacity}
+              </span>
+              {row.isOver && <span className="italic">(over)</span>}
+            </span>
+          ))}
+        </div>
+      )}
 
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={(e) => { handleDragEnd(e).finally(() => setActiveTask(null)); }}>
         <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 min-h-0 overflow-hidden">
@@ -300,4 +383,9 @@ export function SprintPlanningPage() {
       </DndContext>
     </div>
   );
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).slice(0, 2);
+  return parts.map((p) => p[0]?.toUpperCase() ?? '').join('');
 }
