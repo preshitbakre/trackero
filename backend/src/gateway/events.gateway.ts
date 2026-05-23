@@ -10,6 +10,14 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { OnEvent } from '@nestjs/event-emitter';
 import { DataSource } from 'typeorm';
+import {
+  COMMENT_ADDED,
+  type CommentAddedPayload,
+} from '../comments/events/comment-added.event';
+import {
+  SOCKET_EVENTS,
+  type CommentAddedSocketPayload,
+} from './events/socket-events';
 
 @WebSocketGateway({
   cors: {
@@ -145,10 +153,17 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  @OnEvent('comment.added')
-  onCommentAdded(payload: { taskId: number; projectId: number; commentId: number }) {
+  @OnEvent(COMMENT_ADDED)
+  onCommentAdded(payload: CommentAddedPayload) {
     try {
-      this.server?.to(`project:${payload.projectId}`).emit('comment:added', { taskId: payload.taskId, commentId: payload.commentId });
+      const socketPayload: CommentAddedSocketPayload = {
+        workItemId: payload.workItemId,
+        projectId: payload.projectId,
+        commentId: payload.commentId,
+        authorId: payload.actorId,
+        mentionedUserIds: payload.mentionedUserIds,
+      };
+      this.server?.to(`project:${payload.projectId}`).emit(SOCKET_EVENTS.COMMENT_ADDED, socketPayload);
     } catch (err) {
       this.logger.error(`onCommentAdded failed: ${err}`, (err as Error)?.stack);
     }
