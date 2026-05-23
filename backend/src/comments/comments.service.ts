@@ -8,6 +8,12 @@ import { PaginatedResponse } from '../common/dto/paginated-response.dto';
 import { PaginatedMutationResponse } from '../common/dto/paginated-mutation-response.dto';
 import { clampLimit } from '../common/helpers/pagination.helper';
 import { stripHtml } from '../common/helpers/sanitize.helper';
+import {
+  COMMENT_ADDED,
+  COMMENT_MENTIONED,
+  type CommentAddedPayload,
+  type CommentMentionedPayload,
+} from './events/comment-added.event';
 
 @Injectable()
 export class CommentsService {
@@ -38,16 +44,17 @@ export class CommentsService {
     });
     const saved = await this.commentRepo.save(comment);
 
-    this.eventEmitter.emit('comment.added', { workItemId, projectId, actorId: userId, commentId: saved.id });
-
-    // Parse @mentions
-    const mentionRegex = /@(\w+)/g;
-    let match;
+    // Parse @mentions first so the comment.added payload can carry the
+    // resolved mentionedUserIds (consumed by gateway broadcast, watchers,
+    // and integrations in later phases).
     const mentionedNames = new Set<string>();
-    while ((match = mentionRegex.exec(body)) !== null) {
-      mentionedNames.add(match[1]);
+    const mentionRe = /@(\w+)/g;
+    let m: RegExpExecArray | null;
+    while ((m = mentionRe.exec(body)) !== null) {
+      mentionedNames.add(m[1]);
     }
 
+    const mentionedUserIds: number[] = [];
     if (mentionedNames.size > 0) {
       for (const name of mentionedNames) {
         const [mentionedUser] = await this.dataSource.query(
@@ -55,16 +62,27 @@ export class CommentsService {
           [name],
         );
         if (mentionedUser && mentionedUser.id !== userId) {
-          this.eventEmitter.emit('comment.mentioned', {
+          mentionedUserIds.push(mentionedUser.id);
+          const mentionPayload: CommentMentionedPayload = {
             userId: mentionedUser.id,
             actorId: userId,
             workItemId,
             projectId,
             commentId: saved.id,
-          });
+          };
+          this.eventEmitter.emit(COMMENT_MENTIONED, mentionPayload);
         }
       }
     }
+
+    const addedPayload: CommentAddedPayload = {
+      workItemId,
+      projectId,
+      actorId: userId,
+      commentId: saved.id,
+      mentionedUserIds,
+    };
+    this.eventEmitter.emit(COMMENT_ADDED, addedPayload);
 
     const list = await this.listComments(projectId, workItemId);
     return PaginatedMutationResponse.forPaginated(saved, list);

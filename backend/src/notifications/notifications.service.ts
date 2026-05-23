@@ -6,6 +6,12 @@ import { Notification } from './entities/notification.entity';
 import { PaginatedResponse } from '../common/dto/paginated-response.dto';
 import { EmailService } from '../common/services/email.service';
 import { clampLimit } from '../common/helpers/pagination.helper';
+import {
+  COMMENT_ADDED,
+  COMMENT_MENTIONED,
+  type CommentAddedPayload,
+  type CommentMentionedPayload,
+} from '../comments/events/comment-added.event';
 
 @Injectable()
 export class NotificationsService {
@@ -148,19 +154,20 @@ export class NotificationsService {
     }
   }
 
-  @OnEvent('comment.added')
-  async onCommentAdded(payload: { taskId: number; projectId: number; actorId: number; commentId: number }) {
+  @OnEvent(COMMENT_ADDED)
+  async onCommentAdded(payload: CommentAddedPayload) {
     try {
-      // Notify assignee + reporter (not author)
+      // Notify assignee + reporter (not author).
       const [task] = await this.dataSource.query(
-        'SELECT assignee_id, reporter_id, item_number, title FROM work_items WHERE id = $1', [payload.taskId],
+        'SELECT assignee_id, reporter_id, item_number, title FROM work_items WHERE id = $1',
+        [payload.workItemId],
       );
       if (!task) return;
 
       const [project] = await this.dataSource.query(
         'SELECT prefix FROM projects WHERE id = $1', [payload.projectId],
       );
-      const taskKey = `${project?.prefix || ''}-${task.item_number}`;
+      const itemKey = `${project?.prefix || ''}-${task.item_number}`;
       const recipients = new Set<number>();
 
       if (task.assignee_id) recipients.add(task.assignee_id);
@@ -172,8 +179,8 @@ export class NotificationsService {
           payload.actorId,
           'comment_added',
           'work_item',
-          payload.taskId,
-          `New comment on ${taskKey}`,
+          payload.workItemId,
+          `New comment on ${itemKey}`,
           task.title,
           payload.projectId,
         );
@@ -201,16 +208,17 @@ export class NotificationsService {
     }
   }
 
-  @OnEvent('comment.mentioned')
-  async onMentioned(payload: { userId: number; actorId: number; taskId: number; projectId: number; commentId: number }) {
+  @OnEvent(COMMENT_MENTIONED)
+  async onMentioned(payload: CommentMentionedPayload) {
     try {
       const [task] = await this.dataSource.query(
-        'SELECT item_number, title FROM work_items WHERE id = $1', [payload.taskId],
+        'SELECT item_number, title FROM work_items WHERE id = $1',
+        [payload.workItemId],
       );
       const [project] = await this.dataSource.query(
         'SELECT prefix FROM projects WHERE id = $1', [payload.projectId],
       );
-      const taskKey = `${project?.prefix || ''}-${task?.item_number || ''}`;
+      const itemKey = `${project?.prefix || ''}-${task?.item_number || ''}`;
 
       await this.createNotification(
         payload.userId,
@@ -218,7 +226,7 @@ export class NotificationsService {
         'mentioned',
         'comment',
         payload.commentId,
-        `You were mentioned in ${taskKey}`,
+        `You were mentioned in ${itemKey}`,
         task?.title || null,
         payload.projectId,
       );
