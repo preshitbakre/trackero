@@ -150,6 +150,9 @@ export const ResponseCodes = {
   HEALTH_OK:              { code: 'S-0300', message: 'Service healthy' },
   MIGRATIONS_FETCHED:     { code: 'S-0301', message: 'Migrations status retrieved' },
 
+  // Presence (S-0500)
+  PRESENCE_FETCHED:       { code: 'S-0500', message: 'Presence snapshot retrieved' },
+
   // ---- FAILURE CODES ----
 
   // Validation (F-V)

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventsGateway } from './events.gateway';
+import { PresenceModule } from '../presence/presence.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { EventsGateway } from './events.gateway';
         secret: config.getOrThrow<string>('JWT_SECRET'),
       }),
     }),
+    PresenceModule,
   ],
   providers: [EventsGateway],
 })

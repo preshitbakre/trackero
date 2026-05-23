@@ -26,6 +26,7 @@ import { SearchModule } from './search/search.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { FiltersModule } from './filters/filters.module';
 import { WorkItemsModule } from './work-items/work-items.module';
+import { PresenceModule } from './presence/presence.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 @Module({
@@ -70,6 +71,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     DashboardModule,
     FiltersModule,
     WorkItemsModule,
+    PresenceModule,
   ],
   providers: [
     {
