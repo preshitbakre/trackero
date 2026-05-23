@@ -405,26 +405,35 @@ export class DashboardService {
         const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / 86400000);
         const totalPoints = sp.total_points || 0;
 
-        const dataPoints: any[] = [];
-        const current = new Date(startDate);
-        let dayIndex = 0;
+        // Replace per-day JS loop with one grouped Postgres query that uses
+        // generate_series to produce one row per day and aggregates completed
+        // points server-side. Output shape per data point is identical:
+        //   { date, ideal, actual }.
+        const startStr = typeof sp.start_date === 'string'
+          ? sp.start_date.slice(0, 10)
+          : startDate.toISOString().split('T')[0];
+        const endStr = effectiveEnd.toISOString().split('T')[0];
+        const rows = await db.query(
+          `SELECT
+             d.day::date::text AS date,
+             COALESCE((
+               SELECT SUM(story_points)
+               FROM work_items
+               WHERE sprint_id = $1
+                 AND completed_at IS NOT NULL
+                 AND completed_at <= d.day + interval '1 day'
+                 AND item_type IN ('task')
+             ), 0)::int AS completed
+           FROM generate_series($2::date, $3::date, '1 day') AS d(day)
+           ORDER BY d.day`,
+          [sp.id, startStr, endStr],
+        );
 
-        while (current <= effectiveEnd) {
-          const dateStr = current.toISOString().split('T')[0];
+        const dataPoints = rows.map((r: any, dayIndex: number) => {
           const ideal = totalPoints * (1 - dayIndex / totalDays);
-
-          const [completedRow] = await db.query(`
-            SELECT COALESCE(SUM(story_points), 0)::int AS completed
-            FROM work_items
-            WHERE sprint_id = $1 AND completed_at IS NOT NULL AND completed_at <= $2::date + interval '1 day' AND item_type IN ('task')
-          `, [sp.id, dateStr]);
-
-          const actual = totalPoints - completedRow.completed;
-          dataPoints.push({ date: dateStr, ideal: Math.round(ideal * 10) / 10, actual });
-
-          current.setDate(current.getDate() + 1);
-          dayIndex++;
-        }
+          const actual = totalPoints - r.completed;
+          return { date: r.date, ideal: Math.round(ideal * 10) / 10, actual };
+        });
 
         burndownPreview = { sprintName: sp.name, dataPoints };
       }

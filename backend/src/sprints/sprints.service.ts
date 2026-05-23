@@ -76,23 +76,40 @@ export class SprintsService {
     qb.skip((page - 1) * limit).take(limit);
     const sprints = await qb.getMany();
 
-    const data = await Promise.all(sprints.map(async (sprint) => {
-      const stats = await this.dataSource.query(`
+    // Batch-load computed fields: ONE grouped query keyed by sprint_id rather
+    // than N per-sprint queries. Preserves taskCount/totalPoints/completedPoints
+    // shape on each sprint.
+    const sprintIds = sprints.map((s) => s.id);
+    const statsBySprint = new Map<number, { task_count: number; total_points: number; completed_points: number }>();
+    if (sprintIds.length > 0) {
+      const rows = await this.dataSource.query(`
         SELECT
+          sprint_id,
           COUNT(*)::int as task_count,
           COALESCE(SUM(story_points), 0)::int as total_points,
           COALESCE(SUM(story_points) FILTER (WHERE completed_at IS NOT NULL), 0)::int as completed_points
         FROM work_items
-        WHERE sprint_id = $1 AND item_type IN ('task', 'epic', 'story')
-      `, [sprint.id]);
+        WHERE sprint_id = ANY($1) AND item_type IN ('task', 'epic', 'story')
+        GROUP BY sprint_id
+      `, [sprintIds]);
+      for (const r of rows) {
+        statsBySprint.set(r.sprint_id, {
+          task_count: r.task_count,
+          total_points: r.total_points,
+          completed_points: r.completed_points,
+        });
+      }
+    }
 
+    const data = sprints.map((sprint) => {
+      const s = statsBySprint.get(sprint.id);
       return {
         ...sprint,
-        taskCount: parseInt(stats[0].task_count),
-        totalPoints: parseInt(stats[0].total_points),
-        completedPoints: parseInt(stats[0].completed_points),
+        taskCount: s?.task_count ?? 0,
+        totalPoints: s?.total_points ?? 0,
+        completedPoints: s?.completed_points ?? 0,
       };
-    }));
+    });
 
     return new PaginatedResponse(data, total, page, limit);
   }
@@ -370,42 +387,46 @@ export class SprintsService {
     );
     const totalPoints = parseInt(totalPointsResult[0].total);
 
-    // Calculate daily data points
+    // Compute the date window in JS so the SQL matches the original behaviour:
+    //   - start: sprint.startDate
+    //   - end:   min(today, sprint.endDate)   (don't project past today)
+    //   - totalDays: spans full sprint (start..endDate) for ideal-line slope
     const startDate = new Date(sprint.startDate);
     const endDate = new Date(sprint.endDate);
     const today = new Date();
     const effectiveEnd = today < endDate ? today : endDate;
     const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 
-    const dataPoints = [];
-    const current = new Date(startDate);
-    let dayIndex = 0;
+    // Replace the per-day JS loop with a single grouped Postgres query that
+    // uses generate_series to produce one row per day and joins/aggregates
+    // scope_delta and completed points server-side. Output shape per data
+    // point is identical: { date, ideal, actual, scope }.
+    const startStr = sprint.startDate;
+    const endStr = effectiveEnd.toISOString().split('T')[0];
+    const rows = await this.dataSource.query(
+      `SELECT
+         d.day::date::text AS date,
+         COALESCE((
+           SELECT SUM(CASE WHEN action = 'added' THEN COALESCE(story_points, 0) ELSE -COALESCE(story_points, 0) END)
+           FROM sprint_scope_changes
+           WHERE sprint_id = $1 AND created_at <= d.day + interval '1 day'
+         ), 0)::int AS scope_delta,
+         COALESCE((
+           SELECT SUM(story_points)
+           FROM work_items
+           WHERE sprint_id = $1 AND completed_at IS NOT NULL AND completed_at <= d.day + interval '1 day'
+         ), 0)::int AS completed
+       FROM generate_series($2::date, $3::date, '1 day') AS d(day)
+       ORDER BY d.day`,
+      [sprintId, startStr, endStr],
+    );
 
-    while (current <= effectiveEnd) {
-      const dateStr = current.toISOString().split('T')[0];
+    const dataPoints = rows.map((r: any, dayIndex: number) => {
+      const scope = totalPoints + r.scope_delta;
       const ideal = totalPoints * (1 - dayIndex / totalDays);
-
-      // Get scope changes up to this date
-      const scopeResult = await this.dataSource.query(
-        `SELECT COALESCE(SUM(CASE WHEN action = 'added' THEN COALESCE(story_points, 0) ELSE -COALESCE(story_points, 0) END), 0) as scope_delta
-         FROM sprint_scope_changes WHERE sprint_id = $1 AND created_at <= $2::date + interval '1 day'`,
-        [sprintId, dateStr],
-      );
-      const scope = totalPoints + parseInt(scopeResult[0].scope_delta || '0');
-
-      // Get completed points by this date
-      const completedResult = await this.dataSource.query(
-        `SELECT COALESCE(SUM(story_points), 0) as completed FROM work_items
-         WHERE sprint_id = $1 AND completed_at IS NOT NULL AND completed_at <= $2::date + interval '1 day'`,
-        [sprintId, dateStr],
-      );
-      const actual = scope - parseInt(completedResult[0].completed || '0');
-
-      dataPoints.push({ date: dateStr, ideal: Math.round(ideal * 10) / 10, actual, scope });
-
-      current.setDate(current.getDate() + 1);
-      dayIndex++;
-    }
+      const actual = scope - r.completed;
+      return { date: r.date, ideal: Math.round(ideal * 10) / 10, actual, scope };
+    });
 
     return {
       sprintName: sprint.name,

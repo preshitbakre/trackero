@@ -110,21 +110,34 @@ export class ProjectsService {
     qb.skip((page - 1) * limit).take(limit);
     const entities = await qb.getMany();
 
-    // Batch-load computed fields
-    const data = await Promise.all(entities.map(async (project) => {
-      const [memberCountRow] = await this.dataSource.query(
-        'SELECT COUNT(*) as count FROM project_members WHERE project_id = $1',
-        [project.id],
+    // Batch-load computed fields: ONE grouped query per kind keyed by
+    // project_id. Avoids the N+1 of running two queries per project.
+    const projectIds = entities.map((p) => p.id);
+    const memberCounts = new Map<number, number>();
+    const taskCounts = new Map<number, number>();
+    if (projectIds.length > 0) {
+      const memberRows = await this.dataSource.query(
+        `SELECT project_id, COUNT(*)::int AS count
+         FROM project_members
+         WHERE project_id = ANY($1)
+         GROUP BY project_id`,
+        [projectIds],
       );
-      const [taskCountRow] = await this.dataSource.query(
-        'SELECT COUNT(*) as count FROM work_items WHERE project_id = $1 AND item_type IN (\'task\')',
-        [project.id],
+      for (const r of memberRows) memberCounts.set(r.project_id, r.count);
+      const taskRows = await this.dataSource.query(
+        `SELECT project_id, COUNT(*)::int AS count
+         FROM work_items
+         WHERE project_id = ANY($1) AND item_type IN ('task')
+         GROUP BY project_id`,
+        [projectIds],
       );
-      return {
-        ...project,
-        memberCount: parseInt(memberCountRow.count),
-        taskCount: parseInt(taskCountRow.count),
-      };
+      for (const r of taskRows) taskCounts.set(r.project_id, r.count);
+    }
+
+    const data = entities.map((project) => ({
+      ...project,
+      memberCount: memberCounts.get(project.id) ?? 0,
+      taskCount: taskCounts.get(project.id) ?? 0,
     }));
 
     return new PaginatedResponse(data, total, page, limit);
