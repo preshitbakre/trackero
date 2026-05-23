@@ -45,7 +45,19 @@ export function MembersTab() {
     setLoading(false);
   };
 
-  useEffect(() => { loadMembers(); }, [projectId]);
+  useEffect(() => {
+    let ignored = false;
+    const load = async () => {
+      try {
+        const { data } = await apiClient.get(`/projects/${projectId}/members`);
+        if (ignored) return;
+        setMembers(data.data.list || []);
+      } catch (err) { console.error(err); }
+      if (!ignored) setLoading(false);
+    };
+    load();
+    return () => { ignored = true; };
+  }, [projectId]);
 
   const handleRoleChange = async (userId: number, newRole: string) => {
     try {
@@ -185,17 +197,23 @@ function AddMemberDialog({ projectId, isAdmin, onClose, onAdded }: {
       setShowResults(false);
       return;
     }
+    let ignored = false;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
+      if (ignored) return;
       setSearching(true);
       try {
         const { data } = await apiClient.get(`/users?exclude_project=${projectId}&search=${encodeURIComponent(search)}&limit=10`);
+        if (ignored) return;
         setResults(data.data.list || []);
         setShowResults(true);
       } catch (err) { console.error(err); }
-      setSearching(false);
+      if (!ignored) setSearching(false);
     }, 300);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    return () => {
+      ignored = true;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [search, projectId]);
 
   // Close dropdown on outside click

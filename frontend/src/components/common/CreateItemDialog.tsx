@@ -83,6 +83,7 @@ export function CreateItemDialog({
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    let ignored = false;
     const load = async () => {
       try {
         const [statusRes, sprintRes, assigneeRes, labelRes] = await Promise.all([
@@ -91,6 +92,7 @@ export function CreateItemDialog({
           apiClient.get(`/projects/${projectId}/filters/assignees`),
           apiClient.get(`/projects/${projectId}/labels`),
         ]);
+        if (ignored) return;
         setStatuses(statusRes.data.data?.list || statusRes.data.data || []);
         setSprints(sprintRes.data.data?.list || sprintRes.data.data || []);
         setAssignees(assigneeRes.data.data?.list || assigneeRes.data.data || []);
@@ -98,6 +100,7 @@ export function CreateItemDialog({
       } catch (err) { console.error(err); }
     };
     load();
+    return () => { ignored = true; };
   }, [projectId]);
 
   useEffect(() => {

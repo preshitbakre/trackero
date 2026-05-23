@@ -17,9 +17,14 @@ export function LabelPicker({ projectId, selectedIds, onChange }: LabelPickerPro
   const [labels, setLabels] = useState<Label[]>([]);
 
   useEffect(() => {
+    let ignored = false;
     apiClient.get(`/projects/${projectId}/labels`)
-      .then((res) => setLabels(res.data.data?.list || res.data.data || []))
+      .then((res) => {
+        if (ignored) return;
+        setLabels(res.data.data?.list || res.data.data || []);
+      })
       .catch((err) => { console.error(err); });
+    return () => { ignored = true; };
   }, [projectId]);
 
   if (labels.length === 0) return null;

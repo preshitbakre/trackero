@@ -42,14 +42,19 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       setResults([]);
       return;
     }
+    let ignored = false;
     const timer = setTimeout(async () => {
       try {
         const { data } = await apiClient.get(`/search?q=${encodeURIComponent(query)}`);
+        if (ignored) return;
         setResults(data.data.list || []);
         setSelectedIndex(0);
       } catch (err) { console.error(err); }
     }, 200);
-    return () => clearTimeout(timer);
+    return () => {
+      ignored = true;
+      clearTimeout(timer);
+    };
   }, [query]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

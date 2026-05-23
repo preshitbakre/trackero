@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../../api/client';
 import { useAuthStore } from '../../store/auth.store';
@@ -114,6 +114,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
   const [assocSearchQuery, setAssocSearchQuery] = useState('');
   const [assocSearchResults, setAssocSearchResults] = useState<any[]>([]);
   const [assocSearching, setAssocSearching] = useState(false);
+  const assocSearchSeqRef = useRef(0);
   const { saveStatus, flushDebounce, debouncedFieldChange, handleFieldChange, saveAssignee } = useTaskAutoSave({ projectId, taskId, onUpdated });
 
   // Race-protected loader for the current taskId. Inlined ignore-aware wrappers
@@ -259,12 +260,14 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
   const handleAssocSearch = async (q: string) => {
     setAssocSearchQuery(q);
     setAssocSearching(true);
+    const seq = ++assocSearchSeqRef.current;
     try {
       const params = q.length >= 2 ? `search=${encodeURIComponent(q)}&limit=20` : 'limit=20&sort=updatedAt&order=DESC';
       const { data } = await apiClient.get(`/projects/${projectId}/items?${params}`);
+      if (seq !== assocSearchSeqRef.current) return;
       setAssocSearchResults((data.data.list || []).filter((t: any) => t.id !== taskId));
     } catch (err) { console.error(err); }
-    setAssocSearching(false);
+    if (seq === assocSearchSeqRef.current) setAssocSearching(false);
   };
 
   const handleAddAssociation = async (linkedItemId: number) => {
@@ -1019,6 +1022,7 @@ function DependencySection({ projectId, taskId, blockedBy, blocks, canEdit, onCh
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{ id: number; itemNumber: number; itemKey: string; title: string }[]>([]);
   const [searching, setSearching] = useState(false);
+  const searchSeqRef = useRef(0);
 
   const existingIds = new Set([
     taskId,
@@ -1030,11 +1034,13 @@ function DependencySection({ projectId, taskId, blockedBy, blocks, canEdit, onCh
     setSearchQuery(q);
     if (q.length < 2) { setSearchResults([]); return; }
     setSearching(true);
+    const seq = ++searchSeqRef.current;
     try {
       const { data } = await apiClient.get(`/projects/${projectId}/items?search=${encodeURIComponent(q)}&limit=10`);
+      if (seq !== searchSeqRef.current) return;
       setSearchResults((data.data.list || []).filter((t: any) => !existingIds.has(t.id)));
     } catch (err) { console.error(err); }
-    setSearching(false);
+    if (seq === searchSeqRef.current) setSearching(false);
   };
 
   const handleAdd = async (targetTaskId: number) => {
@@ -1158,9 +1164,14 @@ function AttachmentRow({ attachment, projectId, taskId, onDownload }: {
 
   useEffect(() => {
     if (!isImage) return;
+    let ignored = false;
     apiClient.get(`/projects/${projectId}/items/${taskId}/attachments/${attachment.id}/url`)
-      .then((res) => setPreviewUrl(res.data.data.url))
+      .then((res) => {
+        if (ignored) return;
+        setPreviewUrl(res.data.data.url);
+      })
       .catch((err) => { console.error(err); });
+    return () => { ignored = true; };
   }, [attachment.id, isImage, projectId, taskId]);
 
   return (
