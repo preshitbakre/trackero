@@ -216,6 +216,7 @@ export class WorkItemsService {
       reporter: item.reporter ? {
         id: item.reporter.id,
         displayName: (item.reporter as any).displayName,
+        avatarUrl: (item.reporter as any).avatarUrl ?? null,
       } : null,
       reporterId: item.reporterId,
       storyPoints: item.storyPoints,
@@ -458,7 +459,11 @@ export class WorkItemsService {
     return {
       ...baseResponse,
       description: item.description,
-      reporter: item.reporter ? { id: item.reporter.id, displayName: (item.reporter as any).displayName } : null,
+      reporter: item.reporter ? {
+        id: item.reporter.id,
+        displayName: (item.reporter as any).displayName,
+        avatarUrl: (item.reporter as any).avatarUrl ?? null,
+      } : null,
       children: childrenFormatted,
       breadcrumb,
       associations,
