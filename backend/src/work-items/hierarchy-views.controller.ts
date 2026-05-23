@@ -19,8 +19,8 @@ export class HierarchyViewsController {
   @ResponseCode('STORIES_LISTED')
   async listEpics(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
+    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
     @Query('status') status?: string,
   ) {
     return this.workItemsService.listEpics(projectId, { page, limit, status });
@@ -31,9 +31,9 @@ export class HierarchyViewsController {
   @ResponseCode('STORIES_LISTED')
   async listStories(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
-    @Query('epicId') epicId?: number,
+    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @Query('epicId', new ParseIntPipe({ optional: true })) epicId?: number,
   ) {
     return this.workItemsService.listStories(projectId, { page, limit, epicId });
   }

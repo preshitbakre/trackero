@@ -35,8 +35,8 @@ export class SprintsController {
   @ResponseCode('SPRINTS_LISTED')
   async findAll(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
+    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
   ) {
     return this.sprintsService.listSprints(projectId, page || 1, limit || 20);
   }

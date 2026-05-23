@@ -14,8 +14,8 @@ export class NotificationsController {
   @ResponseCode('NOTIFICATIONS_LISTED')
   async list(
     @CurrentUser() user: JwtPayload,
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
+    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
     @Query('isRead') isRead?: string,
   ) {
     const isReadBool = isRead === 'true' ? true : isRead === 'false' ? false : undefined;

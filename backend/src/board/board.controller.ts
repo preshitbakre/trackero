@@ -22,10 +22,10 @@ export class BoardController {
   @ResponseCode('BOARD_FETCHED')
   async getBoard(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Query('sprintId') sprintId?: number,
+    @Query('sprintId', new ParseIntPipe({ optional: true })) sprintId?: number,
     @Query('assigneeId') assigneeId?: string,
     @Query('priority') priority?: string,
-    @Query('epicId') epicId?: number,
+    @Query('epicId', new ParseIntPipe({ optional: true })) epicId?: number,
   ) {
     const assigneeIds = assigneeId
       ? assigneeId.split(',').map(Number).filter((n) => !isNaN(n))

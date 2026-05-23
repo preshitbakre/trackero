@@ -20,9 +20,9 @@ export class UsersController {
   @Roles('admin')
   @ResponseCode('USERS_LISTED')
   async findAll(
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
-    @Query('exclude_project') excludeProject?: number,
+    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @Query('exclude_project', new ParseIntPipe({ optional: true })) excludeProject?: number,
     @Query('search') search?: string,
   ) {
     if (excludeProject) {

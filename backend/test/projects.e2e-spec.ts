@@ -134,6 +134,15 @@ describe('Projects Module (e2e)', () => {
       expect(res.body.data.list.length).toBe(1);
     });
 
+    it('rejects malformed numeric query param with a clean 400', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/projects?page=abc')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBeGreaterThanOrEqual(400);
+      expect(res.status).toBeLessThan(500);
+      expect(res.body.success).toBe(false);
+    });
+
     it('member sees only assigned projects', async () => {
       const res = await request(app.getHttpServer())
         .get('/api/projects')

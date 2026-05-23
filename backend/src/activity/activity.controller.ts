@@ -16,8 +16,8 @@ export class ActivityController {
   @ResponseCode('ACTIVITY_LISTED')
   async projectActivity(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
+    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
   ) {
     return this.activityService.listProjectActivity(projectId, page || 1, limit || 20);
   }
@@ -28,8 +28,8 @@ export class ActivityController {
   async taskActivity(
     @Param('projectId', ParseIntPipe) projectId: number,
     @Param('itemId', ParseIntPipe) itemId: number,
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
+    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
   ) {
     return this.activityService.listTaskActivity(projectId, itemId, page || 1, limit || 20);
   }

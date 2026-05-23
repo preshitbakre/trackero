@@ -41,8 +41,8 @@ export class ProjectsController {
   @ResponseCode('PROJECTS_LISTED')
   async findAll(
     @CurrentUser() user: JwtPayload,
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
+    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
     @Query('status') status?: string,
     @Query('search') search?: string,
   ) {
