@@ -37,7 +37,6 @@ interface TaskDetail {
   itemNumber: number;
   title: string;
   description: string | null;
-  type: string;
   itemType?: string;
   priority: string;
   statusId: number;

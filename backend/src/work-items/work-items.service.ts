@@ -1366,9 +1366,8 @@ export class WorkItemsService {
   }
 
   /**
-   * Batch variant of computeDescendantStats. Computes descendant stats for many
-   * root items in a single multi-root recursive CTE — avoids the per-row N+1 in
-   * listEpics/listStories.
+   * Computes descendant stats for many root items in a single multi-root
+   * recursive CTE — avoids the per-row N+1 in listEpics/listStories.
    *
    * The CTE carries the originating root id through every recursion step, so a
    * single GROUP BY at the end produces one row per root that has descendants.
@@ -1461,59 +1460,6 @@ export class WorkItemsService {
     }
 
     return map;
-  }
-
-  /**
-   * Computes recursive descendant stats for an item using a CTE.
-   * Returns progress (totalItems, completedItems, totalPoints, completedPoints, progressPercent)
-   * and childBreakdown (stories, tasks, subtasks counts).
-   */
-  private async computeDescendantStats(itemId: number) {
-    const result = await this.dataSource.query(`
-      WITH RECURSIVE descendants AS (
-        SELECT a.item_id AS id, wi.item_type, wi.status_id, wi.story_points, 1 as depth
-        FROM work_item_associations a
-        JOIN work_items wi ON wi.id = a.item_id
-        WHERE a.linked_item_id = $1 AND a.link_type = 'belongs_to'
-        UNION ALL
-        SELECT a2.item_id, wi2.item_type, wi2.status_id, wi2.story_points, d.depth + 1
-        FROM work_item_associations a2
-        JOIN work_items wi2 ON wi2.id = a2.item_id
-        JOIN descendants d ON a2.linked_item_id = d.id
-        WHERE a2.link_type = 'belongs_to' AND d.depth < 4
-      )
-      SELECT
-        COUNT(*) as total_items,
-        COUNT(*) FILTER (WHERE ps.category = 'done') as completed_items,
-        COALESCE(SUM(d.story_points), 0) as total_points,
-        COALESCE(SUM(d.story_points) FILTER (WHERE ps.category = 'done'), 0) as completed_points,
-        COUNT(*) FILTER (WHERE d.item_type = 'story') as story_count,
-        COUNT(*) FILTER (WHERE d.item_type = 'task') as task_count,
-        COUNT(*) FILTER (WHERE d.item_type = 'subtask') as subtask_count,
-        COUNT(*) FILTER (WHERE d.item_type = 'bug') as bug_count
-      FROM descendants d
-      JOIN project_statuses ps ON ps.id = d.status_id
-    `, [itemId]);
-
-    const row = result[0];
-    const totalItems = parseInt(row.total_items);
-    const completedItems = parseInt(row.completed_items);
-
-    return {
-      progress: {
-        totalItems,
-        completedItems,
-        totalPoints: parseInt(row.total_points),
-        completedPoints: parseInt(row.completed_points),
-        progressPercent: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
-      },
-      childBreakdown: {
-        stories: parseInt(row.story_count),
-        tasks: parseInt(row.task_count),
-        subtasks: parseInt(row.subtask_count),
-        bugs: parseInt(row.bug_count),
-      },
-    };
   }
 
   // =========================================================================
@@ -1686,8 +1632,13 @@ export class WorkItemsService {
    * - Cross-project: REJECT
    * - Circular reference: REJECT
    * - Depth exceeded after move: REJECT
-   * - Task-with-subtasks moved under another task: REJECT
-   *   (would make task a subtask-like nesting which exceeds depth)
+   *
+   * Note: a task→task move is implicitly rejected by validateParentChildType
+   * below — under the post-5.6 canonical model only `subtask` items may have a
+   * non-null parent, so any attempt to reparent a `task` to a non-null parent
+   * fails with INVALID_PARENT_CHILD_TYPE. The previously explicit
+   * "task-with-subtasks moved under another task" branch was unreachable in
+   * normal flow and has been removed.
    */
   async validateReparenting(
     item: WorkItem,
@@ -1705,18 +1656,6 @@ export class WorkItemsService {
 
     // Circular reference check
     await this.validateCircularReference(item.id, newParent.id);
-
-    // Cannot move task-with-subtasks under another task
-    // (this would create task → task → subtask, which violates the hierarchy)
-    if (item.itemType === 'task' && newParent.itemType === 'task') {
-      const children = await this.dataSource.query(
-        `SELECT COUNT(*) as cnt FROM work_items WHERE parent_id = $1 AND item_type = 'subtask'`,
-        [item.id],
-      );
-      if (parseInt(children[0].cnt) > 0) {
-        throw new AppLogicException('CANNOT_REPARENT_WITH_CHILDREN', HttpStatus.BAD_REQUEST);
-      }
-    }
 
     // Validate parent-child type is valid for the move
     await this.validateParentChildType(item.itemType, newParent);
