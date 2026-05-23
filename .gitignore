@@ -23,6 +23,7 @@ docs/*
 !docs/DESIGN.md
 !docs/superpowers
 !docs/design-reference
+!docs/operator
 .claude/
 
 # Playwright artifacts

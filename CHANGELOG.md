@@ -128,10 +128,17 @@ schema". No new product surface; every later phase rests on this.
 ### Internal notes for operators upgrading from 1.0.x
 - After deploying this image to a long-running instance whose dev/prod DB
   was built by `synchronize: true`, you may need to seed the `migrations`
-  bookkeeping table once before the next boot. Migration 024 handles rows
-  15-23; rows 0-14 must already be present (the audit-confirmed baseline).
-  If your installation has no `migrations` table at all because synchronize
-  built every schema object directly, the safer path is to (a) take a
-  database backup, (b) manually insert bookkeeping rows for migrations
-  0-14, then (c) deploy the new image. The boot-time auto-migration will
-  pick up 024-029 from there.
+  bookkeeping table once before the next boot. The audit-targeted DB
+  needed rows for migrations 15-23; observed dev DBs have needed 14-23.
+  Run the SQL in `docs/operator/seed-migrations-baseline.sql` (the
+  WHERE-NOT-EXISTS form is idempotent), then boot. Migration 029 is
+  protective: it refuses to drop a legacy table that still has rows. If
+  the boot fails with "refusing to drop legacy table X; N rows survive",
+  inspect the rows — for the audit-targeted instance the only surviving
+  rows were the default Task/Bug `task_types` built-in seeds, which were
+  superseded by `work_items.itemType` and safe to truncate.
+- The backend now compiles migration .ts → .js on every `npm run build`
+  and on `npm run start` / `start:dev` (see `tsconfig.migrations.json` +
+  the `compile:migrations` npm script). The runtime loads .js only; the
+  TypeORM CLI continues to consume .ts via `typeorm-ts-node-commonjs`.
+  Fresh clones get the artifacts on first build.
