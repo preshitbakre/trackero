@@ -102,6 +102,10 @@ export const ResponseCodes = {
   WATCHER_ADDED:          { code: 'S-0145', message: 'You are now watching' },
   WATCHER_REMOVED:        { code: 'S-0146', message: 'You stopped watching' },
   WATCHERS_LISTED:        { code: 'S-0147', message: 'Watchers retrieved' },
+  NOTIFICATION_PREFS_FETCHED:  { code: 'S-0148', message: 'Notification preferences retrieved' },
+  NOTIFICATION_PREFS_UPDATED:  { code: 'S-0149', message: 'Notification preference updated' },
+  INSTANCE_SETTINGS_FETCHED:   { code: 'S-0150', message: 'Instance settings retrieved' },
+  INSTANCE_SETTINGS_UPDATED:   { code: 'S-0151', message: 'Instance settings updated' },
 
   // Attachments (S-0150 – S-0154)
   ATTACHMENTS_LISTED:     { code: 'S-0150', message: 'Attachments retrieved' },

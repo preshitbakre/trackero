@@ -55,6 +55,9 @@ import { WorkItemWatchers1716000036000 } from '../../../migrations/1716000036000
 import { CommentMentions1716000037000 } from '../../../migrations/1716000037000-comment-mentions';
 import { CommentReactions1716000038000 } from '../../../migrations/1716000038000-comment-reactions';
 import { WorkItemsReviewer1716000039000 } from '../../../migrations/1716000039000-work-items-reviewer';
+import { NotificationPreferences1716000040000 } from '../../../migrations/1716000040000-notification-preferences';
+import { UsersTimezone1716000041000 } from '../../../migrations/1716000041000-users-timezone';
+import { InstanceSettings1716000042000 } from '../../../migrations/1716000042000-instance-settings';
 import { EXPECTED_MIGRATION_NAMES } from '../../../src/database/migrations-registry';
 
 const ALL_MIGRATIONS: MixedList<new () => MigrationInterface> = [
@@ -98,6 +101,9 @@ const ALL_MIGRATIONS: MixedList<new () => MigrationInterface> = [
   CommentMentions1716000037000,
   CommentReactions1716000038000,
   WorkItemsReviewer1716000039000,
+  NotificationPreferences1716000040000,
+  UsersTimezone1716000041000,
+  InstanceSettings1716000042000,
 ];
 
 function uniqueDbName(): string {

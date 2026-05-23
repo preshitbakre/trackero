@@ -4,6 +4,43 @@ All notable changes to Trackero are tracked here. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0-prefs] — 2026-05-24
+
+Phase 8. The backend gains per-user notification preferences,
+instance-wide settings, bulk invites, and a `users.timezone` column the
+daily cron + Today's greeting can lean on. The first-run wizard is
+deferred (first-signup-is-admin still works), keeping scope tight.
+
+### Added
+- Migration **040** — `notification_preferences (user_id, type, channel,
+  enabled, updated_at)`, composite PK. Absent row = "send" (no breaking
+  change for users who never touched prefs).
+- Migration **041** — `users.timezone VARCHAR(50) DEFAULT 'UTC'`.
+- Migration **042** — `instance_settings (key TEXT PK, value JSONB,
+  updated_at, updated_by FK SET NULL)`. Seeds `appName='Trackero'`,
+  `defaultRole='member'`, `feature_flags={}`.
+- New `PreferencesModule` and four endpoints:
+  - `GET /api/me/notification-preferences`
+  - `PUT /api/me/notification-preferences { type, channel, enabled }`
+  - `GET /api/instance-settings` (any authenticated user)
+  - `PUT /api/instance-settings { key, value }` (admin only)
+- New `POST /api/users/invite/bulk { emails, role, projectId? }` —
+  accepts newline OR array; dedups; per-row failure surface; hard cap
+  of 50.
+
+### Deferred
+- 4-step first-run wizard frontend — first-signup-is-admin path in
+  `/register` already covers fresh installs; the wizard slot stays
+  open for a later visual-polish pass.
+- `SettingsPage` + `ProfilePage` UI wiring for prefs/bulk-invite — the
+  backend contract is final and the e2e regression locks it; frontend
+  surfaces can land incrementally.
+
+### Testing
+- New regression pack `e2e/regression/phase-8/` — instance-settings
+  shape, prefs upsert roundtrip, bulk invite happy path + 50-cap
+  enforcement, invalid channel rejection.
+
 ## [1.8.0-task-parity] — 2026-05-24
 
 Phase 7. Task detail catches up to frame-6 parity: watchers, first-class

@@ -29,6 +29,7 @@ import { WorkItemsModule } from './work-items/work-items.module';
 import { PresenceModule } from './presence/presence.module';
 import { TodayModule } from './today/today.module';
 import { DirectoryModule } from './directory/directory.module';
+import { PreferencesModule } from './preferences/preferences.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 @Module({
@@ -76,6 +77,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     PresenceModule,
     TodayModule,
     DirectoryModule,
+    PreferencesModule,
   ],
   providers: [
     {

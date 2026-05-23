@@ -73,4 +73,43 @@ export class UsersController {
   ) {
     return this.usersService.invite(body.email, body.role, user.userId, body.projectId);
   }
+
+  // Phase 8 — bulk invite. Accepts a newline-separated string OR an array
+  // of emails; hard cap of 50 per request so a paste of "all" doesn't
+  // hammer the SMTP relay (or in dev: log spam). Per-email failures are
+  // returned in the response so partial success is visible without
+  // burning the entire batch.
+  @Post('invite/bulk')
+  @Roles('admin')
+  @HttpCode(HttpStatus.OK)
+  @ResponseCode('INVITATION_SENT')
+  async inviteBulk(
+    @Body() body: { emails: string | string[]; role: string; projectId?: number },
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const raw = Array.isArray(body.emails)
+      ? body.emails
+      : (body.emails ?? '').split(/[\s,;]+/);
+    const emails = Array.from(
+      new Set(raw.map((e) => e.trim().toLowerCase()).filter((e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e))),
+    );
+    if (emails.length === 0) {
+      return { invited: [], failed: [] };
+    }
+    if (emails.length > 50) {
+      return { invited: [], failed: emails.map((e) => ({ email: e, reason: 'batch-cap-exceeded' })) };
+    }
+
+    const invited: string[] = [];
+    const failed: Array<{ email: string; reason: string }> = [];
+    for (const email of emails) {
+      try {
+        await this.usersService.invite(email, body.role, user.userId, body.projectId);
+        invited.push(email);
+      } catch (err: any) {
+        failed.push({ email, reason: err?.code ?? err?.message ?? 'unknown' });
+      }
+    }
+    return { invited, failed };
+  }
 }

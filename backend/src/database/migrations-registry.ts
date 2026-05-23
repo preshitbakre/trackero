@@ -56,4 +56,7 @@ export const EXPECTED_MIGRATION_NAMES: ReadonlyArray<string> = [
   'CommentMentions1716000037000',
   'CommentReactions1716000038000',
   'WorkItemsReviewer1716000039000',
+  'NotificationPreferences1716000040000',
+  'UsersTimezone1716000041000',
+  'InstanceSettings1716000042000',
 ];
