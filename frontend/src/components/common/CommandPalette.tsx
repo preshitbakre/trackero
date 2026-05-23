@@ -75,7 +75,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 
   return (
     <>
-      <div className="fixed inset-0 z-50 bg-neutral-700/50" onClick={onClose} />
+      <div className="fixed inset-0 z-50 bg-ink/40" onClick={onClose} />
       <div className="fixed top-[20%] left-1/2 -translate-x-1/2 z-50 w-full max-w-lg bg-white dark:bg-dneutral-100 rounded-xl shadow-xl dark:shadow-[0_12px_36px_rgba(0,0,0,0.6)] overflow-hidden">
         <div className="flex items-center px-4 border-b border-neutral-200 dark:border-dneutral-300">
           <svg className="w-4 h-4 text-neutral-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
