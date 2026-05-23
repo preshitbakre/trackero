@@ -5,6 +5,7 @@ import { ToastProvider } from './components/common/Toast';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { TodayPage } from './pages/TodayPage';
 import { EpicsPage } from './pages/EpicsPage';
 import { EpicDetailPage } from './pages/EpicDetailPage';
 import { SprintsPage } from './pages/SprintsPage';
@@ -50,7 +51,13 @@ export function App() {
               </ProtectedRoute>
             }
           >
-            <Route path="/dashboard" element={<DashboardPage />} />
+            {/* Phase 2 — /today is canonical. /dashboard renders the
+                same TodayPage for one release of backward-compat so
+                bookmarks / sidebar deep-links don't 404; remove the
+                old route in the next minor release. */}
+            <Route path="/today" element={<TodayPage />} />
+            <Route path="/dashboard" element={<TodayPage />} />
+            <Route path="/dashboard-legacy" element={<DashboardPage />} />
             <Route path="/projects/:id/board" element={<BoardPage />} />
             <Route path="/projects/:id/tasks/:taskId" element={<TaskDetailPage />} />
             <Route path="/projects/:id/backlog" element={<BacklogPage />} />
