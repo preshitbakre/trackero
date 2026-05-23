@@ -36,3 +36,4 @@ playwright-report/
 # rule only prevents new build outputs from being committed accidentally.
 backend/migrations/*.js
 backend/migrations/*.d.ts
+.gstack/

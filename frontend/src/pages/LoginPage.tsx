@@ -85,7 +85,11 @@ export function LoginPage() {
           <path d="M 100 10 A 90 90 0 0 1 190 100" fill="none" stroke="#7C3AED" strokeWidth="14" strokeLinecap="square" />
         </svg>
 
-        <div className="relative z-10 text-[11px] tracking-[0.15em] uppercase text-white/40">
+        {/* T1 polish — on mobile the hero column is content-sized, so the
+            footer collapses right under the stat columns. The mt gives it
+            breathing room; on md+ the section is full-height and
+            justify-between already spaces it correctly. */}
+        <div className="relative z-10 mt-16 md:mt-0 text-[11px] tracking-[0.15em] uppercase text-white/40">
           trackero.example.io · v1.0.4 · built 2026-05-22
         </div>
       </section>

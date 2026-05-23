@@ -157,7 +157,7 @@ export function Sidebar({ projects, currentProjectId, onNavigate }: SidebarProps
                   onClick={() => { setSwitcherOpen(false); onNavigate?.(); }}
                   className="flex items-center gap-3 px-2 py-1.5 rounded-md text-[13px] text-text hover:bg-paper border-t border-rule mt-1 pt-2"
                 >
-                  <span className="w-5 h-5 rounded-md flex items-center justify-center text-[11px] text-faint">⌂</span>
+                  <span className="w-5 h-5 rounded-md flex items-center justify-center text-[11px] text-faint">◐</span>
                   <span>Today (home)</span>
                 </Link>
                 {isAdmin && (
@@ -180,7 +180,7 @@ export function Sidebar({ projects, currentProjectId, onNavigate }: SidebarProps
           <SectionHeader>Work</SectionHeader>
           <NavItem
             to="/dashboard"
-            icon="⌂"
+            icon="◐"
             label="Today"
             active={location.pathname === '/dashboard'}
             onClick={onNavigate}

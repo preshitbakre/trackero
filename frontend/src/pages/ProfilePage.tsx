@@ -67,7 +67,7 @@ export function ProfilePage() {
     <div className="p-8 max-w-2xl">
       <Eyebrow className="mb-2">Account · {user?.email ?? '—'}</Eyebrow>
       <h1 className="font-serif italic text-[36px] text-text dark:text-dneutral-700 mb-6">
-        Profile.
+        Profile
       </h1>
 
       <form onSubmit={handleUpdateProfile} className="space-y-4 mb-10">
@@ -90,7 +90,7 @@ export function ProfilePage() {
       <hr className="border-rule dark:border-dneutral-200 mb-8" />
 
       <h2 className="font-serif italic text-[24px] text-text dark:text-dneutral-700 mb-4">
-        Change password.
+        Change password
       </h2>
       <form onSubmit={handleChangePassword} className="space-y-4">
         <div>

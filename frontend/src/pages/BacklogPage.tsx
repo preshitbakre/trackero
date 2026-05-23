@@ -291,12 +291,12 @@ export function BacklogPage() {
       <div className="flex-1 overflow-y-auto p-6">
         {/* STEP 6: Page header */}
         <div className="flex items-center justify-between mb-4">
-          <div>
+          <div className="flex items-baseline gap-4 flex-wrap">
             <h1 className="font-serif italic text-[36px] leading-none text-text dark:text-dneutral-700">
-              Backlog.
+              Backlog
             </h1>
-            <p className="text-[14px] text-mute mt-1">
-              {tasks.length} tasks · {totalPoints} pts
+            <p className="text-[11px] tracking-[0.18em] uppercase font-serif font-semibold text-faint">
+              {tasks.length} items · {totalPoints} pts
               {mediumCount > 0 && <> · <span style={{ color: '#D6B588' }}>{mediumCount} medium</span></>}
               {highCount > 0 && <> · <span style={{ color: '#E88A48' }}>{highCount} high</span></>}
               {urgentCount > 0 && <> · <span style={{ color: '#E05252' }}>{urgentCount} urgent</span></>}

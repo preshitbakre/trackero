@@ -131,7 +131,7 @@ export function GeneralTab({ canEdit }: { canEdit: boolean }) {
     <div className="space-y-8 max-w-2xl">
       {/* Project Details */}
       <section>
-        <h2 className="text-[16px] font-semibold text-neutral-700 dark:text-dneutral-700 mb-4">Project details</h2>
+        <h2 className="font-serif text-[22px] text-text dark:text-dneutral-700 mb-4">Project details</h2>
         <div className="space-y-4">
           <div>
             <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Project name</label>
@@ -166,7 +166,7 @@ export function GeneralTab({ canEdit }: { canEdit: boolean }) {
 
       {/* Sprint Defaults */}
       <section>
-        <h2 className="text-[16px] font-semibold text-neutral-700 dark:text-dneutral-700 mb-4">Sprint defaults</h2>
+        <h2 className="font-serif text-[22px] text-text dark:text-dneutral-700 mb-4">Sprint defaults</h2>
         <div>
           <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Default sprint duration (days)</label>
           <Input
@@ -189,7 +189,7 @@ export function GeneralTab({ canEdit }: { canEdit: boolean }) {
 
       {/* Estimation Settings */}
       <section>
-        <h2 className="text-[16px] font-semibold text-neutral-700 dark:text-dneutral-700 mb-4">Estimation scale</h2>
+        <h2 className="font-serif text-[22px] text-text dark:text-dneutral-700 mb-4">Estimation scale</h2>
         <div className="space-y-4">
           {/* Free integer */}
           <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
