@@ -64,7 +64,13 @@ export function AppShell() {
 
     if (newProjectId !== prev) {
       if (prev) leaveProject(prev);
-      if (newProjectId) joinProject(newProjectId);
+      if (newProjectId) {
+        joinProject(newProjectId);
+        // Phase 3 — fire-and-forget visit ping powers /me/projects/recent
+        // (Sidebar switcher's Recent section) and informs project-ordering.
+        // Failures are silently swallowed so a flaky network never blocks UX.
+        apiClient.post(`/me/project-visits/${newProjectId}`).catch(() => {});
+      }
       currentProjectIdRef.current = newProjectId;
       setCurrentProjectId(newProjectId);
     }

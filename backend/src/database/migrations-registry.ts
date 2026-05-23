@@ -47,4 +47,6 @@ export const EXPECTED_MIGRATION_NAMES: ReadonlyArray<string> = [
   'AddMissingFkIndexes1716000028000',
   'DropLegacyTables1716000029000',
   'ActivityGranularity1716000030000',
+  'ProjectsActivityArchiveColumns1716000031000',
+  'PinnedProjectsAndVisits1716000032000',
 ];

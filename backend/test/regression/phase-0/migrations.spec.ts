@@ -45,6 +45,9 @@ import { AssocCreatedBySetNull1716000026000 } from '../../../migrations/17160000
 import { AddMissingForeignKeys1716000027000 } from '../../../migrations/1716000027000-add-missing-foreign-keys';
 import { AddMissingFkIndexes1716000028000 } from '../../../migrations/1716000028000-add-missing-fk-indexes';
 import { DropLegacyTables1716000029000 } from '../../../migrations/1716000029000-drop-legacy-tables';
+import { ActivityGranularity1716000030000 } from '../../../migrations/1716000030000-activity-granularity';
+import { ProjectsActivityArchiveColumns1716000031000 } from '../../../migrations/1716000031000-projects-activity-archive-columns';
+import { PinnedProjectsAndVisits1716000032000 } from '../../../migrations/1716000032000-pinned-projects-and-visits';
 import { EXPECTED_MIGRATION_NAMES } from '../../../src/database/migrations-registry';
 
 const ALL_MIGRATIONS: MixedList<new () => MigrationInterface> = [
@@ -78,6 +81,9 @@ const ALL_MIGRATIONS: MixedList<new () => MigrationInterface> = [
   AddMissingForeignKeys1716000027000,
   AddMissingFkIndexes1716000028000,
   DropLegacyTables1716000029000,
+  ActivityGranularity1716000030000,
+  ProjectsActivityArchiveColumns1716000031000,
+  PinnedProjectsAndVisits1716000032000,
 ];
 
 function uniqueDbName(): string {

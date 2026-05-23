@@ -156,6 +156,14 @@ export const ResponseCodes = {
   // Today (S-0070)
   TODAY_FETCHED:          { code: 'S-0070', message: 'Today payload retrieved' },
 
+  // Directory + pinning (S-0080)
+  DIRECTORY_FETCHED:      { code: 'S-0080', message: 'Project directory retrieved' },
+  PINNED_LISTED:          { code: 'S-0081', message: 'Pinned projects retrieved' },
+  PINNED_UPSERTED:        { code: 'S-0082', message: 'Project pinned' },
+  PINNED_REMOVED:         { code: 'S-0083', message: 'Project unpinned' },
+  VISIT_RECORDED:         { code: 'S-0084', message: 'Project visit recorded' },
+  RECENT_LISTED:          { code: 'S-0085', message: 'Recent projects retrieved' },
+
   // ---- FAILURE CODES ----
 
   // Validation (F-V)

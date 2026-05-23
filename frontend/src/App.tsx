@@ -20,6 +20,7 @@ import { ProjectSettingsPage } from './pages/ProjectSettingsPage';
 import { TaskDetailPage } from './pages/TaskDetailPage';
 import { StoriesPage } from './pages/StoriesPage';
 import { StoryDetailPage } from './pages/StoryDetailPage';
+import { ProjectsPage } from './pages/ProjectsPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AdminRoute } from './components/AdminRoute';
 import { AppShell } from './components/layout/AppShell';
@@ -58,6 +59,7 @@ export function App() {
             <Route path="/today" element={<TodayPage />} />
             <Route path="/dashboard" element={<TodayPage />} />
             <Route path="/dashboard-legacy" element={<DashboardPage />} />
+            <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/projects/:id/board" element={<BoardPage />} />
             <Route path="/projects/:id/tasks/:taskId" element={<TaskDetailPage />} />
             <Route path="/projects/:id/backlog" element={<BacklogPage />} />
