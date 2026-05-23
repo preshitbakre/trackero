@@ -24,8 +24,8 @@ export class WorkItemAssociation {
   @Column({ name: 'link_type', type: 'varchar', length: 20 })
   linkType: 'belongs_to' | 'relates_to' | 'blocks' | 'caused_by';
 
-  @Column({ name: 'created_by', type: 'int' })
-  createdBy: number;
+  @Column({ name: 'created_by', type: 'int', nullable: true })
+  createdBy: number | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
@@ -38,7 +38,9 @@ export class WorkItemAssociation {
   @JoinColumn({ name: 'linked_item_id' })
   linkedItem: WorkItem;
 
-  @ManyToOne(() => User, { onDelete: 'RESTRICT' })
+  // ON DELETE SET NULL so the audit row survives a user deletion with
+  // the attribution column nulled (T0.3, migration 026).
+  @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'created_by' })
-  creator?: User;
+  creator?: User | null;
 }
