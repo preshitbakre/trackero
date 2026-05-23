@@ -206,7 +206,12 @@ export class UsersService {
   }
 
   async listInvitations() {
+    // SECURITY: never return the (hashed) token to clients. Even the SHA-256
+    // digest is sensitive — an attacker who exfiltrates it can craft the raw
+    // token by brute force only if it's weak, but there is no legitimate
+    // client-side use for it, so we project only metadata.
     const invitations = await this.invitationRepo.find({
+      select: ['id', 'email', 'role', 'projectId', 'invitedBy', 'status', 'expiresAt', 'createdAt'],
       order: { createdAt: 'DESC' },
     });
     return new PaginatedResponse(invitations, invitations.length, 1, invitations.length || 1);

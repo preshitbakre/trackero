@@ -19,7 +19,16 @@ export class FileStorageService implements OnModuleInit {
   constructor(private readonly configService: ConfigService) {
     this.isTestMode = this.configService.get<string>('NODE_ENV') === 'test';
     this.bucket = this.configService.get<string>('MINIO_BUCKET', 'trackero-files');
-    this.presignExpiry = parseInt(String(this.configService.get('PRESIGNED_URL_EXPIRY', 1800)));
+    // Clamp PRESIGNED_URL_EXPIRY to a safe range so a misconfigured env var
+    // can't yield a near-permanent URL (S3/MinIO presigned URLs cap at 7 days
+    // anyway, but we enforce the floor and a sane default here defensively).
+    // Min: 60s (1 minute). Max: 604800s (7 days, AWS SigV4 hard cap).
+    const PRESIGN_MIN = 60;
+    const PRESIGN_MAX = 7 * 24 * 60 * 60;
+    const PRESIGN_DEFAULT = 1800;
+    const rawPresign = parseInt(String(this.configService.get('PRESIGNED_URL_EXPIRY', PRESIGN_DEFAULT)), 10);
+    const presign = Number.isFinite(rawPresign) && rawPresign > 0 ? rawPresign : PRESIGN_DEFAULT;
+    this.presignExpiry = Math.min(PRESIGN_MAX, Math.max(PRESIGN_MIN, presign));
 
     if (!this.isTestMode) {
       const endpoint = this.configService.get<string>('MINIO_ENDPOINT');

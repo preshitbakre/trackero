@@ -263,7 +263,9 @@ export function TaskDetailPage() {
   const handleDownload = async (attachmentId: number) => {
     try {
       const { data } = await apiClient.get(`/projects/${pid}/items/${tid}/attachments/${attachmentId}/url`);
-      window.open(data.data.url, '_blank');
+      // 'noopener,noreferrer' prevents the new tab from accessing window.opener
+      // (reverse tabnabbing) and strips the Referer header to the presigned URL.
+      window.open(data.data.url, '_blank', 'noopener,noreferrer');
     } catch (err: any) {
       toast(err.response?.data?.message || 'Failed to download', 'error');
     }
