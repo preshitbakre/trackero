@@ -153,6 +153,9 @@ export const ResponseCodes = {
   // Presence (S-0500)
   PRESENCE_FETCHED:       { code: 'S-0500', message: 'Presence snapshot retrieved' },
 
+  // Today (S-0070)
+  TODAY_FETCHED:          { code: 'S-0070', message: 'Today payload retrieved' },
+
   // ---- FAILURE CODES ----
 
   // Validation (F-V)

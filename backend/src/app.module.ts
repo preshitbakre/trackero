@@ -27,6 +27,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { FiltersModule } from './filters/filters.module';
 import { WorkItemsModule } from './work-items/work-items.module';
 import { PresenceModule } from './presence/presence.module';
+import { TodayModule } from './today/today.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 @Module({
@@ -72,6 +73,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     FiltersModule,
     WorkItemsModule,
     PresenceModule,
+    TodayModule,
   ],
   providers: [
     {
