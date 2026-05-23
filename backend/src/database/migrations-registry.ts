@@ -51,4 +51,5 @@ export const EXPECTED_MIGRATION_NAMES: ReadonlyArray<string> = [
   'PinnedProjectsAndVisits1716000032000',
   'SearchPeopleProjects1716000033000',
   'SprintDailySnapshots1716000034000',
+  'RetroFourColumns1716000035000',
 ];

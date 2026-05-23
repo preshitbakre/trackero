@@ -125,6 +125,9 @@ export const ResponseCodes = {
   RETRO_CARD_UPDATED:     { code: 'S-0193', message: 'Card updated' },
   RETRO_CARD_DELETED:     { code: 'S-0194', message: 'Card deleted' },
   RETRO_CARD_VOTED:       { code: 'S-0195', message: 'Vote recorded' },
+  RETRO_FACILITATOR_SET:  { code: 'S-0196', message: 'Facilitator updated' },
+  RETRO_REVEALED:         { code: 'S-0197', message: 'Authors revealed' },
+  RETRO_CLOSED_OK:        { code: 'S-0198', message: 'Retrospective closed' },
 
   // Search (S-0200)
   SEARCH_RESULTS:         { code: 'S-0200', message: 'Search results retrieved' },
@@ -203,6 +206,7 @@ export const ResponseCodes = {
   SELF_ROLE_CHANGE:       { code: 'F-L-0056', message: 'You cannot change your own role' },
   PROJECT_ARCHIVED_ERROR: { code: 'F-L-0052', message: 'This project is archived. Unarchive it to make changes.' },
   RETRO_EXISTS:           { code: 'F-L-0053', message: 'A retrospective already exists for this sprint' },
+  RETRO_CLOSED:           { code: 'F-L-0058', message: 'Retrospective is closed; edits are locked.' },
   LAST_PROJECT_MANAGER:   { code: 'F-L-0054', message: 'Cannot remove or demote the last project manager' },
   PROJECT_NOT_ARCHIVED:   { code: 'F-L-0055', message: 'Project must be archived before it can be deleted' },
   RATE_LIMITED:           { code: 'F-L-0057', message: 'Too many requests. Please try again later.' },

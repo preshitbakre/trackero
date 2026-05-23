@@ -4,6 +4,44 @@ All notable changes to Trackero are tracked here. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0-retro] — 2026-05-24
+
+Phase 6. Retro widens to four columns (KEPT / DROPPED / SHIPPED · Lucky
+breaks / NEXT), tracks a facilitator, supports anonymous-by-default
+authoring with an explicit reveal step, and locks edits on close.
+
+### Added
+- Migration **035** — `retrospectives` gains `facilitator_id` (FK SET
+  NULL, backfilled from `created_by`), `opened_at` (backfilled from
+  `created_at`), `closed_at`, `authors_revealed_at`. `retro_cards` gains
+  `updated_at` (backfilled from `created_at`). New
+  `IDX_retro_facilitator` index.
+- `RetroCardColumn` widened to include `kept | dropped | lucky_breaks
+  | next`. Storage takes both old and new values; the API normalises
+  reads to the new vocabulary so the UI is uniform.
+- New endpoints:
+  - `PUT  /api/projects/:id/retro/:retroId/facilitator { userId }`
+  - `POST /api/projects/:id/retro/:retroId/reveal-authors`
+  - `POST /api/projects/:id/retro/:retroId/close`
+- `RetrospectivesService.onSprintCompleted` listens on
+  `sprint.completed` and auto-creates a retro for the sprint
+  (idempotent).
+- Anonymity: until `authors_revealed_at`, `authorId` is null on all
+  cards except the viewer's own; the facilitator can always see authors.
+- Closed retros reject add / update / delete / vote with
+  `F-L-0058 RETRO_CLOSED`.
+
+### Changed
+- RetroPage rebuilt per frame 9 — four columns with eyebrows + serif
+  italic titles, per-column top-vote pill, per-card anonymity tag,
+  Reveal authors + Close retro buttons (admin/PM), close-confirmation
+  modal. Facilitator name surfaces in the header.
+
+### Testing
+- New regression pack `e2e/regression/phase-6/` — lifecycle fields on
+  read, lucky_breaks add path, legacy → new column mapping, close
+  locks mutations with F-L-0058 + idempotent re-close.
+
 ## [1.6.0-capacity] — 2026-05-24
 
 Phase 5. Burndown becomes reproducible by reading from daily snapshots

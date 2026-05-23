@@ -1,14 +1,33 @@
-import { Injectable, HttpStatus } from '@nestjs/common';
+import { Injectable, HttpStatus, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
+import { OnEvent } from '@nestjs/event-emitter';
 import { Retrospective } from './entities/retrospective.entity';
-import { RetroCard } from './entities/retro-card.entity';
+import { RetroCard, RetroCardColumn } from './entities/retro-card.entity';
 import { RetroVote } from './entities/retro-vote.entity';
 import { AppLogicException } from '../common/exceptions/app-exceptions';
 import { stripHtml } from '../common/helpers/sanitize.helper';
 
+// Phase 6 — UI uses the new four-column vocabulary. Storage accepts both
+// the historical labels and the new ones; this map normalises legacy
+// values to new ones at read time so the FE can render uniformly.
+const COLUMN_LEGACY_TO_NEW: Record<string, RetroCardColumn> = {
+  went_well: 'kept',
+  to_improve: 'dropped',
+  action_items: 'next',
+};
+
+const VALID_NEW_COLUMNS: ReadonlyArray<RetroCardColumn> = [
+  'kept',
+  'dropped',
+  'lucky_breaks',
+  'next',
+];
+
 @Injectable()
 export class RetrospectivesService {
+  private readonly logger = new Logger(RetrospectivesService.name);
+
   constructor(
     @InjectRepository(Retrospective)
     private readonly retroRepo: Repository<Retrospective>,
@@ -36,11 +55,91 @@ export class RetrospectivesService {
       throw new AppLogicException('RETRO_EXISTS', HttpStatus.CONFLICT);
     }
 
-    const retro = this.retroRepo.create({ projectId, sprintId, createdBy: userId });
+    const now = new Date();
+    const retro = this.retroRepo.create({
+      projectId,
+      sprintId,
+      createdBy: userId,
+      facilitatorId: userId,
+      openedAt: now,
+    });
     return this.retroRepo.save(retro);
   }
 
-  async findBySprintId(projectId: number, sprintId: number) {
+  /**
+   * Phase 6 — auto-create the retro when a sprint completes (idempotent).
+   * Triggered by SprintsService.complete via the event bus.
+   */
+  @OnEvent('sprint.completed')
+  async onSprintCompleted(payload: { sprintId: number; projectId: number; actorId?: number; userId?: number }) {
+    try {
+      const existing = await this.retroRepo.findOne({ where: { sprintId: payload.sprintId } });
+      if (existing) return;
+      const now = new Date();
+      const actor = payload.actorId ?? payload.userId ?? null;
+      const retro = this.retroRepo.create({
+        projectId: payload.projectId,
+        sprintId: payload.sprintId,
+        createdBy: actor,
+        facilitatorId: actor,
+        openedAt: now,
+      });
+      await this.retroRepo.save(retro);
+      this.logger.log(`Auto-created retro ${retro.id} on sprint.completed for sprint ${payload.sprintId}`);
+    } catch (err) {
+      this.logger.error(
+        `Auto-create retro failed for sprint ${payload.sprintId}: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  private normaliseColumn(card: RetroCard): RetroCard & { column: RetroCardColumn } {
+    const next = COLUMN_LEGACY_TO_NEW[card.column] ?? card.column;
+    return { ...card, column: next as RetroCardColumn };
+  }
+
+  private assertOpen(retro: Retrospective) {
+    if (retro.closedAt) {
+      throw new AppLogicException('RETRO_CLOSED', HttpStatus.CONFLICT);
+    }
+  }
+
+  async setFacilitator(projectId: number, retroId: number, facilitatorUserId: number) {
+    const retro = await this.findRetroForProject(projectId, retroId);
+    this.assertOpen(retro);
+    // Validate the new facilitator is a member of this project.
+    const memberRows = await this.dataSource.query(
+      `SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2`,
+      [projectId, facilitatorUserId],
+    );
+    if (memberRows.length === 0) {
+      throw new AppLogicException('FORBIDDEN', HttpStatus.FORBIDDEN);
+    }
+    retro.facilitatorId = facilitatorUserId;
+    await this.retroRepo.save(retro);
+    return retro;
+  }
+
+  async revealAuthors(projectId: number, retroId: number) {
+    const retro = await this.findRetroForProject(projectId, retroId);
+    this.assertOpen(retro);
+    if (!retro.authorsRevealedAt) {
+      retro.authorsRevealedAt = new Date();
+      await this.retroRepo.save(retro);
+    }
+    return retro;
+  }
+
+  async closeRetro(projectId: number, retroId: number) {
+    const retro = await this.findRetroForProject(projectId, retroId);
+    if (!retro.closedAt) {
+      retro.closedAt = new Date();
+      await this.retroRepo.save(retro);
+    }
+    return retro;
+  }
+
+  async findBySprintId(projectId: number, sprintId: number, viewerUserId?: number) {
     const retro = await this.retroRepo
       .createQueryBuilder('retro')
       .leftJoinAndSelect('retro.cards', 'card')
@@ -53,7 +152,22 @@ export class RetrospectivesService {
     if (!retro) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
-    return retro;
+
+    const cards = (retro.cards ?? []).map((c) => this.normaliseColumn(c));
+
+    // Phase 6 — anonymity: until authors_revealed_at, hide authorId from
+    // anyone except the author themselves and the facilitator. Once
+    // revealed, every author is visible.
+    const isRevealed = !!retro.authorsRevealedAt;
+    const isFacilitator = viewerUserId != null && viewerUserId === retro.facilitatorId;
+    const sanitisedCards = cards.map((c) => {
+      if (isRevealed || isFacilitator || (viewerUserId != null && c.authorId === viewerUserId)) {
+        return c;
+      }
+      return { ...c, authorId: null as unknown as number };
+    });
+
+    return { ...retro, cards: sanitisedCards };
   }
 
   private async findRetroForProject(projectId: number, retroId: number): Promise<Retrospective> {
@@ -66,7 +180,16 @@ export class RetrospectivesService {
   }
 
   async addCard(projectId: number, retroId: number, column: string, content: string, userId: number) {
-    await this.findRetroForProject(projectId, retroId);
+    const retro = await this.findRetroForProject(projectId, retroId);
+    this.assertOpen(retro);
+
+    // Accept either historical (`went_well`, `to_improve`, `action_items`)
+    // or new (`kept`, `dropped`, `lucky_breaks`, `next`) values.
+    const valid = VALID_NEW_COLUMNS as readonly string[];
+    const isLegacy = ['went_well', 'to_improve', 'action_items'].includes(column);
+    if (!valid.includes(column) && !isLegacy) {
+      throw new AppLogicException('VALIDATION_FAILED', HttpStatus.BAD_REQUEST);
+    }
 
     const maxOrder = await this.cardRepo
       .createQueryBuilder('c')
@@ -76,31 +199,36 @@ export class RetrospectivesService {
 
     const card = this.cardRepo.create({
       retrospectiveId: retroId,
-      column: column as RetroCard['column'],
+      column: column as RetroCardColumn,
       content: stripHtml(content),
       authorId: userId,
       sortOrder: (maxOrder?.max ?? -1) + 1,
     });
-    return this.cardRepo.save(card);
+    const saved = await this.cardRepo.save(card);
+    return this.normaliseColumn(saved);
   }
 
   async updateCard(projectId: number, retroId: number, cardId: number, content: string) {
-    await this.findRetroForProject(projectId, retroId);
+    const retro = await this.findRetroForProject(projectId, retroId);
+    this.assertOpen(retro);
     const card = await this.cardRepo.findOne({ where: { id: cardId, retrospectiveId: retroId } });
     if (!card) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     card.content = stripHtml(content);
-    return this.cardRepo.save(card);
+    const saved = await this.cardRepo.save(card);
+    return this.normaliseColumn(saved);
   }
 
   async deleteCard(projectId: number, retroId: number, cardId: number) {
-    await this.findRetroForProject(projectId, retroId);
+    const retro = await this.findRetroForProject(projectId, retroId);
+    this.assertOpen(retro);
     const card = await this.cardRepo.findOne({ where: { id: cardId, retrospectiveId: retroId } });
     if (!card) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     await this.cardRepo.remove(card);
   }
 
   async toggleVote(projectId: number, retroId: number, cardId: number, userId: number) {
-    await this.findRetroForProject(projectId, retroId);
+    const retro = await this.findRetroForProject(projectId, retroId);
+    this.assertOpen(retro);
     const card = await this.cardRepo.findOne({ where: { id: cardId, retrospectiveId: retroId } });
     if (!card) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
 

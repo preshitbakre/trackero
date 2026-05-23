@@ -34,8 +34,9 @@ export class RetrospectivesController {
   async findBySprintId(
     @Param('projectId', ParseIntPipe) projectId: number,
     @Param('sprintId', ParseIntPipe) sprintId: number,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.retroService.findBySprintId(projectId, sprintId);
+    return this.retroService.findBySprintId(projectId, sprintId, user.userId);
   }
 
   @Post('retro/:retroId/cards')
@@ -86,5 +87,40 @@ export class RetrospectivesController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.retroService.toggleVote(projectId, retroId, cardId, user.userId);
+  }
+
+  // Phase 6 — lifecycle + facilitator endpoints.
+  @Put('retro/:retroId/facilitator')
+  @Roles('admin', 'project_manager')
+  @HttpCode(HttpStatus.OK)
+  @ResponseCode('RETRO_FACILITATOR_SET')
+  async setFacilitator(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('retroId', ParseIntPipe) retroId: number,
+    @Body() body: { userId: number },
+  ) {
+    return this.retroService.setFacilitator(projectId, retroId, body.userId);
+  }
+
+  @Post('retro/:retroId/reveal-authors')
+  @Roles('admin', 'project_manager')
+  @HttpCode(HttpStatus.OK)
+  @ResponseCode('RETRO_REVEALED')
+  async revealAuthors(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('retroId', ParseIntPipe) retroId: number,
+  ) {
+    return this.retroService.revealAuthors(projectId, retroId);
+  }
+
+  @Post('retro/:retroId/close')
+  @Roles('admin', 'project_manager')
+  @HttpCode(HttpStatus.OK)
+  @ResponseCode('RETRO_CLOSED_OK')
+  async close(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('retroId', ParseIntPipe) retroId: number,
+  ) {
+    return this.retroService.closeRetro(projectId, retroId);
   }
 }

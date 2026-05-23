@@ -1,9 +1,16 @@
 import {
-  Entity, PrimaryGeneratedColumn, Column, CreateDateColumn,
+  Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn,
   ManyToOne, JoinColumn, Index,
 } from 'typeorm';
 import { Retrospective } from './retrospective.entity';
 import { User } from '../../users/entities/user.entity';
+
+// Phase 6 — `kept | dropped | lucky_breaks | next` join the historical
+// `went_well | to_improve | action_items` values at the storage layer.
+// API + UI map old → new for one release.
+export type RetroCardColumn =
+  | 'went_well' | 'to_improve' | 'action_items'
+  | 'kept' | 'dropped' | 'lucky_breaks' | 'next';
 
 @Entity('retro_cards')
 @Index('IDX_retro_card_retro', ['retrospectiveId'])
@@ -15,7 +22,7 @@ export class RetroCard {
   retrospectiveId: number;
 
   @Column({ type: 'varchar', length: 20 })
-  column: 'went_well' | 'to_improve' | 'action_items';
+  column: RetroCardColumn;
 
   @Column({ type: 'text' })
   content: string;
@@ -31,6 +38,9 @@ export class RetroCard {
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
+
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
+  updatedAt: Date;
 
   @ManyToOne(() => Retrospective, (r) => r.cards, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'retrospective_id' })

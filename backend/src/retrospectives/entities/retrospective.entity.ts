@@ -23,6 +23,21 @@ export class Retrospective {
   @Column({ name: 'created_by', type: 'int', nullable: true })
   createdBy: number | null;
 
+  // Phase 6 — lifecycle + facilitator. facilitatorId is the user
+  // currently running the retro (defaults to createdBy on creation,
+  // can be reassigned by admin/PM via PUT facilitator).
+  @Column({ name: 'facilitator_id', type: 'int', nullable: true })
+  facilitatorId: number | null;
+
+  @Column({ name: 'opened_at', type: 'timestamptz', nullable: true })
+  openedAt: Date | null;
+
+  @Column({ name: 'closed_at', type: 'timestamptz', nullable: true })
+  closedAt: Date | null;
+
+  @Column({ name: 'authors_revealed_at', type: 'timestamptz', nullable: true })
+  authorsRevealedAt: Date | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 
