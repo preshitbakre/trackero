@@ -37,10 +37,12 @@ export class UpdateWorkItemDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(32)
   startDate?: string | null;
 
   @IsOptional()
   @IsString()
+  @MaxLength(32)
   endDate?: string | null;
 
   @IsOptional()

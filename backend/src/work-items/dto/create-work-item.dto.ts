@@ -44,10 +44,12 @@ export class CreateWorkItemDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(32)
   startDate?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(32)
   endDate?: string;
 
   @IsOptional()
