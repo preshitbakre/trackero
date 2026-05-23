@@ -148,6 +148,7 @@ export const ResponseCodes = {
 
   // Health (S-0300)
   HEALTH_OK:              { code: 'S-0300', message: 'Service healthy' },
+  MIGRATIONS_FETCHED:     { code: 'S-0301', message: 'Migrations status retrieved' },
 
   // ---- FAILURE CODES ----
 

@@ -40,6 +40,12 @@ import { FkRestrictOnUserDelete1716000021000 } from '../../../migrations/1716000
 import { AssociationsCreatedByFk1716000022000 } from '../../../migrations/1716000022000-associations-created-by-fk';
 import { AlignColumnLengths1716000023000 } from '../../../migrations/1716000023000-align-column-lengths';
 import { ReconcileMigrationsTable1716000024000 } from '../../../migrations/1716000024000-reconcile-migrations-table';
+import { RestoreCheckConstraints1716000025000 } from '../../../migrations/1716000025000-restore-check-constraints';
+import { AssocCreatedBySetNull1716000026000 } from '../../../migrations/1716000026000-assoc-created-by-set-null';
+import { AddMissingForeignKeys1716000027000 } from '../../../migrations/1716000027000-add-missing-foreign-keys';
+import { AddMissingFkIndexes1716000028000 } from '../../../migrations/1716000028000-add-missing-fk-indexes';
+import { DropLegacyTables1716000029000 } from '../../../migrations/1716000029000-drop-legacy-tables';
+import { EXPECTED_MIGRATION_NAMES } from '../../../src/database/migrations-registry';
 
 const ALL_MIGRATIONS: MixedList<new () => MigrationInterface> = [
   AuthTables1716000000000,
@@ -67,6 +73,11 @@ const ALL_MIGRATIONS: MixedList<new () => MigrationInterface> = [
   AssociationsCreatedByFk1716000022000,
   AlignColumnLengths1716000023000,
   ReconcileMigrationsTable1716000024000,
+  RestoreCheckConstraints1716000025000,
+  AssocCreatedBySetNull1716000026000,
+  AddMissingForeignKeys1716000027000,
+  AddMissingFkIndexes1716000028000,
+  DropLegacyTables1716000029000,
 ];
 
 function uniqueDbName(): string {
@@ -119,12 +130,25 @@ function buildDataSource(dbName: string): DataSource {
     // skip the .ts entity glob (which TypeORM's runtime loader can't parse).
     entities: [],
     migrations: ALL_MIGRATIONS,
+    // Migration 028 declares `transaction = false` (CREATE INDEX
+    // CONCURRENTLY); 'each' permits per-migration overrides.
+    migrationsTransactionMode: 'each',
     synchronize: false,
     migrationsRun: false,
   });
 }
 
 describe('migrations bookkeeping (T0.1)', () => {
+  it('EXPECTED_MIGRATION_NAMES registry matches the actual class names', () => {
+    // The registry is a hand-maintained string list because nest build
+    // forbids imports from outside src/. This check guards against the
+    // strings drifting from the actual migration class names.
+    const expectedFromClasses = (ALL_MIGRATIONS as Array<new () => MigrationInterface>)
+      .map((m) => m.name)
+      .sort();
+    expect([...EXPECTED_MIGRATION_NAMES].sort()).toEqual(expectedFromClasses);
+  });
+
   it('records every numbered migration on a fresh DB', async () => {
     const dbName = uniqueDbName();
     await createDb(dbName);

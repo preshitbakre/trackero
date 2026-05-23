@@ -29,3 +29,9 @@ docs/*
 test-results/
 playwright-report/
 .playwright-mcp/
+
+# Build artifacts that ts-node + nest build emit into the migrations dir.
+# Existing tracked .js/.d.ts files (migrations 0-11) stay tracked; this
+# rule only prevents new build outputs from being committed accidentally.
+backend/migrations/*.js
+backend/migrations/*.d.ts
