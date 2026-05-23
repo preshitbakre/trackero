@@ -1,10 +1,12 @@
-import { Catch, ExceptionFilter, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
+import { Catch, ExceptionFilter, ArgumentsHost, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { Response } from 'express';
 import { AppValidationException, AppLogicException, AppDatabaseException } from '../exceptions/app-exceptions';
 import { ResponseCodes } from '../constants/response-codes';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(HttpExceptionFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
@@ -45,7 +47,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       });
     }
 
-    console.error('Unhandled exception:', exception);
+    this.logger.error('Unhandled exception', exception instanceof Error ? exception.stack : String(exception));
     const fallback = ResponseCodes.DB_ERROR;
     return response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,

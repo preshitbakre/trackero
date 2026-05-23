@@ -11,4 +11,8 @@ export const getDatabaseConfig = (configService: ConfigService): TypeOrmModuleOp
   autoLoadEntities: true,
   synchronize: configService.get<string>('NODE_ENV') !== 'production',
   logging: configService.get<string>('NODE_ENV') === 'development',
+  // Opt-in TLS: set DATABASE_SSL=true for managed providers that require it.
+  // rejectUnauthorized:false allows providers like Heroku/Render that use
+  // self-signed certs; default (off) preserves local dev behavior.
+  ssl: configService.get<string>('DATABASE_SSL') === 'true' ? { rejectUnauthorized: false } : false,
 });

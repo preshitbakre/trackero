@@ -7,6 +7,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { getDatabaseConfig } from './config/database.config';
+import { validateEnv } from './config/env.validation';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ProjectsModule } from './projects/projects.module';
@@ -32,6 +33,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: process.env.NODE_ENV === 'test' ? '.env.test' : '.env',
+      validate: validateEnv,
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
@@ -84,8 +86,11 @@ export class AppModule implements OnModuleInit {
   constructor(private readonly dataSource: DataSource) {}
 
   async onModuleInit() {
-    // TypeORM synchronize cannot create GENERATED ALWAYS AS columns.
-    // Ensure the full-text search vector and GIN index exist.
+    // TypeORM synchronize cannot create GENERATED ALWAYS AS columns. The
+    // primary owner of this DDL is migration 1716000019000 (prod path), but we
+    // keep an idempotent fallback here so the test DB (which uses
+    // synchronize and re-creates schema on the fly) still gets the column +
+    // index without having to run migrations.
     await this.dataSource.query(`
       DO $$ BEGIN
         ALTER TABLE work_items ADD COLUMN search_vector tsvector
