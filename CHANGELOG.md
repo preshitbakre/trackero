@@ -4,6 +4,55 @@ All notable changes to Trackero are tracked here. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0-shell-finish] — 2026-05-23
+
+The Phase 1 release. Editorial shell finish: brand handoff completed, the
+two orphaned global modals (CommandPalette, ShortcutsHelp) wired into the
+running tree, the dead Members sidebar link fixed, and a shared-primitive
+library introduced so later phases can stop reaching for inline styles.
+
+### Changed
+- Decorative peri / mint / tan / orchid tokens swept across 33 files; lilac
+  is now the only primary accent. Semantic uses (status, priority, type,
+  retro columns, project + avatar rotations) stay on the legacy palette.
+  Dark-mode tokens (`peri-dm`, etc.) preserved.
+- TopBar avatar swept to the new shared `<Avatar>` primitive. Remaining
+  callers move incrementally as later phases touch each surface.
+
+### Added
+- `⌘K` / `Ctrl+K` opens the command palette from any authenticated page.
+  AppShell owns the listener and the modal state; the TopBar "Jump to
+  anything…" button dispatches the same event.
+- `?` opens the keyboard-shortcuts help modal. Content is driven by the
+  new `frontend/src/lib/keymap.ts` registry so help + wiring stay in
+  lockstep.
+- Single-key navigation: `T` → /dashboard, `B` → board, `L` → backlog,
+  `S` → sprints. `G + B/L/S/E` chord stays for muscle-memory back-compat.
+- 8 shared editorial primitives under `frontend/src/components/ui/`:
+  `KbdKey`, `Eyebrow`, `TypeTag`, `Avatar`, `StatusPill`, `RoleBadge`,
+  `MetricNumber`, plus `EmptyState` under `components/common/`. All
+  wired via `lib/colors.ts` for canonical colour values.
+- Opt-in `.lift-on-hover` global CSS class so card surfaces that should
+  rise on hover (board cards, retro cards, dashboard project cards) can
+  declare the intent without re-implementing the rule.
+- Two Playwright regression specs at `e2e/regression/phase-1/` covering
+  the palette and the shortcuts modal.
+
+### Fixed
+- Sidebar Members link no longer 404s. Routes to
+  `/projects/:id/settings?tab=members` (Settings already had a Members
+  tab). Active-state logic distinguishes Members vs Settings so they
+  never both highlight; both are gated to PM / admin.
+- `ShortcutsHelp` and `CommandPalette` no longer exist as orphan
+  components — they mount under `AppShell` exactly once.
+
+### Internal notes
+- `docs/DESIGN.md` §2.4 codifies the decorative-vs-semantic palette rule,
+  and §6 lists the new shared primitives.
+- Phase 4 will rebuild the CommandPalette internals to match the
+  sectioned design in frame 5; the current Phase 1 work only un-breaks
+  what was already shipped.
+
 ## [1.1.0-fixforward] — 2026-05-23
 
 The Phase 0 release. Closes every audit-found bug in the bridging
