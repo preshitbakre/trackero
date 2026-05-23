@@ -872,6 +872,12 @@ export class WorkItemsService {
     const item = await this.workItemRepo.findOne({ where: { id: workItemId, projectId } });
     if (!item) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
 
+    // HIERARCHY-RULES §8: checklist items only attach to tasks or subtasks.
+    // Reject epic/story/bug with F-L-0033 CHECKLIST_NOT_SUBTASK.
+    if (item.itemType !== 'task' && item.itemType !== 'subtask') {
+      throw new AppLogicException('CHECKLIST_NOT_SUBTASK', HttpStatus.BAD_REQUEST);
+    }
+
     const maxOrder = await this.dataSource.query(
       `SELECT COALESCE(MAX(sort_order), -1) as max FROM checklist_items WHERE work_item_id = $1`,
       [workItemId],
