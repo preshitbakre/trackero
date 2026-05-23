@@ -7,6 +7,7 @@ import { useAuthStore } from '../../store/auth.store';
 import { connectSocket, disconnectSocket, joinProject, leaveProject } from '../../lib/socket';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { CreateItemDialog } from '../common/CreateItemDialog';
+import { CommandPalette } from '../common/CommandPalette';
 
 export function AppShell() {
   const [projects, setProjects] = useState<any[]>([]);
@@ -17,6 +18,7 @@ export function AppShell() {
   // unwanted re-run on every set).
   const currentProjectIdRef = useRef<number | null>(null);
   const [showCreateItem, setShowCreateItem] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const user = useAuthStore((s) => s.user);
 
@@ -89,6 +91,30 @@ export function AppShell() {
     return () => document.removeEventListener('shortcut-create-item', handler);
   }, []);
 
+  // T1.2 — global command palette ownership.
+  // The TopBar's "Jump to anything…" button and other surfaces dispatch the
+  // `open-command-palette` custom event; the shell is the single listener so
+  // the palette renders exactly once on top of the route Outlet.
+  useEffect(() => {
+    const handler = () => setPaletteOpen(true);
+    document.addEventListener('open-command-palette', handler);
+    return () => document.removeEventListener('open-command-palette', handler);
+  }, []);
+
+  // ⌘K / Ctrl+K opens the palette from any authenticated page. The shortcut
+  // fires even when an input is focused (mirrors Slack / GitHub / Linear);
+  // Escape closes the palette via its own onClose handler.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   // Global keyboard shortcuts
   useKeyboardShortcuts({
     onCreateItem: () => {
@@ -147,6 +173,8 @@ export function AppShell() {
           onCreated={() => setShowCreateItem(false)}
         />
       )}
+
+      {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
     </div>
   );
 }

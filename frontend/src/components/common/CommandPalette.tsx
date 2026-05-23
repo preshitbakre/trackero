@@ -120,7 +120,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
         )}
 
         {query.length >= 2 && results.length === 0 && (
-          <div className="p-4 text-center text-[16px] text-neutral-400">No results found</div>
+          <div className="p-4 text-center text-[14px] text-faint">
+            No matches for &ldquo;{query}&rdquo;.
+          </div>
         )}
 
         {query.length < 2 && (

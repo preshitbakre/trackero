@@ -29,21 +29,11 @@ export function TopBar({ currentProjectId, projects = [], onToggleSidebar, sideb
   // Build breadcrumb segments from the URL relative to /projects/:id
   const segments = breadcrumbSegments(location.pathname, currentProject);
 
+  // T1.2 — AppShell owns the ⌘K listener and the palette state; we just
+  // dispatch the open event from the visible Jump-to-anything button.
   const openCommandPalette = () => {
     document.dispatchEvent(new CustomEvent('open-command-palette'));
   };
-
-  // ⌘K / Ctrl+K -> open command palette
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        openCommandPalette();
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
 
   return (
     <header className="h-14 bg-card/70 backdrop-blur-md dark:bg-dneutral-100/80 flex items-center px-3 sm:px-4 gap-2 sm:gap-4 border-b border-rule dark:border-dneutral-200 z-30 relative">
