@@ -1,39 +1,29 @@
 /**
  * T1.3 regression — `?` opens the shortcuts help modal, content is
- * driven by lib/keymap.ts, and Esc closes it. Input-typing contexts
- * suppress the shortcut (verified separately by the unit-level guard
- * in `useKeyboardShortcuts`).
+ * driven by lib/keymap.ts, and Esc closes it.
  */
 import { test, expect } from '@playwright/test';
-
-const API = 'http://localhost:3001/api';
-const unique = () => Math.random().toString(36).slice(2, 8);
+import { loginSeed } from '../../utils/auth';
 
 test.describe('Phase 1 regression — ? shortcuts help', () => {
   test('pressing ? shows the help modal and Esc closes it', async ({ page, request }) => {
-    const stamp = unique();
-    const email = `phase1-help-${stamp}@test.com`;
-    const password = 'password123';
-
-    const reg = await request.post(`${API}/auth/register`, {
-      data: { email, password, displayName: 'Help' },
-    });
-    test.skip(reg.status() !== 201, 'DB already has users — skip (re-run cleanly)');
-    const { data } = await reg.json();
+    const { accessToken, refreshToken } = await loginSeed(request);
 
     await page.addInitScript(
       ({ access, refresh }) => {
         window.localStorage.setItem('accessToken', access);
         window.localStorage.setItem('refreshToken', refresh);
       },
-      { access: data.accessToken, refresh: data.refreshToken },
+      { access: accessToken, refresh: refreshToken },
     );
 
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
 
-    // Pressing the literal '?' character. The hook listens for e.key === '?'.
-    await page.keyboard.press('Shift+/');
+    // Click body away from any auto-focused input so '?' goes to window.
+    await page.locator('body').click({ position: { x: 5, y: 5 } });
+
+    await page.keyboard.press('Shift+?');
     const modalTitle = page.locator('text=Keyboard shortcuts.');
     await expect(modalTitle).toBeVisible({ timeout: 2000 });
 
