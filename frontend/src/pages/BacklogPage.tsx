@@ -292,8 +292,10 @@ export function BacklogPage() {
         {/* STEP 6: Page header */}
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="font-serif text-[28px] text-text dark:text-dneutral-700">Backlog</h1>
-            <p className="text-[14px] text-neutral-400 mt-0.5">
+            <h1 className="font-serif italic text-[36px] leading-none text-text dark:text-dneutral-700">
+              Backlog.
+            </h1>
+            <p className="text-[14px] text-mute mt-1">
               {tasks.length} tasks · {totalPoints} pts
               {mediumCount > 0 && <> · <span style={{ color: '#D6B588' }}>{mediumCount} medium</span></>}
               {highCount > 0 && <> · <span style={{ color: '#E88A48' }}>{highCount} high</span></>}
