@@ -8,6 +8,7 @@ import { connectSocket, disconnectSocket, joinProject, leaveProject } from '../.
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { CreateItemDialog } from '../common/CreateItemDialog';
 import { CommandPalette } from '../common/CommandPalette';
+import { ShortcutsHelp } from '../common/ShortcutsHelp';
 
 export function AppShell() {
   const [projects, setProjects] = useState<any[]>([]);
@@ -19,6 +20,7 @@ export function AppShell() {
   const currentProjectIdRef = useRef<number | null>(null);
   const [showCreateItem, setShowCreateItem] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const user = useAuthStore((s) => s.user);
 
@@ -101,6 +103,16 @@ export function AppShell() {
     return () => document.removeEventListener('open-command-palette', handler);
   }, []);
 
+  // T1.3 — shortcuts-help modal. `useKeyboardShortcuts` dispatches the
+  // `show-shortcuts-help` event on `?`; the shell mounts the modal so
+  // its content (driven by lib/keymap.ts) stays in lockstep with what
+  // the hook actually wires.
+  useEffect(() => {
+    const handler = () => setHelpOpen(true);
+    document.addEventListener('show-shortcuts-help', handler);
+    return () => document.removeEventListener('show-shortcuts-help', handler);
+  }, []);
+
   // ⌘K / Ctrl+K opens the palette from any authenticated page. The shortcut
   // fires even when an input is focused (mirrors Slack / GitHub / Linear);
   // Escape closes the palette via its own onClose handler.
@@ -175,6 +187,7 @@ export function AppShell() {
       )}
 
       {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
+      {helpOpen && <ShortcutsHelp onClose={() => setHelpOpen(false)} />}
     </div>
   );
 }

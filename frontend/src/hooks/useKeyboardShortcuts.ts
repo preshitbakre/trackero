@@ -55,6 +55,31 @@ export function useKeyboardShortcuts(callbacks: ShortcutCallbacks) {
         return;
       }
 
+      // T1.3 — single-key navigation. The `G + X` chord below stays for
+      // muscle-memory back-compat; the bare-key shortcuts are documented
+      // as the primary affordance in lib/keymap.ts. The input guard
+      // above already gates these to non-typing contexts.
+      if (e.key === 't' || e.key === 'T') {
+        e.preventDefault();
+        navigate('/dashboard');
+        return;
+      }
+      if (projectId && (e.key === 'b' || e.key === 'B')) {
+        e.preventDefault();
+        navigate(`/projects/${projectId}/board`);
+        return;
+      }
+      if (projectId && (e.key === 'l' || e.key === 'L')) {
+        e.preventDefault();
+        navigate(`/projects/${projectId}/backlog`);
+        return;
+      }
+      if (projectId && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        navigate(`/projects/${projectId}/sprints`);
+        return;
+      }
+
       // G + key combos (sequential)
       if (e.key === 'g' || e.key === 'G') {
         if (!gPressedRef.current) {

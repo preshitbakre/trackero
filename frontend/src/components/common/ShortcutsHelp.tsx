@@ -1,48 +1,65 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
+import { KEYMAP } from '../../lib/keymap';
 
-export function ShortcutsHelp() {
-  const [show, setShow] = useState(false);
+interface ShortcutsHelpProps {
+  onClose: () => void;
+}
 
+/**
+ * Keyboard-shortcuts modal. AppShell owns the open/close state and
+ * mounts this component conditionally; the content is driven entirely
+ * by `lib/keymap.ts` so the help dialog and the actual wiring stay in
+ * lockstep.
+ */
+export function ShortcutsHelp({ onClose }: ShortcutsHelpProps) {
   useEffect(() => {
-    const handler = () => setShow(true);
-    document.addEventListener('show-shortcuts-help', handler);
-    const escHandler = (e: KeyboardEvent) => { if (e.key === 'Escape') setShow(false); };
-    window.addEventListener('keydown', escHandler);
-    return () => {
-      document.removeEventListener('show-shortcuts-help', handler);
-      window.removeEventListener('keydown', escHandler);
+    const escHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
     };
-  }, []);
-
-  if (!show) return null;
-
-  const shortcuts = [
-    { key: 'C', description: 'Create new item' },
-    { key: '/', description: 'Focus search' },
-    { key: '\u2318K', description: 'Command palette' },
-    { key: 'G then B', description: 'Go to board' },
-    { key: 'G then L', description: 'Go to backlog' },
-    { key: 'G then S', description: 'Go to sprints' },
-    { key: 'G then E', description: 'Go to epics' },
-    { key: 'M', description: 'Assign to me' },
-    { key: 'Esc', description: 'Close panel/modal' },
-    { key: '?', description: 'Show this help' },
-  ];
+    window.addEventListener('keydown', escHandler);
+    return () => window.removeEventListener('keydown', escHandler);
+  }, [onClose]);
 
   return (
     <>
-      <div className="fixed inset-0 z-50 bg-neutral-700/50" onClick={() => setShow(false)} />
-      <div className="fixed top-[15%] left-1/2 -translate-x-1/2 z-50 w-full max-w-md bg-white dark:bg-dneutral-100 rounded-xl shadow-xl dark:shadow-[0_12px_36px_rgba(0,0,0,0.6)] p-6">
-        <h2 className="text-[22px] font-bold text-neutral-700 dark:text-dneutral-700 mb-4">Keyboard Shortcuts</h2>
-        <div className="space-y-2">
-          {shortcuts.map((s) => (
-            <div key={s.key} className="flex items-center justify-between">
-              <span className="text-[16px] text-neutral-500 dark:text-dneutral-600">{s.description}</span>
-              <kbd className="text-[16px] bg-neutral-100 dark:bg-dneutral-200 px-2 py-1 rounded font-mono text-neutral-600 dark:text-dneutral-600">{s.key}</kbd>
-            </div>
+      <div className="fixed inset-0 z-50 bg-ink/40" onClick={onClose} />
+      <div className="fixed top-[14%] left-1/2 -translate-x-1/2 z-50 w-full max-w-lg bg-card dark:bg-dneutral-100 rounded-xl shadow-xl dark:shadow-[0_12px_36px_rgba(0,0,0,0.6)] p-6">
+        <div className="flex items-baseline justify-between mb-4">
+          <h2 className="text-[24px] font-serif italic text-text dark:text-dneutral-700">
+            Keyboard shortcuts.
+          </h2>
+          <button
+            onClick={onClose}
+            aria-label="Close shortcuts"
+            className="text-[14px] text-mute hover:text-text"
+          >
+            ×
+          </button>
+        </div>
+        <div className="space-y-4">
+          {KEYMAP.map((section) => (
+            <section key={section.title}>
+              <h3 className="text-[10px] font-serif font-semibold uppercase tracking-[0.18em] text-faint mb-2">
+                {section.title}
+              </h3>
+              <ul className="space-y-1.5">
+                {section.entries.map((s) => (
+                  <li key={s.key} className="flex items-center justify-between">
+                    <span className="text-[14px] text-mute dark:text-dneutral-600">
+                      {s.label}
+                    </span>
+                    <kbd className="text-[11px] bg-paper dark:bg-dneutral-200 border border-rule dark:border-dneutral-300 px-2 py-0.5 rounded font-mono text-mute dark:text-dneutral-600">
+                      {s.key}
+                    </kbd>
+                  </li>
+                ))}
+              </ul>
+            </section>
           ))}
         </div>
-        <button onClick={() => setShow(false)} className="mt-4 w-full text-center text-[16px] text-neutral-400 hover:text-neutral-500">Press Esc to close</button>
+        <div className="mt-5 pt-3 border-t border-rule text-[11px] text-faint text-right">
+          Press <kbd className="bg-paper border border-rule px-1.5 py-0.5 rounded font-mono">Esc</kbd> to close
+        </div>
       </div>
     </>
   );
