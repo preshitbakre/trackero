@@ -91,12 +91,26 @@ export function Sidebar({ projects, currentProjectId, onNavigate }: SidebarProps
       // otherwise Members owns the highlight.
       return settingsTab() !== 'members';
     }
+    if (key === 'retro') {
+      // Retro routes live under a sprint (/sprints/:sprintId/retro);
+      // sprintsList/retro page is also handled by the sprint flow.
+      return /\/sprints\/\d+\/retro\b/.test(location.pathname);
+    }
     return location.pathname.startsWith(`${root}/${key}`);
   };
 
   const link = (project: Project | null, key: string): string => {
     if (!project) return '/dashboard';
     if (key === 'members') return `/projects/${project.id}/settings?tab=members`;
+    if (key === 'retro') {
+      // Retro page is per-sprint (route /sprints/:sprintId/retro). When
+      // an active sprint exists, deep-link to its retro; otherwise route
+      // to the sprints list where the user can pick a completed sprint.
+      if (activeSprint?.id) {
+        return `/projects/${project.id}/sprints/${activeSprint.id}/retro`;
+      }
+      return `/projects/${project.id}/sprints`;
+    }
     return `/projects/${project.id}/${key}`;
   };
 

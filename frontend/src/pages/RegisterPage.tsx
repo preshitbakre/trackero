@@ -71,7 +71,7 @@ export function RegisterPage() {
 
   if (isSetup === null) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F2F9F3] dark:bg-dneutral-50">
+      <div className="flex min-h-screen items-center justify-center bg-paper dark:bg-dneutral-50">
         <div className="text-neutral-400">Loading...</div>
       </div>
     );
@@ -79,9 +79,11 @@ export function RegisterPage() {
 
   if (!canRegister) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F2F9F3] dark:bg-dneutral-50 px-4">
+      <div className="flex min-h-screen items-center justify-center bg-paper dark:bg-dneutral-50 px-4">
         <div className="w-full max-w-sm space-y-6 text-center">
-          <h1 className="text-[28px] font-bold text-neutral-700 dark:text-dneutral-700">Trackero</h1>
+          <h1 className="font-serif italic text-[32px] text-text dark:text-dneutral-700 leading-none">
+            trackero<span className="text-lilac not-italic">.</span>
+          </h1>
           <div className="rounded-md bg-tan-light dark:bg-tan-dm/30 p-4">
             <p className="text-[16px] text-neutral-600 dark:text-tan-dm font-medium">Registration is invite-only</p>
             <p className="mt-1 text-[16px] text-tan dark:text-tan-dm">
@@ -97,10 +99,12 @@ export function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#F2F9F3] dark:bg-dneutral-50 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-paper dark:bg-dneutral-50 px-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
-          <h1 className="text-[28px] font-bold text-neutral-700 dark:text-dneutral-700">Trackero</h1>
+          <h1 className="font-serif italic text-[32px] text-text dark:text-dneutral-700 leading-none">
+            trackero<span className="text-lilac not-italic">.</span>
+          </h1>
           {isFirstRun ? (
             <>
               <p className="mt-2 text-[16px] text-neutral-500 dark:text-neutral-400">Set up your instance</p>

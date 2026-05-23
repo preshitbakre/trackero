@@ -41,6 +41,17 @@ export class SprintsController {
     return this.sprintsService.listSprints(projectId, page || 1, limit || 20);
   }
 
+  // Must declare BEFORE the `:sprintId` route so 'active' is matched
+  // here rather than parsed as a sprint id and rejected by ParseIntPipe.
+  @Get('active')
+  @Roles('admin', 'project_manager', 'member', 'viewer')
+  @ResponseCode('SPRINT_FETCHED')
+  async findActive(
+    @Param('projectId', ParseIntPipe) projectId: number,
+  ) {
+    return this.sprintsService.findActive(projectId);
+  }
+
   @Get(':sprintId')
   @Roles('admin', 'project_manager', 'member', 'viewer')
   @ResponseCode('SPRINT_FETCHED')

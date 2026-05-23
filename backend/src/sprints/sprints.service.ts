@@ -126,6 +126,17 @@ export class SprintsService {
     return sprint;
   }
 
+  /**
+   * The Sidebar footer card + Today aggregator (Phase 2) want a quick
+   * "what's the active sprint for this project?" lookup. Returns null
+   * when there isn't one — caller decides how to render the empty state.
+   */
+  async findActive(projectId: number): Promise<Sprint | null> {
+    return this.sprintRepo.findOne({
+      where: { projectId, status: 'active' },
+    });
+  }
+
   async update(projectId: number, sprintId: number, dto: UpdateSprintDto) {
     const sprint = await this.findOne(projectId, sprintId);
 

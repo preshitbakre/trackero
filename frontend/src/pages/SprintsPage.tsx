@@ -115,9 +115,11 @@ export function SprintsPage() {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="font-serif text-[28px] text-text dark:text-dneutral-700">Sprints</h1>
-          <p className="text-[14px] text-neutral-400 mt-0.5">{sprints.length} sprint{sprints.length !== 1 ? 's' : ''} · {sprints.filter(s => s.status === 'active').length} active</p>
+        <div className="flex items-baseline gap-4 flex-wrap">
+          <h1 className="font-serif text-[36px] leading-none text-text dark:text-dneutral-700">Sprints</h1>
+          <p className="text-[11px] tracking-[0.18em] uppercase font-serif font-semibold text-faint">
+            {sprints.length} sprint{sprints.length !== 1 ? 's' : ''} · {sprints.filter(s => s.status === 'active').length} active
+          </p>
         </div>
         {canManageProject && (
           <Button onClick={() => setShowCreate(true)} className="shadow-[0_2px_8px_rgba(136,169,214,0.3)]">+ Create Sprint</Button>
