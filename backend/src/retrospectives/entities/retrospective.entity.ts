@@ -18,8 +18,10 @@ export class Retrospective {
   @Column({ name: 'project_id', type: 'int' })
   projectId: number;
 
-  @Column({ name: 'created_by', type: 'int' })
-  createdBy: number;
+  // Nullable + SET NULL FK so the audit row survives a user deletion
+  // (T0.4, migration 027).
+  @Column({ name: 'created_by', type: 'int', nullable: true })
+  createdBy: number | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

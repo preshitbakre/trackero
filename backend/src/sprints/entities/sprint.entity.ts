@@ -42,8 +42,10 @@ export class Sprint {
   @Column({ name: 'sprint_number', type: 'int' })
   sprintNumber: number;
 
-  @Column({ name: 'created_by', type: 'int' })
-  createdBy: number;
+  // Nullable + SET NULL FK so the audit row survives a user deletion
+  // (T0.4, migration 027).
+  @Column({ name: 'created_by', type: 'int', nullable: true })
+  createdBy: number | null;
 
   @Column({ name: 'completed_at', type: 'timestamptz', nullable: true })
   completedAt: Date | null;
