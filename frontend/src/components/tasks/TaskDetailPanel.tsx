@@ -116,24 +116,61 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
   const [assocSearching, setAssocSearching] = useState(false);
   const { saveStatus, flushDebounce, debouncedFieldChange, handleFieldChange, saveAssignee } = useTaskAutoSave({ projectId, taskId, onUpdated });
 
+  // Race-protected loader for the current taskId. Inlined ignore-aware wrappers
+  // so we don't have to change the signature of the top-level helpers
+  // (loadTask/loadAssociations) which are also called from event handlers.
   useEffect(() => {
-    const loadAll = async () => {
-      await Promise.all([loadTask(), loadComments(), loadAttachments(), loadAssociations()]);
+    let ignored = false;
+    const loadTaskGuarded = async () => {
+      try {
+        const { data } = await apiClient.get(`/projects/${projectId}/items/${taskId}`);
+        if (ignored) return;
+        setTask(data.data);
+        setTitle(data.data.title);
+        setStoryPoints(data.data.storyPoints != null ? String(data.data.storyPoints) : '');
+        setChecklistItems(data.data.checklistItems || []);
+      } catch {}
     };
-    loadAll();
-  }, [taskId]);
+    const loadCommentsGuarded = async () => {
+      try {
+        const { data } = await apiClient.get(`/projects/${projectId}/items/${taskId}/comments`);
+        if (ignored) return;
+        setComments(data.data.list || []);
+      } catch {}
+    };
+    const loadAttachmentsGuarded = async () => {
+      try {
+        const { data } = await apiClient.get(`/projects/${projectId}/items/${taskId}/attachments`);
+        if (ignored) return;
+        setAttachments(data.data.list || []);
+      } catch {}
+    };
+    const loadAssociationsGuarded = async () => {
+      try {
+        const { data } = await apiClient.get(`/projects/${projectId}/items/${taskId}/associations`);
+        if (ignored) return;
+        setAssociations(data.data);
+      } catch {}
+    };
+    Promise.all([loadTaskGuarded(), loadCommentsGuarded(), loadAttachmentsGuarded(), loadAssociationsGuarded()]);
+    return () => { ignored = true; };
+  }, [taskId, projectId]);
 
   // Load assignees once per project (not per task)
   useEffect(() => {
+    let ignored = false;
     apiClient.get(`/projects/${projectId}/filters/assignees`).then((res) => {
+      if (ignored) return;
       const opts = (res.data.data.list || []).map((o: any) => ({ value: String(o.value), label: o.label }));
       setAssigneeOptions([{ value: '', label: 'Unassigned' }, ...opts]);
     }).catch(() => {});
     // Parent options loaded after task is fetched (depends on itemType)
     apiClient.get(`/projects/${projectId}/sprints?limit=100`).then((res) => {
+      if (ignored) return;
       const list = res.data.data.list || [];
       setSprintOptions([{ value: '', label: 'Backlog' }, ...list.map((s: any) => ({ value: String(s.id), label: `${s.name} (${s.status})` }))]);
     }).catch(() => {});
+    return () => { ignored = true; };
   }, [projectId]);
 
   // For subtasks, fetch parent's sprint name
@@ -142,12 +179,15 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
       setParentSprintName('');
       return;
     }
+    let ignored = false;
     apiClient.get(`/projects/${projectId}/items/${task.parentId}`)
       .then((res) => {
+        if (ignored) return;
         const parent = res.data.data;
         setParentSprintName(parent?.sprint?.name || 'Backlog');
       })
-      .catch(() => setParentSprintName(''));
+      .catch(() => { if (!ignored) setParentSprintName(''); });
+    return () => { ignored = true; };
   }, [task?.itemType, task?.parentId, projectId]);
 
   // Load parent options — only for subtasks
@@ -160,9 +200,11 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
       return;
     }
 
-    // Subtask parents: tasks + stories
-    apiClient.get(`/projects/${projectId}/items?itemType=task,story&limit=100&sort=updatedAt&order=DESC`)
+    let ignored = false;
+    // Subtask parents: tasks + stories + epics (Task 5.6 alignment)
+    apiClient.get(`/projects/${projectId}/items?itemType=task,story,epic&limit=100&sort=updatedAt&order=DESC`)
       .then((res) => {
+        if (ignored) return;
         const list = res.data.data?.list || [];
         const opts = list
           .filter((i: any) => i.id !== taskId)
@@ -177,7 +219,8 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
           }));
         setParentOptions(opts);
       })
-      .catch(() => setParentOptions([]));
+      .catch(() => { if (!ignored) setParentOptions([]); });
+    return () => { ignored = true; };
   }, [task?.itemType, projectId, taskId]);
 
   useEffect(() => {
@@ -242,20 +285,6 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
   const handleTitleBlur = () => {
     flushDebounce();
     setEditing(false);
-  };
-
-  const loadComments = async () => {
-    try {
-      const { data } = await apiClient.get(`/projects/${projectId}/items/${taskId}/comments`);
-      setComments(data.data.list || []);
-    } catch {}
-  };
-
-  const loadAttachments = async () => {
-    try {
-      const { data } = await apiClient.get(`/projects/${projectId}/items/${taskId}/attachments`);
-      setAttachments(data.data.list || []);
-    } catch {}
   };
 
   const handleDeleteItem = async () => {
