@@ -662,33 +662,18 @@ export class WorkItemsService {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
 
-    // Validate deletion is allowed
+    // Validate deletion is allowed — under the post-5.6 model this rejects
+    // any epic/story/task that still has direct subtask children. Leaves
+    // (bug, subtask) are always deletable.
     await this.validateDeletion(item);
 
-    // Wrap the orphan-children UPDATE and the item DELETE in a transaction
-    // (D-C4) — otherwise a failure between them leaves orphaned children
-    // without their item actually being deleted.
-    await this.dataSource.transaction(async (manager) => {
-      // Handle children based on type
-      if (item.itemType === 'epic') {
-        // Orphan all children — set parentId to null
-        await manager.query(
-          `UPDATE work_items SET parent_id = NULL WHERE parent_id = $1`,
-          [id],
-        );
-      } else if (item.itemType === 'story') {
-        // validateDeletion already ensured no direct subtasks
-        // Orphan task children
-        await manager.query(
-          `UPDATE work_items SET parent_id = NULL WHERE parent_id = $1`,
-          [id],
-        );
-      }
-      // task with children: blocked by validateDeletion
-      // subtask: no children, delete directly
-
-      await manager.remove(item);
-    });
+    // Under the canonical hierarchy model only subtasks carry parent_id, and
+    // validateDeletion above guarantees the item being removed has no direct
+    // subtask children. The earlier explicit "orphan children" UPDATEs are
+    // therefore dead code (no rows would ever match). The WorkItem entity
+    // also declares ON DELETE: SET NULL on the parent FK as a safety net for
+    // any future schema drift. Just remove the item.
+    await this.workItemRepo.remove(item);
 
     // Emit domain event only after the transaction commits.
     this.eventEmitter.emit('work_item.deleted', {
@@ -1134,13 +1119,22 @@ export class WorkItemsService {
       .leftJoinAndSelect('wi.assignee', 'assignee')
       .leftJoinAndSelect('wi.sprint', 'sprint')
       .leftJoinAndSelect('wi.labels', 'labels')
-      .leftJoin('wi.parent', 'parent')
-      .addSelect(['parent.id', 'parent.itemNumber', 'parent.itemType', 'parent.title'])
       .where('wi.projectId = :projectId', { projectId })
       .andWhere("wi.itemType = 'story'");
+    // NB: stories never carry parent_id under the post-5.6 model — the
+    // `wi.parent` join used to populate a `parent` field in the response is
+    // dead and has been removed. The story-belongs-to-epic relationship now
+    // lives in `work_item_associations` and the `epicId` filter joins through
+    // it below.
 
     if (opts.epicId) {
-      qb.andWhere('wi.parentId = :epicId', { epicId: opts.epicId });
+      qb.andWhere(
+        `wi.id IN (
+          SELECT a.item_id FROM work_item_associations a
+          WHERE a.linked_item_id = :epicId AND a.link_type = 'belongs_to'
+        )`,
+        { epicId: opts.epicId },
+      );
     }
 
     qb.orderBy('wi.sortOrder', 'ASC').addOrderBy('wi.createdAt', 'DESC');
@@ -1172,12 +1166,11 @@ export class WorkItemsService {
           category: (story.status as any).category,
           color: (story.status as any).color,
         } : null,
-        parent: story.parent ? {
-          id: story.parent.id,
-          itemKey: `${story.parent.itemNumber}`,
-          itemType: story.parent.itemType,
-          title: story.parent.title,
-        } : null,
+        // `parent` is preserved in the response shape as null for backward
+        // compatibility — stories no longer have a parent_id parent under
+        // the post-5.6 model. The epic→story relationship is exposed via
+        // /items/:id (associations.belongsTo) instead.
+        parent: null,
         assignee: story.assignee ? {
           id: story.assignee.id,
           displayName: (story.assignee as any).displayName,
@@ -1529,18 +1522,23 @@ export class WorkItemsService {
 
   /**
    * Validates parent-child type combinations.
-   * Rules from HIERARCHY-RULES.md section 1.1 + 1.2:
+   *
+   * The canonical Trackero hierarchy model (Task 5.6 reconciliation):
+   *   - `subtask` is the ONLY item type that uses `parent_id`. A subtask
+   *     MUST have a parent. The parent's itemType must be one of
+   *     `task` | `story` | `epic`.
+   *   - All non-subtask items (`epic`, `story`, `task`, `bug`) have
+   *     `parent_id = NULL`. Cross-type linkage (epic↔story, story↔task,
+   *     epic↔task, epic↔bug, etc.) lives in `work_item_associations`
+   *     with `link_type = 'belongs_to'`.
    *
    * Parent → Allowed children:
-   *   null    → epic, story, task
-   *   epic    → story, task
-   *   story   → task, subtask
-   *   task    → subtask
-   *   subtask → (nothing — leaf node)
-   *
-   * Additional rules:
-   *   - Epic cannot have a parent (itemType 'epic' with non-null parent → reject)
-   *   - Subtask must have a parent (itemType 'subtask' with null parent → reject)
+   *   null  → epic, story, task, bug
+   *   epic  → subtask
+   *   story → subtask
+   *   task  → subtask
+   *   bug   → (nothing — leaf)
+   *   subtask → (nothing — leaf)
    */
   async validateParentChildType(
     itemType: WorkItem['itemType'],
@@ -1550,7 +1548,7 @@ export class WorkItemsService {
       if (parent === null) {
         throw new AppLogicException('SUBTASK_REQUIRES_PARENT', HttpStatus.BAD_REQUEST);
       }
-      if (!['task', 'story'].includes(parent.itemType)) {
+      if (!['task', 'story', 'epic'].includes(parent.itemType)) {
         throw new AppLogicException('INVALID_PARENT_CHILD_TYPE', HttpStatus.BAD_REQUEST,
           `A ${parent.itemType} cannot be parent of a subtask`);
       }
@@ -1572,9 +1570,13 @@ export class WorkItemsService {
 
   /**
    * Validates hierarchy depth. Maximum 4 levels.
-   * Walks UP the parent chain from the given parentId.
-   * The new item being created would be at (ancestor count + 1).
-   * If that exceeds 4 → reject.
+   *
+   * Under the post-5.6 canonical model the parent_id chain is structurally
+   * bounded at 2 levels (subtask → {epic,story,task} → null) because non-subtask
+   * items always have parent_id = NULL — `validateParentChildType` enforces that
+   * before this method runs. The check is kept as a defense-in-depth guard
+   * against any future schema drift or direct-SQL inserts that bypass the
+   * service layer; in normal operation it returns after a single SELECT.
    */
   async validateDepth(parentId: number | null): Promise<void> {
     if (parentId === null) {
@@ -1636,55 +1638,44 @@ export class WorkItemsService {
 
   /**
    * Validates whether a work item can be deleted.
-   * Rules from HIERARCHY-RULES.md section 2:
    *
-   * | Deleting | Has children?              | Result                                    |
-   * |----------|----------------------------|-------------------------------------------|
-   * | Epic     | Yes (stories/tasks)        | ALLOW (children will be orphaned)         |
-   * | Epic     | No                         | ALLOW                                     |
-   * | Story    | Yes (has direct subtasks)   | REJECT                                    |
-   * | Story    | Yes (only tasks)            | ALLOW (tasks will be orphaned)            |
-   * | Story    | No                         | ALLOW                                     |
-   * | Task     | Yes (subtasks)             | REJECT                                    |
-   * | Task     | No                         | ALLOW                                     |
-   * | Subtask  | N/A (leaf)                 | ALLOW                                     |
+   * Under the post-5.6 canonical model the only items that use `parent_id` are
+   * subtasks, and a subtask's parent may be a `task`, `story`, or `epic`. So
+   * the only "blocking children" any non-leaf item can carry are direct
+   * subtasks. The rule is symmetric across all three valid subtask parents:
+   * an item with direct subtask children cannot be deleted — the subtasks
+   * must be removed first. This preserves the invariant that every existing
+   * subtask has a valid parent (rather than orphaning subtasks with
+   * parent_id = NULL via the FK's ON DELETE SET NULL).
+   *
+   * | Deleting        | Has direct subtask children? | Result                |
+   * |-----------------|------------------------------|-----------------------|
+   * | Epic            | Yes                          | REJECT                |
+   * | Story           | Yes                          | REJECT                |
+   * | Task            | Yes                          | REJECT                |
+   * | Epic/Story/Task | No                           | ALLOW                 |
+   * | Bug             | N/A (leaf)                   | ALLOW                 |
+   * | Subtask         | N/A (leaf)                   | ALLOW                 |
    */
   async validateDeletion(item: WorkItem): Promise<void> {
-    if (item.itemType === 'epic') {
-      // Epics always deletable — children become orphans
+    // Leaf types: always deletable
+    if (item.itemType === 'subtask' || item.itemType === 'bug') {
       return;
     }
 
-    if (item.itemType === 'subtask') {
-      // Subtasks always deletable — leaf nodes
-      return;
-    }
-
-    if (item.itemType === 'bug') return; // bugs are leaf nodes
-
-    if (item.itemType === 'story') {
-      // Check if story has direct subtask children
-      const [subtaskCount] = await this.dataSource.query(
-        `SELECT COUNT(*) as cnt FROM work_items WHERE parent_id = $1 AND item_type = 'subtask'`,
-        [item.id],
-      );
-      if (parseInt(subtaskCount.cnt) > 0) {
-        throw new AppLogicException('STORY_HAS_DIRECT_SUBTASKS', HttpStatus.BAD_REQUEST);
-      }
-      // Story with only tasks (or no children) → ALLOW (tasks orphaned)
-      return;
-    }
-
-    if (item.itemType === 'task') {
-      // Task with any children → REJECT
-      const [childCount] = await this.dataSource.query(
-        `SELECT COUNT(*) as cnt FROM work_items WHERE parent_id = $1`,
-        [item.id],
-      );
-      if (parseInt(childCount.cnt) > 0) {
+    // epic | story | task — block if direct subtask children exist
+    const [subtaskCount] = await this.dataSource.query(
+      `SELECT COUNT(*) as cnt FROM work_items WHERE parent_id = $1 AND item_type = 'subtask'`,
+      [item.id],
+    );
+    if (parseInt(subtaskCount.cnt) > 0) {
+      // Use the type-specific code where one exists (preserves existing API
+      // contract for story/task); fall back to STORY_HAS_DIRECT_SUBTASKS for
+      // epic — same shape, same HTTP status.
+      if (item.itemType === 'task') {
         throw new AppLogicException('TASK_HAS_SUBTASKS', HttpStatus.BAD_REQUEST);
       }
-      return;
+      throw new AppLogicException('STORY_HAS_DIRECT_SUBTASKS', HttpStatus.BAD_REQUEST);
     }
   }
 

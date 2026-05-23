@@ -318,6 +318,32 @@ describe('WorkItems UPDATE + DELETE (e2e)', () => {
       expect(check).toBeUndefined();
     });
 
+    it('deletes epic with direct subtask children → 400 (post-5.6: subtasks block parent deletion)', async () => {
+      // Post-5.6: an epic can be a subtask's parent. Deleting an epic that
+      // still has direct subtask children is rejected — symmetric with story
+      // and task — so the invariant "every subtask has a valid parent" holds.
+      const epicRes = await createItem({ itemType: 'epic', title: 'E1' });
+      const epicId = epicRes.body.data.item.id;
+      await createItem({ itemType: 'subtask', title: 'ST1', parentId: epicId });
+
+      const res = await deleteItem(epicId).expect(400);
+      expect(res.body.code).toBe('F-L-0095');
+    });
+
+    it('deletes epic with subtask children, after subtasks deleted → 200', async () => {
+      // Delete order: subtasks first, then epic.
+      const epicRes = await createItem({ itemType: 'epic', title: 'E1' });
+      const epicId = epicRes.body.data.item.id;
+      const subRes = await createItem({ itemType: 'subtask', title: 'ST1', parentId: epicId });
+      const subId = subRes.body.data.item.id;
+
+      await deleteItem(subId).expect(200);
+      await deleteItem(epicId).expect(200);
+
+      const [check] = await ds.query(`SELECT id FROM work_items WHERE id = $1`, [epicId]);
+      expect(check).toBeUndefined();
+    });
+
     it('deletes bug → 200', async () => {
       const res = await createItem({ itemType: 'bug', title: 'B1' });
       const id = res.body.data.item.id;

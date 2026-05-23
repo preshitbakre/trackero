@@ -138,6 +138,23 @@ describe('WorkItems CREATE (e2e)', () => {
     expect(res.body.data.item.itemType).toBe('subtask');
   });
 
+  it('creates a subtask under epic → 201', async () => {
+    // Post-5.6 canonical model: an epic is a valid subtask parent
+    // (parents may be task / story / epic). All non-subtask cross-type
+    // linkage lives in work_item_associations.
+    const epicRes = await createItem({ itemType: 'epic', title: 'Epic1' });
+    const epicId = epicRes.body.data.item.id;
+
+    const res = await createItem({
+      itemType: 'subtask',
+      title: 'Sub under epic',
+      parentId: epicId,
+    }).expect(201);
+
+    expect(res.body.data.item.parentId).toBe(epicId);
+    expect(res.body.data.item.itemType).toBe('subtask');
+  });
+
   it('creates a bug (standalone) → 201', async () => {
     const res = await createItem({
       itemType: 'bug',

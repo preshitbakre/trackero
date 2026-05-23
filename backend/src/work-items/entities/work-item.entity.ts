@@ -51,10 +51,15 @@ export class WorkItem {
 
   @Column({ name: 'parent_id', type: 'int', nullable: true })
   parentId: number | null;
-  // Epic:    ALWAYS null (epics cannot have parents)
-  // Story:   epicId OR null (standalone story)
-  // Task:    storyId OR epicId OR null (standalone task)
-  // Subtask: taskId OR storyId (NEVER null)
+  // Canonical Trackero hierarchy model (Task 5.6 reconciliation):
+  //   - subtask: REQUIRED. Points at a task / story / epic.
+  //   - epic / story / task / bug: ALWAYS null. Cross-type linkage
+  //     (epic→story, story→task, epic→task, epic→bug, …) lives in
+  //     `work_item_associations` with link_type = 'belongs_to'.
+  //
+  // FK is declared ON DELETE: SET NULL as a safety net. Subtask deletion
+  // is gated upstream by validateDeletion (which rejects deleting any
+  // epic/story/task that still has direct subtask children).
 
   // =======================================
   // CONTENT

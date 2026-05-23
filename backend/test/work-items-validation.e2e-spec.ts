@@ -149,7 +149,14 @@ describe('WorkItems Validation (e2e)', () => {
       await expect(service.validateParentChildType('task', story)).rejects.toThrow();
     });
 
-    // Parent: epic — nothing allowed (epics are standalone, use associations)
+    // Parent: epic — only subtask allowed under the post-5.6 model.
+    // Cross-type linkage (epic→story, epic→task, epic→bug) now lives in
+    // work_item_associations with link_type='belongs_to'; the parent_id
+    // chain is reserved for subtask attachment only.
+    it('epic → subtask: ALLOW', async () => {
+      const epic = await insertItem({ itemType: 'epic', title: 'E1' });
+      await expect(service.validateParentChildType('subtask', epic)).resolves.toBeUndefined();
+    });
     it('epic → story: REJECT', async () => {
       const epic = await insertItem({ itemType: 'epic', title: 'E1' });
       await expect(service.validateParentChildType('story', epic)).rejects.toThrow();
@@ -161,10 +168,6 @@ describe('WorkItems Validation (e2e)', () => {
     it('epic → epic: REJECT', async () => {
       const epic = await insertItem({ itemType: 'epic', title: 'E1' });
       await expect(service.validateParentChildType('epic', epic)).rejects.toThrow();
-    });
-    it('epic → subtask: REJECT', async () => {
-      const epic = await insertItem({ itemType: 'epic', title: 'E1' });
-      await expect(service.validateParentChildType('subtask', epic)).rejects.toThrow();
     });
 
     // Parent: subtask (always rejects — leaf node)
@@ -198,6 +201,11 @@ describe('WorkItems Validation (e2e)', () => {
     it('depth 2 (story → subtask) → ALLOW', async () => {
       const story = await insertItem({ itemType: 'story', title: 'S1' });
       await expect(service.validateDepth(story.id)).resolves.toBeUndefined();
+    });
+
+    it('depth 2 (epic → subtask) → ALLOW', async () => {
+      const epic = await insertItem({ itemType: 'epic', title: 'E1' });
+      await expect(service.validateDepth(epic.id)).resolves.toBeUndefined();
     });
   });
 
@@ -250,6 +258,15 @@ describe('WorkItems Validation (e2e)', () => {
       await expect(service.validateDeletion(epic)).resolves.toBeUndefined();
     });
 
+    it('epic with direct subtask children → REJECT', async () => {
+      // Post-5.6: epics, like stories and tasks, are valid subtask parents.
+      // Deleting an epic that still has subtask children is rejected so the
+      // "every subtask has a parent" invariant holds.
+      const epic = await insertItem({ itemType: 'epic', title: 'E1' });
+      await insertItem({ itemType: 'subtask', title: 'ST1', parentId: epic.id });
+      await expect(service.validateDeletion(epic)).rejects.toThrow();
+    });
+
     it('subtask → ALLOW (leaf node, always deletable)', async () => {
       const task = await insertItem({ itemType: 'task', title: 'T1' });
       const subtask = await insertItem({ itemType: 'subtask', title: 'ST1', parentId: task.id });
@@ -271,6 +288,13 @@ describe('WorkItems Validation (e2e)', () => {
       const task2 = await insertItem({ itemType: 'task', title: 'T2' });
       const subtask = await insertItem({ itemType: 'subtask', title: 'ST1', parentId: task1.id });
       await expect(service.validateReparenting(subtask, task2)).resolves.toBeUndefined();
+    });
+
+    it('subtask move to epic parent → ALLOW (post-5.6: epic is a valid subtask parent)', async () => {
+      const task = await insertItem({ itemType: 'task', title: 'T1' });
+      const epic = await insertItem({ itemType: 'epic', title: 'E1' });
+      const subtask = await insertItem({ itemType: 'subtask', title: 'ST1', parentId: task.id });
+      await expect(service.validateReparenting(subtask, epic)).resolves.toBeUndefined();
     });
 
     it('detach subtask (parent=null) → validateReparenting allows, but validateParentChildType rejects', async () => {
