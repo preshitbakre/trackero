@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { useRole } from '../hooks/useRole';
@@ -6,6 +6,8 @@ import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { CreateItemDialog } from '../components/common/CreateItemDialog';
 import { LabelList } from '../components/ui/LabelBadge';
+import { CardSkeleton } from '../components/common/Skeleton';
+import { ErrorState } from '../components/common/ErrorState';
 
 interface Story {
   id: number;
@@ -43,22 +45,30 @@ export function StoriesPage() {
   const [epics, setEpics] = useState<EpicOption[]>([]);
   const [filterEpicId, setFilterEpicId] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const { canEdit } = useRole();
 
-  useEffect(() => {
-    loadStories();
-    loadEpics();
-  }, [projectId, filterEpicId]);
-
-  const loadStories = async () => {
+  const loadStories = useCallback(async () => {
     if (!projectId) return;
+    setLoading(true);
+    setError(false);
     try {
       let url = `/projects/${projectId}/stories`;
       if (filterEpicId) url += `?epicId=${filterEpicId}`;
       const { data } = await apiClient.get(url);
       setStories(data.data.list || []);
-    } catch (err) { console.error(err); }
-  };
+    } catch (err) {
+      console.error(err);
+      setError(true);
+    }
+    setLoading(false);
+  }, [projectId, filterEpicId]);
+
+  useEffect(() => {
+    loadStories();
+    loadEpics();
+  }, [loadStories]);
 
   const loadEpics = async () => {
     if (!projectId) return;
@@ -88,7 +98,13 @@ export function StoriesPage() {
         </div>
       </div>
 
-      {stories.length === 0 ? (
+      {loading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => <CardSkeleton key={i} />)}
+        </div>
+      ) : error ? (
+        <ErrorState message="Failed to load stories" onRetry={loadStories} />
+      ) : stories.length === 0 ? (
         <div className="text-center py-12 text-neutral-400 dark:text-dneutral-500">
           <p>Stories break down epics into deliverable features. Create one to get started.</p>
         </div>

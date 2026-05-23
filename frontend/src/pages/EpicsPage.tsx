@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { useRole } from '../hooks/useRole';
 import { Button } from '../components/ui/Button';
 import { CreateItemDialog } from '../components/common/CreateItemDialog';
 import { LabelList } from '../components/ui/LabelBadge';
+import { CardSkeleton } from '../components/common/Skeleton';
+import { ErrorState } from '../components/common/ErrorState';
 
 interface Epic {
   id: number;
@@ -37,18 +39,27 @@ export function EpicsPage() {
   const { id: projectId } = useParams();
   const [epics, setEpics] = useState<Epic[]>([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const { canEdit } = useRole();
 
-  useEffect(() => {
-    loadEpics();
-  }, [projectId]);
-
-  const loadEpics = async () => {
+  const loadEpics = useCallback(async () => {
+    if (!projectId) return;
+    setLoading(true);
+    setError(false);
     try {
       const { data } = await apiClient.get(`/projects/${projectId}/epics`);
       setEpics(data.data.list || []);
-    } catch (err) { console.error(err); }
-  };
+    } catch (err) {
+      console.error(err);
+      setError(true);
+    }
+    setLoading(false);
+  }, [projectId]);
+
+  useEffect(() => {
+    loadEpics();
+  }, [loadEpics]);
 
   return (
     <div className="p-6">
@@ -59,7 +70,13 @@ export function EpicsPage() {
         )}
       </div>
 
-      {epics.length === 0 ? (
+      {loading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => <CardSkeleton key={i} />)}
+        </div>
+      ) : error ? (
+        <ErrorState message="Failed to load epics" onRetry={loadEpics} />
+      ) : epics.length === 0 ? (
         <div className="text-center py-12 text-neutral-400 dark:text-dneutral-500">
           <p>Epics help you group related work. Create one to get started.</p>
         </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { toast } from '../components/common/Toast';
@@ -8,6 +8,8 @@ import { createPortal } from 'react-dom';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Textarea } from '../components/ui/Textarea';
+import { CardSkeleton } from '../components/common/Skeleton';
+import { ErrorState } from '../components/common/ErrorState';
 
 interface Sprint {
   id: number;
@@ -42,22 +44,31 @@ export function SprintsPage() {
   const [sprints, setSprints] = useState<Sprint[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [defaultDuration, setDefaultDuration] = useState(14);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const { canManageProject } = useRole();
   const [cancellingSprintId, setCancellingSprintId] = useState<number | null>(null);
+
+  const loadSprints = useCallback(async () => {
+    if (!projectId) return;
+    setLoading(true);
+    setError(false);
+    try {
+      const { data } = await apiClient.get(`/projects/${projectId}/sprints`);
+      setSprints(data.data.list || []);
+    } catch (err) {
+      console.error(err);
+      setError(true);
+    }
+    setLoading(false);
+  }, [projectId]);
 
   useEffect(() => {
     loadSprints();
     apiClient.get(`/projects/${projectId}`).then((res) => {
       setDefaultDuration(res.data.data.defaultSprintDuration || 14);
     }).catch((err) => { console.error(err); });
-  }, [projectId]);
-
-  const loadSprints = async () => {
-    try {
-      const { data } = await apiClient.get(`/projects/${projectId}/sprints`);
-      setSprints(data.data.list || []);
-    } catch (err) { console.error(err); }
-  };
+  }, [projectId, loadSprints]);
 
   const handleStart = async (sprintId: number) => {
     try {
@@ -113,7 +124,13 @@ export function SprintsPage() {
         )}
       </div>
 
-      {sprints.length === 0 ? (
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {[1, 2, 3].map((i) => <CardSkeleton key={i} />)}
+        </div>
+      ) : error ? (
+        <ErrorState message="Failed to load sprints" onRetry={loadSprints} />
+      ) : sprints.length === 0 ? (
         <div className="text-center py-16">
           <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: '#88A9D620' }}>
             <svg className="w-8 h-8" style={{ color: '#3F5E8E' }} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">

@@ -6,6 +6,7 @@ import { ConfirmDialog } from '../common/ConfirmDialog';
 import { Modal } from '../common/Modal';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
+import { ErrorState } from '../common/ErrorState';
 
 interface LabelRow {
   id: number;
@@ -25,15 +26,21 @@ export function LabelsTab() {
   const { id: projectId } = useParams();
   const [labels, setLabels] = useState<LabelRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [editingLabel, setEditingLabel] = useState<LabelRow | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [deletingLabel, setDeletingLabel] = useState<LabelRow | null>(null);
 
   const loadLabels = async () => {
+    setLoading(true);
+    setError(false);
     try {
       const { data } = await apiClient.get(`/projects/${projectId}/labels`);
       setLabels(Array.isArray(data.data) ? data.data : data.data.list || []);
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+      setError(true);
+    }
     setLoading(false);
   };
 
@@ -56,6 +63,10 @@ export function LabelsTab() {
         {[1, 2, 3, 4].map((i) => <div key={i} className="h-16 bg-neutral-200 dark:bg-dneutral-200 rounded-lg" />)}
       </div>
     );
+  }
+
+  if (error) {
+    return <ErrorState message="Failed to load labels" onRetry={loadLabels} />;
   }
 
   return (

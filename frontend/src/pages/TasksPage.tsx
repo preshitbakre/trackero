@@ -9,6 +9,8 @@ import { ReadOnlyBanner } from '../components/common/ReadOnlyBanner';
 import { AVATAR_COLORS, PRIORITY_BADGE_COLORS, STATUS_BADGE_COLORS, TYPE_ICONS, TYPE_ICON_COLORS } from '../lib/colors';
 import { CreateItemDialog } from '../components/common/CreateItemDialog';
 import { LabelList } from '../components/ui/LabelBadge';
+import { RowSkeleton } from '../components/common/Skeleton';
+import { ErrorState } from '../components/common/ErrorState';
 
 interface TaskLabel {
   id: number;
@@ -56,6 +58,8 @@ export function TasksPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [projectPrefix, setProjectPrefix] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -85,6 +89,8 @@ export function TasksPage() {
 
   const loadTasks = useCallback(async () => {
     if (!projectId) return;
+    setLoading(true);
+    setError(false);
     const params = new URLSearchParams();
     params.set('page', String(page));
     params.set('limit', String(pageSize));
@@ -98,7 +104,11 @@ export function TasksPage() {
       const { data } = await apiClient.get(`/projects/${projectId}/items?${params}`);
       setTasks(data.data.list || []);
       setTotal(data.data.total || 0);
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+      setError(true);
+    }
+    setLoading(false);
   }, [projectId, page, pageSize, search, filterStatus, filterPriority, filterAssignee, filterType, filterSprint]);
 
   useEffect(() => { loadTasks(); }, [loadTasks]);
@@ -237,7 +247,17 @@ export function TasksPage() {
       )}
 
       {/* SECTION 3-4-6: Table */}
-      {sortedTasks.length > 0 || tasks.length > 0 ? (
+      {loading ? (
+        <div className="flex-1 bg-white dark:bg-dneutral-100 rounded-xl shadow-sm dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)] overflow-hidden">
+          <div className="space-y-1 py-2">
+            {[1, 2, 3, 4, 5].map((i) => <RowSkeleton key={i} />)}
+          </div>
+        </div>
+      ) : error ? (
+        <div className="flex-1 flex items-center justify-center">
+          <ErrorState message="Failed to load tasks" onRetry={loadTasks} />
+        </div>
+      ) : sortedTasks.length > 0 || tasks.length > 0 ? (
         <div className="flex-1 flex flex-col bg-white dark:bg-dneutral-100 rounded-xl shadow-sm dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)] overflow-hidden">
           <div className="flex-1 overflow-auto custom-scrollbar">
           <table className="w-full text-[16px]">

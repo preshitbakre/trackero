@@ -9,6 +9,7 @@ import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { AVATAR_COLORS, PRIORITY_BADGE_COLORS, STATUS_BADGE_COLORS } from '../lib/colors';
 import { toast } from '../components/common/Toast';
 import { LabelList } from '../components/ui/LabelBadge';
+import { ErrorState } from '../components/common/ErrorState';
 
 // Type colors matching the spec
 const ITEM_TYPE_STYLES: Record<string, { bg: string; text: string }> = {
@@ -83,6 +84,7 @@ export function EpicDetailPage() {
   const [projectPrefix, setProjectPrefix] = useState('');
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [showCreate, setShowCreate] = useState<'story' | 'task' | null>(null);
   const [showAddExisting, setShowAddExisting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -95,6 +97,7 @@ export function EpicDetailPage() {
   const loadData = useCallback(async () => {
     if (!projectId || !epicId) return;
     setLoading(true);
+    setError(false);
     try {
       const [epicRes, sprintsRes, projectRes] = await Promise.all([
         apiClient.get(`/projects/${projectId}/items/${epicId}`),
@@ -151,7 +154,11 @@ export function EpicDetailPage() {
         }
       }
       setAllItems(flat);
-    } catch (err) { console.error(err); }
+    } catch (err: any) {
+      console.error(err);
+      // 404 = not found, falls through to !epic branch. Other errors = real failure.
+      if (err?.response?.status !== 404) setError(true);
+    }
     setLoading(false);
   }, [projectId, epicId]);
 
@@ -252,6 +259,14 @@ export function EpicDetailPage() {
           <div className="h-4 bg-neutral-200 dark:bg-dneutral-200 rounded w-72" />
           <div className="h-3 bg-neutral-200 dark:bg-dneutral-200 rounded w-full max-w-md" />
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <ErrorState message="Failed to load epic" onRetry={loadData} />
       </div>
     );
   }

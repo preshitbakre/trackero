@@ -13,6 +13,7 @@ import { ConfirmDialog } from '../common/ConfirmDialog';
 import { Modal } from '../common/Modal';
 import { Button } from '../ui/Button';
 import { createPortal } from 'react-dom';
+import { ErrorState } from '../common/ErrorState';
 
 interface Status {
   id: number;
@@ -147,6 +148,7 @@ export function BoardTab() {
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [wipValues, setWipValues] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [showAddStatus, setShowAddStatus] = useState(false);
   const [deletingStatusId, setDeletingStatusId] = useState<number | null>(null);
   // Statuses whose WIP input has unsaved user edits. Stored in a ref so
@@ -157,6 +159,8 @@ export function BoardTab() {
 
   const loadData = useCallback(async () => {
     if (!projectId) return;
+    setLoading(true);
+    setError(false);
     try {
       const statusRes = await apiClient.get(`/projects/${projectId}/statuses`);
       const s = Array.isArray(statusRes.data.data) ? statusRes.data.data : statusRes.data.data.list || [];
@@ -172,7 +176,10 @@ export function BoardTab() {
         });
         return next;
       });
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+      setError(true);
+    }
     setLoading(false);
   }, [projectId]);
 
@@ -250,6 +257,10 @@ export function BoardTab() {
         {[1, 2, 3].map((i) => <div key={i} className="h-32 bg-neutral-200 dark:bg-dneutral-200 rounded" />)}
       </div>
     );
+  }
+
+  if (error) {
+    return <ErrorState message="Failed to load board settings" onRetry={loadData} />;
   }
 
   return (

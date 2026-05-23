@@ -9,6 +9,7 @@ import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { AVATAR_COLORS, PRIORITY_BADGE_COLORS, STATUS_BADGE_COLORS } from '../lib/colors';
 import { toast } from '../components/common/Toast';
 import { LabelList } from '../components/ui/LabelBadge';
+import { ErrorState } from '../components/common/ErrorState';
 
 const ITEM_TYPE_STYLES: Record<string, { bg: string; text: string }> = {
   epic:    { bg: '#7C5CFC35', text: '#4A2FC0' },
@@ -76,6 +77,7 @@ export function StoryDetailPage() {
   const [projectPrefix, setProjectPrefix] = useState('');
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [showCreate, setShowCreate] = useState<'task' | 'subtask' | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { canEdit } = useRole();
@@ -83,6 +85,7 @@ export function StoryDetailPage() {
   const loadData = useCallback(async () => {
     if (!projectId || !storyId) return;
     setLoading(true);
+    setError(false);
     try {
       const [storyRes, sprintsRes, projectRes] = await Promise.all([
         apiClient.get(`/projects/${projectId}/items/${storyId}`),
@@ -147,7 +150,10 @@ export function StoryDetailPage() {
         }
       }
       setAllItems(flat);
-    } catch (err) { console.error(err); }
+    } catch (err: any) {
+      console.error(err);
+      if (err?.response?.status !== 404) setError(true);
+    }
     setLoading(false);
   }, [projectId, storyId]);
 
@@ -189,6 +195,14 @@ export function StoryDetailPage() {
           <div className="h-6 bg-neutral-200 dark:bg-dneutral-200 rounded w-48" />
           <div className="h-4 bg-neutral-200 dark:bg-dneutral-200 rounded w-72" />
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <ErrorState message="Failed to load story" onRetry={loadData} />
       </div>
     );
   }

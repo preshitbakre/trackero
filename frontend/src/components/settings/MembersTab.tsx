@@ -7,6 +7,7 @@ import { useAuthStore } from '../../store/auth.store';
 import { Select } from '../ui/Select';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { Button } from '../ui/Button';
+import { ErrorState } from '../common/ErrorState';
 
 interface MemberRow {
   id: number;
@@ -34,25 +35,35 @@ export function MembersTab() {
   const isAdmin = currentUser?.role === 'admin';
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [removingMember, setRemovingMember] = useState<MemberRow | null>(null);
 
   const loadMembers = async () => {
+    setLoading(true);
+    setError(false);
     try {
       const { data } = await apiClient.get(`/projects/${projectId}/members`);
       setMembers(data.data.list || []);
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+      setError(true);
+    }
     setLoading(false);
   };
 
   useEffect(() => {
     let ignored = false;
     const load = async () => {
+      setError(false);
       try {
         const { data } = await apiClient.get(`/projects/${projectId}/members`);
         if (ignored) return;
         setMembers(data.data.list || []);
-      } catch (err) { console.error(err); }
+      } catch (err) {
+        console.error(err);
+        if (!ignored) setError(true);
+      }
       if (!ignored) setLoading(false);
     };
     load();
@@ -87,6 +98,10 @@ export function MembersTab() {
         ))}
       </div>
     );
+  }
+
+  if (error) {
+    return <ErrorState message="Failed to load members" onRetry={loadMembers} />;
   }
 
   const roleOptions = isAdmin
