@@ -64,15 +64,39 @@ export function Sidebar({ projects, currentProjectId, onNavigate }: SidebarProps
     staleTime: 60_000,
   });
 
+  // T1.4 — Members lives as a tab inside the Settings page (no
+  // standalone /projects/:id/members route exists). Resolve it as a
+  // deep link to Settings with ?tab=members; treat the active-state
+  // check accordingly so Members and Settings don't both highlight.
+  const settingsTab = (): string => {
+    if (location.search.includes('tab=')) {
+      const sp = new URLSearchParams(location.search);
+      return sp.get('tab') ?? 'general';
+    }
+    return 'general';
+  };
+
   const isLinkActive = (key: string): boolean => {
     if (!currentProject) return key === 'today' && location.pathname === '/dashboard';
     const root = `/projects/${currentProject.id}`;
     if (key === 'board') return location.pathname.startsWith(`${root}/board`) || location.pathname.startsWith(`${root}/tasks/`);
+    if (key === 'members') {
+      return (
+        location.pathname.startsWith(`${root}/settings`) && settingsTab() === 'members'
+      );
+    }
+    if (key === 'settings') {
+      if (!location.pathname.startsWith(`${root}/settings`)) return false;
+      // Settings is "active" only when no Members-tab override is set;
+      // otherwise Members owns the highlight.
+      return settingsTab() !== 'members';
+    }
     return location.pathname.startsWith(`${root}/${key}`);
   };
 
   const link = (project: Project | null, key: string): string => {
     if (!project) return '/dashboard';
+    if (key === 'members') return `/projects/${project.id}/settings?tab=members`;
     return `/projects/${project.id}/${key}`;
   };
 
@@ -177,7 +201,16 @@ export function Sidebar({ projects, currentProjectId, onNavigate }: SidebarProps
             <>
               <SectionHeader className="mt-4">Project</SectionHeader>
               {PROJECT_LINKS.map((item) => {
-                if (item.key === 'settings' && !canManageProject) return null;
+                // T1.4 — Members + Settings are PM/admin-only. Viewers and
+                // plain members don't see either entry; non-members of this
+                // project see neither (the parent guard skips the whole
+                // section), and admins see both via canManageProject.
+                if (
+                  (item.key === 'settings' || item.key === 'members') &&
+                  !canManageProject
+                ) {
+                  return null;
+                }
                 return (
                   <NavItem
                     key={item.key}
