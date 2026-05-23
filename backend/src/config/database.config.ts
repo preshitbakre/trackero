@@ -55,6 +55,11 @@ export const getDatabaseConfig = (
       ? {}
       : {
           migrations: [path.join(__dirname, '..', '..', 'migrations', '*.{js,ts}')],
+          // Per-migration transaction control: required so the index
+          // migration (028) can declare `transaction = false` and use
+          // CREATE INDEX CONCURRENTLY without TypeORM rejecting the
+          // override at boot.
+          migrationsTransactionMode: 'each' as const,
         }),
     synchronize,
     migrationsRun,
