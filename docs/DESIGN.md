@@ -175,12 +175,28 @@ Layout shadow tokens:
 | Searchable dropdown | `Combobox` |
 | Action button | `Button` |
 | Label chip / picker | `LabelBadge` / `LabelPicker` |
+| Keyboard chip | `KbdKey` |
+| Section eyebrow | `Eyebrow` |
+| Single-letter type tag | `TypeTag` |
+| User avatar (image / initials) | `Avatar` |
+| Status pill (work + project status) | `StatusPill` |
+| Role badge | `RoleBadge` |
+| Editorial serif numeric | `MetricNumber` |
 
 ### Common components — `frontend/src/components/common/`
 
 `ConfirmDialog` · `Toast` · `Tooltip` · `Drawer` · `RoleGate` · `AssigneeMultiSelect` ·
-`CommandPalette` · `CreateItemDialog` · `CreateProjectDialog` · `ErrorState` ·
-`ReadOnlyBanner` · `SaveStatusIndicator` · `ShortcutsHelp` · `Skeleton`
+`CommandPalette` · `CreateItemDialog` · `CreateProjectDialog` · `EmptyState` ·
+`ErrorState` · `ReadOnlyBanner` · `SaveStatusIndicator` · `ShortcutsHelp` · `Skeleton`
+
+### Hover lift on cards
+
+Cards that should lift 1px on hover (board cards, retro cards, dashboard project
+cards, future directory cards) opt in via the global `.lift-on-hover` class.
+The rule lives in `frontend/src/index.css`; it translates `-1px` and adds a
+deeper shadow over 150ms with a soft cubic-bezier ease. Flat surfaces
+(sidebar items, segmented tabs) stay put — the opt-in keeps the rule from
+catching everything rounded.
 
 ### Button — `components/ui/Button.tsx`
 

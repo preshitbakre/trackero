@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/auth.store';
 import { useRole } from '../../hooks/useRole';
 import { NotificationBell } from '../notifications/NotificationBell';
-import { AVATAR_COLORS } from '../../lib/colors';
+import { Avatar } from '../ui';
 
 interface Project {
   id: number;
@@ -147,17 +147,21 @@ function AvatarMenu() {
     navigate('/login');
   };
 
-  const initial = user?.displayName?.charAt(0)?.toUpperCase() || '?';
-  const avatarColor = user ? AVATAR_COLORS[user.id % AVATAR_COLORS.length] : AVATAR_COLORS[0];
-
   return (
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-8 h-8 rounded-full flex items-center justify-center text-[14px] font-medium hover:ring-2 hover:ring-lilac/40 transition-all duration-100"
-        style={{ backgroundColor: avatarColor.bg, color: avatarColor.color }}
+        className="rounded-full hover:ring-2 hover:ring-lilac/40 transition-all duration-100"
+        aria-label="User menu"
       >
-        {initial}
+        <Avatar
+          user={{
+            id: user?.id ?? 0,
+            displayName: user?.displayName ?? '?',
+            avatarUrl: (user as any)?.avatarUrl ?? null,
+          }}
+          size="md"
+        />
       </button>
 
       {open && (
