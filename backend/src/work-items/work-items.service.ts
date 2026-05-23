@@ -1050,6 +1050,14 @@ export class WorkItemsService {
     const page = Math.max(1, opts.page || 1);
     const limit = clampLimit(opts.limit);
 
+    // T0.9 — fetch the project prefix so itemKey matches the canonical
+    // `${prefix}-${itemNumber}` shape every other endpoint emits.
+    const [prefixRow] = await this.dataSource.query(
+      `SELECT prefix FROM projects WHERE id = $1`,
+      [projectId],
+    );
+    const projectPrefix: string = prefixRow?.prefix ?? '';
+
     const qb = this.workItemRepo.createQueryBuilder('wi')
       .leftJoinAndSelect('wi.status', 'status')
       .leftJoinAndSelect('wi.assignee', 'assignee')
@@ -1082,7 +1090,7 @@ export class WorkItemsService {
 
       return {
         id: epic.id,
-        itemKey: `${epic.itemNumber}`,
+        itemKey: `${projectPrefix}-${epic.itemNumber}`,
         itemType: epic.itemType,
         title: epic.title,
         description: epic.description,
@@ -1119,6 +1127,14 @@ export class WorkItemsService {
   async listStories(projectId: number, opts: { page?: number; limit?: number; epicId?: number }) {
     const page = Math.max(1, opts.page || 1);
     const limit = clampLimit(opts.limit);
+
+    // T0.9 — fetch the project prefix so itemKey matches the canonical
+    // `${prefix}-${itemNumber}` shape every other endpoint emits.
+    const [prefixRow] = await this.dataSource.query(
+      `SELECT prefix FROM projects WHERE id = $1`,
+      [projectId],
+    );
+    const projectPrefix: string = prefixRow?.prefix ?? '';
 
     const qb = this.workItemRepo.createQueryBuilder('wi')
       .leftJoinAndSelect('wi.status', 'status')
@@ -1162,7 +1178,7 @@ export class WorkItemsService {
 
       return {
         id: story.id,
-        itemKey: `${story.itemNumber}`,
+        itemKey: `${projectPrefix}-${story.itemNumber}`,
         itemType: story.itemType,
         title: story.title,
         priority: story.priority,

@@ -29,6 +29,20 @@ export class BoardService {
       order: { sortOrder: 'ASC' },
     });
 
+    // T0.9 — every other surface emits itemKey as `${prefix}-${itemNumber}`.
+    // Fetch the project prefix once so the per-card mapper below can
+    // produce the canonical key. AppLogicException keeps the failure
+    // shape consistent with the rest of the board endpoints if the
+    // project happens to be missing (it never should mid-request).
+    const [project] = await this.dataSource.query(
+      'SELECT prefix FROM projects WHERE id = $1',
+      [projectId],
+    );
+    if (!project) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    const projectPrefix: string = project.prefix;
+
     // Step 1: run the per-column item queries and collect ALL items into one
     // flat list, remembering which column (status index) each belongs to.
     const itemsByStatus: WorkItem[][] = [];
@@ -224,7 +238,7 @@ export class BoardService {
 
         return {
           id: item.id,
-          itemKey: `${item.itemNumber}`,
+          itemKey: `${projectPrefix}-${item.itemNumber}`,
           itemType: item.itemType,
           title: item.title,
           priority: item.priority,
@@ -277,6 +291,14 @@ export class BoardService {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
 
+    // T0.9 — return the same canonical itemKey shape every other endpoint
+    // emits. Fetched here so the response matches getBoard's projection.
+    const [project] = await this.dataSource.query(
+      'SELECT prefix FROM projects WHERE id = $1',
+      [projectId],
+    );
+    const projectPrefix: string = project?.prefix ?? '';
+
     // Check dependency blocks when moving to done
     if (targetStatus.category === 'done') {
       const blockers = await this.dataSource.query(
@@ -316,7 +338,7 @@ export class BoardService {
 
     return {
       id: item.id,
-      itemKey: `${item.itemNumber}`,
+      itemKey: `${projectPrefix}-${item.itemNumber}`,
       statusId: item.statusId,
       sortOrder: item.sortOrder,
       completedAt: item.completedAt,
