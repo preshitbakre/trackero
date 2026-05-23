@@ -8,7 +8,6 @@ import { DashboardPage } from './pages/DashboardPage';
 import { EpicsPage } from './pages/EpicsPage';
 import { EpicDetailPage } from './pages/EpicDetailPage';
 import { SprintsPage } from './pages/SprintsPage';
-import { TasksPage } from './pages/TasksPage';
 import { BoardPage } from './pages/BoardPage';
 import { ChartsPage } from './pages/ChartsPage';
 import { RetroPage } from './pages/RetroPage';
@@ -54,7 +53,6 @@ export function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/projects/:id/board" element={<BoardPage />} />
             <Route path="/projects/:id/tasks/:taskId" element={<TaskDetailPage />} />
-            <Route path="/projects/:id/tasks" element={<TasksPage />} />
             <Route path="/projects/:id/backlog" element={<BacklogPage />} />
             <Route path="/projects/:id/sprints" element={<SprintsPage />} />
             <Route path="/projects/:id/epics" element={<EpicsPage />} />

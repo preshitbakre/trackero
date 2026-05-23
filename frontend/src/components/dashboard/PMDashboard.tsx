@@ -170,7 +170,7 @@ export function PMDashboard({ data }: { data: any }) {
           {upcomingDeadlines.length > 0 ? (
             <div className="space-y-2">
               {upcomingDeadlines.map((d: any) => {
-                const label = getDueLabel(d.daysUntilDue ?? 0);
+                const label = getDueLabel(d.daysUntilEnd ?? 0);
                 return (
                   <div key={d.id} className="flex items-center gap-2 text-[16px]">
                     <span className="font-mono text-neutral-400 dark:text-dneutral-500 text-[16px]">{d.taskKey}</span>

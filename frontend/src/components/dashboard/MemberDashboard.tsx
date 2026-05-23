@@ -44,7 +44,7 @@ export function MemberDashboard({ data }: { data: any }) {
   if (myBlocked > 0) summaryParts.push(`${myBlocked} blocked`);
   const summaryText = summaryParts.length > 0 ? `You have ${summaryParts.join(', ')}` : 'You have no active tasks';
 
-  const hasOverdueDueSoon = dueSoon.some((d: any) => (d?.daysUntilDue ?? 0) < 0);
+  const hasOverdueDueSoon = dueSoon.some((d: any) => (d?.daysUntilEnd ?? 0) < 0);
 
   return (
     <div className="p-6">
@@ -115,7 +115,7 @@ export function MemberDashboard({ data }: { data: any }) {
           {dueSoon.length > 0 ? (
             <div className="space-y-2">
               {dueSoon.map((d: any) => {
-                const label = getDueLabel(d.daysUntilDue ?? 0);
+                const label = getDueLabel(d.daysUntilEnd ?? 0);
                 return (
                   <div key={d.id} className="flex items-center gap-2 text-[16px]">
                     <span className="font-mono text-neutral-400 dark:text-dneutral-500 text-[16px]">{d.taskKey}</span>
