@@ -24,9 +24,13 @@ export class SprintsService {
   ) {}
 
   async create(projectId: number, dto: CreateSprintDto, userId: number) {
-    // Date validation
-    const today = new Date().toISOString().split('T')[0];
-    if (dto.startDate < today) {
+    // Date validation — compare against server-side CURRENT_DATE so the
+    // node process timezone can't disagree with the Postgres `date` columns.
+    const [{ is_past: startIsPast }] = await this.dataSource.query(
+      `SELECT $1::date < CURRENT_DATE AS is_past`,
+      [dto.startDate],
+    );
+    if (startIsPast) {
       throw new AppLogicException('INVALID_DATE', HttpStatus.BAD_REQUEST);
     }
     if (dto.endDate <= dto.startDate) {
@@ -134,9 +138,16 @@ export class SprintsService {
     if (dto.startDate !== undefined || dto.endDate !== undefined) {
       const newStart = dto.startDate ?? sprint.startDate;
       const newEnd = dto.endDate ?? sprint.endDate;
-      const today = new Date().toISOString().split('T')[0];
-      if (newStart && newStart < today) {
-        throw new AppLogicException('INVALID_DATE', HttpStatus.BAD_REQUEST);
+      if (newStart) {
+        // Server-side compare against CURRENT_DATE so timezone of the node
+        // process doesn't drift from the Postgres `date` column semantics.
+        const [{ is_past: startIsPast }] = await this.dataSource.query(
+          `SELECT $1::date < CURRENT_DATE AS is_past`,
+          [newStart],
+        );
+        if (startIsPast) {
+          throw new AppLogicException('INVALID_DATE', HttpStatus.BAD_REQUEST);
+        }
       }
       if (newStart && newEnd && newEnd <= newStart) {
         throw new AppLogicException('INVALID_DATE', HttpStatus.BAD_REQUEST);
@@ -186,18 +197,23 @@ export class SprintsService {
         throw new AppLogicException('SPRINT_NO_TASKS', HttpStatus.BAD_REQUEST);
       }
 
-      // Set start/end dates if not already set
-      const today = new Date().toISOString().split('T')[0];
-      if (!sprint.startDate) sprint.startDate = today;
-      if (!sprint.endDate) {
+      // Set start/end dates if not already set. Derive both from CURRENT_DATE
+      // on the database side so node-process timezone can't make them drift
+      // off the `date` columns.
+      if (!sprint.startDate || !sprint.endDate) {
         const project = await manager.query(
           `SELECT default_sprint_duration FROM projects WHERE id = $1`,
           [projectId],
         );
         const duration = project[0]?.default_sprint_duration || 14;
-        const endDate = new Date();
-        endDate.setDate(endDate.getDate() + duration);
-        sprint.endDate = endDate.toISOString().split('T')[0];
+        const [dateRow] = await manager.query(
+          `SELECT
+             CURRENT_DATE::text AS today,
+             (CURRENT_DATE + ($1::int * INTERVAL '1 day'))::date::text AS end_date`,
+          [duration],
+        );
+        if (!sprint.startDate) sprint.startDate = dateRow.today;
+        if (!sprint.endDate) sprint.endDate = dateRow.end_date;
       }
 
       sprint.status = 'active';
@@ -387,22 +403,19 @@ export class SprintsService {
     );
     const totalPoints = parseInt(totalPointsResult[0].total);
 
-    // Compute the date window in JS so the SQL matches the original behaviour:
+    // Compute the date window server-side so the node process timezone can't
+    // disagree with the Postgres `date` columns:
     //   - start: sprint.startDate
-    //   - end:   min(today, sprint.endDate)   (don't project past today)
+    //   - end:   LEAST(sprint.endDate, CURRENT_DATE)   (don't project past today)
     //   - totalDays: spans full sprint (start..endDate) for ideal-line slope
     const startDate = new Date(sprint.startDate);
     const endDate = new Date(sprint.endDate);
-    const today = new Date();
-    const effectiveEnd = today < endDate ? today : endDate;
     const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 
     // Replace the per-day JS loop with a single grouped Postgres query that
     // uses generate_series to produce one row per day and joins/aggregates
     // scope_delta and completed points server-side. Output shape per data
     // point is identical: { date, ideal, actual, scope }.
-    const startStr = sprint.startDate;
-    const endStr = effectiveEnd.toISOString().split('T')[0];
     const rows = await this.dataSource.query(
       `SELECT
          d.day::date::text AS date,
@@ -416,9 +429,9 @@ export class SprintsService {
            FROM work_items
            WHERE sprint_id = $1 AND completed_at IS NOT NULL AND completed_at <= d.day + interval '1 day'
          ), 0)::int AS completed
-       FROM generate_series($2::date, $3::date, '1 day') AS d(day)
+       FROM generate_series($2::date, LEAST($3::date, CURRENT_DATE), '1 day') AS d(day)
        ORDER BY d.day`,
-      [sprintId, startStr, endStr],
+      [sprintId, sprint.startDate, sprint.endDate],
     );
 
     const dataPoints = rows.map((r: any, dayIndex: number) => {

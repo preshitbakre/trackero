@@ -54,13 +54,11 @@ export class NotificationsCron {
   }
 
   private async checkSprintEnding() {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
-
+    // Compare against the database's CURRENT_DATE so the cron's host timezone
+    // doesn't shift "tomorrow" off the Postgres `date` column.
     const sprints = await this.dataSource.query(
-      `SELECT s.id, s.name, s.project_id FROM sprints s WHERE s.status = 'active' AND s.end_date = $1`,
-      [tomorrowStr],
+      `SELECT s.id, s.name, s.project_id FROM sprints s
+       WHERE s.status = 'active' AND s.end_date = CURRENT_DATE + INTERVAL '1 day'`,
     );
 
     for (const sprint of sprints) {
@@ -78,17 +76,14 @@ export class NotificationsCron {
   }
 
   private async checkTasksDueSoon() {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
-
+    // Compare against the database's CURRENT_DATE so the cron's host timezone
+    // doesn't shift "tomorrow" off the Postgres `date` column.
     const items = await this.dataSource.query(
       `SELECT wi.id, wi.item_number, wi.title, wi.assignee_id, wi.project_id, p.prefix
        FROM work_items wi JOIN projects p ON p.id = wi.project_id
        JOIN project_statuses ps ON ps.id = wi.status_id
-       WHERE wi.end_date = $1 AND wi.assignee_id IS NOT NULL
+       WHERE wi.end_date = CURRENT_DATE + INTERVAL '1 day' AND wi.assignee_id IS NOT NULL
        AND ps.category != 'done'`,
-      [tomorrowStr],
     );
 
     for (const item of items) {
@@ -101,15 +96,14 @@ export class NotificationsCron {
   }
 
   private async checkTasksOverdue() {
-    const today = new Date().toISOString().split('T')[0];
-
+    // Compare against the database's CURRENT_DATE so the cron's host timezone
+    // doesn't shift "today" off the Postgres `date` column.
     const items = await this.dataSource.query(
       `SELECT wi.id, wi.item_number, wi.title, wi.assignee_id, wi.project_id, p.prefix
        FROM work_items wi JOIN projects p ON p.id = wi.project_id
        JOIN project_statuses ps ON ps.id = wi.status_id
-       WHERE wi.end_date < $1 AND wi.assignee_id IS NOT NULL
+       WHERE wi.end_date < CURRENT_DATE AND wi.assignee_id IS NOT NULL
        AND ps.category != 'done'`,
-      [today],
     );
 
     for (const item of items) {

@@ -23,17 +23,16 @@ export class ChartsService {
   }
 
   async getCumulativeFlow(projectId: number) {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const startDate = thirtyDaysAgo.toISOString().split('T')[0];
-
+    // Derive the 30-day window from Postgres CURRENT_DATE so the node process
+    // timezone can't drift the window off the `date` semantics already used
+    // on the right-hand side of generate_series.
     const data = await this.dataSource.query(`
       SELECT
         d.date::text as date,
         COALESCE(SUM(CASE WHEN ps.category = 'backlog' THEN 1 ELSE 0 END), 0)::int as backlog,
         COALESCE(SUM(CASE WHEN ps.category = 'in_progress' THEN 1 ELSE 0 END), 0)::int as in_progress,
         COALESCE(SUM(CASE WHEN ps.category = 'done' THEN 1 ELSE 0 END), 0)::int as done
-      FROM generate_series($2::date, CURRENT_DATE, '1 day') AS d(date)
+      FROM generate_series(CURRENT_DATE - INTERVAL '30 days', CURRENT_DATE, '1 day') AS d(date)
       LEFT JOIN LATERAL (
         SELECT t.id,
           COALESCE(
@@ -53,7 +52,7 @@ export class ChartsService {
       LEFT JOIN project_statuses ps ON ps.id = task_on_date.effective_status_id
       GROUP BY d.date
       ORDER BY d.date
-    `, [projectId, startDate]);
+    `, [projectId]);
 
     return data;
   }

@@ -400,19 +400,21 @@ export class DashboardService {
       if (sp.start_date && sp.end_date) {
         const startDate = new Date(sp.start_date);
         const endDate = new Date(sp.end_date);
-        const today = new Date();
-        const effectiveEnd = today < endDate ? today : endDate;
         const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / 86400000);
         const totalPoints = sp.total_points || 0;
 
         // Replace per-day JS loop with one grouped Postgres query that uses
         // generate_series to produce one row per day and aggregates completed
-        // points server-side. Output shape per data point is identical:
-        //   { date, ideal, actual }.
+        // points server-side. The "effective end" (don't project past today)
+        // is computed in SQL as LEAST(end_date, CURRENT_DATE) so the node
+        // process timezone can't drift off the Postgres `date` column.
+        // Output shape per data point is identical: { date, ideal, actual }.
         const startStr = typeof sp.start_date === 'string'
           ? sp.start_date.slice(0, 10)
           : startDate.toISOString().split('T')[0];
-        const endStr = effectiveEnd.toISOString().split('T')[0];
+        const endStr = typeof sp.end_date === 'string'
+          ? sp.end_date.slice(0, 10)
+          : endDate.toISOString().split('T')[0];
         const rows = await db.query(
           `SELECT
              d.day::date::text AS date,
@@ -424,7 +426,7 @@ export class DashboardService {
                  AND completed_at <= d.day + interval '1 day'
                  AND item_type IN ('task')
              ), 0)::int AS completed
-           FROM generate_series($2::date, $3::date, '1 day') AS d(day)
+           FROM generate_series($2::date, LEAST($3::date, CURRENT_DATE), '1 day') AS d(day)
            ORDER BY d.day`,
           [sp.id, startStr, endStr],
         );
