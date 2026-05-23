@@ -106,6 +106,12 @@ export const ResponseCodes = {
   NOTIFICATION_PREFS_UPDATED:  { code: 'S-0149', message: 'Notification preference updated' },
   INSTANCE_SETTINGS_FETCHED:   { code: 'S-0150', message: 'Instance settings retrieved' },
   INSTANCE_SETTINGS_UPDATED:   { code: 'S-0151', message: 'Instance settings updated' },
+  INTEGRATIONS_LISTED:         { code: 'S-0152', message: 'Integrations retrieved' },
+  INTEGRATION_CREATED:         { code: 'S-0153', message: 'Integration created' },
+  INTEGRATION_UPDATED:         { code: 'S-0154', message: 'Integration updated' },
+  INTEGRATION_DELETED:         { code: 'S-0155', message: 'Integration deleted' },
+  INTEGRATION_DELIVERIES_LISTED: { code: 'S-0156', message: 'Deliveries retrieved' },
+  INTEGRATION_DELIVERY_RETRIED:  { code: 'S-0157', message: 'Delivery queued for retry' },
 
   // Attachments (S-0150 – S-0154)
   ATTACHMENTS_LISTED:     { code: 'S-0150', message: 'Attachments retrieved' },

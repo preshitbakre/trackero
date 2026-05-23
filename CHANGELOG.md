@@ -4,6 +4,46 @@ All notable changes to Trackero are tracked here. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.0-integrations] — 2026-05-24
+
+Phase 9. Outbound integrations land as a first-class module — webhook /
+Slack / GitHub type slots, HMAC-signed deliveries, exponential retry
+with backoff, and full delivery history for the audit trail.
+
+### Added
+- Migration **043** — `project_integrations (id, project_id, type,
+  config jsonb, secret, enabled, created_at, updated_at, created_by)`
+  with a partial index on `(project_id) WHERE enabled = TRUE` so the
+  fan-out lookup is constant-time.
+- Migration **044** — `integration_deliveries (id, integration_id,
+  event_type, payload, status, http_status, attempts, next_attempt_at,
+  delivered_at, last_error, created_at)`. Partial pickup index on
+  `(next_attempt_at) WHERE status = 'pending'`.
+- New `IntegrationsModule`:
+  - CRUD endpoints under `/api/projects/:p/integrations` (admin/PM).
+  - `GET /:id/deliveries?limit=N` — recent attempts for the audit pane.
+  - `POST /:id/deliveries/:dId/retry` — manual retry button.
+- `IntegrationsService.dispatch(event, projectId, payload)` enqueues a
+  delivery per enabled integration; `@OnEvent` listeners on
+  `work_item.created`, `work_item.updated`, `comment.added`,
+  `sprint.started`, `sprint.completed` cover the common surface.
+- `IntegrationsService.runDeliveries` `@Cron('*/1 * * * *')` picks up
+  pending rows under `pg_try_advisory_lock(991005)`, POSTs with
+  `X-Trackero-Signature: HMAC-SHA256(body, secret)` and `X-Trackero-Event:
+  <type>`, and applies 1m / 5m / 15m / 1h / 6h backoff (5 attempts max).
+- Optional `config.bearerToken` adds an Authorization header for
+  receivers that prefer bearer-auth on top of HMAC.
+
+### Risk / known gaps
+- The frontend Integrations tab is deferred; the contract is locked
+  via the regression spec and the dev workflow is operator-friendly
+  via curl until the UI lands.
+
+### Testing
+- New regression pack `e2e/regression/phase-9/` — CRUD lifecycle, secret
+  echo on create + suppression on subsequent reads, dispatch on
+  work-item update, delivery shape, unknown-type rejection.
+
 ## [1.9.0-prefs] — 2026-05-24
 
 Phase 8. The backend gains per-user notification preferences,

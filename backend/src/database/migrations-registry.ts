@@ -59,4 +59,6 @@ export const EXPECTED_MIGRATION_NAMES: ReadonlyArray<string> = [
   'NotificationPreferences1716000040000',
   'UsersTimezone1716000041000',
   'InstanceSettings1716000042000',
+  'ProjectIntegrations1716000043000',
+  'IntegrationDeliveries1716000044000',
 ];
