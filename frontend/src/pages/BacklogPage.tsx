@@ -16,6 +16,7 @@ import { ErrorState } from '../components/common/ErrorState';
 import { PRIORITY_BORDER_COLORS, PRIORITY_BADGE_COLORS, STATUS_BADGE_COLORS, AVATAR_COLORS } from '../lib/colors';
 import { CreateItemDialog } from '../components/common/CreateItemDialog';
 import { LabelList } from '../components/ui/LabelBadge';
+import { calculateMidpoint } from '../lib/lexorank';
 
 interface BacklogTask {
   id: number;
@@ -212,11 +213,7 @@ export function BacklogPage() {
     const above = newIndex > 0 ? reordered[newIndex - 1].sortOrder : null;
     const below = newIndex < reordered.length - 1 ? reordered[newIndex + 1].sortOrder : null;
 
-    let newSortOrder: string;
-    if (!above && !below) newSortOrder = 'n';
-    else if (!above) newSortOrder = String.fromCharCode(below!.charCodeAt(0) - 1) || 'a';
-    else if (!below) newSortOrder = String.fromCharCode(above.charCodeAt(0) + 1) || 'z';
-    else newSortOrder = above + 'n';
+    const newSortOrder = calculateMidpoint(above ?? null, below ?? null);
 
     try {
       await apiClient.put(`/projects/${projectId}/items/reorder`, {
