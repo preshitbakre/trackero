@@ -15,12 +15,28 @@ export function AppShell() {
   const [showCreateItem, setShowCreateItem] = useState(false);
   const user = useAuthStore((s) => s.user);
 
-  // Ensure user is loaded
+  // Ensure user is loaded AND auth status is resolved.
+  // On 401 the apiClient response interceptor will attempt refresh; if that
+  // also fails it calls logout() which sets authStatus to 'anon' and
+  // ProtectedRoute will redirect on the next render. For any other error
+  // (network, 5xx, etc.) we fail closed by setting 'anon' too — we cannot
+  // safely render protected content without a verified user. Task 6.2 will
+  // refine resilience for transient network errors.
   useEffect(() => {
     if (!user) {
-      apiClient.get('/auth/me').then((res) => {
-        useAuthStore.getState().setUser(res.data.data);
-      }).catch(() => {});
+      apiClient
+        .get('/auth/me')
+        .then((res) => {
+          useAuthStore.getState().setUser(res.data.data);
+        })
+        .catch(() => {
+          // If the interceptor already logged out (refresh failed on 401),
+          // authStatus is already 'anon' and this is a no-op. Otherwise we
+          // explicitly resolve out of 'loading' so ProtectedRoute can act.
+          if (useAuthStore.getState().authStatus === 'loading') {
+            useAuthStore.getState().setAuthStatus('anon');
+          }
+        });
     }
   }, [user]);
 
