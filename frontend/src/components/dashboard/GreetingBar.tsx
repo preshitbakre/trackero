@@ -1,3 +1,5 @@
+import { Eyebrow } from '../ui';
+
 interface GreetingBarProps {
   userName: string;
   date: string;
@@ -14,14 +16,14 @@ function getGreeting(): string {
 export function GreetingBar({ userName, date, summaryText }: GreetingBarProps) {
   return (
     <div className="mb-8">
+      {/* T1.5 — date goes above the hero as the editorial eyebrow per frame-01. */}
+      <Eyebrow className="mb-2">{date}</Eyebrow>
       <h1 className="font-serif text-[36px] leading-tight text-text dark:text-dneutral-700">
         {getGreeting()}, <span className="italic">{userName}.</span>
       </h1>
-      <div className="flex items-center gap-3 mt-2">
-        <span className="text-[13px] text-mute dark:text-dneutral-500">{date}</span>
-        <span className="text-[13px] text-faint dark:text-dneutral-500">·</span>
-        <span className="text-[13px] text-mute dark:text-dneutral-500">{summaryText}</span>
-      </div>
+      {summaryText && (
+        <p className="mt-2 text-[14px] text-mute dark:text-dneutral-500">{summaryText}</p>
+      )}
     </div>
   );
 }
