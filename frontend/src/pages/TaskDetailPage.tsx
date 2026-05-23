@@ -340,7 +340,7 @@ export function TaskDetailPage() {
           </button>
           {task.parentInfo ? (
             <div className="flex items-center gap-1.5 text-[16px] font-mono">
-              <Link to={`/projects/${pid}/tasks/${task.parentInfo.id}`} className="text-neutral-400 hover:text-peri">
+              <Link to={`/projects/${pid}/tasks/${task.parentInfo.id}`} className="text-neutral-400 hover:text-lilac-dark">
                 {task.parentInfo.taskKey}
               </Link>
               <span className="text-neutral-300 dark:text-dneutral-400">→</span>
@@ -385,12 +385,12 @@ export function TaskDetailPage() {
               onBlur={handleTitleBlur}
               onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
               autoFocus
-              className="w-full text-[20px] font-bold bg-transparent border-b border-peri outline-none text-neutral-700 dark:text-dneutral-700"
+              className="w-full text-[20px] font-bold bg-transparent border-b border-lilac outline-none text-neutral-700 dark:text-dneutral-700"
             />
           ) : (
             <h1
               onClick={() => canEdit && setEditing(true)}
-              className={`text-[20px] font-bold text-neutral-700 dark:text-dneutral-700 ${canEdit ? 'cursor-pointer hover:text-peri' : ''}`}
+              className={`text-[20px] font-bold text-neutral-700 dark:text-dneutral-700 ${canEdit ? 'cursor-pointer hover:text-lilac-dark' : ''}`}
             >
               {task.title}
             </h1>
@@ -411,7 +411,7 @@ export function TaskDetailPage() {
               placeholder={canEdit ? 'Add a description...' : 'No description'}
               rows={5}
               disabled={!canEdit}
-              className={`w-full text-[16px] text-neutral-700 dark:text-dneutral-700 min-h-[100px] p-3 rounded border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 placeholder-neutral-400 resize-y focus:border-peri focus:outline-none focus:ring-2 focus:ring-peri/40 ${!canEdit ? 'opacity-75 cursor-default' : ''}`}
+              className={`w-full text-[16px] text-neutral-700 dark:text-dneutral-700 min-h-[100px] p-3 rounded border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 placeholder-neutral-400 resize-y focus:border-lilac focus:outline-none focus:ring-2 focus:ring-lilac/40 ${!canEdit ? 'opacity-75 cursor-default' : ''}`}
             />
           </div>
 
@@ -445,7 +445,7 @@ export function TaskDetailPage() {
                       </Link>
                     ))}
                     {task.subtasks.length > PREVIEW_LIMIT && (
-                      <button onClick={() => toggleExpand('subtasks')} className="text-[16px] text-peri hover:underline px-2 py-1">
+                      <button onClick={() => toggleExpand('subtasks')} className="text-[16px] text-lilac-dark hover:underline px-2 py-1">
                         {isSectionExpanded('subtasks') ? 'Show less' : `Show all (${task.subtasks.length})`}
                       </button>
                     )}
@@ -458,7 +458,7 @@ export function TaskDetailPage() {
                     <Button type="button" variant="ghost" size="sm" onClick={() => setShowAddSubtask(false)}>Cancel</Button>
                   </form>
                 ) : (
-                  <button onClick={() => setShowAddSubtask(true)} className="text-[16px] text-neutral-400 hover:text-peri">+ Add subtask</button>
+                  <button onClick={() => setShowAddSubtask(true)} className="text-[16px] text-neutral-400 hover:text-lilac-dark">+ Add subtask</button>
                 ))}
               </>
             )}
@@ -474,7 +474,7 @@ export function TaskDetailPage() {
                 Checklist {checklistItems.length > 0 && `(${checklistItems.filter((i) => i.isCompleted).length}/${checklistItems.length})`}
               </button>
               {canEdit && !showAddChecklist && !isSectionCollapsed('checklist') && (
-                <button onClick={() => setShowAddChecklist(true)} className="text-[16px] text-peri hover:underline">+ Add item</button>
+                <button onClick={() => setShowAddChecklist(true)} className="text-[16px] text-lilac-dark hover:underline">+ Add item</button>
               )}
             </div>
             {!isSectionCollapsed('checklist') && (
@@ -489,7 +489,7 @@ export function TaskDetailPage() {
                       </div>
                     ))}
                     {checklistItems.length > PREVIEW_LIMIT && (
-                      <button onClick={() => toggleExpand('checklist')} className="text-[16px] text-peri hover:underline px-2 py-1">
+                      <button onClick={() => toggleExpand('checklist')} className="text-[16px] text-lilac-dark hover:underline px-2 py-1">
                         {isSectionExpanded('checklist') ? 'Show less' : `Show all (${checklistItems.length})`}
                       </button>
                     )}
@@ -546,7 +546,7 @@ export function TaskDetailPage() {
                 Attachments {attachments.length > 0 && `(${attachments.length})`}
               </button>
               {canEdit && !isSectionCollapsed('attachments') && (
-                <label className="text-[16px] text-peri hover:underline cursor-pointer">
+                <label className="text-[16px] text-lilac-dark hover:underline cursor-pointer">
                   + Upload
                   <input type="file" className="hidden" onChange={handleUpload} />
                 </label>
@@ -566,7 +566,7 @@ export function TaskDetailPage() {
                       </button>
                     ))}
                     {attachments.length > PREVIEW_LIMIT && (
-                      <button onClick={() => toggleExpand('attachments')} className="text-[16px] text-peri hover:underline px-2 py-1">
+                      <button onClick={() => toggleExpand('attachments')} className="text-[16px] text-lilac-dark hover:underline px-2 py-1">
                         {isSectionExpanded('attachments') ? 'Show less' : `Show all (${attachments.length})`}
                       </button>
                     )}
@@ -602,7 +602,7 @@ export function TaskDetailPage() {
                       </div>
                     ))}
                     {comments.length > PREVIEW_LIMIT && (
-                      <button onClick={() => toggleExpand('comments')} className="text-[16px] text-peri hover:underline px-2 py-1">
+                      <button onClick={() => toggleExpand('comments')} className="text-[16px] text-lilac-dark hover:underline px-2 py-1">
                         {isSectionExpanded('comments') ? 'Show less' : `Show all (${comments.length})`}
                       </button>
                     )}
@@ -669,7 +669,7 @@ export function TaskDetailPage() {
                   }}
                   onBlur={() => flushDebounce()}
                   onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                  className="w-20 text-right rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 px-2 py-1 text-[16px] text-neutral-700 dark:text-dneutral-700 focus:border-peri focus:outline-none focus:ring-2 focus:ring-peri/40"
+                  className="w-20 text-right rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 px-2 py-1 text-[16px] text-neutral-700 dark:text-dneutral-700 focus:border-lilac focus:outline-none focus:ring-2 focus:ring-lilac/40"
                   placeholder="-"
                 />
               ) : (
@@ -699,7 +699,7 @@ export function TaskDetailPage() {
             {task.itemType === 'subtask' && task.parentInfo && (
               <div className="flex items-center justify-between">
                 <span className="text-neutral-400">Parent</span>
-                <Link to={`/projects/${pid}/tasks/${task.parentInfo.id}`} className="text-[16px] text-peri hover:underline">
+                <Link to={`/projects/${pid}/tasks/${task.parentInfo.id}`} className="text-[16px] text-lilac-dark hover:underline">
                   {task.parentInfo.taskKey}
                 </Link>
               </div>
@@ -773,7 +773,7 @@ export function TaskDetailPage() {
                 </div>
               )}
               {canEdit && !showAddAssociation && (
-                <button onClick={() => setShowAddAssociation(true)} className="text-[14px] text-peri hover:underline mt-2">
+                <button onClick={() => setShowAddAssociation(true)} className="text-[14px] text-lilac-dark hover:underline mt-2">
                   + Link item
                 </button>
               )}
@@ -789,7 +789,7 @@ export function TaskDetailPage() {
                       <button
                         key={lt.value}
                         onClick={() => setAddAssocLinkType(lt.value)}
-                        className={`text-[14px] px-2 py-1 rounded ${addAssocLinkType === lt.value ? 'bg-peri text-white' : 'text-neutral-400 hover:bg-neutral-100 dark:hover:bg-dneutral-200'}`}
+                        className={`text-[14px] px-2 py-1 rounded ${addAssocLinkType === lt.value ? 'bg-lilac text-white' : 'text-neutral-400 hover:bg-neutral-100 dark:hover:bg-dneutral-200'}`}
                       >
                         {lt.label}
                       </button>
@@ -801,7 +801,7 @@ export function TaskDetailPage() {
                     onChange={(e) => handleAssocSearch(e.target.value)}
                     placeholder="Search items..."
                     autoFocus
-                    className="w-full text-[16px] px-2 py-1.5 rounded border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 text-neutral-700 dark:text-dneutral-700 placeholder-neutral-300 dark:placeholder-dneutral-300 focus:border-peri focus:outline-none"
+                    className="w-full text-[16px] px-2 py-1.5 rounded border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 text-neutral-700 dark:text-dneutral-700 placeholder-neutral-300 dark:placeholder-dneutral-300 focus:border-lilac focus:outline-none"
                   />
                   {assocSearching && <p className="text-[14px] text-neutral-400">Searching...</p>}
                   {assocSearchResults.length > 0 && (
@@ -886,7 +886,7 @@ function PageAssociationRow({ assoc, pid, onRemove }: { assoc: any; pid: number;
       >
         {item.itemType}
       </span>
-      <Link to={`/projects/${pid}/tasks/${item.id}`} className="font-mono text-[14px] text-neutral-400 flex-shrink-0 hover:text-peri">{item.itemKey}</Link>
+      <Link to={`/projects/${pid}/tasks/${item.id}`} className="font-mono text-[14px] text-neutral-400 flex-shrink-0 hover:text-lilac-dark">{item.itemKey}</Link>
       <span className="text-neutral-600 dark:text-dneutral-600 truncate flex-1">{item.title}</span>
       {onRemove && (
         <button onClick={onRemove} className="text-neutral-400 hover:text-danger opacity-0 group-hover:opacity-100 text-[14px]">x</button>

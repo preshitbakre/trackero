@@ -144,7 +144,7 @@ export function EpicsPage() {
               <div className="mt-3">
                 <Link
                   to={`/projects/${projectId}/epics/${epic.id}`}
-                  className="text-[14px] text-peri hover:underline"
+                  className="text-[14px] text-lilac-dark hover:underline"
                 >
                   View details &rarr;
                 </Link>

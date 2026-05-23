@@ -44,7 +44,7 @@ export function AssigneeMultiSelect({ options, selected, onChange }: AssigneeMul
         onClick={() => setOpen((v) => !v)}
         className={`flex items-center gap-1.5 text-[16px] px-3 py-1 rounded-md border min-w-[140px] ${
           selected.length > 0
-            ? 'bg-peri-light dark:bg-peri-dm/30 border-peri dark:border-peri-dm text-peri dark:text-peri-dm'
+            ? 'bg-lilac-tint dark:bg-peri-dm/30 border-lilac dark:border-peri-dm text-lilac-dark dark:text-peri-dm'
             : 'border-neutral-200 dark:border-dneutral-300 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-dneutral-200'
         }`}
       >
@@ -77,7 +77,7 @@ export function AssigneeMultiSelect({ options, selected, onChange }: AssigneeMul
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search..."
               autoFocus
-              className="w-full text-[16px] px-2 py-1.5 rounded border border-neutral-200 dark:border-dneutral-300 bg-transparent text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400 focus:border-peri focus:outline-none"
+              className="w-full text-[16px] px-2 py-1.5 rounded border border-neutral-200 dark:border-dneutral-300 bg-transparent text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400 focus:border-lilac focus:outline-none"
             />
           </div>
           <div className="max-h-[240px] overflow-y-auto custom-scrollbar">
@@ -90,7 +90,7 @@ export function AssigneeMultiSelect({ options, selected, onChange }: AssigneeMul
                 >
                   <span className={`w-4 h-4 rounded border flex items-center justify-center text-white text-[16px] ${
                     selected.includes(opt.id)
-                      ? 'bg-peri border-peri'
+                      ? 'bg-lilac border-lilac'
                       : 'border-neutral-300 dark:border-dneutral-400'
                   }`}>
                     {selected.includes(opt.id) && '✓'}

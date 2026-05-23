@@ -83,6 +83,21 @@ that's their job.
 
 **Project dots** — `PROJECT_DOT_COLORS` rotates lilac → peri → mint → tan → orchid.
 
+### 2.4 Decorative vs semantic — pick the right palette
+
+- **Decorative** uses (page accents, hover tints, focus rings on non-semantic
+  inputs, drawer slide tints, ghost states, accent dots that don't encode
+  state) **must** be lilac / lilac-tint / lilac-dark. Never reach for peri /
+  mint / tan / orchid here.
+- **Semantic** uses (status badges, priority colours, type tags, retro-column
+  accents, project-dot rotation, avatar rotation) **must** stay on the legacy
+  palette. The colour IS the meaning; substituting lilac strips information
+  the user reads at a glance.
+
+Dark mode keeps its existing tokens (`peri-dm`, `mint-dm`, etc.) for both
+decorative and semantic uses. The light-mode lilac migration is scoped to
+light mode only.
+
 ---
 
 ## 3. Typography

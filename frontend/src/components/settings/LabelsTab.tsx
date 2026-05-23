@@ -73,7 +73,7 @@ export function LabelsTab() {
     <div className="max-w-3xl">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-[16px] font-semibold text-neutral-700 dark:text-dneutral-700">Labels ({labels.length})</h2>
-        <button onClick={() => setShowCreate(true)} className="text-[16px] font-medium text-peri hover:underline">+ Create label</button>
+        <button onClick={() => setShowCreate(true)} className="text-[16px] font-medium text-lilac-dark hover:underline">+ Create label</button>
       </div>
 
       {labels.length === 0 ? (
@@ -192,7 +192,7 @@ function LabelDialog({ projectId, editing, onClose, onSaved }: {
           <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Color</label>
           <div className="grid grid-cols-6 gap-3 mb-2">
             {PRESET_COLORS.map((c) => (
-              <button key={c} type="button" onClick={() => setColor(c)} className={`w-7 h-7 rounded-full border-2 ${color === c ? 'border-peri' : 'border-transparent hover:border-neutral-400'}`} style={{ backgroundColor: c }} />
+              <button key={c} type="button" onClick={() => setColor(c)} className={`w-7 h-7 rounded-full border-2 ${color === c ? 'border-lilac' : 'border-transparent hover:border-neutral-400'}`} style={{ backgroundColor: c }} />
             ))}
           </div>
           <Input

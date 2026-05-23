@@ -193,7 +193,7 @@ export function GeneralTab({ canEdit }: { canEdit: boolean }) {
         <div className="space-y-4">
           {/* Free integer */}
           <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-            estimationScale === 'free' ? 'border-peri bg-peri-light dark:bg-peri-dm/30' : 'border-neutral-200 dark:border-dneutral-200'
+            estimationScale === 'free' ? 'border-lilac bg-lilac-tint dark:bg-peri-dm/30' : 'border-neutral-200 dark:border-dneutral-200'
           }`}>
             <input type="radio" name="estimation" value="free" checked={estimationScale === 'free'} onChange={() => canEdit && setEstimationScale('free')} disabled={!canEdit} className="mt-0.5" />
             <div className="flex-1">
@@ -209,7 +209,7 @@ export function GeneralTab({ canEdit }: { canEdit: boolean }) {
 
           {/* Fibonacci */}
           <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-            estimationScale === 'fibonacci' ? 'border-peri bg-peri-light dark:bg-peri-dm/30' : 'border-neutral-200 dark:border-dneutral-200'
+            estimationScale === 'fibonacci' ? 'border-lilac bg-lilac-tint dark:bg-peri-dm/30' : 'border-neutral-200 dark:border-dneutral-200'
           }`}>
             <input type="radio" name="estimation" value="fibonacci" checked={estimationScale === 'fibonacci'} onChange={() => canEdit && setEstimationScale('fibonacci')} disabled={!canEdit} className="mt-0.5" />
             <div className="flex-1">
@@ -227,7 +227,7 @@ export function GeneralTab({ canEdit }: { canEdit: boolean }) {
 
           {/* T-shirt */}
           <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-            estimationScale === 'tshirt' ? 'border-peri bg-peri-light dark:bg-peri-dm/30' : 'border-neutral-200 dark:border-dneutral-200'
+            estimationScale === 'tshirt' ? 'border-lilac bg-lilac-tint dark:bg-peri-dm/30' : 'border-neutral-200 dark:border-dneutral-200'
           }`}>
             <input type="radio" name="estimation" value="tshirt" checked={estimationScale === 'tshirt'} onChange={() => canEdit && setEstimationScale('tshirt')} disabled={!canEdit} className="mt-0.5" />
             <div className="flex-1">

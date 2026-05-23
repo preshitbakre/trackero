@@ -17,7 +17,7 @@ export function TeamWorkloadBar({ user, taskCount, maxTaskCount, overdueCount }:
 
   return (
     <div className="flex items-center gap-2 py-1">
-      <div className="w-5 h-5 rounded-full bg-peri-light dark:bg-peri-dm/30 flex items-center justify-center text-[16px] font-medium text-peri dark:text-peri-dm flex-shrink-0">
+      <div className="w-5 h-5 rounded-full bg-lilac-tint dark:bg-peri-dm/30 flex items-center justify-center text-[16px] font-medium text-lilac-dark dark:text-peri-dm flex-shrink-0">
         {initial}
       </div>
       <div className="flex-1 min-w-0">

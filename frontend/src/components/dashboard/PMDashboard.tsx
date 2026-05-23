@@ -45,7 +45,7 @@ export function PMDashboard({ data }: { data: any }) {
       <GreetingBar userName={greeting?.userName ?? ''} date={greeting?.date ?? ''} summaryText={summaryText} />
 
       <StatCardGrid>
-        <StatCard icon="&#x1F4C1;" iconColor="text-peri" iconBg="bg-peri-light" label="My projects" value={totalProjects} />
+        <StatCard icon="&#x1F4C1;" iconColor="text-lilac-dark" iconBg="bg-lilac-tint" label="My projects" value={totalProjects} />
         <StatCard icon="&#x2611;" iconColor="text-mint" iconBg="bg-mint-light" label="Open tasks" value={openTasksAcrossProjects} subtext={`across ${totalProjects} projects`} />
         <StatCard icon="&#x1F6D1;" iconColor="text-danger" iconBg="bg-red-50" label="Blocked" value={totalBlockedTasksCount} subtext={totalBlockedTasksCount > 0 ? 'Needs attention' : 'None'} valueColor={totalBlockedTasksCount > 0 ? 'text-danger' : undefined} />
         <StatCard icon="&#x23F0;" iconColor="text-tan" iconBg="bg-tan-light" label="Overdue" value={overdueTasks} subtext={overdueTasks > 0 ? 'Past due date' : 'None'} valueColor={overdueTasks > 0 ? 'text-danger' : undefined} />
@@ -74,7 +74,7 @@ export function PMDashboard({ data }: { data: any }) {
                         <span>{asp.sprint.progressPercent ?? 0}%</span>
                       </div>
                       <div className="h-1.5 rounded-full bg-neutral-200 dark:bg-dneutral-300 mb-2">
-                        <div className="h-full rounded-full bg-peri transition-all" style={{ width: `${asp.sprint.progressPercent ?? 0}%` }} />
+                        <div className="h-full rounded-full bg-lilac transition-all" style={{ width: `${asp.sprint.progressPercent ?? 0}%` }} />
                       </div>
                       <div className="flex gap-2 text-[16px] text-neutral-400 dark:text-dneutral-500">
                         <span>Backlog:{asp.sprint.tasksByStatus?.backlog ?? 0}</span>

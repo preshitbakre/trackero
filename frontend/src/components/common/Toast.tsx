@@ -27,7 +27,7 @@ const TOAST_STYLES: Record<ToastType, string> = {
   success: 'border-l-4 border-mint dark:border-mint-dm bg-mint-light dark:bg-mint-dm/30 text-neutral-700 dark:text-mint-dm',
   warning: 'border-l-4 border-tan dark:border-tan-dm bg-tan-light dark:bg-tan-dm/30 text-neutral-600 dark:text-tan-dm',
   error: 'border-l-4 border-danger bg-red-50 dark:bg-red-950/30 text-danger',
-  info: 'border-l-4 border-peri dark:border-peri-dm bg-peri-light dark:bg-peri-dm/30 text-neutral-700 dark:text-peri-dm',
+  info: 'border-l-4 border-lilac dark:border-peri-dm bg-lilac-tint dark:bg-peri-dm/30 text-neutral-700 dark:text-peri-dm',
 };
 
 let nextId = 0;

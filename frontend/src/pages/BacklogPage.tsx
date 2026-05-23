@@ -88,7 +88,7 @@ function SortableTaskRow({ task, selected, onSelect, onClick, subtaskCount, coll
         {(task.itemType || task.type || 'task').slice(0, task.itemType === 'subtask' ? 3 : undefined)}
       </span>
       <span className="text-[14px] font-mono text-neutral-300">#{task.itemNumber}</span>
-      <span onClick={onClick} className="flex-1 text-[16px] font-semibold text-neutral-700 dark:text-dneutral-700 truncate cursor-pointer hover:text-peri">{task.title}</span>
+      <span onClick={onClick} className="flex-1 text-[16px] font-semibold text-neutral-700 dark:text-dneutral-700 truncate cursor-pointer hover:text-lilac-dark">{task.title}</span>
 
       {/* Right-side metadata — muted, secondary to title */}
       {task.status && (
@@ -307,8 +307,8 @@ export function BacklogPage() {
 
         {/* Bulk actions */}
         {canEdit && selectedIds.size > 0 && (
-          <div className="mb-4 flex items-center gap-3 p-3 bg-peri-light rounded-lg">
-            <span className="text-[16px] font-medium text-peri">{selectedIds.size} selected</span>
+          <div className="mb-4 flex items-center gap-3 p-3 bg-lilac-tint rounded-lg">
+            <span className="text-[16px] font-medium text-lilac-dark">{selectedIds.size} selected</span>
             <Button size="sm" onClick={handleBulkAssignToMe}>Assign to me</Button>
             {sprints.map((s) => (
               <Button key={s.id} size="sm" variant="secondary" onClick={() => handleBulkMoveToSprint(s.id)}>&rarr; {s.name}</Button>

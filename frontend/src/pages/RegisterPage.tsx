@@ -88,7 +88,7 @@ export function RegisterPage() {
               Ask your admin to send you an invitation link.
             </p>
           </div>
-          <Link to="/login" className="text-[16px] text-peri hover:underline">
+          <Link to="/login" className="text-[16px] text-lilac-dark hover:underline">
             Back to login
           </Link>
         </div>
@@ -104,7 +104,7 @@ export function RegisterPage() {
           {isFirstRun ? (
             <>
               <p className="mt-2 text-[16px] text-neutral-500 dark:text-neutral-400">Set up your instance</p>
-              <p className="mt-1 text-[16px] text-peri">Your account will be the admin.</p>
+              <p className="mt-1 text-[16px] text-lilac-dark">Your account will be the admin.</p>
             </>
           ) : (
             <p className="mt-2 text-[16px] text-neutral-500 dark:text-neutral-400">Create your account</p>
@@ -160,7 +160,7 @@ export function RegisterPage() {
 
         {!isFirstRun && (
           <p className="text-center text-[16px] text-neutral-400 dark:text-neutral-400">
-            <Link to="/login" className="text-peri hover:underline">Back to login</Link>
+            <Link to="/login" className="text-lilac-dark hover:underline">Back to login</Link>
           </p>
         )}
       </div>

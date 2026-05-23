@@ -275,7 +275,7 @@ export function EpicDetailPage() {
     return (
       <div className="p-6 text-center py-12 text-neutral-400 dark:text-dneutral-500">
         <p>Epic not found.</p>
-        <Link to={`/projects/${projectId}/epics`} className="text-peri hover:underline mt-2 inline-block text-[16px]">
+        <Link to={`/projects/${projectId}/epics`} className="text-lilac-dark hover:underline mt-2 inline-block text-[16px]">
           Back to Epics
         </Link>
       </div>
@@ -324,7 +324,7 @@ export function EpicDetailPage() {
                           onChange={(e) => searchExistingItems(e.target.value)}
                           placeholder="Search standalone stories and tasks..."
                           autoFocus
-                          className="w-full rounded-md border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 px-3 py-2 text-[14px] text-neutral-700 dark:text-dneutral-700 placeholder-neutral-300 dark:placeholder-dneutral-300 focus:border-peri dark:focus:border-peri-dm focus:outline-none focus:ring-2 focus:ring-peri-light dark:focus:ring-peri-dm/20 h-[30px]"
+                          className="w-full rounded-md border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 px-3 py-2 text-[14px] text-neutral-700 dark:text-dneutral-700 placeholder-neutral-300 dark:placeholder-dneutral-300 focus:border-lilac dark:focus:border-peri-dm focus:outline-none focus:ring-2 focus:ring-lilac-tint dark:focus:ring-peri-dm/20 h-[30px]"
                         />
                       </div>
                       <div className="max-h-[280px] overflow-y-auto">
@@ -340,7 +340,7 @@ export function EpicDetailPage() {
                           <button
                             key={item.id}
                             onClick={() => handleAddExistingItem(item.id)}
-                            className="w-full text-left px-4 py-2.5 flex items-center gap-2.5 hover:bg-peri/10 dark:hover:bg-peri-dm/10 transition-colors border-b border-neutral-50 dark:border-dneutral-200/30 last:border-b-0"
+                            className="w-full text-left px-4 py-2.5 flex items-center gap-2.5 hover:bg-lilac/10 dark:hover:bg-peri-dm/10 transition-colors border-b border-neutral-50 dark:border-dneutral-200/30 last:border-b-0"
                           >
                             <span
                               className="text-[11px] font-semibold uppercase px-1.5 py-0.5 rounded-full flex-shrink-0"
@@ -432,7 +432,7 @@ export function EpicDetailPage() {
                         sprintStatus === 'active'
                           ? 'bg-tan-light text-neutral-600 dark:bg-tan-dm/30 dark:text-tan-dm'
                           : sprintStatus === 'planning'
-                            ? 'bg-peri-light text-peri dark:bg-peri-dm/30 dark:text-peri-dm'
+                            ? 'bg-lilac-tint text-lilac-dark dark:bg-peri-dm/30 dark:text-peri-dm'
                             : 'bg-neutral-100 text-neutral-500 dark:bg-dneutral-200 dark:text-dneutral-500'
                       }`}>
                         {sprintStatus}

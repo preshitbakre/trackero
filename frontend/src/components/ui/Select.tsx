@@ -28,7 +28,7 @@ export function Select({ value, onChange, options, placeholder, className }: Sel
   return (
     <SelectPrimitive.Root value={radixValue} onValueChange={handleChange}>
       <SelectPrimitive.Trigger
-        className={`inline-flex items-center justify-between gap-2 rounded-md border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 px-3 text-[16px] text-neutral-700 dark:text-dneutral-700 hover:bg-neutral-100 dark:hover:bg-dneutral-200 focus:outline-none focus:border-peri dark:focus:border-peri-dm focus:ring-2 focus:ring-peri-light dark:focus:ring-peri-dm/20 h-[30px] overflow-hidden ${className || ''}`}
+        className={`inline-flex items-center justify-between gap-2 rounded-md border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 px-3 text-[16px] text-neutral-700 dark:text-dneutral-700 hover:bg-neutral-100 dark:hover:bg-dneutral-200 focus:outline-none focus:border-lilac dark:focus:border-peri-dm focus:ring-2 focus:ring-lilac-tint dark:focus:ring-peri-dm/20 h-[30px] overflow-hidden ${className || ''}`}
       >
         <span className="truncate min-w-0">
           <SelectPrimitive.Value placeholder={placeholder || 'Select...'} />
@@ -51,7 +51,7 @@ export function Select({ value, onChange, options, placeholder, className }: Sel
               <SelectPrimitive.Item
                 key={opt.value}
                 value={opt.value}
-                className="relative flex items-center rounded px-3 py-2 text-[16px] text-neutral-700 dark:text-dneutral-700 cursor-pointer outline-none data-[highlighted]:bg-peri/10 data-[highlighted]:text-peri data-[state=checked]:font-medium"
+                className="relative flex items-center rounded px-3 py-2 text-[16px] text-neutral-700 dark:text-dneutral-700 cursor-pointer outline-none data-[highlighted]:bg-lilac/10 data-[highlighted]:text-lilac-dark data-[state=checked]:font-medium"
                 title={opt.label}
               >
                 <SelectPrimitive.ItemText>

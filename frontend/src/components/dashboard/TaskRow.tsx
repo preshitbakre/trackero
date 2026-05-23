@@ -37,7 +37,7 @@ export function TaskRow({ taskKey, title, priority, status, endDate, hasBlockers
       <span className={`w-2 h-2 rounded-full flex-shrink-0 ${priorityDotColor[priority] || 'bg-priority-none'}`} />
       {hasBlockers && <span className="text-danger text-[16px] flex-shrink-0" title="Blocked">&#x1F512;</span>}
       <span className="text-[16px] font-mono text-neutral-400 dark:text-dneutral-500 flex-shrink-0">{taskKey}</span>
-      <span className="text-[16px] text-neutral-700 dark:text-dneutral-700 truncate flex-1 group-hover:text-peri">{title}</span>
+      <span className="text-[16px] text-neutral-700 dark:text-dneutral-700 truncate flex-1 group-hover:text-lilac-dark">{title}</span>
       <span
         className="text-[16px] px-1.5 py-0.5 rounded font-medium flex-shrink-0"
         style={{ backgroundColor: status.color + '20', color: status.color }}

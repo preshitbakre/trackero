@@ -51,7 +51,7 @@ export function MemberDashboard({ data }: { data: any }) {
       <GreetingBar userName={greeting?.userName ?? ''} date={greeting?.date ?? ''} summaryText={summaryText} />
 
       <StatCardGrid>
-        <StatCard icon="&#x2611;" iconColor="text-peri" iconBg="bg-peri-light" label="My open tasks" value={myOpenTasks} />
+        <StatCard icon="&#x2611;" iconColor="text-lilac-dark" iconBg="bg-lilac-tint" label="My open tasks" value={myOpenTasks} />
         <StatCard icon="&#x25B6;" iconColor="text-mint" iconBg="bg-mint-light" label="In progress" value={myInProgress} />
         <StatCard icon="&#x1F512;" iconColor="text-danger" iconBg="bg-red-50" label="Blocked" value={myBlocked} subtext={myBlocked > 0 ? `${myBlocked} need${myBlocked === 1 ? 's' : ''} help` : 'None'} valueColor={myBlocked > 0 ? 'text-danger' : undefined} />
         <StatCard icon="&#x1F4C5;" iconColor="text-tan" iconBg="bg-tan-light" label="Due this week" value={dueThisWeek} subtext={hasOverdueDueSoon ? 'Has overdue' : 'None overdue'} valueColor={hasOverdueDueSoon ? 'text-warning' : undefined} />
@@ -64,7 +64,7 @@ export function MemberDashboard({ data }: { data: any }) {
             <div className="space-y-0.5">
               {myTasks.map((t: any) => (
                 <div key={t.id} className="flex items-center gap-2">
-                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${t.status?.category === 'in_progress' ? 'bg-peri' : 'bg-neutral-300 dark:bg-dneutral-400'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${t.status?.category === 'in_progress' ? 'bg-lilac' : 'bg-neutral-300 dark:bg-dneutral-400'}`} />
                   <div className="flex-1 min-w-0">
                     <TaskRow taskKey={t.taskKey} title={t.title} priority={t.priority} status={t.status} endDate={t.endDate} hasBlockers={t.hasBlockers} />
                   </div>
@@ -95,7 +95,7 @@ export function MemberDashboard({ data }: { data: any }) {
                     <span>{sp.progressPercent ?? 0}% · {sp.daysRemaining ?? 0} days left</span>
                   </div>
                   <div className="h-1.5 rounded-full bg-neutral-200 dark:bg-dneutral-300 mb-1.5">
-                    <div className="h-full rounded-full bg-peri transition-all" style={{ width: `${sp.progressPercent ?? 0}%` }} />
+                    <div className="h-full rounded-full bg-lilac transition-all" style={{ width: `${sp.progressPercent ?? 0}%` }} />
                   </div>
                   <p className="text-[16px] text-neutral-400 dark:text-dneutral-500">
                     My tasks: {sp.myCompletedInSprint ?? 0}/{sp.myTasksInSprint ?? 0} done

@@ -132,7 +132,7 @@ export function NotificationBell() {
           <div className="flex items-center justify-between px-4 py-2 border-b border-neutral-200 dark:border-dneutral-300">
             <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700">Notifications</span>
             {unreadCount > 0 && (
-              <button onClick={markAllRead} className="text-[16px] text-peri hover:underline">
+              <button onClick={markAllRead} className="text-[16px] text-lilac-dark hover:underline">
                 Mark all read
               </button>
             )}
@@ -146,11 +146,11 @@ export function NotificationBell() {
                   key={notif.id}
                   onClick={() => handleClick(notif)}
                   className={`w-full text-left px-4 py-3 border-b border-neutral-100 dark:border-dneutral-200 hover:bg-neutral-100 dark:hover:bg-dneutral-200 ${
-                    !notif.isRead ? 'bg-peri-light dark:bg-peri-dm/20' : ''
+                    !notif.isRead ? 'bg-lilac-tint dark:bg-peri-dm/20' : ''
                   }`}
                 >
                   <div className="flex items-start gap-2">
-                    {!notif.isRead && <span className="w-2 h-2 mt-1.5 rounded-full bg-peri flex-shrink-0" />}
+                    {!notif.isRead && <span className="w-2 h-2 mt-1.5 rounded-full bg-lilac flex-shrink-0" />}
                     <div className="flex-1 min-w-0">
                       <p className="text-[16px] text-neutral-700 dark:text-dneutral-700 truncate">{notif.title}</p>
                       {notif.body && <p className="text-[16px] text-neutral-400 truncate">{notif.body}</p>}

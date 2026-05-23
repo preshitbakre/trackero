@@ -138,7 +138,7 @@ export function MembersTab() {
                 key={m.id}
                 className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? 'border-t border-neutral-100 dark:border-dneutral-200' : ''}`}
               >
-                <div className="w-8 h-8 rounded-full bg-peri-light dark:bg-peri-dm/30 flex items-center justify-center text-[16px] font-medium text-peri dark:text-peri-dm flex-shrink-0">
+                <div className="w-8 h-8 rounded-full bg-lilac-tint dark:bg-peri-dm/30 flex items-center justify-center text-[16px] font-medium text-lilac-dark dark:text-peri-dm flex-shrink-0">
                   {initial}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -276,8 +276,8 @@ function AddMemberDialog({ projectId, isAdmin, onClose, onAdded }: {
           <div>
             <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Search user</label>
             {selectedUser ? (
-              <div className="flex items-center gap-2 p-2 rounded-md border border-peri bg-peri-light dark:bg-peri-dm/30">
-                <div className="w-6 h-6 rounded-full bg-peri-light dark:bg-peri-dm/30 flex items-center justify-center text-[16px] font-medium text-peri dark:text-peri-dm">
+              <div className="flex items-center gap-2 p-2 rounded-md border border-lilac bg-lilac-tint dark:bg-peri-dm/30">
+                <div className="w-6 h-6 rounded-full bg-lilac-tint dark:bg-peri-dm/30 flex items-center justify-center text-[16px] font-medium text-lilac-dark dark:text-peri-dm">
                   {selectedUser.displayName?.charAt(0)?.toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -305,7 +305,7 @@ function AddMemberDialog({ projectId, isAdmin, onClose, onAdded }: {
                         onClick={() => { setSelectedUser(u); setShowResults(false); setSearch(''); }}
                         className="flex items-center gap-2 w-full text-left px-3 py-2 hover:bg-neutral-100 dark:hover:bg-dneutral-300"
                       >
-                        <div className="w-6 h-6 rounded-full bg-peri-light dark:bg-peri-dm/30 flex items-center justify-center text-[16px] font-medium text-peri dark:text-peri-dm">
+                        <div className="w-6 h-6 rounded-full bg-lilac-tint dark:bg-peri-dm/30 flex items-center justify-center text-[16px] font-medium text-lilac-dark dark:text-peri-dm">
                           {u.displayName?.charAt(0)?.toUpperCase()}
                         </div>
                         <div className="min-w-0">

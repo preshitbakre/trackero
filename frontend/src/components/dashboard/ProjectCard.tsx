@@ -25,7 +25,7 @@ export function ProjectCard({ id, name, prefix, taskCount, openTaskCount, active
       {activeSprint && (
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <div className="w-16 h-1 rounded-full bg-neutral-200 dark:bg-dneutral-300">
-            <div className="h-full rounded-full bg-peri" style={{ width: `${activeSprint.progressPercent}%` }} />
+            <div className="h-full rounded-full bg-lilac" style={{ width: `${activeSprint.progressPercent}%` }} />
           </div>
           <span className="text-[14px] text-neutral-400 dark:text-dneutral-500">{activeSprint.progressPercent}%</span>
         </div>

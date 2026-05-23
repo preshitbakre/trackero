@@ -211,7 +211,7 @@ export function StoryDetailPage() {
     return (
       <div className="p-6 text-center py-12 text-neutral-400 dark:text-dneutral-500">
         <p>Story not found.</p>
-        <Link to={`/projects/${projectId}/stories`} className="text-peri hover:underline mt-2 inline-block text-[16px]">Back to Stories</Link>
+        <Link to={`/projects/${projectId}/stories`} className="text-lilac-dark hover:underline mt-2 inline-block text-[16px]">Back to Stories</Link>
       </div>
     );
   }
@@ -307,7 +307,7 @@ export function StoryDetailPage() {
                     <h2 className="text-[16px] font-semibold text-neutral-700 dark:text-dneutral-700">{groupName}</h2>
                     {sprintStatus && (
                       <span className={`text-[12px] px-2 py-0.5 rounded-full ${
-                        sprintStatus === 'active' ? 'bg-tan-light text-neutral-600' : sprintStatus === 'planning' ? 'bg-peri-light text-peri' : 'bg-neutral-100 text-neutral-500'
+                        sprintStatus === 'active' ? 'bg-tan-light text-neutral-600' : sprintStatus === 'planning' ? 'bg-lilac-tint text-lilac-dark' : 'bg-neutral-100 text-neutral-500'
                       }`}>{sprintStatus}</span>
                     )}
                     <span className="text-[14px] text-neutral-400 ml-auto">{groupItems.length} items</span>

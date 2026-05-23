@@ -101,7 +101,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
                   key={r.id}
                   onClick={() => { navigate(getNavigationPath(r)); onClose(); }}
                   className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-2.5 ${
-                    i === selectedIndex ? 'bg-peri-light text-peri' : 'text-neutral-600 dark:text-dneutral-600 hover:bg-neutral-100 dark:hover:bg-dneutral-200'
+                    i === selectedIndex ? 'bg-lilac-tint text-lilac-dark' : 'text-neutral-600 dark:text-dneutral-600 hover:bg-neutral-100 dark:hover:bg-dneutral-200'
                   }`}
                 >
                   <span

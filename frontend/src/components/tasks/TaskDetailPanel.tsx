@@ -435,7 +435,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
               })()}
               {isSubtask && parentKey ? (
                 <div className="flex items-center gap-1.5 text-[16px] font-mono">
-                  <button onClick={onClose} className="text-neutral-400 hover:text-peri">{parentKey}</button>
+                  <button onClick={onClose} className="text-neutral-400 hover:text-lilac-dark">{parentKey}</button>
                   <span className="text-neutral-300 dark:text-dneutral-400">→</span>
                   <span className="text-neutral-700 dark:text-dneutral-700">{taskKey}</span>
                 </div>
@@ -550,7 +550,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                 }}
                 onBlur={() => flushDebounce()}
                 onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                className="w-full rounded-md border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 px-3 py-1 text-[16px] text-neutral-700 dark:text-dneutral-700 focus:border-peri focus:outline-none focus:ring-2 focus:ring-lilac/30 h-[30px]"
+                className="w-full rounded-md border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 px-3 py-1 text-[16px] text-neutral-700 dark:text-dneutral-700 focus:border-lilac focus:outline-none focus:ring-2 focus:ring-lilac/30 h-[30px]"
                 placeholder="-"
               />
             </div>
@@ -611,7 +611,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                           </span>
                           <span className="text-[13px] font-mono text-neutral-400">{opt.data.itemKey}</span>
                         </div>
-                        <p className={`text-[14px] line-clamp-2 ${isHighlighted ? 'text-peri' : isSelected ? 'text-neutral-700 dark:text-dneutral-700 font-medium' : 'text-neutral-600 dark:text-dneutral-600'}`}>
+                        <p className={`text-[14px] line-clamp-2 ${isHighlighted ? 'text-lilac-dark' : isSelected ? 'text-neutral-700 dark:text-dneutral-700 font-medium' : 'text-neutral-600 dark:text-dneutral-600'}`}>
                           {opt.data.title}
                         </p>
                       </div>
@@ -662,7 +662,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
               onBlur={() => flushDebounce()}
               placeholder="Add a description..."
               rows={3}
-              className="w-full text-[16px] text-neutral-700 dark:text-dneutral-700 min-h-[60px] p-3 rounded border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 placeholder-neutral-400 resize-none focus:border-peri focus:outline-none focus:ring-2 focus:ring-lilac/30"
+              className="w-full text-[16px] text-neutral-700 dark:text-dneutral-700 min-h-[60px] p-3 rounded border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 placeholder-neutral-400 resize-none focus:border-lilac focus:outline-none focus:ring-2 focus:ring-lilac/30"
             />
           </div>
 
@@ -736,7 +736,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
               </div>
             )}
             {canEdit && !showAddAssociation && (
-              <button onClick={() => setShowAddAssociation(true)} className="text-[14px] text-peri hover:underline mt-2">
+              <button onClick={() => setShowAddAssociation(true)} className="text-[14px] text-lilac-dark hover:underline mt-2">
                 + Link item
               </button>
             )}
@@ -752,7 +752,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                     <button
                       key={lt.value}
                       onClick={() => setAddAssocLinkType(lt.value)}
-                      className={`text-[14px] px-2 py-1 rounded ${addAssocLinkType === lt.value ? 'bg-peri text-white' : 'text-neutral-400 hover:bg-neutral-100 dark:hover:bg-dneutral-200'}`}
+                      className={`text-[14px] px-2 py-1 rounded ${addAssocLinkType === lt.value ? 'bg-lilac text-white' : 'text-neutral-400 hover:bg-neutral-100 dark:hover:bg-dneutral-200'}`}
                     >
                       {lt.label}
                     </button>
@@ -765,7 +765,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                   onFocus={() => { if (assocSearchResults.length === 0) handleAssocSearch(''); }}
                   placeholder="Search items..."
                   autoFocus
-                  className="w-full text-[14px] px-2 py-1.5 rounded border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 text-neutral-700 dark:text-dneutral-700 placeholder-neutral-300 dark:placeholder-dneutral-300 focus:border-peri focus:outline-none h-[30px]"
+                  className="w-full text-[14px] px-2 py-1.5 rounded border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 text-neutral-700 dark:text-dneutral-700 placeholder-neutral-300 dark:placeholder-dneutral-300 focus:border-lilac focus:outline-none h-[30px]"
                 />
                 {assocSearching && <p className="text-[12px] text-neutral-400">Searching...</p>}
                 <div className="max-h-[240px] overflow-y-auto border border-neutral-200 dark:border-dneutral-200 rounded">
@@ -831,7 +831,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                   <Button type="button" variant="ghost" size="sm" onClick={() => setShowAddSubtask(false)}>Cancel</Button>
                 </form>
               ) : (
-                <button onClick={() => setShowAddSubtask(true)} className="text-[16px] text-neutral-400 hover:text-peri">
+                <button onClick={() => setShowAddSubtask(true)} className="text-[16px] text-neutral-400 hover:text-lilac-dark">
                   + Add subtask
                 </button>
               ))}
@@ -845,7 +845,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                 Checklist {checklistItems.length > 0 && `(${checklistItems.filter((i) => i.isCompleted).length}/${checklistItems.length})`}
               </h3>
               {canEdit && !showAddChecklist && (
-                <button onClick={() => setShowAddChecklist(true)} className="text-[16px] text-peri hover:underline">+ Add item</button>
+                <button onClick={() => setShowAddChecklist(true)} className="text-[16px] text-lilac-dark hover:underline">+ Add item</button>
               )}
             </div>
             {checklistItems.length > 0 && (
@@ -900,7 +900,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-[16px] font-medium text-neutral-400">Attachments</h3>
               {canEdit && (
-                <label className="text-[16px] text-peri hover:underline cursor-pointer">
+                <label className="text-[16px] text-lilac-dark hover:underline cursor-pointer">
                   + Upload
                   <input type="file" className="hidden" onChange={handleUpload} />
                 </label>
@@ -1077,7 +1077,7 @@ function DependencySection({ projectId, taskId, blockedBy, blocks, canEdit, onCh
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-[16px] font-medium text-neutral-400">Dependencies</h3>
         {canEdit && !showAdd && (
-          <button onClick={() => setShowAdd(true)} className="text-[16px] text-peri hover:underline">+ Add</button>
+          <button onClick={() => setShowAdd(true)} className="text-[16px] text-lilac-dark hover:underline">+ Add</button>
         )}
       </div>
 
@@ -1122,8 +1122,8 @@ function DependencySection({ projectId, taskId, blockedBy, blocks, canEdit, onCh
       {showAdd && (
         <div className="mt-2 p-3 rounded-lg bg-neutral-50 dark:bg-dneutral-100 shadow-sm dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)] space-y-2">
           <div className="flex gap-2">
-            <button onClick={() => setAddType('blocked_by')} className={`text-[14px] px-2 py-1 rounded ${addType === 'blocked_by' ? 'bg-peri text-white' : 'text-neutral-400 hover:bg-neutral-100 dark:hover:bg-dneutral-200'}`}>Blocked by</button>
-            <button onClick={() => setAddType('blocks')} className={`text-[14px] px-2 py-1 rounded ${addType === 'blocks' ? 'bg-peri text-white' : 'text-neutral-400 hover:bg-neutral-100 dark:hover:bg-dneutral-200'}`}>Blocks</button>
+            <button onClick={() => setAddType('blocked_by')} className={`text-[14px] px-2 py-1 rounded ${addType === 'blocked_by' ? 'bg-lilac text-white' : 'text-neutral-400 hover:bg-neutral-100 dark:hover:bg-dneutral-200'}`}>Blocked by</button>
+            <button onClick={() => setAddType('blocks')} className={`text-[14px] px-2 py-1 rounded ${addType === 'blocks' ? 'bg-lilac text-white' : 'text-neutral-400 hover:bg-neutral-100 dark:hover:bg-dneutral-200'}`}>Blocks</button>
           </div>
           <input
             type="text"
@@ -1131,7 +1131,7 @@ function DependencySection({ projectId, taskId, blockedBy, blocks, canEdit, onCh
             onChange={(e) => handleSearch(e.target.value)}
             placeholder="Search tasks..."
             autoFocus
-            className="w-full text-[16px] px-2 py-1.5 rounded border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 text-neutral-700 dark:text-dneutral-700 placeholder-neutral-300 dark:placeholder-dneutral-300 focus:border-peri focus:outline-none"
+            className="w-full text-[16px] px-2 py-1.5 rounded border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 text-neutral-700 dark:text-dneutral-700 placeholder-neutral-300 dark:placeholder-dneutral-300 focus:border-lilac focus:outline-none"
           />
           {searching && <p className="text-[14px] text-neutral-400">Searching...</p>}
           {searchResults.length > 0 && (

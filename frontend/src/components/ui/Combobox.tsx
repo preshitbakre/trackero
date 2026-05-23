@@ -21,7 +21,7 @@ interface ComboboxProps {
 }
 
 const inputClass =
-  'w-full rounded-md border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 px-3 py-2 text-[16px] text-neutral-700 dark:text-dneutral-700 placeholder-neutral-300 dark:placeholder-dneutral-300 focus:border-peri dark:focus:border-peri-dm focus:outline-none focus:ring-2 focus:ring-peri-light dark:focus:ring-peri-dm/20 h-[30px] truncate';
+  'w-full rounded-md border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 px-3 py-2 text-[16px] text-neutral-700 dark:text-dneutral-700 placeholder-neutral-300 dark:placeholder-dneutral-300 focus:border-lilac dark:focus:border-peri-dm focus:outline-none focus:ring-2 focus:ring-lilac-tint dark:focus:ring-peri-dm/20 h-[30px] truncate';
 
 export function Combobox({ value, onChange, options, placeholder, emptyLabel, className, renderOption }: ComboboxProps) {
   const [search, setSearch] = useState('');
@@ -110,10 +110,10 @@ export function Combobox({ value, onChange, options, placeholder, emptyLabel, cl
                   onClick={() => select(opt.value)}
                   className={`w-full text-left px-3 py-2.5 transition-colors border-b border-neutral-200/60 dark:border-dneutral-200/50 last:border-b-0 ${
                     isHighlighted
-                      ? 'bg-peri/15'
+                      ? 'bg-lilac/15'
                       : isSelected
-                        ? 'bg-peri/10'
-                        : 'hover:bg-peri/10'
+                        ? 'bg-lilac/10'
+                        : 'hover:bg-lilac/10'
                   }`}
                 >
                   {renderOption ? (

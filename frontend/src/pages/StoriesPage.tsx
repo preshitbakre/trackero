@@ -176,7 +176,7 @@ export function StoriesPage() {
                 </div>
               )}
               <div className="mt-3">
-                <Link to={`/projects/${projectId}/stories/${story.id}`} className="text-[14px] text-peri hover:underline">
+                <Link to={`/projects/${projectId}/stories/${story.id}`} className="text-[14px] text-lilac-dark hover:underline">
                   View details &rarr;
                 </Link>
               </div>

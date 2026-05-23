@@ -28,8 +28,8 @@ export function StoryPointsInput({ value, onChange, scale, disabled }: StoryPoin
             onClick={() => onChange(value === n ? null : n)}
             className={`px-2 py-1 text-[16px] rounded border transition-colors ${
               value === n
-                ? 'bg-peri text-white border-peri'
-                : 'border-neutral-200 dark:border-dneutral-300 text-neutral-500 dark:text-dneutral-500 hover:border-peri'
+                ? 'bg-lilac text-white border-lilac'
+                : 'border-neutral-200 dark:border-dneutral-300 text-neutral-500 dark:text-dneutral-500 hover:border-lilac'
             } disabled:opacity-50`}
           >
             {n}
@@ -50,8 +50,8 @@ export function StoryPointsInput({ value, onChange, scale, disabled }: StoryPoin
             onClick={() => onChange(value === t.value ? null : t.value)}
             className={`px-2.5 py-1 text-[16px] rounded border transition-colors ${
               value === t.value
-                ? 'bg-peri text-white border-peri'
-                : 'border-neutral-200 dark:border-dneutral-300 text-neutral-500 dark:text-dneutral-500 hover:border-peri'
+                ? 'bg-lilac text-white border-lilac'
+                : 'border-neutral-200 dark:border-dneutral-300 text-neutral-500 dark:text-dneutral-500 hover:border-lilac'
             } disabled:opacity-50`}
           >
             {t.label}

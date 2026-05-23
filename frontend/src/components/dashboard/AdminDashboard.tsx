@@ -40,7 +40,7 @@ export function AdminDashboard({ data }: { data: any }) {
       />
 
       <StatCardGrid>
-        <StatCard icon="&#x1F465;" iconColor="text-peri" iconBg="bg-peri-light" label="Total users" value={totalUsers} subtext={`${activeUsers} active`} />
+        <StatCard icon="&#x1F465;" iconColor="text-lilac-dark" iconBg="bg-lilac-tint" label="Total users" value={totalUsers} subtext={`${activeUsers} active`} />
         <StatCard icon="&#x1F4C1;" iconColor="text-mint" iconBg="bg-mint-light" label="Active projects" value={activeProjects} subtext={`${Math.max(0, totalProjects - activeProjects)} archived`} />
         <StatCard icon="&#x1F504;" iconColor="text-tan" iconBg="bg-tan-light" label="Active sprints" value={activeSprintsCount} subtext={sprintsAtRisk > 0 ? `${sprintsAtRisk} at risk` : 'On track'} valueColor={sprintsAtRisk > 0 ? 'text-warning' : undefined} />
         <StatCard icon="&#x1F6D1;" iconColor="text-danger" iconBg="bg-red-50" label="Blocked tasks" value={totalBlockedTasks} subtext={totalBlockedTasks > 0 ? 'Needs attention' : 'None'} valueColor={totalBlockedTasks > 0 ? 'text-danger' : undefined} />
@@ -97,7 +97,7 @@ export function AdminDashboard({ data }: { data: any }) {
                       <tr key={u.userId} className="border-b border-neutral-100 dark:border-dneutral-200/50">
                         <td className="px-2 py-1.5 text-neutral-700 dark:text-dneutral-700 truncate">{u.displayName}</td>
                         <td className="w-14 px-2 py-1.5 text-center text-neutral-700 dark:text-dneutral-700">{u.openTaskCount}</td>
-                        <td className="w-14 px-2 py-1.5 text-center text-peri dark:text-peri-dm">{u.inProgressCount}</td>
+                        <td className="w-14 px-2 py-1.5 text-center text-lilac-dark dark:text-peri-dm">{u.inProgressCount}</td>
                         <td className={`w-16 px-2 py-1.5 text-center ${u.overdueCount > 0 ? 'text-danger font-medium' : 'text-neutral-400 dark:text-dneutral-500'}`}>{u.overdueCount}</td>
                       </tr>
                     ))}

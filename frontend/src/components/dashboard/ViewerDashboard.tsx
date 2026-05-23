@@ -39,7 +39,7 @@ export function ViewerDashboard({ data }: { data: any }) {
       <GreetingBar userName={greeting?.userName ?? ''} date={greeting?.date ?? ''} summaryText={summaryText} />
 
       <StatCardGrid>
-        <StatCard icon="&#x1F4C1;" iconColor="text-peri" iconBg="bg-peri-light" label="Projects" value={projectsCount} />
+        <StatCard icon="&#x1F4C1;" iconColor="text-lilac-dark" iconBg="bg-lilac-tint" label="Projects" value={projectsCount} />
         <StatCard icon="&#x2611;" iconColor="text-tan" iconBg="bg-tan-light" label="Total tasks" value={totalTasks} />
         <StatCard icon="&#x2705;" iconColor="text-mint" iconBg="bg-mint-light" label="Completed" value={completedTasks} />
         <StatCard icon="&#x1F4CA;" iconColor="text-mint" iconBg="bg-mint-light" label="Progress" value={`${overallProgress}%`} progressBar={{ percent: overallProgress, color: '#4A6FA5' }} />
@@ -76,7 +76,7 @@ export function ViewerDashboard({ data }: { data: any }) {
                         <span>{sp.progressPercent ?? 0}%</span>
                       </div>
                       <div className="h-1.5 rounded-full bg-neutral-200 dark:bg-dneutral-300 mb-2">
-                        <div className="h-full rounded-full bg-peri transition-all" style={{ width: `${sp.progressPercent ?? 0}%` }} />
+                        <div className="h-full rounded-full bg-lilac transition-all" style={{ width: `${sp.progressPercent ?? 0}%` }} />
                       </div>
                       <div className="flex gap-2 text-[16px] text-neutral-400 dark:text-dneutral-500 flex-wrap">
                         <span>Backlog:{sp.tasksByStatus?.backlog ?? 0}</span>
@@ -141,14 +141,14 @@ export function ViewerDashboard({ data }: { data: any }) {
                 const memberKey = `${m.displayName ?? ''}-${m.role ?? ''}-${i}`;
                 const initial = m.displayName?.charAt(0)?.toUpperCase() || '?';
                 const roleBadge: Record<string, string> = {
-                  admin: 'bg-peri-light dark:bg-peri-dm/30 text-neutral-700 dark:text-peri-dm',
+                  admin: 'bg-lilac-tint dark:bg-peri-dm/30 text-neutral-700 dark:text-peri-dm',
                   project_manager: 'bg-tan-light dark:bg-tan-dm/30 text-neutral-600 dark:text-tan-dm',
                   member: 'bg-mint-light dark:bg-mint-dm/30 text-neutral-700 dark:text-mint-dm',
                   viewer: 'bg-neutral-100 dark:bg-dneutral-200 text-neutral-500 dark:text-dneutral-500',
                 };
                 return (
                   <div key={memberKey} className="flex items-center gap-3 py-1.5">
-                    <div className="w-8 h-8 rounded-full bg-peri-light dark:bg-peri-dm/30 flex items-center justify-center text-[16px] font-medium text-peri dark:text-peri-dm flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-lilac-tint dark:bg-peri-dm/30 flex items-center justify-center text-[16px] font-medium text-lilac-dark dark:text-peri-dm flex-shrink-0">
                       {initial}
                     </div>
                     <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700 flex-1">{m.displayName ?? ''}</span>
