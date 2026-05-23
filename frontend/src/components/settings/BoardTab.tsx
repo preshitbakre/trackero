@@ -171,7 +171,7 @@ export function BoardTab() {
         });
         return next;
       });
-    } catch {}
+    } catch (err) { console.error(err); }
     setLoading(false);
   }, [projectId]);
 

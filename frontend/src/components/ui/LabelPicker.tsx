@@ -19,7 +19,7 @@ export function LabelPicker({ projectId, selectedIds, onChange }: LabelPickerPro
   useEffect(() => {
     apiClient.get(`/projects/${projectId}/labels`)
       .then((res) => setLabels(res.data.data?.list || res.data.data || []))
-      .catch(() => {});
+      .catch((err) => { console.error(err); });
   }, [projectId]);
 
   if (labels.length === 0) return null;

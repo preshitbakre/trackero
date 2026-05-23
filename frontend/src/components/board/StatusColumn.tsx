@@ -2,6 +2,7 @@ import { useDroppable } from '@dnd-kit/core';
 import { TaskCard } from './TaskCard';
 import { useState } from 'react';
 import { apiClient } from '../../api/client';
+import { toast } from '../common/Toast';
 import { Button } from '../ui/Button';
 
 interface BoardTask {
@@ -55,7 +56,9 @@ export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId,
       setQuickTitle('');
       setShowQuickAdd(false);
       onTaskCreated();
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to create task', 'error');
+    }
   };
 
   const wipLimit = status.wipLimit || 0;

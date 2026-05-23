@@ -49,14 +49,14 @@ export function SprintsPage() {
     loadSprints();
     apiClient.get(`/projects/${projectId}`).then((res) => {
       setDefaultDuration(res.data.data.defaultSprintDuration || 14);
-    }).catch(() => {});
+    }).catch((err) => { console.error(err); });
   }, [projectId]);
 
   const loadSprints = async () => {
     try {
       const { data } = await apiClient.get(`/projects/${projectId}/sprints`);
       setSprints(data.data.list || []);
-    } catch {}
+    } catch (err) { console.error(err); }
   };
 
   const handleStart = async (sprintId: number) => {

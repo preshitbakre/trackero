@@ -27,7 +27,7 @@ export function RegisterPage() {
     if (inviteToken) {
       apiClient.get(`/auth/invite-info?token=${inviteToken}`).then((res) => {
         setEmail(res.data.data.email || '');
-      }).catch(() => {});
+      }).catch((err) => { console.error(err); });
     }
   }, [inviteToken]);
 

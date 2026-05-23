@@ -138,11 +138,11 @@ export function TaskDetailPage() {
   useEffect(() => {
     apiClient.get(`/projects/${pid}`).then((res) => {
       setProjectPrefix(res.data.data.prefix || '');
-    }).catch(() => {});
+    }).catch((err) => { console.error(err); });
     apiClient.get(`/projects/${pid}/filters/assignees`).then((res) => {
       const opts = (res.data.data.list || []).map((o: any) => ({ value: String(o.value), label: o.label }));
       setAssigneeOptions([{ value: '', label: 'Unassigned' }, ...opts]);
-    }).catch(() => {});
+    }).catch((err) => { console.error(err); });
   }, [pid]);
 
   const loadTask = async () => {
@@ -152,35 +152,35 @@ export function TaskDetailPage() {
       setTitle(data.data.title);
       setStoryPoints(data.data.storyPoints != null ? String(data.data.storyPoints) : '');
       setChecklistItems(data.data.checklistItems || []);
-    } catch {}
+    } catch (err) { console.error(err); }
   };
 
   const loadComments = async () => {
     try {
       const { data } = await apiClient.get(`/projects/${pid}/items/${tid}/comments`);
       setComments(data.data.list || []);
-    } catch {}
+    } catch (err) { console.error(err); }
   };
 
   const loadAttachments = async () => {
     try {
       const { data } = await apiClient.get(`/projects/${pid}/items/${tid}/attachments`);
       setAttachments(data.data.list || []);
-    } catch {}
+    } catch (err) { console.error(err); }
   };
 
   const loadActivity = async () => {
     try {
       const { data } = await apiClient.get(`/projects/${pid}/items/${tid}/activity?limit=50`);
       setActivity(data.data.list || []);
-    } catch {}
+    } catch (err) { console.error(err); }
   };
 
   const loadAssociations = async () => {
     try {
       const { data } = await apiClient.get(`/projects/${pid}/items/${tid}/associations`);
       setAssociations(data.data);
-    } catch {}
+    } catch (err) { console.error(err); }
   };
 
   const handleAssocSearch = async (q: string) => {
@@ -190,7 +190,7 @@ export function TaskDetailPage() {
     try {
       const { data } = await apiClient.get(`/projects/${pid}/items?search=${encodeURIComponent(q)}&limit=10`);
       setAssocSearchResults((data.data.list || []).filter((t: any) => t.id !== tid));
-    } catch {}
+    } catch (err) { console.error(err); }
     setAssocSearching(false);
   };
 
@@ -201,14 +201,18 @@ export function TaskDetailPage() {
       setAssocSearchQuery('');
       setAssocSearchResults([]);
       loadAssociations();
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to link item', 'error');
+    }
   };
 
   const handleRemoveAssociation = async (assocId: number) => {
     try {
       await apiClient.delete(`/projects/${pid}/items/${tid}/associations/${assocId}`);
       loadAssociations();
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to remove link', 'error');
+    }
   };
 
   const handleDeleteItem = async () => {
@@ -235,7 +239,9 @@ export function TaskDetailPage() {
       setNewComment('');
       setComments(data.data.list || []);
       loadActivity();
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to post comment', 'error');
+    }
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -249,7 +255,9 @@ export function TaskDetailPage() {
       });
       setAttachments(data.data.list || []);
       loadActivity();
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to upload', 'error');
+    }
     e.target.value = '';
   };
 
@@ -257,7 +265,9 @@ export function TaskDetailPage() {
     try {
       const { data } = await apiClient.get(`/projects/${pid}/items/${tid}/attachments/${attachmentId}/url`);
       window.open(data.data.url, '_blank');
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to download', 'error');
+    }
   };
 
   const handleAddChecklistItem = async (e: React.FormEvent) => {
@@ -268,21 +278,27 @@ export function TaskDetailPage() {
       setNewChecklistTitle('');
       setShowAddChecklist(false);
       loadTask();
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to add checklist item', 'error');
+    }
   };
 
   const handleToggleChecklist = async (itemId: number, isCompleted: boolean) => {
     try {
       await apiClient.put(`/projects/${pid}/items/${tid}/checklist/${itemId}`, { isCompleted: !isCompleted });
       loadTask();
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to update checklist', 'error');
+    }
   };
 
   const handleDeleteChecklist = async (itemId: number) => {
     try {
       await apiClient.delete(`/projects/${pid}/items/${tid}/checklist/${itemId}`);
       loadTask();
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to delete checklist item', 'error');
+    }
   };
 
   const handleCreateSubtask = async () => {
@@ -292,7 +308,9 @@ export function TaskDetailPage() {
       setNewSubtaskTitle('');
       setShowAddSubtask(false);
       loadTask();
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to create subtask', 'error');
+    }
   };
 
   if (!task) {
@@ -697,7 +715,9 @@ export function TaskDetailPage() {
                     try {
                       await apiClient.put(`/projects/${pid}/items/${tid}`, { labelIds: ids });
                       await loadTask();
-                    } catch {}
+                    } catch (err: any) {
+                      toast(err.response?.data?.message || 'Failed to update labels', 'error');
+                    }
                   }}
                 />
               ) : (

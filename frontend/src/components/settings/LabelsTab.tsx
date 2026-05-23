@@ -33,7 +33,7 @@ export function LabelsTab() {
     try {
       const { data } = await apiClient.get(`/projects/${projectId}/labels`);
       setLabels(Array.isArray(data.data) ? data.data : data.data.list || []);
-    } catch {}
+    } catch (err) { console.error(err); }
     setLoading(false);
   };
 

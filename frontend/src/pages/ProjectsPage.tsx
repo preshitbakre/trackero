@@ -26,7 +26,7 @@ export function ProjectsPage() {
     try {
       const { data } = await apiClient.get('/projects');
       setProjects(data.data.list || []);
-    } catch {}
+    } catch (err) { console.error(err); }
   };
 
   return (

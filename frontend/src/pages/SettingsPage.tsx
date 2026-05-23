@@ -50,14 +50,14 @@ export function SettingsPage() {
     try {
       const { data } = await apiClient.get('/users');
       setUsers(data.data.list || []);
-    } catch {}
+    } catch (err) { console.error(err); }
   };
 
   const loadInvitations = async () => {
     try {
       const { data } = await apiClient.get('/users/invitations');
       setInvitations(data?.data?.list || []);
-    } catch {}
+    } catch (err) { console.error(err); }
   };
 
   const handleChangeRole = async (userId: number, role: string) => {

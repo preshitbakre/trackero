@@ -123,7 +123,7 @@ export function SprintPlanningPage() {
         const avg = velData.reduce((sum: number, v: any) => sum + (v.completed_points || 0), 0) / velData.length;
         setVelocity(Math.round(avg));
       }
-    } catch {}
+    } catch (err) { console.error(err); }
   }, [projectId, sprintId]);
 
   useEffect(() => { loadData(); }, [loadData]);

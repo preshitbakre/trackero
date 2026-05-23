@@ -147,7 +147,7 @@ export function StoryDetailPage() {
         }
       }
       setAllItems(flat);
-    } catch {}
+    } catch (err) { console.error(err); }
     setLoading(false);
   }, [projectId, storyId]);
 

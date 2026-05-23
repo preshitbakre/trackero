@@ -47,7 +47,7 @@ export function EpicsPage() {
     try {
       const { data } = await apiClient.get(`/projects/${projectId}/epics`);
       setEpics(data.data.list || []);
-    } catch {}
+    } catch (err) { console.error(err); }
   };
 
   return (

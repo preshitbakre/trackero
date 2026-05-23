@@ -129,28 +129,28 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
         setTitle(data.data.title);
         setStoryPoints(data.data.storyPoints != null ? String(data.data.storyPoints) : '');
         setChecklistItems(data.data.checklistItems || []);
-      } catch {}
+      } catch (err) { console.error(err); }
     };
     const loadCommentsGuarded = async () => {
       try {
         const { data } = await apiClient.get(`/projects/${projectId}/items/${taskId}/comments`);
         if (ignored) return;
         setComments(data.data.list || []);
-      } catch {}
+      } catch (err) { console.error(err); }
     };
     const loadAttachmentsGuarded = async () => {
       try {
         const { data } = await apiClient.get(`/projects/${projectId}/items/${taskId}/attachments`);
         if (ignored) return;
         setAttachments(data.data.list || []);
-      } catch {}
+      } catch (err) { console.error(err); }
     };
     const loadAssociationsGuarded = async () => {
       try {
         const { data } = await apiClient.get(`/projects/${projectId}/items/${taskId}/associations`);
         if (ignored) return;
         setAssociations(data.data);
-      } catch {}
+      } catch (err) { console.error(err); }
     };
     Promise.all([loadTaskGuarded(), loadCommentsGuarded(), loadAttachmentsGuarded(), loadAssociationsGuarded()]);
     return () => { ignored = true; };
@@ -163,13 +163,13 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
       if (ignored) return;
       const opts = (res.data.data.list || []).map((o: any) => ({ value: String(o.value), label: o.label }));
       setAssigneeOptions([{ value: '', label: 'Unassigned' }, ...opts]);
-    }).catch(() => {});
+    }).catch((err) => { console.error(err); });
     // Parent options loaded after task is fetched (depends on itemType)
     apiClient.get(`/projects/${projectId}/sprints?limit=100`).then((res) => {
       if (ignored) return;
       const list = res.data.data.list || [];
       setSprintOptions([{ value: '', label: 'Backlog' }, ...list.map((s: any) => ({ value: String(s.id), label: `${s.name} (${s.status})` }))]);
-    }).catch(() => {});
+    }).catch((err) => { console.error(err); });
     return () => { ignored = true; };
   }, [projectId]);
 
@@ -231,7 +231,9 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
         await apiClient.put(`/projects/${projectId}/items/${taskId}`, { assigneeId: currentUser.id });
         await loadTask();
         onUpdated?.();
-      } catch {}
+      } catch (err: any) {
+        toast(err.response?.data?.message || 'Failed to assign', 'error');
+      }
     };
     document.addEventListener('shortcut-assign-to-me', handler as EventListener);
     return () => document.removeEventListener('shortcut-assign-to-me', handler as EventListener);
@@ -244,14 +246,14 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
       setTitle(data.data.title);
       setStoryPoints(data.data.storyPoints != null ? String(data.data.storyPoints) : '');
       setChecklistItems(data.data.checklistItems || []);
-    } catch {}
+    } catch (err) { console.error(err); }
   };
 
   const loadAssociations = async () => {
     try {
       const { data } = await apiClient.get(`/projects/${projectId}/items/${taskId}/associations`);
       setAssociations(data.data);
-    } catch {}
+    } catch (err) { console.error(err); }
   };
 
   const handleAssocSearch = async (q: string) => {
@@ -261,7 +263,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
       const params = q.length >= 2 ? `search=${encodeURIComponent(q)}&limit=20` : 'limit=20&sort=updatedAt&order=DESC';
       const { data } = await apiClient.get(`/projects/${projectId}/items?${params}`);
       setAssocSearchResults((data.data.list || []).filter((t: any) => t.id !== taskId));
-    } catch {}
+    } catch (err) { console.error(err); }
     setAssocSearching(false);
   };
 
@@ -272,14 +274,18 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
       setAssocSearchQuery('');
       setAssocSearchResults([]);
       loadAssociations();
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to link item', 'error');
+    }
   };
 
   const handleRemoveAssociation = async (assocId: number) => {
     try {
       await apiClient.delete(`/projects/${projectId}/items/${taskId}/associations/${assocId}`);
       loadAssociations();
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to remove link', 'error');
+    }
   };
 
   const handleTitleBlur = () => {
@@ -307,7 +313,9 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
       const { data } = await apiClient.post(`/projects/${projectId}/items/${taskId}/comments`, { body: newComment });
       setNewComment('');
       setComments(data.data.list || []);
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to post comment', 'error');
+    }
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -320,7 +328,9 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setAttachments(data.data.list || []);
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to upload', 'error');
+    }
     e.target.value = '';
   };
 
@@ -328,7 +338,9 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
     try {
       const { data } = await apiClient.get(`/projects/${projectId}/items/${taskId}/attachments/${attachmentId}/url`);
       window.open(data.data.url, '_blank');
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to download', 'error');
+    }
   };
 
   const handleAddChecklistItem = async (e: React.FormEvent) => {
@@ -339,21 +351,27 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
       setNewChecklistTitle('');
       setShowAddChecklist(false);
       loadTask();
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to add checklist item', 'error');
+    }
   };
 
   const handleToggleChecklist = async (itemId: number, isCompleted: boolean) => {
     try {
       await apiClient.put(`/projects/${projectId}/items/${taskId}/checklist/${itemId}`, { isCompleted: !isCompleted });
       loadTask();
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to update checklist', 'error');
+    }
   };
 
   const handleDeleteChecklist = async (itemId: number) => {
     try {
       await apiClient.delete(`/projects/${projectId}/items/${taskId}/checklist/${itemId}`);
       loadTask();
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to delete checklist item', 'error');
+    }
   };
 
   const handleCreateSubtaskAndOpen = async () => {
@@ -366,7 +384,9 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
       if (newId) setOpenSubtaskId(newId);
       loadTask();
       onUpdated?.();
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to create subtask', 'error');
+    }
   };
 
   const taskKey = task ? (projectPrefix ? `${projectPrefix}-${task.itemNumber}` : `#${task.itemNumber}`) : '';
@@ -557,7 +577,9 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                       await apiClient.put(`/projects/${projectId}/items/${taskId}/move`, { parentId });
                       await loadTask();
                       onUpdated?.();
-                    } catch {}
+                    } catch (err: any) {
+                      toast(err.response?.data?.message || 'Failed to update parent', 'error');
+                    }
                   }}
                   options={parentOptions}
                   placeholder="Select parent..."
@@ -611,7 +633,9 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                       await apiClient.put(`/projects/${projectId}/items/${taskId}/sprint`, { sprintId });
                       await loadTask();
                       onUpdated?.();
-                    } catch {}
+                    } catch (err: any) {
+                      toast(err.response?.data?.message || 'Failed to update sprint', 'error');
+                    }
                   }}
                   options={sprintOptions}
                   placeholder="Backlog"
@@ -650,7 +674,9 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                     await apiClient.put(`/projects/${projectId}/items/${taskId}`, { labelIds: ids });
                     await loadTask();
                     onUpdated?.();
-                  } catch {}
+                  } catch (err: any) {
+                    toast(err.response?.data?.message || 'Failed to update labels', 'error');
+                  }
                 }}
               />
             ) : (
@@ -1007,7 +1033,7 @@ function DependencySection({ projectId, taskId, blockedBy, blocks, canEdit, onCh
     try {
       const { data } = await apiClient.get(`/projects/${projectId}/items?search=${encodeURIComponent(q)}&limit=10`);
       setSearchResults((data.data.list || []).filter((t: any) => !existingIds.has(t.id)));
-    } catch {}
+    } catch (err) { console.error(err); }
     setSearching(false);
   };
 
@@ -1022,14 +1048,18 @@ function DependencySection({ projectId, taskId, blockedBy, blocks, canEdit, onCh
       setSearchQuery('');
       setSearchResults([]);
       onChanged();
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to add dependency', 'error');
+    }
   };
 
   const handleRemove = async (depId: number) => {
     try {
       await apiClient.delete(`/projects/${projectId}/items/${taskId}/associations/${depId}`);
       onChanged();
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to remove dependency', 'error');
+    }
   };
 
   const unresolvedCount = blockedBy.filter((d) => d.dependsOnItem).length;
@@ -1130,7 +1160,7 @@ function AttachmentRow({ attachment, projectId, taskId, onDownload }: {
     if (!isImage) return;
     apiClient.get(`/projects/${projectId}/items/${taskId}/attachments/${attachment.id}/url`)
       .then((res) => setPreviewUrl(res.data.data.url))
-      .catch(() => {});
+      .catch((err) => { console.error(err); });
   }, [attachment.id, isImage, projectId, taskId]);
 
   return (

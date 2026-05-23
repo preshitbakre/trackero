@@ -47,7 +47,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
         const { data } = await apiClient.get(`/search?q=${encodeURIComponent(query)}`);
         setResults(data.data.list || []);
         setSelectedIndex(0);
-      } catch {}
+      } catch (err) { console.error(err); }
     }, 200);
     return () => clearTimeout(timer);
   }, [query]);

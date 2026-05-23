@@ -151,7 +151,7 @@ export function EpicDetailPage() {
         }
       }
       setAllItems(flat);
-    } catch {}
+    } catch (err) { console.error(err); }
     setLoading(false);
   }, [projectId, epicId]);
 

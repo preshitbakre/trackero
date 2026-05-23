@@ -65,7 +65,7 @@ export function AppShell() {
   const loadProjects = () => {
     apiClient.get('/projects?limit=100').then((res) => {
       setProjects(res.data.data.list || []);
-    }).catch(() => {});
+    }).catch((err) => { console.error(err); });
   };
 
   useEffect(() => {

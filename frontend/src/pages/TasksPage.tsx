@@ -77,10 +77,10 @@ export function TasksPage() {
   // Load filter options
   useEffect(() => {
     if (!projectId) return;
-    apiClient.get(`/projects/${projectId}`).then((r) => setProjectPrefix(r.data.data.prefix || '')).catch(() => {});
-    apiClient.get(`/projects/${projectId}/filters/assignees`).then((r) => setAssignees(r.data.data.list || [])).catch(() => {});
-    apiClient.get(`/projects/${projectId}/sprints?limit=100`).then((r) => setSprints(r.data.data.list || [])).catch(() => {});
-    apiClient.get(`/projects/${projectId}/statuses`).then((r) => setStatuses(r.data.data.list || r.data.data || [])).catch(() => {});
+    apiClient.get(`/projects/${projectId}`).then((r) => setProjectPrefix(r.data.data.prefix || '')).catch((err) => { console.error(err); });
+    apiClient.get(`/projects/${projectId}/filters/assignees`).then((r) => setAssignees(r.data.data.list || [])).catch((err) => { console.error(err); });
+    apiClient.get(`/projects/${projectId}/sprints?limit=100`).then((r) => setSprints(r.data.data.list || [])).catch((err) => { console.error(err); });
+    apiClient.get(`/projects/${projectId}/statuses`).then((r) => setStatuses(r.data.data.list || r.data.data || [])).catch((err) => { console.error(err); });
   }, [projectId]);
 
   const loadTasks = useCallback(async () => {
@@ -98,7 +98,7 @@ export function TasksPage() {
       const { data } = await apiClient.get(`/projects/${projectId}/items?${params}`);
       setTasks(data.data.list || []);
       setTotal(data.data.total || 0);
-    } catch {}
+    } catch (err) { console.error(err); }
   }, [projectId, page, pageSize, search, filterStatus, filterPriority, filterAssignee, filterType, filterSprint]);
 
   useEffect(() => { loadTasks(); }, [loadTasks]);

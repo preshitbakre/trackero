@@ -41,7 +41,7 @@ export function MembersTab() {
     try {
       const { data } = await apiClient.get(`/projects/${projectId}/members`);
       setMembers(data.data.list || []);
-    } catch {}
+    } catch (err) { console.error(err); }
     setLoading(false);
   };
 
@@ -192,7 +192,7 @@ function AddMemberDialog({ projectId, isAdmin, onClose, onAdded }: {
         const { data } = await apiClient.get(`/users?exclude_project=${projectId}&search=${encodeURIComponent(search)}&limit=10`);
         setResults(data.data.list || []);
         setShowResults(true);
-      } catch {}
+      } catch (err) { console.error(err); }
       setSearching(false);
     }, 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };

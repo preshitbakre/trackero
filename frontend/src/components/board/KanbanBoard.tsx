@@ -92,10 +92,10 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
     if (!projectId) return;
     apiClient.get(`/projects/${projectId}/sprints?limit=100`).then((r) => {
       setSprints((r.data.data.list || []).filter((s: any) => s.status === 'active' || s.status === 'planning'));
-    }).catch(() => {});
+    }).catch((err) => { console.error(err); });
     apiClient.get(`/projects/${projectId}/filters/assignees`).then((r) => {
       setAssigneeOptions((r.data.data.list || []).map((o: any) => ({ id: o.value, name: o.label })));
-    }).catch(() => {});
+    }).catch((err) => { console.error(err); });
   }, [projectId]);
 
   useEffect(() => {

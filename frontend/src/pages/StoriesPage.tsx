@@ -57,7 +57,7 @@ export function StoriesPage() {
       if (filterEpicId) url += `?epicId=${filterEpicId}`;
       const { data } = await apiClient.get(url);
       setStories(data.data.list || []);
-    } catch {}
+    } catch (err) { console.error(err); }
   };
 
   const loadEpics = async () => {
@@ -65,7 +65,7 @@ export function StoriesPage() {
     try {
       const { data } = await apiClient.get(`/projects/${projectId}/epics?limit=100`);
       setEpics((data.data.list || []).map((e: any) => ({ id: e.id, title: e.title })));
-    } catch {}
+    } catch (err) { console.error(err); }
   };
 
   return (

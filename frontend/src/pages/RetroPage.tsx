@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { useRole } from '../hooks/useRole';
 import { Button } from '../components/ui/Button';
+import { toast } from '../components/common/Toast';
 
 interface RetroCard {
   id: number;
@@ -33,7 +34,7 @@ export function RetroPage() {
       const { data } = await apiClient.get(`/projects/${projectId}/sprints/${sprintId}`);
       setSprintName(data.data.name || '');
       setSprintStatus(data.data.status || '');
-    } catch {}
+    } catch (err) { console.error(err); }
   };
 
   const loadRetro = async () => {
@@ -47,7 +48,7 @@ export function RetroPage() {
         const { data } = await apiClient.post(`/projects/${projectId}/sprints/${sprintId}/retro`);
         setRetroId(data.data.id);
         setCards([]);
-      } catch {}
+      } catch (err) { console.error(err); }
     }
   };
 
@@ -60,7 +61,9 @@ export function RetroPage() {
       });
       setNewCard(null);
       loadRetro();
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to add card', 'error');
+    }
   };
 
   const handleEditCard = async (cardId: number, content: string) => {
@@ -69,7 +72,9 @@ export function RetroPage() {
       await apiClient.put(`/projects/${projectId}/retro/${retroId}/cards/${cardId}`, { content });
       setEditingCard(null);
       loadRetro();
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to update card', 'error');
+    }
   };
 
   const handleDeleteCard = async (cardId: number) => {
@@ -77,7 +82,9 @@ export function RetroPage() {
     try {
       await apiClient.delete(`/projects/${projectId}/retro/${retroId}/cards/${cardId}`);
       loadRetro();
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to delete card', 'error');
+    }
   };
 
   const handleVote = async (cardId: number) => {
@@ -85,7 +92,9 @@ export function RetroPage() {
     try {
       await apiClient.post(`/projects/${projectId}/retro/${retroId}/cards/${cardId}/vote`);
       loadRetro();
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to vote', 'error');
+    }
   };
 
   const columns = [

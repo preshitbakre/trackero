@@ -16,8 +16,8 @@ export function ChartsPage() {
 
   useEffect(() => {
     if (!projectId) return;
-    apiClient.get(`/projects/${projectId}/velocity`).then((r) => setVelocityData(r.data.data)).catch(() => {});
-    apiClient.get(`/projects/${projectId}/cumulative-flow`).then((r) => setFlowData(r.data.data)).catch(() => {});
+    apiClient.get(`/projects/${projectId}/velocity`).then((r) => setVelocityData(r.data.data)).catch((err) => { console.error(err); });
+    apiClient.get(`/projects/${projectId}/cumulative-flow`).then((r) => setFlowData(r.data.data)).catch((err) => { console.error(err); });
     apiClient.get(`/projects/${projectId}/sprints?limit=100`).then((r) => {
       const list = r.data.data.list || [];
       setSprints(list);
@@ -27,13 +27,13 @@ export function ChartsPage() {
         const defaultSprint = active || completed;
         if (defaultSprint) setSelectedSprintId(String(defaultSprint.id));
       }
-    }).catch(() => {});
+    }).catch((err) => { console.error(err); });
   }, [projectId]);
 
   useEffect(() => {
     if (selectedSprintId && projectId) {
       apiClient.get(`/projects/${projectId}/sprints/${selectedSprintId}/burndown`)
-        .then((r) => setBurndownData(r.data.data)).catch(() => {});
+        .then((r) => setBurndownData(r.data.data)).catch((err) => { console.error(err); });
     }
   }, [selectedSprintId, projectId]);
 

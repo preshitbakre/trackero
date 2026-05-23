@@ -55,14 +55,14 @@ export function NotificationBell() {
     try {
       const { data } = await apiClient.get('/notifications/unread-count');
       setUnreadCount(data.data.count);
-    } catch {}
+    } catch (err) { console.error(err); }
   };
 
   const loadNotifications = async () => {
     try {
       const { data } = await apiClient.get('/notifications?limit=20');
       setNotifications(data.data.list);
-    } catch {}
+    } catch (err) { console.error(err); }
   };
 
   const markAllRead = async () => {
@@ -70,12 +70,14 @@ export function NotificationBell() {
       await apiClient.put('/notifications/read-all');
       setUnreadCount(0);
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-    } catch {}
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to mark all read', 'error');
+    }
   };
 
   const handleClick = async (notif: NotificationItem) => {
     if (!notif.isRead) {
-      await apiClient.put(`/notifications/${notif.id}/read`).catch(() => {});
+      await apiClient.put(`/notifications/${notif.id}/read`).catch((err) => { console.error(err); });
       setUnreadCount((c) => Math.max(0, c - 1));
     }
     setShowDropdown(false);

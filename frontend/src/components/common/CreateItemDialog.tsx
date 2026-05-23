@@ -95,7 +95,7 @@ export function CreateItemDialog({
         setSprints(sprintRes.data.data?.list || sprintRes.data.data || []);
         setAssignees(assigneeRes.data.data?.list || assigneeRes.data.data || []);
         setLabels(labelRes.data.data?.list || labelRes.data.data || []);
-      } catch {}
+      } catch (err) { console.error(err); }
     };
     load();
   }, [projectId]);
