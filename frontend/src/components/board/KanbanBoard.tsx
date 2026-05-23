@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   DndContext,
@@ -65,6 +65,7 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
+  const dragRequestSeq = useRef<number>(0);
 
   const loadBoard = useCallback(async () => {
     if (!projectId) return;
@@ -184,6 +185,9 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
       return newCols;
     });
 
+    dragRequestSeq.current += 1;
+    const myReq = dragRequestSeq.current;
+
     // API call
     try {
       await apiClient.put(`/projects/${projectId}/board/move`, {
@@ -191,10 +195,16 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
         statusId: targetStatusId,
         sortOrder: 'n',
       });
-      loadBoard();
+      // Only the latest drag reloads — stale drags skip to avoid clobbering newer optimistic state.
+      if (myReq === dragRequestSeq.current) {
+        loadBoard();
+      }
     } catch (err: any) {
       toast(err.response?.data?.message || 'Move failed', 'error');
-      loadBoard();
+      // Still skip reload if a newer drag is in flight; that drag will resync the UI.
+      if (myReq === dragRequestSeq.current) {
+        loadBoard();
+      }
     } finally {
       setActiveTask(null);
     }

@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { apiClient } from '../api/client';
 import { useRole } from '../hooks/useRole';
 import { LabelList } from '../components/ui/LabelBadge';
+import { toast } from '../components/common/Toast';
 
 const TYPE_STYLES: Record<string, { bg: string; text: string }> = {
   epic:    { bg: '#7C5CFC35', text: '#4A2FC0' },
@@ -82,6 +83,7 @@ export function SprintPlanningPage() {
   const { isReadOnly } = useRole();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const [activeTask, setActiveTask] = useState<PlanTask | null>(null);
+  const dragRequestSeq = useRef<number>(0);
 
   const handleDragStart = (event: DragStartEvent) => {
     const all = [...backlogItems, ...sprintItems];
@@ -150,12 +152,23 @@ export function SprintPlanningPage() {
     if (zone === 'sprint' && isAlreadyInSprint) return;
     if (zone === 'backlog' && !isAlreadyInSprint) return;
 
-    if (zone === 'sprint') {
-      await apiClient.put(`/projects/${projectId}/items/${taskId}/sprint`, { sprintId: parseInt(sprintId!) });
-    } else {
-      await apiClient.put(`/projects/${projectId}/items/${taskId}/sprint`, { sprintId: null });
+    dragRequestSeq.current += 1;
+    const myReq = dragRequestSeq.current;
+
+    try {
+      if (zone === 'sprint') {
+        await apiClient.put(`/projects/${projectId}/items/${taskId}/sprint`, { sprintId: parseInt(sprintId!) });
+      } else {
+        await apiClient.put(`/projects/${projectId}/items/${taskId}/sprint`, { sprintId: null });
+      }
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Move failed', 'error');
+    } finally {
+      // Only the latest drag reloads — stale drags skip to avoid clobbering newer state.
+      if (myReq === dragRequestSeq.current) {
+        loadData();
+      }
     }
-    loadData();
   };
 
   const committedPoints = sprintItems.reduce((sum, t) => sum + (t.storyPoints || 0), 0);
