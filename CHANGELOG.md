@@ -142,3 +142,46 @@ schema". No new product surface; every later phase rests on this.
   the `compile:migrations` npm script). The runtime loads .js only; the
   TypeORM CLI continues to consume .ts via `typeorm-ts-node-commonjs`.
   Fresh clones get the artifacts on first build.
+
+## [1.3.0-today] — 2026-05-24
+
+Phase 2 — Today aggregator + presence + activity granularity.
+
+### Added
+- New `/api/today` endpoint: single-call aggregator returning greeting,
+  summary, triage top-3, reviewing, due soon, current sprint, presence,
+  and activity feed. Server-side composition per backend spec §2.1.
+- New TodayPage at `/today` (canonical) — editorial frame-01 layout with
+  hero, three things, reviewing, due-soon, and a right rail (Sprint
+  card + Live presence + Activity feed). `/dashboard` renders the same
+  page for one release of back-compat; the legacy DashboardPage stays
+  reachable at `/dashboard-legacy`.
+- New `PresenceModule` — in-memory PresenceService + @Cron reaper;
+  EventsGateway broadcasts presence:joined/left/state on socket
+  join/leave/disconnect; `GET /api/projects/:id/presence` returns the
+  snapshot.
+- Granular activity rows: `WorkItemsService.update` now emits a
+  `previous` map of changed fields; `ActivityService` writes one row per
+  field change (title, priority, story_points, assignee, sprint,
+  start_date, end_date, status) with proper fieldChanged + oldValue +
+  newValue. The Today activity feed renders human-readable sentences
+  off these rows ("Alice raised priority to high").
+- `GET /api/projects/:id/sprints/active` — admin-detected dead endpoint
+  the Sidebar footer was hitting; now returns the active sprint or null.
+- Migration 030 — composite `IDX_activity_user_field (user_id,
+  field_changed)` for the new granular-filter queries.
+- Phase 2 regression e2e spec at `e2e/regression/phase-2/`.
+
+### Changed
+- Sidebar Retro link deep-links to the active sprint's retro
+  (`/projects/:id/sprints/:sprintId/retro`) — falls back to the sprints
+  list when no active sprint exists. Closes the dead-link bug that the
+  un-walked-route sweep surfaced.
+
+### Internal
+- TodayService composes section helpers inline; the per-folder spec
+  (greeting/, summary/, triage/, etc.) is deferred in favor of a flat
+  service for v1. Phase 5 will swap the live burndown computation for
+  reads from `sprint_daily_snapshots`; Phase 7 will tighten
+  ReviewingService once `reviewer_id` ships.
+
