@@ -49,4 +49,5 @@ export const EXPECTED_MIGRATION_NAMES: ReadonlyArray<string> = [
   'ActivityGranularity1716000030000',
   'ProjectsActivityArchiveColumns1716000031000',
   'PinnedProjectsAndVisits1716000032000',
+  'SearchPeopleProjects1716000033000',
 ];

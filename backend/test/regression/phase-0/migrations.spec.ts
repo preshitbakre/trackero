@@ -48,6 +48,7 @@ import { DropLegacyTables1716000029000 } from '../../../migrations/1716000029000
 import { ActivityGranularity1716000030000 } from '../../../migrations/1716000030000-activity-granularity';
 import { ProjectsActivityArchiveColumns1716000031000 } from '../../../migrations/1716000031000-projects-activity-archive-columns';
 import { PinnedProjectsAndVisits1716000032000 } from '../../../migrations/1716000032000-pinned-projects-and-visits';
+import { SearchPeopleProjects1716000033000 } from '../../../migrations/1716000033000-search-people-projects';
 import { EXPECTED_MIGRATION_NAMES } from '../../../src/database/migrations-registry';
 
 const ALL_MIGRATIONS: MixedList<new () => MigrationInterface> = [
@@ -84,6 +85,7 @@ const ALL_MIGRATIONS: MixedList<new () => MigrationInterface> = [
   ActivityGranularity1716000030000,
   ProjectsActivityArchiveColumns1716000031000,
   PinnedProjectsAndVisits1716000032000,
+  SearchPeopleProjects1716000033000,
 ];
 
 function uniqueDbName(): string {

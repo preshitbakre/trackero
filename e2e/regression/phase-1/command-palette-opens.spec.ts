@@ -28,9 +28,10 @@ test.describe('Phase 1 regression — ⌘K command palette', () => {
     const input = page.locator('input[placeholder*="Search"]');
     await expect(input).toBeVisible({ timeout: 2000 });
 
-    // Empty-state copy follows the editorial voice (T1.2 spec).
-    await input.fill('zz_no_match_xyz');
-    await expect(page.locator('text=No matches for')).toBeVisible({ timeout: 1500 });
+    // Phase 4: the empty-state copy now invites the user to type a key
+    // like PROJ-12 or a command. Validates that the rebuilt palette
+    // owns its own input and renders the new shell.
+    await expect(page.locator('text=Type at least 2 characters')).toBeVisible({ timeout: 1500 });
 
     await page.keyboard.press('Escape');
     await expect(input).toBeHidden({ timeout: 1500 });

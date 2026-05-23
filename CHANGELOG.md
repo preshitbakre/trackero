@@ -4,6 +4,41 @@ All notable changes to Trackero are tracked here. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0-search] — 2026-05-24
+
+Phase 4. The ⌘K command palette becomes a real product surface: sectioned
+results (Work items / Projects / Sprints / People / Quick actions / Go to),
+Tab-cycled type filter, scope chip flipping current-project ↔ entire
+instance, item-key open-by-ID (PROJ-12 + Enter), and trigram-backed
+people / project search.
+
+### Added
+- Migration **033** — `pg_trgm` extension + GIN trigram indexes on
+  `users.display_name`, `users.email`, `projects.name`. Lets people /
+  project search rank by similarity rather than substring.
+- `SearchService.search(...)` rebuilt to return
+  `{ workItems, projects, sprints, people, quickActions, goTo, total }`
+  per backend spec §Search. `Promise.all` over the four DB rails;
+  membership-scoped for non-admins; deterministic `quickActions` derived
+  from the query ("New bug: <tail>", "New task: <query>"), and `goTo`
+  entries that prefix-match the editorial keyword registry.
+- `?v=1` query param keeps the legacy `{ list, total }` shape alive for
+  one release of back-compat.
+- `CommandPalette` rebuilt per frame 5: sectioned UI with section
+  headers + counts, scope chip ("in <ProjectName>" ↔ "in entire instance"),
+  Tab-cycled type filter, `↑↓ / ↵ / Tab / Esc` kbd footer, "N of M
+  results" status, mouse-hover-keeps-cursor-sync, and item-key
+  open-by-ID (typing `PROJ-12` and Enter resolves via search).
+
+### Changed
+- Phase 1 palette regression spec updated to match the new empty-state
+  copy ("Type at least 2 characters to search.").
+
+### Testing
+- New regression pack `e2e/regression/phase-4/` — sectioned shape,
+  `?v=1` back-compat, short-query empty sections, deterministic quick
+  actions, item-key probe, project-scoped goTo entries.
+
 ## [1.4.0-directory] — 2026-05-24
 
 Phase 3. The project directory becomes a first-class surface: pinned + recent

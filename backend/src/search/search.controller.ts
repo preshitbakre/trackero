@@ -10,13 +10,21 @@ import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 export class SearchController {
   constructor(private readonly searchService: SearchService) {}
 
+  // Phase 4 — sectioned response is the default. `?v=1` returns the legacy
+  // `{ list, total }` shape for one release of back-compat.
   @Get()
   @ResponseCode('SEARCH_RESULTS')
   async search(
     @Query('q') query: string,
-    @Query('projectId', new ParseIntPipe({ optional: true })) projectId?: number,
-    @CurrentUser() user?: JwtPayload,
+    @Query('projectId', new ParseIntPipe({ optional: true })) projectId: number | undefined,
+    @Query('scope') scope: string | undefined,
+    @Query('v') version: string | undefined,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.searchService.search(query, user!.userId, user!.role, projectId);
+    if (version === '1') {
+      return this.searchService.searchLegacy(query, user.userId, user.role, projectId);
+    }
+    const normalisedScope: 'current' | 'instance' = scope === 'instance' ? 'instance' : 'current';
+    return this.searchService.search(query, user.userId, user.role, projectId, normalisedScope);
   }
 }
