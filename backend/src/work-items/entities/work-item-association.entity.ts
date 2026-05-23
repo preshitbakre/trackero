@@ -3,12 +3,14 @@ import {
   ManyToOne, JoinColumn, Index, Unique,
 } from 'typeorm';
 import { WorkItem } from './work-item.entity';
+import { User } from '../../users/entities/user.entity';
 
 @Entity('work_item_associations')
 @Unique('UQ_association', ['itemId', 'linkedItemId', 'linkType'])
 @Index('IDX_assoc_item', ['itemId'])
 @Index('IDX_assoc_linked', ['linkedItemId'])
 @Index('IDX_assoc_type', ['linkType'])
+@Index('IDX_assoc_created_by', ['createdBy'])
 export class WorkItemAssociation {
   @PrimaryGeneratedColumn('increment')
   id: number;
@@ -35,4 +37,8 @@ export class WorkItemAssociation {
   @ManyToOne(() => WorkItem, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'linked_item_id' })
   linkedItem: WorkItem;
+
+  @ManyToOne(() => User, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'created_by' })
+  creator?: User;
 }

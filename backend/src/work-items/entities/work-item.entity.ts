@@ -172,7 +172,7 @@ export class WorkItem {
   @JoinColumn({ name: 'assignee_id' })
   assignee: User | null;
 
-  @ManyToOne(() => User, { onDelete: 'SET NULL' })
+  @ManyToOne(() => User, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'reporter_id' })
   reporter: User;
 

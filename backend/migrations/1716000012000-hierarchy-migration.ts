@@ -5,6 +5,28 @@ export class HierarchyMigration1716000012000 implements MigrationInterface {
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // ===================================================================
+    // STEP 0: Ensure task_types table exists
+    // -------------------------------------------------------------------
+    // No earlier migration creates `task_types`, but the work_items table
+    // below references it via FK_wi_task_type. On a clean DB run that
+    // breaks. Migration 14 later drops both the FK column and this table,
+    // so this only needs to exist long enough for migrations 12 -> 14 to
+    // succeed. IF NOT EXISTS keeps this idempotent for older dev DBs that
+    // already had task_types created via synchronize.
+    // ===================================================================
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "task_types" (
+        "id" SERIAL PRIMARY KEY,
+        "name" VARCHAR(50),
+        "color" VARCHAR(7),
+        "is_builtin" BOOLEAN DEFAULT false,
+        "project_id" INT,
+        "created_at" TIMESTAMPTZ DEFAULT now(),
+        "updated_at" TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+
+    // ===================================================================
     // STEP 1: Create work_items table
     // ===================================================================
     await queryRunner.query(`
@@ -874,5 +896,11 @@ export class HierarchyMigration1716000012000 implements MigrationInterface {
       ALTER TABLE "tasks" ADD CONSTRAINT "FK_task_epic"
       FOREIGN KEY ("epic_id") REFERENCES "epics" ("id") ON DELETE SET NULL
     `);
+
+    // STEP 15: Drop task_types table (created in STEP 0 of up()). Migration
+    // 14's down() recreates task_types as part of reversing its drop, so
+    // when migrations are rolled back 14 -> 13 -> 12, the table exists and
+    // belongs to this migration's responsibility to remove.
+    await queryRunner.query(`DROP TABLE IF EXISTS "task_types"`);
   }
 }

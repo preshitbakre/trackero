@@ -36,7 +36,7 @@ export class Attachment {
   @JoinColumn({ name: 'work_item_id' })
   workItem: WorkItem;
 
-  @ManyToOne(() => User, { onDelete: 'SET NULL' })
+  @ManyToOne(() => User, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'uploaded_by' })
   uploader: User;
 }
