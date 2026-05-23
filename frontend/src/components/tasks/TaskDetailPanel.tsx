@@ -10,6 +10,7 @@ import { Drawer, DrawerHeader, DrawerBody } from '../common/Drawer';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { toast } from '../common/Toast';
 import { useTaskAutoSave } from '../../hooks/useTaskAutoSave';
+import { useRole } from '../../hooks/useRole';
 import { SaveStatusIndicator } from '../common/SaveStatusIndicator';
 import { LabelPicker } from '../ui/LabelPicker';
 import { LabelList } from '../ui/LabelBadge';
@@ -102,8 +103,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
   const [showAddChecklist, setShowAddChecklist] = useState(false);
   const [newChecklistTitle, setNewChecklistTitle] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const user = useAuthStore((s) => s.user);
-  const canEdit = user?.role !== 'viewer';
+  const { canEdit } = useRole();
   const [assigneeOptions, setAssigneeOptions] = useState<{ value: string; label: string }[]>([]);
   const [parentOptions, setParentOptions] = useState<{ value: string; label: string; data?: any }[]>([]);
   const [sprintOptions, setSprintOptions] = useState<{ value: string; label: string }[]>([]);

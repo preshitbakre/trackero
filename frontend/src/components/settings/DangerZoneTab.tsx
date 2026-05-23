@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { apiClient } from '../../api/client';
 import { toast } from '../common/Toast';
-import { useAuthStore } from '../../store/auth.store';
+import { useRole } from '../../hooks/useRole';
 import { queryClient } from '../../lib/query-client';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
@@ -19,8 +19,9 @@ interface ProjectInfo {
 export function DangerZoneTab() {
   const { id: projectId } = useParams();
   const navigate = useNavigate();
-  const user = useAuthStore((s) => s.user);
-  const isAdmin = user?.role === 'admin';
+  // Project deletion is gated to instance admins (server-side too) — keep
+  // this on the GLOBAL admin flag, not the project-scoped role.
+  const { canAdminister: isAdmin } = useRole();
   const [project, setProject] = useState<ProjectInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [showArchive, setShowArchive] = useState(false);

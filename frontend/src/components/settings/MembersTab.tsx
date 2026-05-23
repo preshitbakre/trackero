@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { apiClient } from '../../api/client';
 import { toast } from '../common/Toast';
 import { useAuthStore } from '../../store/auth.store';
+import { useRole } from '../../hooks/useRole';
 import { Select } from '../ui/Select';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { Button } from '../ui/Button';
@@ -33,7 +34,10 @@ interface SearchUser {
 export function MembersTab() {
   const { id: projectId } = useParams();
   const currentUser = useAuthStore((s) => s.user);
-  const isAdmin = currentUser?.role === 'admin';
+  // Project-scoped admin check — instance admins resolve to 'admin' on every
+  // project; everyone else uses their project membership role. This gates the
+  // ability to assign the `project_manager` role to other members.
+  const { isAdmin } = useRole();
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
