@@ -9,6 +9,21 @@
   color-scheme: dark;
 }
 
+body {
+  background: #FAF8FD;
+  color: #1A1424;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Editorial serif used for display headings, hero numbers, italic flourishes. */
+.font-display,
+.font-serif {
+  font-family: 'Iowan Old Style', 'Georgia', 'Charter', 'Times New Roman', serif;
+  font-feature-settings: 'kern', 'liga', 'onum';
+}
+
 button, [role="button"], a, select, label[for], input[type="checkbox"], input[type="radio"], summary {
   cursor: pointer;
 }
@@ -16,9 +31,10 @@ button, [role="button"], a, select, label[for], input[type="checkbox"], input[ty
 /* Global card shadow — every rounded white surface gets depth */
 [class*="rounded"][class*="bg-white"],
 [class*="rounded"][class*="bg-[#FAF"],
+[class*="rounded"][class*="bg-[#FFF"],
 [class*="rounded-xl"][class*="bg-white"],
 [class*="rounded-lg"][class*="bg-white"] {
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(26, 20, 36, 0.04), 0 8px 24px rgba(26, 20, 36, 0.06);
 }
 .dark [class*="rounded"][class*="bg-white"],
 .dark [class*="rounded"][class*="bg-dneutral"] {
@@ -27,7 +43,7 @@ button, [role="button"], a, select, label[for], input[type="checkbox"], input[ty
 
 /* Global button micro-interactions */
 button:not(:disabled) {
-  transition: color 100ms, background-color 100ms, border-color 100ms, box-shadow 150ms;
+  transition: color 100ms, background-color 100ms, border-color 100ms, box-shadow 150ms, transform 100ms;
 }
 button:not(:disabled):active {
   transform: scale(0.98);
@@ -42,11 +58,11 @@ button:not(:disabled):active {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #9BAAB8;
+  background: #C9C2D6;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #6D7F8E;
+  background: #A8A1B5;
 }
 .dark ::-webkit-scrollbar-thumb {
   background: #2C3E4E;
@@ -58,7 +74,6 @@ button:not(:disabled):active {
 .scrollbar-none::-webkit-scrollbar { display: none; }
 .scrollbar-none { scrollbar-width: none; }
 
-/* Thin scrollbar for board columns, panels, dropdowns */
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;
 }
@@ -66,17 +81,14 @@ button:not(:disabled):active {
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #9BAAB8;
+  background: #C9C2D6;
   border-radius: 2px;
 }
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #2C3E4E;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #6D7F8E;
-}
-.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #3D5165;
+  background: #A8A1B5;
 }
 .custom-scrollbar {
   scrollbar-width: thin;
@@ -89,10 +101,9 @@ button:not(:disabled):active {
 .animate-slide-in { animation: slide-in 0.2s ease-out; }
 
 
-/* Firefox scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #9BAAB8 transparent;
+  scrollbar-color: #C9C2D6 transparent;
 }
 .dark * {
   scrollbar-color: #2C3E4E transparent;
@@ -102,7 +113,7 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
 select,
 button[type="submit"],
 .btn {
-  height: 30px;
+  height: 32px;
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
@@ -110,82 +121,90 @@ button[type="submit"],
 }
 
 textarea {
-  min-height: 30px;
+  min-height: 32px;
   box-sizing: border-box;
 }
 
 @theme {
   --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-serif: 'Iowan Old Style', 'Georgia', 'Charter', 'Times New Roman', serif;
+  --font-display: 'Iowan Old Style', 'Georgia', 'Charter', 'Times New Roman', serif;
 
   /* ═══════════════════════════════════════ */
-  /* 4 BRAND COLORS                         */
+  /* EDITORIAL BRAND TOKENS                  */
+  /* ═══════════════════════════════════════ */
+  --color-paper:       #FAF8FD;
+  --color-card:        #FFFFFF;
+  --color-cream:       #FAF7F2;
+  --color-ink:         #1A1424;
+  --color-ink-soft:    #2C2336;
+  --color-lilac:       #7C3AED;
+  --color-lilac-dark:  #6326D6;
+  --color-lilac-tint:  #EFE7FD;
+  --color-text:        #1A1424;
+  --color-mute:        #6B6377;
+  --color-faint:       #A8A1B5;
+  --color-rule:        #E8E3F0;
+
+  /* ═══════════════════════════════════════ */
+  /* LEGACY BRAND COLORS (kept for status/priority encoding) */
   /* ═══════════════════════════════════════ */
   --color-tan:          #D6B588;
   --color-mint:         #88D68E;
   --color-peri:         #88A9D6;
   --color-orchid:       #D688D0;
 
-  /* Light tints (15% opacity, for backgrounds) */
   --color-tan-light:    #D6B58826;
   --color-mint-light:   #88D68E26;
   --color-peri-light:   #88A9D626;
   --color-orchid-light: #D688D026;
+  --color-lilac-light:  #7C3AED1A;
 
-  /* Dark versions (text on colored backgrounds) */
   --color-tan-dark:     #8C6638;
   --color-mint-dark:    #3E8E44;
   --color-peri-dark:    #3F5E8E;
   --color-orchid-dark:  #8E3E88;
 
-  /* Dark mode versions (brighter for dark bg) */
   --color-tan-dm:       #E0C4A0;
   --color-mint-dm:      #A0E8A6;
   --color-peri-dm:      #A0BDE4;
   --color-orchid-dm:    #E0A0DA;
 
   /* ═══════════════════════════════════════ */
-  /* NEUTRAL (warm gray — structural)       */
+  /* NEUTRAL (cool gray with lilac undertone) */
   /* ═══════════════════════════════════════ */
-  --color-neutral-50:  #F5F3F1;
-  --color-neutral-100: #E8E5E2;
-  --color-neutral-200: #D1CCC7;
-  --color-neutral-300: #A8A19A;
-  --color-neutral-400: #7E7770;
-  --color-neutral-500: #5C5650;
-  --color-neutral-600: #423E3A;
-  --color-neutral-700: #252220;
+  --color-neutral-50:  #F5F2FA;
+  --color-neutral-100: #E8E3F0;
+  --color-neutral-200: #D2CCDD;
+  --color-neutral-300: #A8A1B5;
+  --color-neutral-400: #7E7790;
+  --color-neutral-500: #5C5670;
+  --color-neutral-600: #423E50;
+  --color-neutral-700: #1A1424;
 
-  --color-dneutral-50:  #0E0D0C;
-  --color-dneutral-100: #18161A;
-  --color-dneutral-200: #242220;
-  --color-dneutral-300: #342F2C;
-  --color-dneutral-400: #484440;
-  --color-dneutral-500: #7E7770;
-  --color-dneutral-600: #A8A19A;
-  --color-dneutral-700: #D1CCC7;
+  --color-dneutral-50:  #0E0C12;
+  --color-dneutral-100: #18141C;
+  --color-dneutral-200: #242028;
+  --color-dneutral-300: #342F3C;
+  --color-dneutral-400: #484453;
+  --color-dneutral-500: #7E7790;
+  --color-dneutral-600: #A8A1B5;
+  --color-dneutral-700: #D2CCDD;
 
-  /* ═══════════════════════════════════════ */
-  /* SEMANTIC                               */
-  /* ═══════════════════════════════════════ */
   --color-danger:  #E05252;
   --color-warning: #E88A48;
+  --color-success: #3E8E44;
 
-  /* ═══════════════════════════════════════ */
-  /* STATUS (using brand colors)            */
-  /* ═══════════════════════════════════════ */
-  --color-status-backlog:     #7E7770;
+  --color-status-backlog:     #A8A1B5;
   --color-status-todo:        #88A9D6;
   --color-status-in_progress: #D6B588;
   --color-status-in_review:   #D688D0;
   --color-status-done:        #88D68E;
   --color-status-cancelled:   #E05252;
 
-  /* ═══════════════════════════════════════ */
-  /* PRIORITY                               */
-  /* ═══════════════════════════════════════ */
   --color-priority-urgent: #E05252;
   --color-priority-high:   #E88A48;
   --color-priority-medium: #D6B588;
   --color-priority-low:    #88A9D6;
-  --color-priority-none:   #A8A19A;
+  --color-priority-none:   #A8A1B5;
 }

@@ -24,7 +24,16 @@ export function ProjectSettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const user = useAuthStore((s) => s.user);
   const [projectRole, setProjectRole] = useState<string | null>(null);
+  const [project, setProject] = useState<{ name: string; prefix: string } | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Fetch project basics for the page header
+  useEffect(() => {
+    if (!projectId) return;
+    apiClient.get(`/projects/${projectId}`).then((res) => {
+      setProject({ name: res.data.data.name, prefix: res.data.data.prefix });
+    }).catch(() => {});
+  }, [projectId]);
 
   const activeTab = (searchParams.get('tab') as TabKey) || 'general';
 
@@ -90,34 +99,50 @@ export function ProjectSettingsPage() {
     ? TABS.filter((t) => t.key === 'general')
     : TABS;
 
+  const projectName = project?.name ?? 'Project';
+  const projectPrefix = project?.prefix ?? '';
+
   return (
-    <div className="p-6 max-w-4xl">
-      <h1 className="text-[22px] font-semibold text-neutral-700 dark:text-dneutral-700 mb-6">Project Settings</h1>
-
-      {/* Tabs */}
-      <div className="flex gap-1 mb-6 border-b border-neutral-200 dark:border-dneutral-200 overflow-x-auto scrollbar-none">
-        {visibleTabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setTab(tab.key)}
-            className={`px-4 py-2 text-[16px] font-medium border-b-2 -mb-px whitespace-nowrap ${
-              activeTab === tab.key
-                ? 'border-peri text-peri'
-                : 'border-transparent text-neutral-400 hover:text-neutral-600 dark:hover:text-dneutral-600'
-            } ${tab.key === 'danger' ? (activeTab === 'danger' ? 'text-danger border-danger' : 'text-danger/60 hover:text-danger') : ''}`}
-          >
-            {tab.label}
-          </button>
-        ))}
+    <div className="p-6">
+      <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-faint mb-1">
+        Project · {projectName}{projectPrefix ? ` · ${projectPrefix}` : ''}
       </div>
+      <h1 className="font-serif text-[28px] text-text dark:text-dneutral-700 mb-6">Settings</h1>
 
-      {/* Tab content */}
-      <div>
-        {activeTab === 'general' && <GeneralTab canEdit={canEdit} />}
-        {activeTab === 'members' && canEdit && <MembersTab />}
-        {activeTab === 'board' && canEdit && <BoardTab />}
-        {activeTab === 'labels' && canEdit && <LabelsTab />}
-        {activeTab === 'danger' && canEdit && <DangerZoneTab />}
+      <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-8">
+        {/* Left vertical nav (collapses to horizontal scroll on narrow screens) */}
+        <nav className="lg:sticky lg:top-4 self-start flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible scrollbar-none">
+          {visibleTabs.map((tab) => {
+            const isActive = activeTab === tab.key;
+            const isDanger = tab.key === 'danger';
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setTab(tab.key)}
+                className={`text-left px-3 py-2 rounded-md text-[14px] whitespace-nowrap transition-colors ${
+                  isActive
+                    ? isDanger
+                      ? 'bg-danger/10 text-danger font-medium'
+                      : 'bg-lilac-tint text-lilac-dark font-semibold'
+                    : isDanger
+                      ? 'text-danger/70 hover:text-danger hover:bg-danger/5'
+                      : 'text-mute hover:text-text hover:bg-paper'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Content */}
+        <div className="max-w-3xl">
+          {activeTab === 'general' && <GeneralTab canEdit={canEdit} />}
+          {activeTab === 'members' && canEdit && <MembersTab />}
+          {activeTab === 'board' && canEdit && <BoardTab />}
+          {activeTab === 'labels' && canEdit && <LabelsTab />}
+          {activeTab === 'danger' && canEdit && <DangerZoneTab />}
+        </div>
       </div>
     </div>
   );

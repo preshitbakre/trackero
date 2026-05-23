@@ -45,7 +45,7 @@ export function ChartsPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-[22px] font-semibold text-neutral-700 dark:text-dneutral-700 mb-4">Charts</h1>
+      <h1 className="font-serif text-[28px] text-text dark:text-dneutral-700 mb-4">Charts</h1>
 
       <div className="flex gap-1 mb-6 border-b border-neutral-200 dark:border-dneutral-200">
         {tabs.map((t) => (

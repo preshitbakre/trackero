@@ -503,12 +503,12 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
               onBlur={handleTitleBlur}
               onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
               autoFocus
-              className="w-full text-[22px] font-bold bg-transparent border-b border-peri outline-none text-neutral-700 dark:text-dneutral-700"
+              className="w-full font-serif text-[28px] leading-tight bg-transparent border-b border-lilac outline-none text-text dark:text-dneutral-700"
             />
           ) : (
             <h2
               onClick={() => setEditing(true)}
-              className="text-[22px] font-bold text-neutral-700 dark:text-dneutral-700 cursor-pointer hover:text-peri"
+              className="font-serif text-[28px] leading-tight text-text dark:text-dneutral-700 cursor-pointer hover:text-lilac-dark"
             >
               {task.title}
             </h2>
@@ -550,7 +550,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                 }}
                 onBlur={() => flushDebounce()}
                 onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                className="w-full rounded-md border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 px-3 py-1 text-[16px] text-neutral-700 dark:text-dneutral-700 focus:border-peri focus:outline-none focus:ring-2 focus:ring-peri/40 h-[30px]"
+                className="w-full rounded-md border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 px-3 py-1 text-[16px] text-neutral-700 dark:text-dneutral-700 focus:border-peri focus:outline-none focus:ring-2 focus:ring-lilac/30 h-[30px]"
                 placeholder="-"
               />
             </div>
@@ -662,7 +662,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
               onBlur={() => flushDebounce()}
               placeholder="Add a description..."
               rows={3}
-              className="w-full text-[16px] text-neutral-700 dark:text-dneutral-700 min-h-[60px] p-3 rounded border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 placeholder-neutral-400 resize-none focus:border-peri focus:outline-none focus:ring-2 focus:ring-peri/40"
+              className="w-full text-[16px] text-neutral-700 dark:text-dneutral-700 min-h-[60px] p-3 rounded border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 placeholder-neutral-400 resize-none focus:border-peri focus:outline-none focus:ring-2 focus:ring-lilac/30"
             />
           </div>
 
@@ -777,7 +777,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                     const ts = TYPE_STYLES[t.itemType] || TYPE_STYLES.task;
                     return (
                       <button key={t.id} onClick={() => handleAddAssociation(t.id)}
-                        className="w-full text-left flex items-center gap-2 px-3 py-2 border-b border-neutral-100 dark:border-dneutral-200/30 last:border-b-0 hover:bg-peri/10 transition-colors">
+                        className="w-full text-left flex items-center gap-2 px-3 py-2 border-b border-neutral-100 dark:border-dneutral-200/30 last:border-b-0 hover:bg-lilac-tint transition-colors">
                         <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ backgroundColor: ts.bg, color: ts.text }}>
                           {t.itemType === 'subtask' ? 'sub' : t.itemType}
                         </span>

@@ -10,12 +10,12 @@ interface DashboardSectionProps {
 
 export function DashboardSection({ title, viewAllLink, viewAllText, footer, children }: DashboardSectionProps) {
   return (
-    <div className={`rounded-lg shadow-sm dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)] bg-white dark:bg-dneutral-100 px-4 pt-4 flex flex-col h-[330px] ${footer ? 'pb-2' : 'pb-4'}`}>
-      <div className="flex items-center justify-between mb-3 flex-shrink-0">
-        <h3 className="text-[16px] font-semibold text-neutral-700 dark:text-dneutral-700">{title}</h3>
+    <div className={`rounded-xl bg-card dark:bg-dneutral-100 px-5 pt-5 flex flex-col h-[340px] ${footer ? 'pb-3' : 'pb-5'}`}>
+      <div className="flex items-baseline justify-between mb-4 flex-shrink-0">
+        <h3 className="font-serif text-[18px] text-text dark:text-dneutral-700">{title}</h3>
         {viewAllLink && (
-          <Link to={viewAllLink} className="text-[16px] text-peri hover:underline">
-            {viewAllText || 'View all'} &rarr;
+          <Link to={viewAllLink} className="text-[12px] text-lilac-dark hover:text-lilac">
+            {viewAllText || 'View all'} →
           </Link>
         )}
       </div>
@@ -23,7 +23,7 @@ export function DashboardSection({ title, viewAllLink, viewAllText, footer, chil
         {children}
       </div>
       {footer && (
-        <div className="flex-shrink-0 pt-1.5 mt-auto border-t border-neutral-200 dark:border-dneutral-200 flex items-center min-h-[24px]">
+        <div className="flex-shrink-0 pt-2 mt-auto border-t border-rule dark:border-dneutral-200 flex items-center min-h-[28px]">
           {footer}
         </div>
       )}

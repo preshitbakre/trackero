@@ -1,9 +1,32 @@
+/**
+ * Trackero design tokens — single source of truth for visual values.
+ *
+ * The BRAND block carries the editorial direction (lilac + ink + paper).
+ * The semantic blocks (PRIORITY / STATUS / TYPE / AVATAR) preserve meaning-bearing
+ * colour assignments used by the rest of the UI.
+ */
+
+/** Brand & surface colours — used by layout, hero, and primary action. */
+export const BRAND = {
+  paper: '#FAF8FD',       // page background — lilac-tinted off-white
+  card: '#FFFFFF',        // card / panel surface
+  cream: '#FAF7F2',       // sidebar background — warm cream
+  ink: '#1A1424',         // hero background, primary text on light
+  lilac: '#7C3AED',       // primary action colour, brand accent
+  lilacDark: '#6326D6',   // active state
+  lilacTint: '#EFE7FD',   // hover / selected-row background
+  text: '#1A1424',        // body text
+  mute: '#6B6377',        // secondary text
+  faint: '#A8A1B5',       // tertiary text / placeholder
+  rule: '#E8E3F0',        // dividers, faint borders
+} as const;
+
 /** Shared priority badge styles — inline styles for guaranteed color consistency */
 export const PRIORITY_BADGE_COLORS: Record<string, { bg: string; color: string } | null> = {
   urgent: { bg: '#E05252', color: '#FFFFFF' },
   high: { bg: '#E88A48', color: '#FFFFFF' },
   medium: { bg: '#D6B588', color: '#FFFFFF' },
-  low: { bg: '#88A9D650', color: '#3F5E8E' },
+  low: { bg: '#EFE7FD', color: '#6326D6' },
   none: null,
 };
 
@@ -16,33 +39,60 @@ export const PRIORITY_BORDER_COLORS: Record<string, string> = {
   none: '#D1CCC7',
 };
 
+/** Priority dot colours (used in inline lists, table rows) */
+export const PRIORITY_DOT_COLORS: Record<string, string> = {
+  urgent: '#E05252',
+  high: '#E88A48',
+  medium: '#D6B588',
+  low: '#88A9D6',
+  none: '#C9C2D6',
+};
+
 /** Status badge styles — inline styles for guaranteed color consistency */
 export const STATUS_BADGE_COLORS: Record<string, { bg: string; color: string; dot: string }> = {
-  backlog: { bg: '#D1CCC720', color: '#5C5650', dot: '#7E7770' },
-  todo: { bg: '#88A9D620', color: '#3F5E8E', dot: '#88A9D6' },
-  in_progress: { bg: '#D6B58820', color: '#8C6638', dot: '#D6B588' },
-  in_review: { bg: '#D688D020', color: '#8E3E88', dot: '#D688D0' },
-  done: { bg: '#88D68E20', color: '#3E8E44', dot: '#88D68E' },
+  backlog: { bg: '#E8E3F015', color: '#6B6377', dot: '#A8A1B5' },
+  todo: { bg: '#88A9D618', color: '#3F5E8E', dot: '#88A9D6' },
+  in_progress: { bg: '#D6B58818', color: '#8C6638', dot: '#D6B588' },
+  in_review: { bg: '#D688D018', color: '#8E3E88', dot: '#D688D0' },
+  done: { bg: '#88D68E18', color: '#3E8E44', dot: '#88D68E' },
   cancelled: { bg: '#E0525215', color: '#E05252', dot: '#E05252' },
 };
 
-/** Avatar rotation colors */
+/** Avatar rotation colors — lilac first to lead the brand */
 export const AVATAR_COLORS = [
-  { bg: '#88A9D650', color: '#3F5E8E' },  // peri
+  { bg: '#7C3AED1A', color: '#6326D6' },  // lilac
   { bg: '#D688D050', color: '#8E3E88' },  // orchid
+  { bg: '#88A9D650', color: '#3F5E8E' },  // peri
   { bg: '#88D68E50', color: '#3E8E44' },  // mint
   { bg: '#D6B58850', color: '#8C6638' },  // tan
 ];
 
-/** Type icon styles */
+/** Type icon styles — single-letter tag colours
+ *  T task (slate) · B bug (red) · S story (orchid) · E epic (lilac) */
 export const TYPE_ICON_COLORS: Record<string, string> = {
-  task: '#A8A19A',
+  task: '#6B6377',
   bug: '#E05252',
   story: '#D688D0',
+  epic: '#7C3AED',
+  subtask: '#A8A1B5',
+};
+
+/** Type tag background colours (for the small T / B / S / E squares) */
+export const TYPE_TAG_BG: Record<string, { bg: string; color: string }> = {
+  task: { bg: '#E8E3F0', color: '#1A1424' },
+  bug: { bg: '#E0525215', color: '#E05252' },
+  story: { bg: '#D688D020', color: '#8E3E88' },
+  epic: { bg: '#7C3AED15', color: '#6326D6' },
+  subtask: { bg: '#E8E3F0', color: '#6B6377' },
 };
 
 export const TYPE_ICONS: Record<string, string> = {
-  task: '\u25CB',
-  bug: '\u25CF',
-  story: '\u25C6',
+  task: '○',
+  bug: '●',
+  story: '◆',
+  epic: '■',
+  subtask: '○',
 };
+
+/** Project dot rotation (under the sidebar projects header) */
+export const PROJECT_DOT_COLORS = ['#7C3AED', '#88A9D6', '#88D68E', '#D6B588', '#D688D0'];

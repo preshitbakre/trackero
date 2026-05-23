@@ -17,7 +17,11 @@ export function AppShell() {
   // unwanted re-run on every set).
   const currentProjectIdRef = useRef<number | null>(null);
   const [showCreateItem, setShowCreateItem] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const user = useAuthStore((s) => s.user);
+
+  // Close mobile nav when the route changes.
+  useEffect(() => { setMobileNavOpen(false); }, [location.pathname]);
 
   // Ensure user is loaded AND auth status is resolved.
   // On 401 the apiClient response interceptor will attempt refresh; if that
@@ -101,11 +105,36 @@ export function AppShell() {
   })();
 
   return (
-    <div className="flex flex-col h-screen bg-[#F2F9F3] dark:bg-dneutral-50">
-      <TopBar />
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar projects={projects} />
-        <main className="flex-1 min-h-0 overflow-auto">
+    <div className="flex flex-col h-screen bg-paper dark:bg-dneutral-50">
+      <TopBar
+        currentProjectId={currentProjectId}
+        projects={projects}
+        onToggleSidebar={() => setMobileNavOpen((v) => !v)}
+        sidebarOpen={mobileNavOpen}
+      />
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Sidebar: visible by default on lg+, slides over on mobile when toggled. */}
+        <div
+          className={`flex-shrink-0 fixed inset-y-0 left-0 z-20 transform transition-transform duration-200 lg:static lg:translate-x-0 ${
+            mobileNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          }`}
+          style={{ top: 56 }}
+        >
+          <Sidebar
+            projects={projects}
+            currentProjectId={currentProjectId}
+            onNavigate={() => setMobileNavOpen(false)}
+          />
+        </div>
+        {/* Mobile backdrop */}
+        {mobileNavOpen && (
+          <div
+            className="fixed inset-0 bg-ink/30 z-10 lg:hidden"
+            style={{ top: 56 }}
+            onClick={() => setMobileNavOpen(false)}
+          />
+        )}
+        <main className="flex-1 min-w-0 min-h-0 overflow-auto">
           <Outlet />
         </main>
       </div>

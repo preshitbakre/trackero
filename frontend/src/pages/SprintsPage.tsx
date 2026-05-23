@@ -116,7 +116,7 @@ export function SprintsPage() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-[22px] font-semibold text-neutral-700 dark:text-dneutral-700">Sprints</h1>
+          <h1 className="font-serif text-[28px] text-text dark:text-dneutral-700">Sprints</h1>
           <p className="text-[14px] text-neutral-400 mt-0.5">{sprints.length} sprint{sprints.length !== 1 ? 's' : ''} · {sprints.filter(s => s.status === 'active').length} active</p>
         </div>
         {canManageProject && (

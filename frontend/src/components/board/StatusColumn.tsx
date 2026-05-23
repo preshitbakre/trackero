@@ -67,27 +67,27 @@ export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId,
   return (
     <div
       ref={setNodeRef}
-      className={`flex flex-col w-[280px] flex-shrink-0 rounded-xl p-2 transition-colors duration-150 ${
+      className={`flex flex-col w-[300px] flex-shrink-0 rounded-xl p-3 transition-colors duration-150 ${
         isOver
-          ? 'bg-peri-light dark:bg-peri-dm/15 ring-2 ring-dashed ring-peri/30'
-          : 'bg-neutral-100/50 dark:bg-dneutral-100/30'
+          ? 'bg-lilac-tint ring-2 ring-dashed ring-lilac/30'
+          : 'bg-card/60 dark:bg-dneutral-100/30'
       }`}
     >
       {/* Column header — sticky */}
       <div
-        className={`sticky top-0 z-10 flex items-center justify-between py-2 px-1 mb-3 rounded-lg ${
-          overWip ? 'bg-red-50/50 dark:bg-red-500/5 px-2' : ''
+        className={`sticky top-0 z-10 flex items-center justify-between pb-3 mb-2 border-b border-rule ${
+          overWip ? 'border-danger/30' : ''
         }`}
         onMouseEnter={() => setHeaderHover(true)}
         onMouseLeave={() => setHeaderHover(false)}
       >
-        <div className="flex items-center">
-          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: status.color }} />
-          <span className="text-[16px] font-semibold text-neutral-700 dark:text-dneutral-700 ml-2">{status.name}</span>
-          <span className={`ml-2 text-[14px] px-1.5 py-0.5 rounded-full ${
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: status.color }} />
+          <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text dark:text-dneutral-700">{status.name}</span>
+          <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-medium ${
             overWip
-              ? 'bg-red-100 text-red-600 dark:bg-red-500/15 dark:text-red-400 font-medium'
-              : 'bg-neutral-200 text-neutral-600 dark:bg-dneutral-200 dark:text-dneutral-500 font-medium'
+              ? 'bg-danger/15 text-danger'
+              : 'bg-rule text-mute dark:bg-dneutral-200 dark:text-dneutral-500'
           }`}>
             {wipLimit > 0 ? `${taskCount} / ${wipLimit}` : taskCount}
           </span>
@@ -95,7 +95,7 @@ export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId,
         {canEdit && (
           <button
             onClick={() => setShowQuickAdd(true)}
-            className={`w-6 h-6 rounded-md flex items-center justify-center text-neutral-400 dark:text-dneutral-400 hover:bg-neutral-100 dark:hover:bg-dneutral-200 transition-opacity duration-100 ${
+            className={`w-6 h-6 rounded-md flex items-center justify-center text-mute hover:bg-lilac-tint hover:text-lilac-dark transition-opacity duration-100 ${
               headerHover ? 'opacity-100' : 'opacity-0'
             }`}
           >
@@ -111,9 +111,9 @@ export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId,
         ))}
 
         {tasks.length === 0 && !showQuickAdd && (
-          <div className="flex flex-col items-center justify-center min-h-[160px] bg-neutral-100/30 dark:bg-dneutral-100/20 rounded-xl">
-            <span className="text-[14px] text-neutral-300 dark:text-dneutral-300">No tasks</span>
-            <span className="text-[14px] text-neutral-300 dark:text-dneutral-300 mt-1">Drop here or click + to add</span>
+          <div className="flex flex-col items-center justify-center min-h-[140px] rounded-xl border border-dashed border-rule">
+            <span className="text-[12px] text-faint">No tasks</span>
+            <span className="text-[11px] text-faint mt-1">Drop here or click + to add</span>
           </div>
         )}
       </div>
@@ -127,10 +127,10 @@ export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId,
                 type="text"
                 value={quickTitle}
                 onChange={(e) => setQuickTitle(e.target.value)}
-                placeholder="Task title..."
+                placeholder="Task title…"
                 autoFocus
                 onBlur={() => !quickTitle && setShowQuickAdd(false)}
-                className="w-full text-[16px] px-2 py-1.5 rounded-lg border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 text-neutral-700 dark:text-dneutral-700 placeholder-neutral-300 dark:placeholder-dneutral-300 focus:border-peri focus:outline-none focus:ring-2 focus:ring-peri/20"
+                className="w-full text-[14px] px-2 py-1.5 rounded-lg border border-rule bg-card text-text placeholder-faint focus:border-lilac focus:outline-none focus:ring-2 focus:ring-lilac/20"
               />
               <div className="flex gap-1">
                 <Button type="submit" variant="primary" size="sm">Add</Button>
@@ -140,7 +140,7 @@ export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId,
           ) : (
             <button
               onClick={() => setShowQuickAdd(true)}
-              className="w-full py-2 mx-1 rounded-lg text-center text-[14px] cursor-pointer text-neutral-400 hover:bg-neutral-200/50 hover:text-neutral-600 dark:hover:bg-dneutral-300/30 dark:hover:text-dneutral-500 transition-colors duration-150"
+              className="w-full py-2 rounded-lg text-center text-[12px] cursor-pointer text-faint hover:bg-lilac-tint hover:text-lilac-dark transition-colors duration-150"
             >
               + Add task
             </button>

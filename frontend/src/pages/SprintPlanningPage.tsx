@@ -65,9 +65,27 @@ function DraggableTask({ task, readOnly, subtaskCount }: { task: PlanTask; readO
 function DroppableZone({ id, children, label }: { id: string; children: React.ReactNode; label: string }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
-    <div ref={setNodeRef} className={`flex-1 min-h-0 rounded-lg border-2 border-dashed p-2 overflow-y-auto transition-colors ${isOver ? 'border-peri bg-peri-light' : 'border-neutral-200 dark:border-dneutral-300'}`}>
-      <p className="text-[14px] text-neutral-400 mb-2">{label}</p>
+    <div ref={setNodeRef} className={`flex-1 min-h-0 rounded-xl p-3 overflow-y-auto transition-colors ${isOver ? 'bg-lilac-tint ring-2 ring-dashed ring-lilac/30' : 'bg-card/60 border border-rule'}`}>
+      <p className="text-[11px] uppercase tracking-[0.16em] text-faint mb-2">{label}</p>
       <div className="space-y-2">{children}</div>
+    </div>
+  );
+}
+
+/** Cell-based progress meter — N segments shown, fills proportionally to committed/of-capacity. */
+function CapacityCells({ committed, capacity }: { committed: number; capacity: number }) {
+  const cells = 14;
+  const ratio = capacity > 0 ? committed / capacity : 0;
+  const filled = Math.min(cells, Math.round(ratio * cells));
+  const over = committed > capacity;
+  return (
+    <div className="flex gap-[3px]">
+      {Array.from({ length: cells }, (_, i) => {
+        const isFilled = i < filled;
+        const isLast = i === filled - 1;
+        const color = over ? 'bg-danger' : isLast ? 'bg-lilac' : isFilled ? 'bg-text' : 'bg-rule';
+        return <span key={i} className={`h-5 flex-1 rounded-sm ${color}`} />;
+      })}
     </div>
   );
 }
@@ -172,57 +190,92 @@ export function SprintPlanningPage() {
   };
 
   const committedPoints = sprintItems.reduce((sum, t) => sum + (t.storyPoints || 0), 0);
-  const capacityPercent = velocity > 0 ? Math.min(100, Math.round((committedPoints / velocity) * 100)) : 0;
+  const backlogPoints = backlogItems.reduce((sum, t) => sum + (t.storyPoints || 0), 0);
+  const capacity = velocity || Math.max(committedPoints, backlogPoints, 1);
+  const startLabel = (() => {
+    const start = sprint?.startDate ?? sprint?.start_date;
+    if (!start) return null;
+    const d = new Date(start);
+    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase();
+  })();
+  const lengthDays = (() => {
+    const s = sprint?.startDate ?? sprint?.start_date;
+    const e = sprint?.endDate ?? sprint?.end_date;
+    if (!s || !e) return null;
+    return Math.max(1, Math.round((new Date(e).getTime() - new Date(s).getTime()) / 86_400_000));
+  })();
 
   return (
     <div className="p-6 h-full flex flex-col">
-      <div className="flex items-center justify-between mb-4">
+      <Link to={`/projects/${projectId}/sprints`} className="text-[12px] text-mute hover:text-text inline-block mb-3">← Sprints</Link>
+
+      {/* Editorial header */}
+      <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
         <div>
-          <Link to={`/projects/${projectId}/sprints`} className="text-[14px] text-neutral-400 hover:text-neutral-500">&larr; Sprints</Link>
-          <h1 className="text-[22px] font-semibold text-neutral-700 dark:text-dneutral-700">
-            Plan: {sprint?.name || 'Sprint'}
+          <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-faint mb-1">
+            PLANNING
+            {startLabel ? ` · STARTS ${startLabel}` : ''}
+            {lengthDays ? ` · ${lengthDays} DAYS` : ''}
+          </div>
+          <h1 className="font-serif text-[36px] leading-tight text-text dark:text-dneutral-700">
+            {sprint?.name || 'Sprint'}
+            {sprint?.goal && <span className="italic"> — &ldquo;{sprint.goal}&rdquo;</span>}
           </h1>
-          {sprint?.goal && <p className="text-[16px] text-neutral-400 mt-1">{sprint.goal}</p>}
         </div>
-        <div className="text-right">
-          <p className="text-[14px] text-neutral-400">Capacity</p>
-          <p className="text-[22px] font-bold text-neutral-700 dark:text-dneutral-700">
-            {committedPoints} / {velocity || '?'} pts
-          </p>
-          <div className="w-32 h-2 bg-neutral-100 dark:bg-dneutral-200 rounded-full mt-1">
-            <div
-              className={`h-full rounded-full transition-all ${capacityPercent > 100 ? 'bg-danger' : capacityPercent > 80 ? 'bg-tan dark:bg-tan-dm' : 'bg-mint dark:bg-mint-dm'}`}
-              style={{ width: `${Math.min(capacityPercent, 100)}%` }}
-            />
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button className="px-4 h-9 rounded-md bg-card text-text border border-rule hover:bg-paper text-[13px] font-medium">Save draft</button>
+          <button className="px-4 h-9 rounded-md bg-lilac text-white hover:bg-lilac-dark text-[13px] font-medium">Start sprint  →</button>
+        </div>
+      </div>
+
+      {/* Capacity meter */}
+      <div className="mb-6 grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 items-center">
+        <div>
+          <div className="flex items-baseline gap-3 mb-2">
+            <span className="font-serif italic text-[32px] leading-none text-text">{committedPoints}</span>
+            <span className="text-[14px] text-mute">of <span className="font-semibold text-text">{capacity}</span> POINTS COMMITTED</span>
+          </div>
+          <CapacityCells committed={committedPoints} capacity={capacity} />
+        </div>
+        <div className="rounded-xl bg-card px-5 py-3">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-faint">Avg velocity · last 3 sprints</div>
+          <div className="font-serif italic text-[28px] leading-none text-text mt-1">
+            {velocity || '—'}
+            <span className="text-mute text-[18px]">/{capacity}</span>
           </div>
         </div>
       </div>
 
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={(e) => { handleDragEnd(e).finally(() => setActiveTask(null)); }}>
-        <div className="flex-1 grid grid-cols-2 gap-4 min-h-0 overflow-hidden">
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 min-h-0 overflow-hidden">
           <div className="flex flex-col min-h-0">
-            <h2 className="text-[16px] font-medium text-neutral-400 mb-2 flex-shrink-0">Backlog ({backlogItems.length} items)</h2>
-            <DroppableZone id="backlog-zone" label="Drop here to remove from sprint">
+            <div className="flex items-baseline gap-2 mb-2 flex-shrink-0">
+              <span className="font-serif italic text-[18px] text-text">Backlog</span>
+              <span className="text-[12px] text-mute">{backlogItems.length} items · {backlogPoints} pts</span>
+            </div>
+            <DroppableZone id="backlog-zone" label="DRAG RIGHT →">
               <SortableContext items={backlogItems.map((t) => t.id)} strategy={verticalListSortingStrategy}>
                 {backlogItems.map((task) => (
                   <DraggableTask key={task.id} task={task} readOnly={isReadOnly} subtaskCount={subtaskCounts.get(task.id)} />
                 ))}
               </SortableContext>
-              {backlogItems.length === 0 && <p className="text-[16px] text-neutral-400 text-center py-4">No backlog items</p>}
+              {backlogItems.length === 0 && <p className="text-[12px] text-faint text-center py-4">No backlog items</p>}
             </DroppableZone>
           </div>
 
           <div className="flex flex-col min-h-0">
-            <h2 className="text-[16px] font-medium text-neutral-400 mb-2 flex-shrink-0">
-              {sprint?.name || 'Sprint'} ({sprintItems.length} items, {committedPoints} pts)
-            </h2>
-            <DroppableZone id="sprint-zone" label="Drop here to add to sprint">
+            <div className="flex items-baseline gap-2 mb-2 flex-shrink-0">
+              <span className="font-serif italic text-[18px] text-text">{sprint?.name || 'Sprint'}</span>
+              <span className="text-[12px] text-mute">{sprintItems.length} items · {committedPoints} pts committed</span>
+              <span className="ml-auto text-[11px] uppercase tracking-[0.16em] text-faint">↑ RE-ORDER</span>
+            </div>
+            <DroppableZone id="sprint-zone" label="DROP TO COMMIT">
               <SortableContext items={sprintItems.map((t) => t.id)} strategy={verticalListSortingStrategy}>
                 {sprintItems.map((task) => (
                   <DraggableTask key={task.id} task={task} readOnly={isReadOnly} subtaskCount={subtaskCounts.get(task.id)} />
                 ))}
               </SortableContext>
-              {sprintItems.length === 0 && <p className="text-[16px] text-neutral-400 text-center py-4">Drag items here</p>}
+              {sprintItems.length === 0 && <p className="text-[12px] text-faint text-center py-4">Drag items here</p>}
             </DroppableZone>
           </div>
         </div>

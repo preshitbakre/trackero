@@ -225,10 +225,34 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
     return undefined;
   };
 
+  // Identify the active sprint for the editorial header.
+  const activeSprint = sprintId
+    ? sprints.find((s) => String(s.id) === sprintId)
+    : sprints.find((s) => s.status === 'active');
+  const totalTasks = columns.reduce((sum, c) => sum + c.taskCount, 0);
+
   return (
     <div className="flex flex-col h-full">
+      {/* Editorial header */}
+      <div className="px-6 pt-6 pb-2">
+        {activeSprint ? (
+          <>
+            <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-faint mb-1">
+              {activeSprint.status === 'active' ? 'CURRENT SPRINT' : activeSprint.status.toUpperCase()}
+              {' · '}
+              {totalTasks} {totalTasks === 1 ? 'ITEM' : 'ITEMS'}
+            </div>
+            <h1 className="font-serif italic text-[36px] leading-tight text-text">
+              {activeSprint.name}
+            </h1>
+          </>
+        ) : (
+          <h1 className="font-serif text-[28px] text-text">Board</h1>
+        )}
+      </div>
+
       {/* Filter bar */}
-      <div className="sticky top-0 z-20 flex items-center gap-2 px-4 py-2 bg-transparent dark:bg-transparent">
+      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 px-6 py-2">
         {headerSlot}
         <div className="flex-1" />
         <Select
@@ -274,7 +298,7 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
         onDragEnd={handleDragEnd}
         onDragOver={handleDragOver}
       >
-        <div className="flex-1 overflow-x-auto px-4 py-2 bg-transparent dark:bg-transparent">
+        <div className="flex-1 overflow-x-auto px-6 pb-4 pt-2">
           <div className="flex gap-4 h-full">
             {columns.map((col) => (
               <StatusColumn

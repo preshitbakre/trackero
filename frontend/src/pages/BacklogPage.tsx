@@ -292,7 +292,7 @@ export function BacklogPage() {
         {/* STEP 6: Page header */}
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-[22px] font-semibold text-neutral-700 dark:text-dneutral-700">Backlog</h1>
+            <h1 className="font-serif text-[28px] text-text dark:text-dneutral-700">Backlog</h1>
             <p className="text-[14px] text-neutral-400 mt-0.5">
               {tasks.length} tasks · {totalPoints} pts
               {mediumCount > 0 && <> · <span style={{ color: '#D6B588' }}>{mediumCount} medium</span></>}

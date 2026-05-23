@@ -22,6 +22,7 @@ export function RetroPage() {
   const [editingCard, setEditingCard] = useState<{ id: number; content: string } | null>(null);
   const [sprintName, setSprintName] = useState('');
   const [sprintStatus, setSprintStatus] = useState('');
+  const [sprintEnd, setSprintEnd] = useState<string | null>(null);
   const { canEdit } = useRole();
 
   useEffect(() => {
@@ -34,6 +35,7 @@ export function RetroPage() {
       const { data } = await apiClient.get(`/projects/${projectId}/sprints/${sprintId}`);
       setSprintName(data.data.name || '');
       setSprintStatus(data.data.status || '');
+      setSprintEnd(data.data.endDate || data.data.end_date || null);
     } catch (err) { console.error(err); }
   };
 
@@ -43,7 +45,6 @@ export function RetroPage() {
       setRetroId(data.data.id);
       setCards(data.data.cards || []);
     } catch {
-      // No retro yet — create one
       try {
         const { data } = await apiClient.post(`/projects/${projectId}/sprints/${sprintId}/retro`);
         setRetroId(data.data.id);
@@ -97,130 +98,161 @@ export function RetroPage() {
     }
   };
 
-  const columns = [
-    { key: 'went_well', title: 'Went Well', color: 'border-mint bg-mint-light dark:bg-mint-dm/30' },
-    { key: 'to_improve', title: 'To Improve', color: 'border-tan bg-tan-light dark:bg-tan-dm/30' },
-    { key: 'action_items', title: 'Action Items', color: 'border-peri bg-peri-light dark:bg-peri-dm/30' },
+  const columns: { key: RetroCard['column']; eyebrow: string; title: string }[] = [
+    { key: 'went_well', eyebrow: 'KEPT', title: 'What worked' },
+    { key: 'to_improve', eyebrow: 'DROPPED', title: "What didn't" },
+    { key: 'action_items', eyebrow: 'NEXT', title: 'Try next sprint' },
   ];
+
+  const totalCards = cards.length;
+  const totalVotes = cards.reduce((s, c) => s + c.votes, 0);
+  // "Top vote" — the highest-voted card overall (only if there are votes).
+  const topId = totalVotes > 0
+    ? [...cards].sort((a, b) => b.votes - a.votes)[0]?.id
+    : null;
+
+  const endLabel = (() => {
+    if (!sprintEnd) return null;
+    const end = new Date(sprintEnd);
+    const today = new Date();
+    const daysDiff = Math.round((today.getTime() - end.getTime()) / 86_400_000);
+    if (daysDiff < 0) return `ENDS IN ${-daysDiff}D`;
+    if (daysDiff === 0) return 'ENDS TODAY';
+    if (daysDiff === 1) return 'ENDED YESTERDAY';
+    return `ENDED ${daysDiff}D AGO`;
+  })();
 
   return (
     <div className="p-6">
       <Link
         to={`/projects/${projectId}/sprints`}
-        className="text-[14px] text-neutral-400 dark:text-dneutral-400 hover:text-neutral-500 dark:hover:text-dneutral-500 mb-3 inline-block"
+        className="text-[12px] text-mute hover:text-text mb-3 inline-block"
       >
-        &larr; Back to Sprints
+        ← Back to Sprints
       </Link>
-      <div className="flex items-center gap-3 mb-6">
-        <h1 className="text-[22px] font-semibold text-neutral-700 dark:text-dneutral-700">Retrospective</h1>
-        {sprintName && (
-          <span className="text-[16px] text-neutral-400 dark:text-dneutral-500">
-            — {sprintName}
-          </span>
-        )}
-        {sprintStatus && (
-          <span className={`text-[12px] px-2 py-0.5 rounded-full ${
-            sprintStatus === 'active'
-              ? 'bg-tan-light text-neutral-600 dark:bg-tan-dm/30 dark:text-tan-dm'
-              : sprintStatus === 'completed'
-                ? 'bg-mint-light text-neutral-600 dark:bg-mint-dm/30 dark:text-mint-dm'
-                : 'bg-neutral-100 text-neutral-500 dark:bg-dneutral-200 dark:text-dneutral-500'
-          }`}>
-            {sprintStatus}
-          </span>
-        )}
+
+      {/* Editorial header */}
+      <div className="mb-8">
+        <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-faint mb-2">
+          {sprintName || 'Sprint'}
+          {endLabel ? ` · ${endLabel}` : ''}
+          {sprintStatus ? ` · ${sprintStatus.replace(/_/g, ' ').toUpperCase()}` : ''}
+        </div>
+        <h1 className="font-serif text-[36px] leading-tight text-text dark:text-dneutral-700">
+          Looking back — <span className="italic">{totalCards} {totalCards === 1 ? 'card' : 'cards'}, {totalVotes} {totalVotes === 1 ? 'vote' : 'votes'} cast.</span>
+        </h1>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {columns.map((col) => {
           const colCards = cards
             .filter((c) => c.column === col.key)
             .sort((a, b) => b.votes - a.votes);
 
           return (
-            <div key={col.key} className={`rounded-lg border-t-4 p-4 ${col.color}`}>
-              <h2 className={`font-medium mb-3 ${
-                col.key === 'went_well' ? 'text-mint dark:text-mint-dm' :
-                col.key === 'to_improve' ? 'text-tan dark:text-tan-dm' :
-                'text-peri dark:text-peri-dm'
-              }`}>{col.title}</h2>
-
-              <div className="space-y-2 mb-3">
-                {colCards.map((card) => (
-                  <div key={card.id} className="bg-white dark:bg-dneutral-100 rounded p-3 shadow-sm dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)] hover:shadow-md dark:hover:shadow-[0_4px_12px_rgba(0,0,0,0.4)]">
-                    {editingCard?.id === card.id ? (
-                      <div>
-                        <textarea
-                          value={editingCard.content}
-                          onChange={(e) => setEditingCard({ ...editingCard, content: e.target.value })}
-                          autoFocus
-                          rows={3}
-                          className="w-full text-[16px] rounded border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 p-2"
-                        />
-                        <div className="flex gap-1 mt-1">
-                          <Button size="sm" onClick={() => handleEditCard(card.id, editingCard.content)}>Save</Button>
-                          <Button size="sm" variant="ghost" onClick={() => setEditingCard(null)}>Cancel</Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-[16px] text-neutral-600 dark:text-dneutral-600">{card.content}</p>
-                    )}
-                    <div className="flex items-center justify-between mt-2">
-                      {canEdit && (
-                        <button
-                          onClick={() => handleVote(card.id)}
-                          className={`text-[16px] flex items-center gap-1 text-neutral-400 hover:text-tan dark:text-dneutral-400 dark:hover:text-tan-dm ${card.votes > 0 ? '!text-tan dark:!text-tan-dm' : ''}`}
-                        >
-                          👍 {card.votes}
-                        </button>
-                      )}
-                      {!canEdit && (
-                        <span className={`text-[16px] flex items-center gap-1 ${card.votes > 0 ? 'text-tan dark:text-tan-dm' : 'text-neutral-400 dark:text-dneutral-400'}`}>
-                          👍 {card.votes}
-                        </span>
-                      )}
-                      {canEdit && (
-                        <div className="flex gap-1">
-                          <button onClick={() => setEditingCard({ id: card.id, content: card.content })} className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-dneutral-200 text-neutral-400 hover:text-neutral-600" title="Edit">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
-                          <button onClick={() => handleDeleteCard(card.id)} className="p-1 rounded hover:bg-danger/10 text-neutral-400 hover:text-danger" title="Delete">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+            <div key={col.key} className="rounded-xl bg-card p-4 flex flex-col">
+              <div className="flex items-baseline gap-2 mb-3">
+                <span className="text-[10px] uppercase tracking-[0.18em] font-semibold text-faint">
+                  {col.eyebrow}
+                </span>
+                <span className="font-serif italic text-[18px] text-text">
+                  {col.title}
+                </span>
+                <span className="ml-auto text-[12px] text-faint">{colCards.length}</span>
               </div>
 
-              {canEdit && (newCard?.column === col.key ? (
-                <div className="space-y-2">
-                  <textarea
-                    value={newCard.content}
-                    onChange={(e) => setNewCard({ ...newCard, content: e.target.value })}
-                    placeholder="Add a card..."
-                    autoFocus
-                    rows={3}
-                    className="w-full text-[16px] rounded border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 p-2"
-                  />
-                  <div className="flex gap-1">
-                    <Button size="sm" onClick={() => handleAddCard(col.key)}>Add</Button>
-                    <Button size="sm" variant="ghost" onClick={() => setNewCard(null)}>Cancel</Button>
-                  </div>
+              <div className="space-y-2 flex-1">
+                {colCards.map((card) => {
+                  const isTop = card.id === topId && card.votes > 0;
+                  return (
+                    <div
+                      key={card.id}
+                      className={`rounded-lg p-3 border ${
+                        isTop
+                          ? 'border-lilac/40 bg-lilac-tint/40'
+                          : 'border-rule bg-paper/60'
+                      }`}
+                    >
+                      {isTop && (
+                        <div className="text-[9px] uppercase tracking-[0.18em] font-semibold text-lilac-dark mb-1">
+                          Top vote
+                        </div>
+                      )}
+                      {editingCard?.id === card.id ? (
+                        <div>
+                          <textarea
+                            value={editingCard.content}
+                            onChange={(e) => setEditingCard({ ...editingCard, content: e.target.value })}
+                            autoFocus
+                            rows={3}
+                            className="w-full text-[14px] rounded border border-rule bg-card p-2 focus:border-lilac focus:outline-none"
+                          />
+                          <div className="flex gap-1 mt-1">
+                            <Button size="sm" onClick={() => handleEditCard(card.id, editingCard.content)}>Save</Button>
+                            <Button size="sm" variant="ghost" onClick={() => setEditingCard(null)}>Cancel</Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-[14px] text-text leading-relaxed">{card.content}</p>
+                      )}
+                      <div className="flex items-center justify-between mt-3">
+                        <button
+                          onClick={() => canEdit && handleVote(card.id)}
+                          disabled={!canEdit}
+                          className={`text-[12px] inline-flex items-center gap-1 px-2 py-1 rounded-md ${
+                            card.votes > 0
+                              ? 'bg-card border border-rule text-text font-medium'
+                              : 'text-mute hover:bg-lilac-tint hover:text-lilac-dark'
+                          } ${!canEdit ? 'cursor-default' : ''}`}
+                        >
+                          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <path d="M12 19V6m0 0l-6 6m6-6l6 6" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                          {card.votes}
+                        </button>
+                        {canEdit && (
+                          <div className="flex gap-1">
+                            <button onClick={() => setEditingCard({ id: card.id, content: card.content })} className="p-1 rounded text-faint hover:bg-paper hover:text-text" title="Edit">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                            </button>
+                            <button onClick={() => handleDeleteCard(card.id)} className="p-1 rounded text-faint hover:bg-danger/10 hover:text-danger" title="Delete">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {canEdit && (
+                <div className="mt-2 pt-2">
+                  {newCard?.column === col.key ? (
+                    <div className="space-y-2">
+                      <textarea
+                        value={newCard.content}
+                        onChange={(e) => setNewCard({ ...newCard, content: e.target.value })}
+                        placeholder="What stood out?"
+                        autoFocus
+                        rows={3}
+                        className="w-full text-[14px] rounded border border-rule bg-card p-2 focus:border-lilac focus:outline-none"
+                      />
+                      <div className="flex gap-1">
+                        <Button size="sm" onClick={() => handleAddCard(col.key)}>Add</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setNewCard(null)}>Cancel</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setNewCard({ column: col.key, content: '' })}
+                      className="w-full py-2 text-[12px] text-faint hover:text-lilac-dark hover:bg-lilac-tint rounded-md border border-dashed border-rule"
+                    >
+                      + Add a card · anonymously
+                    </button>
+                  )}
                 </div>
-              ) : (
-                <button
-                  onClick={() => setNewCard({ column: col.key, content: '' })}
-                  className="text-[16px] text-neutral-400 hover:text-peri"
-                >
-                  + Add card
-                </button>
-              ))}
+              )}
             </div>
           );
         })}

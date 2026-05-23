@@ -49,7 +49,7 @@ export function ProfilePage() {
 
   return (
     <div className="p-6 max-w-2xl">
-      <h1 className="text-[22px] font-semibold text-neutral-700 dark:text-dneutral-700 mb-6">Profile</h1>
+      <h1 className="font-serif text-[28px] text-text dark:text-dneutral-700 mb-6">Profile</h1>
 
       <form onSubmit={handleUpdateProfile} className="space-y-4 mb-8">
         <div>

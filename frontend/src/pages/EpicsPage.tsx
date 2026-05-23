@@ -64,7 +64,7 @@ export function EpicsPage() {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-[22px] font-semibold text-neutral-700 dark:text-dneutral-700">Epics</h1>
+        <h1 className="font-serif text-[28px] text-text dark:text-dneutral-700">Epics</h1>
         {canEdit && (
           <Button onClick={() => setShowCreate(true)}>+ Create Epic</Button>
         )}
