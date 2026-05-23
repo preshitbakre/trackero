@@ -101,6 +101,7 @@ export function CreateItemDialog({
   }, [projectId]);
 
   useEffect(() => {
+    let ignored = false;
     const loadRelated = async () => {
       // Reset both
       setParentOptions([]);
@@ -108,15 +109,19 @@ export function CreateItemDialog({
       setLinkedItemId('');
 
       if (itemType === 'subtask') {
-        // Subtasks need parent selection (task or story)
-        const parentTypes = ['task', 'story'];
+        // Subtasks need parent selection (task, story, or epic — matches backend validateParentChildType)
+        const parentTypes = ['task', 'story', 'epic'];
         try {
           const res = await apiClient.get(`/projects/${projectId}/items?itemType=${parentTypes.join(',')}&limit=100&sort=updatedAt&order=DESC`);
-          setParentOptions((res.data.data?.list || []).map((i: any) => ({ id: i.id, itemType: i.itemType, itemNumber: i.itemNumber, title: i.title })));
-        } catch { setParentOptions([]); }
-        if (parentId) {
-          const currentParent = parentOptions.find(p => String(p.id) === parentId);
-          if (currentParent && !parentTypes.includes(currentParent.itemType)) setParentId('');
+          if (ignored) return;
+          const fresh = (res.data.data?.list || []).map((i: any) => ({ id: i.id, itemType: i.itemType, itemNumber: i.itemNumber, title: i.title }));
+          setParentOptions(fresh);
+          if (parentId) {
+            const currentParent = fresh.find((p: ParentOption) => String(p.id) === parentId);
+            if (currentParent && !parentTypes.includes(currentParent.itemType)) setParentId('');
+          }
+        } catch {
+          if (!ignored) setParentOptions([]);
         }
       } else if (itemType === 'story' || itemType === 'task' || itemType === 'bug') {
         // Non-subtask, non-epic types get "Link to" options
@@ -124,19 +129,23 @@ export function CreateItemDialog({
         if (defaultParentId) setLinkedItemId(String(defaultParentId));
         try {
           const res = await apiClient.get(`/projects/${projectId}/items?itemType=epic,story,task&limit=50&sort=updatedAt&order=DESC`);
+          if (ignored) return;
           const items = res.data.data?.list || [];
           setLinkToOptions(items.map((i: any) => ({
             value: String(i.id),
             label: `#${i.itemNumber} — ${i.title}`,
             prefix: (<span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: typeColor(i.itemType) }} />) as React.ReactNode,
           })));
-        } catch { setLinkToOptions([]); }
+        } catch {
+          if (!ignored) setLinkToOptions([]);
+        }
       } else {
         // Epic — no parent, no link
         setParentId('');
       }
     };
     loadRelated();
+    return () => { ignored = true; };
   }, [itemType, projectId]);
 
   const assigneeComboOptions = [
