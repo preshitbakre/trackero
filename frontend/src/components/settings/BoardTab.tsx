@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   DndContext, DragEndEvent, closestCenter, PointerSensor, useSensor, useSensors,
@@ -148,6 +148,9 @@ export function BoardTab() {
   const [loading, setLoading] = useState(true);
   const [showAddStatus, setShowAddStatus] = useState(false);
   const [deletingStatusId, setDeletingStatusId] = useState<number | null>(null);
+  // Statuses whose WIP input has unsaved user edits. Stored in a ref so
+  // loadData() doesn't need to be re-created when the set changes.
+  const dirtyWipIdsRef = useRef<Set<number>>(new Set());
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -157,9 +160,17 @@ export function BoardTab() {
       const statusRes = await apiClient.get(`/projects/${projectId}/statuses`);
       const s = Array.isArray(statusRes.data.data) ? statusRes.data.data : statusRes.data.data.list || [];
       setStatuses(s);
-      const wip: Record<number, string> = {};
-      s.forEach((st: Status) => { wip[st.id] = String(st.wipLimit || 0); });
-      setWipValues(wip);
+      // Preserve any in-progress WIP edits the user has made; only overwrite
+      // entries that are NOT marked dirty.
+      setWipValues((prev) => {
+        const next: Record<number, string> = {};
+        s.forEach((st: Status) => {
+          next[st.id] = dirtyWipIdsRef.current.has(st.id) && prev[st.id] != null
+            ? prev[st.id]
+            : String(st.wipLimit || 0);
+        });
+        return next;
+      });
     } catch {}
     setLoading(false);
   }, [projectId]);
@@ -208,14 +219,28 @@ export function BoardTab() {
 
   // ─── WIP handlers ───
   const handleSaveWip = async () => {
+    const failed: Array<{ statusName: string; message: string }> = [];
     for (const st of statuses) {
       const newVal = parseInt(wipValues[st.id] || '0') || 0;
       if (newVal !== (st.wipLimit || 0)) {
-        await apiClient.put(`/projects/${projectId}/statuses/${st.id}`, { wipLimit: newVal }).catch(() => {});
+        try {
+          await apiClient.put(`/projects/${projectId}/statuses/${st.id}`, { wipLimit: newVal });
+          // Success — clear the dirty mark so loadData picks up the new server value.
+          dirtyWipIdsRef.current.delete(st.id);
+        } catch (err: any) {
+          // Keep dirty so the user's failed input is preserved across the
+          // subsequent loadData() and remains visible for retry.
+          failed.push({ statusName: st.name, message: err?.response?.data?.message || 'save failed' });
+        }
+      } else {
+        // No-op save: nothing to keep dirty.
+        dirtyWipIdsRef.current.delete(st.id);
       }
     }
-    loadData();
-    toast('WIP limits saved');
+    await loadData();
+    if (failed.length === 0) toast('WIP limits saved');
+    else if (failed.length === 1) toast(`Failed to save ${failed[0].statusName}: ${failed[0].message}`, 'error');
+    else toast(`${failed.length} WIP limits failed to save`, 'error');
   };
 
   if (loading) {
@@ -261,7 +286,10 @@ export function BoardTab() {
                 value={wipValues[st.id] || '0'}
                 onChange={(e) => {
                   const v = e.target.value;
-                  if (v === '' || /^\d+$/.test(v)) setWipValues({ ...wipValues, [st.id]: v });
+                  if (v === '' || /^\d+$/.test(v)) {
+                    dirtyWipIdsRef.current.add(st.id);
+                    setWipValues({ ...wipValues, [st.id]: v });
+                  }
                 }}
                 className="!w-16 !text-center !text-[16px]"
               />
