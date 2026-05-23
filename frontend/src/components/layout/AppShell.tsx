@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
@@ -12,6 +12,10 @@ export function AppShell() {
   const [projects, setProjects] = useState<any[]>([]);
   const location = useLocation();
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(null);
+  // Mirror currentProjectId into a ref so the project-room effect reads the
+  // latest value without needing it in the dep array (which would trigger an
+  // unwanted re-run on every set).
+  const currentProjectIdRef = useRef<number | null>(null);
   const [showCreateItem, setShowCreateItem] = useState(false);
   const user = useAuthStore((s) => s.user);
 
@@ -48,10 +52,12 @@ export function AppShell() {
   useEffect(() => {
     const match = location.pathname.match(/\/projects\/(\d+)/);
     const newProjectId = match ? parseInt(match[1]) : null;
+    const prev = currentProjectIdRef.current;
 
-    if (newProjectId !== currentProjectId) {
-      if (currentProjectId) leaveProject(currentProjectId);
+    if (newProjectId !== prev) {
+      if (prev) leaveProject(prev);
       if (newProjectId) joinProject(newProjectId);
+      currentProjectIdRef.current = newProjectId;
       setCurrentProjectId(newProjectId);
     }
   }, [location.pathname]);
