@@ -4,6 +4,8 @@ import { useAuthStore } from '../store/auth.store';
 import { Select } from '../components/ui/Select';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
+import { ConfirmDialog } from '../components/common/ConfirmDialog';
+import { toast } from '../components/common/Toast';
 
 interface UserRow {
   id: number;
@@ -22,12 +24,21 @@ interface InvitationRow {
   expiresAt: string;
 }
 
+const ROLE_LABELS: Record<string, string> = {
+  admin: 'Admin',
+  project_manager: 'PM',
+  member: 'Member',
+  viewer: 'Viewer',
+};
+
 export function SettingsPage() {
   const [tab, setTab] = useState<'members' | 'invitations'>('members');
   const [users, setUsers] = useState<UserRow[]>([]);
   const [invitations, setInvitations] = useState<InvitationRow[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('member');
+  const [confirmRoleChange, setConfirmRoleChange] = useState<{ userId: number; role: string; displayName: string } | null>(null);
+  const [confirmDeactivate, setConfirmDeactivate] = useState<{ userId: number; displayName: string } | null>(null);
   const user = useAuthStore((s) => s.user);
 
   useEffect(() => {
@@ -54,7 +65,7 @@ export function SettingsPage() {
       await apiClient.put(`/users/${userId}/role`, { role });
       loadUsers();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to change role');
+      toast(err.response?.data?.message || 'Failed to change role', 'error');
     }
   };
 
@@ -63,7 +74,7 @@ export function SettingsPage() {
       await apiClient.put(`/users/${userId}/deactivate`);
       loadUsers();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed');
+      toast(err.response?.data?.message || 'Failed to deactivate user', 'error');
     }
   };
 
@@ -72,7 +83,7 @@ export function SettingsPage() {
       await apiClient.put(`/users/${userId}/reactivate`);
       loadUsers();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed');
+      toast(err.response?.data?.message || 'Failed to reactivate user', 'error');
     }
   };
 
@@ -84,7 +95,7 @@ export function SettingsPage() {
       setInviteEmail('');
       loadInvitations();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to send invitation');
+      toast(err.response?.data?.message || 'Failed to send invitation', 'error');
     }
   };
 
@@ -120,41 +131,47 @@ export function SettingsPage() {
                 </tr>
               </thead>
               <tbody>
-                {users.map((u) => (
-                  <tr key={u.id} className="border-b border-neutral-100 dark:border-dneutral-200">
-                    <td className="py-2 px-3 text-neutral-700 dark:text-dneutral-700">{u.displayName}</td>
-                    <td className="py-2 px-3 text-neutral-500 dark:text-dneutral-500">{u.email}</td>
-                    <td className="py-2 px-3">
-                      {u.isActive ? (
-                        <Select
-                          value={u.role}
-                          onChange={(val) => handleChangeRole(u.id, val)}
-                          options={[
-                            { value: 'admin', label: 'Admin' },
-                            { value: 'project_manager', label: 'PM' },
-                            { value: 'member', label: 'Member' },
-                            { value: 'viewer', label: 'Viewer' },
-                          ]}
-                        />
-                      ) : (
-                        <span className="text-[16px] text-neutral-400 dark:text-dneutral-400">{u.role === 'project_manager' ? 'PM' : u.role.charAt(0).toUpperCase() + u.role.slice(1)}</span>
-                      )}
-                    </td>
-                    <td className="py-2 px-3">
-                      <span className={`text-[16px] px-2 py-0.5 rounded ${u.isActive ? 'bg-mint-light dark:bg-mint-dm/30 text-neutral-700' : 'bg-danger/10 dark:bg-danger/10 text-danger'}`}>
-                        {u.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="py-2 px-3">
-                      {u.isActive && u.id !== user?.id && (
-                        <button onClick={() => handleDeactivate(u.id)} className="text-[16px] text-danger hover:underline">Deactivate</button>
-                      )}
-                      {!u.isActive && (
-                        <button onClick={() => handleReactivate(u.id)} className="text-[16px] text-mint hover:underline">Reactivate</button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {users.map((u) => {
+                  const isSelf = u.id === user?.id;
+                  return (
+                    <tr key={u.id} className="border-b border-neutral-100 dark:border-dneutral-200">
+                      <td className="py-2 px-3 text-neutral-700 dark:text-dneutral-700">{u.displayName}</td>
+                      <td className="py-2 px-3 text-neutral-500 dark:text-dneutral-500">{u.email}</td>
+                      <td className="py-2 px-3">
+                        {u.isActive && !isSelf ? (
+                          <Select
+                            value={u.role}
+                            onChange={(val) => {
+                              if (val === u.role) return;
+                              setConfirmRoleChange({ userId: u.id, role: val, displayName: u.displayName });
+                            }}
+                            options={[
+                              { value: 'admin', label: 'Admin' },
+                              { value: 'project_manager', label: 'PM' },
+                              { value: 'member', label: 'Member' },
+                              { value: 'viewer', label: 'Viewer' },
+                            ]}
+                          />
+                        ) : (
+                          <span className="text-[16px] text-neutral-400 dark:text-dneutral-400">{ROLE_LABELS[u.role] ?? u.role}</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-3">
+                        <span className={`text-[16px] px-2 py-0.5 rounded ${u.isActive ? 'bg-mint-light dark:bg-mint-dm/30 text-neutral-700' : 'bg-danger/10 dark:bg-danger/10 text-danger'}`}>
+                          {u.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3">
+                        {u.isActive && !isSelf && (
+                          <button onClick={() => setConfirmDeactivate({ userId: u.id, displayName: u.displayName })} className="text-[16px] text-danger hover:underline">Deactivate</button>
+                        )}
+                        {!u.isActive && (
+                          <button onClick={() => handleReactivate(u.id)} className="text-[16px] text-mint hover:underline">Reactivate</button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -196,6 +213,35 @@ export function SettingsPage() {
             <p className="text-[16px] text-neutral-400">No pending invitations</p>
           )}
         </div>
+      )}
+
+      {confirmRoleChange && (
+        <ConfirmDialog
+          title="Change role"
+          message={`Change ${confirmRoleChange.displayName}'s role to ${ROLE_LABELS[confirmRoleChange.role] ?? confirmRoleChange.role}?`}
+          confirmLabel="Change role"
+          onConfirm={async () => {
+            const { userId, role } = confirmRoleChange;
+            setConfirmRoleChange(null);
+            await handleChangeRole(userId, role);
+          }}
+          onCancel={() => setConfirmRoleChange(null)}
+        />
+      )}
+
+      {confirmDeactivate && (
+        <ConfirmDialog
+          title="Deactivate user"
+          message={`Deactivate ${confirmDeactivate.displayName}? They will lose access until reactivated.`}
+          confirmLabel="Deactivate"
+          danger
+          onConfirm={async () => {
+            const { userId } = confirmDeactivate;
+            setConfirmDeactivate(null);
+            await handleDeactivate(userId);
+          }}
+          onCancel={() => setConfirmDeactivate(null)}
+        />
       )}
     </div>
   );
