@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { disconnectSocket } from '../lib/socket';
 
 interface User {
   id: number;
@@ -58,6 +59,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
+    // Tear down the live socket so it stops streaming events for the
+    // session we just abandoned.
+    disconnectSocket();
     set({ user: null, authStatus: 'anon', isAuthenticated: false });
   },
 }));

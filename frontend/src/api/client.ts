@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import { useAuthStore } from '../store/auth.store';
+import { updateSocketAuth } from '../lib/socket';
 
 /**
  * Error type thrown by doRefresh() so the interceptor can distinguish a
@@ -76,6 +77,10 @@ async function doRefresh(): Promise<string> {
 
   localStorage.setItem('accessToken', newAccessToken);
   localStorage.setItem('refreshToken', newRefreshToken);
+  // Keep the live socket in sync with the freshly rotated token so any
+  // reconnect re-authenticates correctly. Transient/auth-invalid throws
+  // skip this — logout path handles socket teardown.
+  updateSocketAuth();
   return newAccessToken;
 }
 
