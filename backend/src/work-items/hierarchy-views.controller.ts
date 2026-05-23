@@ -16,7 +16,7 @@ export class HierarchyViewsController {
 
   @Get('epics')
   @Roles('admin', 'project_manager', 'member', 'viewer')
-  @ResponseCode('STORIES_LISTED')
+  @ResponseCode('EPICS_LISTED')
   async listEpics(
     @Param('projectId', ParseIntPipe) projectId: number,
     @Query('page', new ParseIntPipe({ optional: true })) page?: number,

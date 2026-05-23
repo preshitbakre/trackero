@@ -66,7 +66,7 @@ describe('Epics List Endpoint (e2e)', () => {
     const res = await listEpics().expect(200);
 
     expect(res.body.success).toBe(true);
-    expect(res.body.code).toBe('S-0109');
+    expect(res.body.code).toBe('S-0040');
     expect(res.body.data.list).toHaveLength(0);
     expect(res.body.data.total).toBe(0);
   });

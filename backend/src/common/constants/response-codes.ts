@@ -185,8 +185,8 @@ export const ResponseCodes = {
   TYPE_IN_USE:            { code: 'F-L-0080', message: 'Cannot delete type that has tasks assigned' },
   BUILTIN_TYPE:           { code: 'F-L-0081', message: 'Cannot delete built-in task type' },
   SUBTASK_NESTING:        { code: 'F-L-0032', message: 'Subtasks cannot have their own subtasks' },
-  INVALID_DATE:           { code: 'F-L-0090', message: 'Invalid date range' },
-  SUBTASKS_INCOMPLETE:    { code: 'F-L-0091', message: 'All subtasks must be completed before marking this task as done' },
+  INVALID_DATE:           { code: 'F-L-0102', message: 'Invalid date range' },
+  SUBTASKS_INCOMPLETE:    { code: 'F-L-0103', message: 'All subtasks must be completed before marking this task as done' },
   CHECKLIST_NOT_SUBTASK:  { code: 'F-L-0033', message: 'Checklist items can only be added to subtasks' },
 
   STATUS_IN_USE:          { code: 'F-L-0040', message: 'Cannot delete status that has tasks assigned to it' },
@@ -194,11 +194,12 @@ export const ResponseCodes = {
 
   LAST_ADMIN:             { code: 'F-L-0050', message: 'Cannot remove the last admin. Promote another user first.' },
   CANNOT_DEACTIVATE_SELF: { code: 'F-L-0051', message: 'You cannot deactivate your own account' },
-  SELF_ROLE_CHANGE:       { code: 'F-L-0051', message: 'You cannot change your own role' },
+  SELF_ROLE_CHANGE:       { code: 'F-L-0056', message: 'You cannot change your own role' },
   PROJECT_ARCHIVED_ERROR: { code: 'F-L-0052', message: 'This project is archived. Unarchive it to make changes.' },
   RETRO_EXISTS:           { code: 'F-L-0053', message: 'A retrospective already exists for this sprint' },
   LAST_PROJECT_MANAGER:   { code: 'F-L-0054', message: 'Cannot remove or demote the last project manager' },
   PROJECT_NOT_ARCHIVED:   { code: 'F-L-0055', message: 'Project must be archived before it can be deleted' },
+  RATE_LIMITED:           { code: 'F-L-0057', message: 'Too many requests. Please try again later.' },
 
   FILE_REQUIRED:          { code: 'F-L-0060', message: 'File is required' },
   FILE_TOO_LARGE:         { code: 'F-L-0061', message: 'File exceeds maximum allowed size' },

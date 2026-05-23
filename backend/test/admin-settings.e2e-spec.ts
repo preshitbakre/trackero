@@ -52,7 +52,7 @@ describe('Admin, Settings & Invitations (e2e)', () => {
         .send({ role: 'member' })
         .expect(409);
 
-      expect(res.body.code).toBe('F-L-0051');
+      expect(res.body.code).toBe('F-L-0056');
     });
 
     it('deactivates user -> 200', async () => {
