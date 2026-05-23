@@ -54,7 +54,16 @@ export const getDatabaseConfig = (
     ...(isTest
       ? {}
       : {
-          migrations: [path.join(__dirname, '..', '..', 'migrations', '*.{js,ts}')],
+          // Glob only `.js` at runtime. Each migration ships as a .ts
+          // source + a compiled .js artifact (produced by `npm run build`
+          // or the migrations build step). If we let the glob match both,
+          // TypeORM would require() the .ts file too — Node can't parse
+          // TypeScript at runtime without a transpiler hook, so the boot
+          // crashes with the "module ... not yet fully loaded" assertion.
+          // The CLI (`npm run migration:run`) uses typeorm-ts-node-commonjs
+          // which IS a ts-node wrapper — it picks up the .ts sources via
+          // a separate config in `src/config/typeorm-cli.config.ts`.
+          migrations: [path.join(__dirname, '..', '..', 'migrations', '*.js')],
           // Per-migration transaction control: required so the index
           // migration (028) can declare `transaction = false` and use
           // CREATE INDEX CONCURRENTLY without TypeORM rejecting the
