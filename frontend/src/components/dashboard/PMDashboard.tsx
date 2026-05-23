@@ -213,7 +213,7 @@ export function PMDashboard({ data }: { data: any }) {
           {recentActivity.length > 0 ? (
             <div className="divide-y divide-neutral-100 dark:divide-dneutral-200">
               {recentActivity.map((a: any, i: number) => (
-                <ActivityItem key={i} {...a} />
+                <ActivityItem key={`${a.timestamp}-${a.target?.taskKey ?? ''}-${a.actor?.displayName ?? ''}-${i}`} {...a} />
               ))}
             </div>
           ) : (

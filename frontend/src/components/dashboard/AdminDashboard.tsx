@@ -5,6 +5,7 @@ import { ProjectCard } from './ProjectCard';
 import { ActivityItem } from './ActivityItem';
 import { DashboardSection, TwoColumnLayout } from './DashboardSection';
 import { CreateProjectDialog } from '../common/CreateProjectDialog';
+import { Button } from '../ui/Button';
 
 export function AdminDashboard({ data }: { data: any }) {
   const [showCreate, setShowCreate] = useState(false);
@@ -56,9 +57,9 @@ export function AdminDashboard({ data }: { data: any }) {
           ) : (
             <div className="text-center py-8">
               <p className="text-neutral-400 dark:text-dneutral-500 mb-3">No projects yet</p>
-              <button onClick={() => setShowCreate(true)} className="text-[16px] text-white bg-peri px-4 py-2 rounded-md hover:bg-peri">
+              <Button variant="primary" onClick={() => setShowCreate(true)}>
                 Create your first project
-              </button>
+              </Button>
             </div>
           )}
         </DashboardSection>
@@ -137,7 +138,7 @@ export function AdminDashboard({ data }: { data: any }) {
           {recentActivity.length > 0 ? (
             <div className="divide-y divide-neutral-100 dark:divide-dneutral-200">
               {recentActivity.map((a: any, i: number) => (
-                <ActivityItem key={i} {...a} />
+                <ActivityItem key={`${a.timestamp}-${a.target?.taskKey ?? ''}-${a.actor?.displayName ?? ''}-${i}`} {...a} />
               ))}
             </div>
           ) : (

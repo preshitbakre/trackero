@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { apiClient } from '../../api/client';
 import { queryClient } from '../../lib/query-client';
 import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { Textarea } from '../ui/Textarea';
 import { Modal } from './Modal';
 
 function generatePrefix(name: string): string {
@@ -50,7 +52,6 @@ export function CreateProjectDialog({ onClose, onCreated }: { onClose: () => voi
     }
   };
 
-  const inputClass = "w-full rounded-md border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 px-3 py-2 text-[16px] text-neutral-700 dark:text-dneutral-700 placeholder-neutral-300 dark:placeholder-dneutral-300";
   const titleId = 'create-project-dialog-title';
 
   return (
@@ -65,28 +66,26 @@ export function CreateProjectDialog({ onClose, onCreated }: { onClose: () => voi
         {error && <div className="text-[16px] text-danger">{error}</div>}
         <div>
           <label className="block text-[16px] font-medium text-neutral-600 dark:text-dneutral-600 mb-1">Name</label>
-          <input
+          <Input
             type="text" value={name} onChange={(e) => handleNameChange(e.target.value)} required
             placeholder="e.g. Cubitraq"
-            className={inputClass}
           />
         </div>
         <div>
           <label className="block text-[16px] font-medium text-neutral-600 dark:text-dneutral-600 mb-1">Prefix</label>
-          <input
+          <Input
             type="text" value={prefix}
             onChange={(e) => { setPrefixTouched(true); setPrefix(e.target.value.toUpperCase()); }}
             required pattern="[A-Z0-9]{2,5}" maxLength={5}
-            className={`${inputClass} font-mono`}
+            className="font-mono"
           />
           <p className="text-[16px] text-neutral-400 mt-1">Auto-generated from name. Edit if needed.</p>
         </div>
         <div>
           <label className="block text-[16px] font-medium text-neutral-600 dark:text-dneutral-600 mb-1">Description (optional)</label>
-          <textarea
+          <Textarea
             value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
             placeholder="What is this project about?"
-            className={inputClass}
           />
         </div>
         <div className="flex justify-end gap-2">

@@ -66,7 +66,7 @@ export function ViewerDashboard({ data }: { data: any }) {
               {sprintProgress.length > 0 ? (
                 <div className="space-y-4">
                   {sprintProgress.map((sp: any, i: number) => (
-                    <div key={i}>
+                    <div key={`${sp.projectName ?? ''}-${sp.sprintName ?? ''}-${i}`}>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700">{sp.projectName ?? ''}</span>
                         <span className="text-[16px] text-neutral-400 dark:text-dneutral-500">— {sp.sprintName ?? ''}</span>
@@ -98,7 +98,7 @@ export function ViewerDashboard({ data }: { data: any }) {
               {epicProgress.length > 0 ? (
                 <div className="space-y-3">
                   {epicProgress.map((e: any, i: number) => (
-                    <div key={i}>
+                    <div key={`${e.title ?? ''}-${e.projectName ?? ''}-${i}`}>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: e.color }} />
                         <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700 truncate">{e.title ?? ''}</span>
@@ -119,7 +119,7 @@ export function ViewerDashboard({ data }: { data: any }) {
               {recentCompletions.length > 0 ? (
                 <div className="space-y-2">
                   {recentCompletions.map((c: any, i: number) => (
-                    <div key={i} className="flex items-center gap-2 text-[16px]">
+                    <div key={`${c.taskKey ?? ''}-${c.completedAt ?? ''}-${i}`} className="flex items-center gap-2 text-[16px]">
                       <span className="text-success flex-shrink-0">&#x2713;</span>
                       <span className="font-mono text-neutral-400 dark:text-dneutral-500 text-[16px]">{c.taskKey ?? ''}</span>
                       <span className="text-neutral-700 dark:text-dneutral-700 truncate flex-1">{c.title ?? ''}</span>
@@ -138,6 +138,7 @@ export function ViewerDashboard({ data }: { data: any }) {
           <DashboardSection title="Team">
             <div className="space-y-2">
               {teamMembers.map((m: any, i: number) => {
+                const memberKey = `${m.displayName ?? ''}-${m.role ?? ''}-${i}`;
                 const initial = m.displayName?.charAt(0)?.toUpperCase() || '?';
                 const roleBadge: Record<string, string> = {
                   admin: 'bg-peri-light dark:bg-peri-dm/30 text-neutral-700 dark:text-peri-dm',
@@ -146,7 +147,7 @@ export function ViewerDashboard({ data }: { data: any }) {
                   viewer: 'bg-neutral-100 dark:bg-dneutral-200 text-neutral-500 dark:text-dneutral-500',
                 };
                 return (
-                  <div key={i} className="flex items-center gap-3 py-1.5">
+                  <div key={memberKey} className="flex items-center gap-3 py-1.5">
                     <div className="w-8 h-8 rounded-full bg-peri-light dark:bg-peri-dm/30 flex items-center justify-center text-[16px] font-medium text-peri dark:text-peri-dm flex-shrink-0">
                       {initial}
                     </div>

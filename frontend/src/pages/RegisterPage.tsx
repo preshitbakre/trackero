@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/auth.store';
 import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
 
 export function RegisterPage() {
   const [searchParams] = useSearchParams();
@@ -121,34 +122,34 @@ export function RegisterPage() {
             <label htmlFor="displayName" className="block text-[16px] font-medium text-neutral-600 dark:text-dneutral-600">
               Display name
             </label>
-            <input
+            <Input
               id="displayName" type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} required
-              className="mt-1 block w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-100 px-3 py-2 text-[16px] text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400 focus:border-peri focus:outline-none focus:ring-1 focus:ring-peri"
+              className="mt-1"
             />
           </div>
 
           <div>
             <label htmlFor="email" className="block text-[16px] font-medium text-neutral-600 dark:text-dneutral-600">Email</label>
-            <input
+            <Input
               id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
               readOnly={!!inviteToken && email !== ''}
-              className={`mt-1 block w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-100 px-3 py-2 text-[16px] text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400 focus:border-peri focus:outline-none focus:ring-1 focus:ring-peri ${inviteToken && email ? 'bg-neutral-100 dark:bg-dneutral-200 cursor-not-allowed' : ''}`}
+              className={`mt-1 ${inviteToken && email ? 'bg-neutral-100 dark:bg-dneutral-200 cursor-not-allowed' : ''}`}
             />
           </div>
 
           <div>
             <label htmlFor="password" className="block text-[16px] font-medium text-neutral-600 dark:text-dneutral-600">Password</label>
-            <input
+            <Input
               id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8}
-              className="mt-1 block w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-100 px-3 py-2 text-[16px] text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400 focus:border-peri focus:outline-none focus:ring-1 focus:ring-peri"
+              className="mt-1"
             />
           </div>
 
           <div>
             <label htmlFor="confirmPassword" className="block text-[16px] font-medium text-neutral-600 dark:text-dneutral-600">Confirm password</label>
-            <input
+            <Input
               id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required
-              className="mt-1 block w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-100 px-3 py-2 text-[16px] text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400 focus:border-peri focus:outline-none focus:ring-1 focus:ring-peri"
+              className="mt-1"
             />
           </div>
 

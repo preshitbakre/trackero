@@ -86,7 +86,7 @@ export function MemberDashboard({ data }: { data: any }) {
           {activeSprintSummary.length > 0 ? (
             <div className="space-y-4">
               {activeSprintSummary.map((sp: any, i: number) => (
-                <div key={i}>
+                <div key={`${sp.projectPrefix ?? ''}-${sp.sprintName ?? ''}-${i}`}>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-[16px] font-mono text-neutral-400 dark:text-dneutral-500">{sp.projectPrefix ?? ''}</span>
                     <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700">{sp.sprintName ?? ''}</span>
@@ -160,7 +160,7 @@ export function MemberDashboard({ data }: { data: any }) {
           {activityOnMyTasks.length > 0 ? (
             <div className="divide-y divide-neutral-100 dark:divide-dneutral-200">
               {activityOnMyTasks.map((a: any, i: number) => (
-                <ActivityItem key={i} {...a} />
+                <ActivityItem key={`${a.timestamp}-${a.target?.taskKey ?? ''}-${a.actor?.displayName ?? ''}-${i}`} {...a} />
               ))}
             </div>
           ) : (

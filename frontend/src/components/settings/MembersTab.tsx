@@ -7,6 +7,7 @@ import { useAuthStore } from '../../store/auth.store';
 import { Select } from '../ui/Select';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
 import { ErrorState } from '../common/ErrorState';
 
 interface MemberRow {
@@ -259,8 +260,6 @@ function AddMemberDialog({ projectId, isAdmin, onClose, onAdded }: {
     ? [{ value: 'project_manager', label: 'Project Manager' }, { value: 'member', label: 'Member' }, { value: 'viewer', label: 'Viewer' }]
     : [{ value: 'member', label: 'Member' }, { value: 'viewer', label: 'Viewer' }];
 
-  const inputClass = "w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 px-3 py-2 text-[16px] text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400";
-
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-700/50" onClick={onClose}>
       <div className="bg-white dark:bg-dneutral-100 rounded-lg p-6 w-full max-w-md shadow-xl dark:shadow-[0_12px_36px_rgba(0,0,0,0.6)]" onClick={(e) => e.stopPropagation()}>
@@ -285,14 +284,13 @@ function AddMemberDialog({ projectId, isAdmin, onClose, onAdded }: {
               </div>
             ) : (
               <div className="relative" ref={dropdownRef}>
-                <input
+                <Input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   onFocus={() => results.length > 0 && setShowResults(true)}
                   placeholder="Search by name or email..."
                   autoFocus
-                  className={inputClass}
                 />
                 {searching && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[16px] text-neutral-400">...</span>}
                 {showResults && results.length > 0 && (
