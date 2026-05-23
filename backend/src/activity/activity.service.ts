@@ -65,10 +65,10 @@ export class ActivityService {
     userId: number;
     projectId: number;
     changes: any;
-    previous?: { statusId: number | null };
+    previous?: Partial<Record<string, { old: any; new: any }>>;
   }) {
     try {
-      const rows = [
+      const rows: ActivityLog[] = [
         // Generic 'updated' row — feeds the activity feed. Always written.
         this.activityRepo.create({
           projectId: payload.projectId,
@@ -78,26 +78,42 @@ export class ActivityService {
         }),
       ];
 
-      // Status-change row — feeds the cumulative-flow chart's history
-      // reconstruction (D-C6). Gate on `payload.previous`, the deliberate
-      // "status actually changed" signal computed by WorkItemsService.update()
-      // — NOT on changes.statusId, which is the raw DTO value and is present
-      // even for a no-op PUT that resends the item's current status.
-      // The CFD query does CAST(new_value AS INTEGER), so new_value MUST be
-      // the numeric status id as a string.
-      if (payload.previous !== undefined) {
-        const oldStatusId = payload.previous.statusId;
+      // Phase 2 — one granular row per changed field so the rail can
+      // render "Alice raised priority to high" instead of just "Alice
+      // updated BST-142". The cumulative-flow chart (D-C6) reads the
+      // 'status' row specifically and casts new_value to INTEGER, so
+      // status rows preserve the old-as-stringified-id contract.
+      const previous = payload.previous ?? {};
+      const FIELD_NAME_MAP: Record<string, string> = {
+        statusId: 'status',
+        title: 'title',
+        priority: 'priority',
+        storyPoints: 'story_points',
+        assigneeId: 'assignee',
+        sprintId: 'sprint',
+        startDate: 'start_date',
+        endDate: 'end_date',
+      };
+
+      const toStr = (v: unknown): string | null => {
+        if (v === null || v === undefined) return null;
+        if (typeof v === 'string') return v;
+        if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+        if (v instanceof Date) return v.toISOString();
+        return JSON.stringify(v);
+      };
+
+      for (const [key, change] of Object.entries(previous)) {
+        if (!change) continue;
+        const fieldChanged = FIELD_NAME_MAP[key] ?? key;
         rows.push(this.activityRepo.create({
           projectId: payload.projectId,
           workItemId: payload.item?.id,
           userId: payload.userId,
           action: 'updated',
-          fieldChanged: 'status',
-          oldValue:
-            oldStatusId === undefined || oldStatusId === null
-              ? null
-              : String(oldStatusId),
-          newValue: String(payload.changes?.statusId),
+          fieldChanged,
+          oldValue: toStr(change.old),
+          newValue: toStr(change.new),
         }));
       }
 

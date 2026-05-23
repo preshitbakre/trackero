@@ -542,8 +542,20 @@ export class WorkItemsService {
       await this.validateAssigneeInProject(dto.assigneeId, projectId);
     }
 
-    // Capture the previous statusId BEFORE any status mutation, so the
-    // emitted event can carry it for status-change activity logging (D-C6).
+    // Phase 2 — snapshot every field the activity rail wants granular
+    // history for, BEFORE any mutation. The emitted `previous` map only
+    // contains fields that actually changed so the listener can write
+    // exactly one row per change without a no-op shuffle.
+    const before = {
+      statusId: item.statusId,
+      title: item.title,
+      priority: item.priority,
+      storyPoints: item.storyPoints,
+      assigneeId: item.assigneeId,
+      sprintId: item.sprintId,
+      startDate: item.startDate,
+      endDate: item.endDate,
+    };
     const previousStatusId = item.statusId;
     let statusChanged = false;
 
@@ -646,14 +658,46 @@ export class WorkItemsService {
 
     const response = this.formatItemResponse(result!, parseInt(childCount.cnt), projectPrefix);
 
+    // Phase 2 — build a `previous` map containing every field that
+    // actually changed, with both old + new value. The activity
+    // listener writes one row per change so the rail can render
+    // "Alice raised priority to high" instead of "Alice updated BST-142".
+    type FieldChanges = Partial<Record<keyof typeof before, { old: any; new: any }>>;
+    const previous: FieldChanges = {};
+    if (statusChanged) {
+      previous.statusId = { old: previousStatusId, new: result!.statusId };
+    }
+    if (dto.title !== undefined && dto.title !== before.title) {
+      previous.title = { old: before.title, new: result!.title };
+    }
+    if (dto.priority !== undefined && dto.priority !== before.priority) {
+      previous.priority = { old: before.priority, new: result!.priority };
+    }
+    if (dto.storyPoints !== undefined && dto.storyPoints !== before.storyPoints) {
+      previous.storyPoints = { old: before.storyPoints, new: result!.storyPoints };
+    }
+    if (dto.assigneeId !== undefined && dto.assigneeId !== before.assigneeId) {
+      previous.assigneeId = { old: before.assigneeId, new: result!.assigneeId };
+    }
+    if (dto.sprintId !== undefined && dto.sprintId !== before.sprintId && item.itemType !== 'subtask') {
+      previous.sprintId = { old: before.sprintId, new: result!.sprintId };
+    }
+    if (dto.startDate !== undefined && dto.startDate !== before.startDate) {
+      previous.startDate = { old: before.startDate, new: result!.startDate };
+    }
+    if (dto.endDate !== undefined && dto.endDate !== before.endDate) {
+      previous.endDate = { old: before.endDate, new: result!.endDate };
+    }
+
     this.eventEmitter.emit('work_item.updated', {
       item: result,
       userId,
       projectId,
       changes: dto,
-      // Only meaningful when the status actually changed — lets the activity
-      // listener record a status-change row with the old value (D-C6).
-      previous: statusChanged ? { statusId: previousStatusId } : undefined,
+      // Granular field changes (Phase 2). Empty object when the update
+      // touched no tracked field; the listener treats that as a no-op
+      // beyond the generic 'updated' row.
+      previous,
     });
 
     return { item: response };
