@@ -159,6 +159,7 @@ export const ResponseCodes = {
   ITEM_FETCHED:           { code: 'S-0102', message: 'Item retrieved' },
   ITEM_UPDATED:           { code: 'S-0103', message: 'Item updated' },
   ITEM_DELETED:           { code: 'S-0104', message: 'Item deleted' },
+  ITEM_RESTORED:          { code: 'S-0114', message: 'Item restored' },
   ITEM_MOVED:             { code: 'S-0107', message: 'Item moved' },
   ITEM_SPRINT_ASSIGNED:   { code: 'S-0108', message: 'Sprint assigned' },
   STORIES_LISTED:         { code: 'S-0109', message: 'Stories retrieved' },

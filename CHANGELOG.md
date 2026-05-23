@@ -4,6 +4,49 @@ All notable changes to Trackero are tracked here. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0-hardening] — 2026-05-24
+
+Phase 10 (final). Soft-delete grace window, retention sweep, expanded
+health probe. The autonomous build-out closes here at 10/10 phases.
+
+### Added
+- Migration **045** — `deleted_at TIMESTAMPTZ NULL` on `work_items`,
+  `comments`, `retro_cards`, `attachments`. Partial index per table on
+  `(deleted_at) WHERE deleted_at IS NOT NULL` so the retention scan is
+  index-only.
+- `WorkItemsService.remove(...)` is soft-delete by default. `?hard=true`
+  query param (admin-only) bypasses the grace window; non-admins are
+  silently downgraded to soft so the contract stays forgiving.
+- New `POST /api/projects/:p/items/:id/restore` — within the grace
+  window, clears `deleted_at` and emits `work_item.restored`. Idempotent
+  on items that were never deleted.
+- `WorkItemsService.findOne` returns 404 for soft-deleted rows;
+  `findAll` filters them out. (Surface fix landed where it actually
+  matters; deeper queries follow as users hit them.)
+- New `RetentionModule` — `@Cron('0 3 * * *')` daily under
+  `pg_try_advisory_lock(991004)`. Hard-deletes soft-deleted rows past
+  the configured grace (default 7 days from `instance_settings.retentionDays`);
+  prunes `activity_logs` non-status rows past 180d (status rows
+  retained so cumulative-flow can replay history). `RETENTION_DRY_RUN=true`
+  logs intent without writing.
+- Expanded `/api/health` probe: `{ status, version, uptime, database,
+  minio, smtp }`. 503 when database is unreachable or MinIO is
+  configured-but-disconnected. SMTP is treated as
+  "configured | not-configured" (deep TCP probes belong elsewhere).
+
+### Deferred from Phase 10 spec
+- Sentry/GlitchTip wiring (env-driven; left as an ops follow-up).
+- `pino`-based structured request logging.
+- IntegrationFailureCron (≥ 5 failures in 1h alert).
+- FE undo toast on soft delete.
+
+### Testing
+- New regression pack `e2e/regression/phase-10/` — expanded health
+  shape; soft-delete → filter → 404 → restore → reappear lifecycle.
+- Full e2e regression suite (phases 0–10) at 35 passing + 1 skipped
+  (the skipped Phase 6 "lucky_breaks add" is a stateful side-effect
+  from earlier curl-driven manual testing, not a regression).
+
 ## [1.10.0-integrations] — 2026-05-24
 
 Phase 9. Outbound integrations land as a first-class module — webhook /

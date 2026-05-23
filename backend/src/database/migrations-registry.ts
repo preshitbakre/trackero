@@ -61,4 +61,5 @@ export const EXPECTED_MIGRATION_NAMES: ReadonlyArray<string> = [
   'InstanceSettings1716000042000',
   'ProjectIntegrations1716000043000',
   'IntegrationDeliveries1716000044000',
+  'SoftDeletes1716000045000',
 ];

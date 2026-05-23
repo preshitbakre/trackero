@@ -101,8 +101,30 @@ export class WorkItemsController {
     @Param('projectId', ParseIntPipe) projectId: number,
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: JwtPayload,
+    @Query('hard') hard?: string,
   ) {
-    return this.workItemsService.remove(projectId, id, user.userId);
+    // Phase 10 — soft delete by default; `?hard=true` (admin-only)
+    // bypasses the grace window for the rare case where an item must
+    // disappear immediately (PII, accidental sensitive content, etc.).
+    const wantsHard = hard === 'true' || hard === '1';
+    if (wantsHard && user.role !== 'admin') {
+      // Silently downgrade to soft for non-admins so the API stays
+      // forgiving — they get a soft delete + a 200, and audit logs
+      // record the request as soft.
+    }
+    return this.workItemsService.remove(projectId, id, user.userId, wantsHard && user.role === 'admin');
+  }
+
+  @Post(':id/restore')
+  @Roles('admin', 'project_manager', 'member')
+  @HttpCode(HttpStatus.OK)
+  @ResponseCode('ITEM_RESTORED')
+  async restore(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.workItemsService.restore(projectId, id, user.userId);
   }
 
   @Put(':id/move')

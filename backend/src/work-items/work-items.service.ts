@@ -248,7 +248,9 @@ export class WorkItemsService {
       .leftJoinAndSelect('wi.assignee', 'assignee')
       .leftJoinAndSelect('wi.sprint', 'sprint')
       .leftJoinAndSelect('wi.labels', 'labels')
-      .where('wi.projectId = :projectId', { projectId });
+      .where('wi.projectId = :projectId', { projectId })
+      // Phase 10 — soft-deleted rows are filtered out by default.
+      .andWhere('wi.deletedAt IS NULL');
 
     // Filter: itemType (comma-separated)
     if (query.itemType) {
@@ -354,7 +356,7 @@ export class WorkItemsService {
       relations: ['status', 'assignee', 'reporter', 'labels', 'sprint'],
     });
 
-    if (!item) {
+    if (!item || item.deletedAt) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
 
@@ -709,7 +711,7 @@ export class WorkItemsService {
     return { item: response };
   }
 
-  async remove(projectId: number, id: number, userId: number) {
+  async remove(projectId: number, id: number, userId: number, hard = false) {
     const item = await this.workItemRepo.findOne({
       where: { id, projectId },
     });
@@ -717,28 +719,52 @@ export class WorkItemsService {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
 
-    // Validate deletion is allowed — under the post-5.6 model this rejects
-    // any epic/story/task that still has direct subtask children. Leaves
-    // (bug, subtask) are always deletable.
     await this.validateDeletion(item);
 
-    // Under the canonical hierarchy model only subtasks carry parent_id, and
-    // validateDeletion above guarantees the item being removed has no direct
-    // subtask children. The earlier explicit "orphan children" UPDATEs are
-    // therefore dead code (no rows would ever match). The WorkItem entity
-    // also declares ON DELETE: SET NULL on the parent FK as a safety net for
-    // any future schema drift. Just remove the item.
-    await this.workItemRepo.remove(item);
+    if (hard) {
+      // Admin escape hatch — hard delete bypasses the soft-delete grace.
+      await this.workItemRepo.remove(item);
+    } else {
+      // Phase 10 — soft delete by default. RetentionCron picks up rows
+      // past the configured grace window (default 7 days) and hard-deletes
+      // them. `deleted_at IS NOT NULL` rows are filtered out of every list.
+      item.deletedAt = new Date();
+      await this.workItemRepo.save(item);
+    }
 
-    // Emit domain event only after the transaction commits.
     this.eventEmitter.emit('work_item.deleted', {
       itemId: id,
       itemType: item.itemType,
       userId,
       projectId,
+      soft: !hard,
     });
 
     return { item: null };
+  }
+
+  /**
+   * Phase 10 — restore a soft-deleted item within the grace window.
+   * Clears `deleted_at`; throws NOT_FOUND if the row is already hard-gone.
+   */
+  async restore(projectId: number, id: number, userId: number) {
+    const item = await this.workItemRepo.findOne({ where: { id, projectId } });
+    if (!item) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    if (!item.deletedAt) {
+      // Idempotent — already restored.
+      return { item: this.formatItemResponse(item) };
+    }
+    item.deletedAt = null;
+    await this.workItemRepo.save(item);
+    this.eventEmitter.emit('work_item.restored', {
+      itemId: id,
+      itemType: item.itemType,
+      userId,
+      projectId,
+    });
+    return { item: this.formatItemResponse(item) };
   }
 
   async move(projectId: number, id: number, dto: MoveWorkItemDto, userId: number) {

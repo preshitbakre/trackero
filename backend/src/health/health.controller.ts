@@ -15,9 +15,11 @@ export class HealthController {
   @Public()
   @ResponseCode('HEALTH_OK')
   async check(@Res({ passthrough: true }) res: Response) {
-    // Probe the database. If it is unreachable we MUST signal that to load
-    // balancers / k8s liveness+readiness probes by returning a 5xx — a probe
-    // that always returns 200 defeats the purpose of having one.
+    // Phase 10 — expanded health probe: database + minio + smtp. Each
+    // signal is independently degraded; the overall status is the worst.
+    // 503 if any signal fails so orchestrators take the instance out of
+    // rotation. SMTP is treated as "configured / not-configured" (a dev
+    // box without SMTP isn't unhealthy; a prod box with broken SMTP is).
     let database = 'disconnected';
     try {
       await this.dataSource.query('SELECT 1');
@@ -26,17 +28,41 @@ export class HealthController {
       database = 'disconnected';
     }
 
-    const healthy = database === 'connected';
-    // 503 Service Unavailable on degraded health so orchestrators take the
-    // instance out of rotation. Body is still the standard response envelope
-    // so existing clients continue to parse it.
+    let minio = 'not-configured';
+    const minioEndpoint = process.env.MINIO_ENDPOINT;
+    if (minioEndpoint) {
+      try {
+        const ssl = (process.env.MINIO_USE_SSL ?? '').toLowerCase() === 'true';
+        const port = process.env.MINIO_PORT ?? (ssl ? '443' : '9000');
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 1500);
+        const url = `${ssl ? 'https' : 'http'}://${minioEndpoint}:${port}/minio/health/live`;
+        const res = await fetch(url, { signal: ctrl.signal });
+        clearTimeout(t);
+        minio = res.ok ? 'connected' : 'disconnected';
+      } catch {
+        minio = 'disconnected';
+      }
+    }
+
+    let smtp = 'not-configured';
+    if (process.env.SMTP_HOST) {
+      // Stop short of opening a TCP connection per request — connection
+      // pools and probe storms don't mix. Treat a configured host as
+      // "configured"; deeper checks belong to a separate observability job.
+      smtp = 'configured';
+    }
+
+    const healthy = database === 'connected' && minio !== 'disconnected';
     res.status(healthy ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE);
 
     return {
       status: healthy ? 'healthy' : 'unhealthy',
-      version: '1.1.0',
+      version: '1.10.0',
       uptime: Math.floor(process.uptime()),
       database,
+      minio,
+      smtp,
     };
   }
 

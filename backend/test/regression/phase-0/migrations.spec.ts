@@ -60,6 +60,7 @@ import { UsersTimezone1716000041000 } from '../../../migrations/1716000041000-us
 import { InstanceSettings1716000042000 } from '../../../migrations/1716000042000-instance-settings';
 import { ProjectIntegrations1716000043000 } from '../../../migrations/1716000043000-project-integrations';
 import { IntegrationDeliveries1716000044000 } from '../../../migrations/1716000044000-integration-deliveries';
+import { SoftDeletes1716000045000 } from '../../../migrations/1716000045000-soft-deletes';
 import { EXPECTED_MIGRATION_NAMES } from '../../../src/database/migrations-registry';
 
 const ALL_MIGRATIONS: MixedList<new () => MigrationInterface> = [
@@ -108,6 +109,7 @@ const ALL_MIGRATIONS: MixedList<new () => MigrationInterface> = [
   InstanceSettings1716000042000,
   ProjectIntegrations1716000043000,
   IntegrationDeliveries1716000044000,
+  SoftDeletes1716000045000,
 ];
 
 function uniqueDbName(): string {

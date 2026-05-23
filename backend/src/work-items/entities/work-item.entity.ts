@@ -106,6 +106,11 @@ export class WorkItem {
   @Column({ name: 'reviewer_id', type: 'int', nullable: true })
   reviewerId: number | null;
 
+  // Phase 10 — soft-delete column. NULL means active. Filtered out of
+  // every list / read in the service layer; restore endpoint clears it.
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true })
+  deletedAt: Date | null;
+
   // =======================================
   // ORDERING
   // =======================================

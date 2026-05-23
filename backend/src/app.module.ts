@@ -31,6 +31,7 @@ import { TodayModule } from './today/today.module';
 import { DirectoryModule } from './directory/directory.module';
 import { PreferencesModule } from './preferences/preferences.module';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { RetentionModule } from './retention/retention.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 @Module({
@@ -80,6 +81,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     DirectoryModule,
     PreferencesModule,
     IntegrationsModule,
+    RetentionModule,
   ],
   providers: [
     {
