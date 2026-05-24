@@ -16,11 +16,13 @@ import { ErrorState } from '../components/common/ErrorState';
 import { PRIORITY_BORDER_COLORS, PRIORITY_BADGE_COLORS, STATUS_BADGE_COLORS, AVATAR_COLORS } from '../lib/colors';
 import { CreateItemDialog } from '../components/common/CreateItemDialog';
 import { LabelList } from '../components/ui/LabelBadge';
+import { TypeTag } from '../components/ui';
 import { calculateMidpoint } from '../lib/lexorank';
 
 interface BacklogTask {
   id: number;
   itemNumber: number;
+  itemKey?: string;
   title: string;
   type: string;
   itemType?: string;
@@ -59,71 +61,106 @@ function SortableTaskRow({ task, selected, onSelect, onClick, subtaskCount, coll
   const badge = PRIORITY_BADGE_COLORS[task.priority];
   const avatar = task.assignee ? AVATAR_COLORS[task.assignee.id % 4] : null;
 
+  const typeKind = (task.itemType || task.type || 'task') as 'task' | 'bug' | 'story' | 'epic' | 'subtask';
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-3 px-5 py-3.5 rounded-xl ${
-        selected ? 'ring-2 ring-[#88A9D6] bg-white' : 'bg-white dark:bg-dneutral-100 hover:shadow-[0_4px_16px_rgba(0,0,0,0.10)]'
-      } shadow-[0_2px_12px_rgba(0,0,0,0.08)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.35)] transition-all duration-150`}
+      // Editorial table row per frame 9: hairline-divided rows, no rounded
+      // cards or drop shadows. The lilac-tint selected state matches the
+      // design's row-highlight treatment.
+      className={`flex items-center gap-3 px-4 py-2 border-b border-rule transition-colors ${
+        selected ? 'bg-lilac-tint/60' : 'hover:bg-paper/50'
+      }`}
     >
       {canEdit && (
-        <input type="checkbox" checked={selected} onChange={() => onSelect(task.id)} className="w-4 h-4 rounded border-neutral-200" />
+        <input type="checkbox" checked={selected} onChange={() => onSelect(task.id)} className="w-3.5 h-3.5 accent-lilac" aria-label="Select" />
       )}
-      {canEdit && <span {...listeners} {...attributes} className="cursor-grab text-neutral-300 hover:text-neutral-500">{'\u2807'}</span>}
+      {canEdit && (
+        <span
+          {...listeners}
+          {...attributes}
+          className="cursor-grab text-faint hover:text-mute text-[14px] leading-none"
+          aria-label="Drag to reorder"
+        >{'\u2807'}</span>
+      )}
       {onToggleCollapse ? (
-        <button onClick={(e) => { e.stopPropagation(); onToggleCollapse(); }} className="text-neutral-400 hover:text-neutral-600">
-          <svg className={`w-3.5 h-3.5 transition-transform duration-150 ${collapsed ? '-rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleCollapse(); }}
+          className="text-faint hover:text-text"
+          aria-label={collapsed ? 'Expand subtasks' : 'Collapse subtasks'}
+        >
+          <svg className={`w-3 h-3 transition-transform duration-150 ${collapsed ? '-rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </button>
-      ) : <span className="w-3.5" />}
-      <span
-        className="text-[11px] font-semibold uppercase px-1.5 py-0.5 rounded-full flex-shrink-0"
-        style={{
-          backgroundColor: ({ epic: '#7C5CFC35', story: '#88A9D640', task: '#D6B58840', subtask: '#A8A19A35' } as Record<string, string>)[task.itemType || task.type || 'task'] || '#A8A19A35',
-          color: ({ epic: '#4A2FC0', story: '#2E5A8E', task: '#7A5E2A', subtask: '#5C5650' } as Record<string, string>)[task.itemType || task.type || 'task'] || '#5C5650',
-        }}
-      >
-        {(task.itemType || task.type || 'task').slice(0, task.itemType === 'subtask' ? 3 : undefined)}
-      </span>
-      <span className="text-[14px] font-mono text-neutral-300">#{task.itemNumber}</span>
-      <span onClick={onClick} className="flex-1 text-[16px] font-semibold text-neutral-700 dark:text-dneutral-700 truncate cursor-pointer hover:text-lilac-dark">{task.title}</span>
+      ) : <span className="w-3" />}
 
-      {/* Right-side metadata — muted, secondary to title */}
-      {task.status && (
-        <span className="flex items-center gap-1.5 text-[14px] text-neutral-400">
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: task.status.color }} />
-          {task.status.name}
-        </span>
-      )}
-      {badge && (
-        <span className="text-[14px] px-1.5 py-0.5 rounded" style={{ background: badge.bg, color: badge.color }}>
-          {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
-        </span>
-      )}
-      {task.storyPoints != null && task.storyPoints > 0 && (
-        <span className="text-[14px] px-1.5 py-0.5 rounded" style={{ background: '#88A9D625', color: '#3F5E8E' }}>
-          {task.storyPoints} pts
-        </span>
-      )}
-      {avatar && task.assignee && (
-        <div className="w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold flex-shrink-0" style={{ background: avatar.bg, color: avatar.color }}>
-          {task.assignee.displayName?.charAt(0)?.toUpperCase() || '?'}
+      <TypeTag kind={typeKind} size="sm" />
+
+      <span className="text-[12px] font-mono text-faint flex-shrink-0 w-[90px]">
+        {task.itemKey ?? `#${task.itemNumber}`}
+      </span>
+
+      <span
+        onClick={onClick}
+        className="flex-1 min-w-0 text-[14px] text-text truncate cursor-pointer hover:text-lilac-dark"
+      >
+        {task.title}
+      </span>
+
+      <div className="flex-shrink-0 min-w-0">
+        <LabelList labels={task.labels || []} max={2} />
+      </div>
+
+      {/* Priority — dot + label */}
+      {badge ? (
+        <div className="flex items-center gap-1.5 flex-shrink-0 w-[70px]">
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: badge.color }} />
+          <span className="text-[12px] text-mute">{task.priority.toLowerCase()}</span>
         </div>
+      ) : (
+        <span className="w-[70px] flex-shrink-0 text-[12px] text-faint">—</span>
       )}
-      <LabelList labels={task.labels || []} max={2} />
+
+      {/* Status — soft inline pill */}
+      {task.status && (
+        <span className="inline-flex items-center gap-1 text-[11px] text-mute w-[80px] flex-shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: task.status.color }} />
+          <span className="truncate">{task.status.name}</span>
+        </span>
+      )}
+
+      <span className="text-[13px] tabular-nums text-text w-[40px] text-right flex-shrink-0">
+        {task.storyPoints != null && task.storyPoints > 0 ? task.storyPoints : '—'}
+      </span>
+
+      <div className="flex-shrink-0 w-7 flex justify-end">
+        {avatar && task.assignee ? (
+          <div
+            className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold"
+            style={{ background: avatar.bg, color: avatar.color }}
+            title={task.assignee.displayName}
+          >
+            {task.assignee.displayName?.charAt(0)?.toUpperCase() || '?'}
+          </div>
+        ) : (
+          <span className="text-faint text-[12px]">—</span>
+        )}
+      </div>
+
       {subtaskCount != null && subtaskCount > 0 && collapsed && (
-        <span className="text-[14px] text-neutral-400">({subtaskCount})</span>
+        <span className="text-[11px] text-faint italic w-[60px] flex-shrink-0 text-right">{subtaskCount} sub</span>
       )}
+
       {canEdit && sprints.length > 0 && onMoveSprint && (
-        <div className="ml-4 pl-4 border-l border-neutral-200 dark:border-dneutral-300 flex-shrink-0">
-        <Select
-          value=""
-          onChange={(val) => { if (val) onMoveSprint(task.id, parseInt(val)); }}
-          placeholder="Choose sprint"
-          options={[{ value: '', label: 'Unassigned' }, ...sprints.map((s) => ({ value: String(s.id), label: s.name }))]}
-        />
+        <div className="flex-shrink-0 w-[140px]">
+          <Select
+            value=""
+            onChange={(val) => { if (val) onMoveSprint(task.id, parseInt(val)); }}
+            placeholder="→ Sprint"
+            options={[{ value: '', label: '—' }, ...sprints.map((s) => ({ value: String(s.id), label: s.name }))]}
+          />
         </div>
       )}
     </div>
@@ -336,8 +373,25 @@ export function BacklogPage() {
           </div>
         )}
 
+        {/* Editorial table header — matches the design's column labels. */}
+        {parentTasks.length > 0 && (
+          <div className="flex items-center gap-3 px-4 pb-1 mb-0 border-b-2 border-rule text-[10px] uppercase tracking-[0.16em] text-faint font-semibold">
+            {canEdit && <span className="w-3.5" />}
+            {canEdit && <span className="w-3.5" />}
+            <span className="w-3" />
+            <span className="w-4" />
+            <span className="w-[90px]">ID</span>
+            <span className="flex-1">Title</span>
+            <span className="min-w-0">Labels</span>
+            <span className="w-[70px]">Priority</span>
+            <span className="w-[80px]">Status</span>
+            <span className="w-[40px] text-right">Pts</span>
+            <span className="w-7 text-right">Owner</span>
+            {canEdit && sprints.length > 0 && <span className="w-[140px] text-right">Move</span>}
+          </div>
+        )}
         <SortableContext items={parentTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-          <div className="space-y-4">
+          <div>
             {parentTasks.map((task) => {
               const subtasks = subtaskMap.get(task.id) || [];
               const isCollapsed = collapsedParents.has(task.id);
@@ -356,7 +410,10 @@ export function BacklogPage() {
                     onMoveSprint={handleMoveToSprint}
                   />
                   {subtasks.length > 0 && !isCollapsed && (
-                    <div className="ml-10 mt-2 space-y-2 border-l-2 border-[#88A9D630] dark:border-dneutral-300 pl-5">
+                    // Subtasks render as compact indented rows; the design
+                    // groups parent + children with a thin left rule so the
+                    // structure reads at a glance without extra chrome.
+                    <div className="pl-10 border-l border-rule/70">
                       {subtasks.map((st) => {
                         const stAvatar = st.assignee ? AVATAR_COLORS[st.assignee.id % 4] : null;
                         const stBadge = PRIORITY_BADGE_COLORS[st.priority];
@@ -364,41 +421,56 @@ export function BacklogPage() {
                           <div
                             key={st.id}
                             onClick={() => { setSelectedTaskId(task.id); setDefaultSubtaskId(st.id); }}
-                            className="flex items-center gap-2 px-4 py-2.5 rounded-lg cursor-pointer bg-white dark:bg-dneutral-100/50 hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)] shadow-[0_1px_6px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_6px_rgba(0,0,0,0.25)] transition-all duration-150"
+                            className="flex items-center gap-3 px-4 py-1.5 border-b border-rule/60 cursor-pointer hover:bg-paper/50 transition-colors"
                           >
                             {canEdit && (
-                              <input type="checkbox" checked={selectedIds.has(st.id)} onChange={(e) => { e.stopPropagation(); toggleSelect(st.id); }} className="w-3.5 h-3.5 rounded border-neutral-200" />
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.has(st.id)}
+                                onChange={(e) => { e.stopPropagation(); toggleSelect(st.id); }}
+                                className="w-3.5 h-3.5 accent-lilac"
+                                aria-label="Select subtask"
+                              />
                             )}
-                            <span className="text-neutral-300 text-[14px]">└</span>
-                            <span
-                              className="text-[10px] font-semibold uppercase px-1 py-0.5 rounded-full flex-shrink-0"
-                              style={{
-                                backgroundColor: ({ epic: '#7C5CFC35', story: '#88A9D640', task: '#D6B58840', subtask: '#A8A19A35' } as Record<string, string>)[st.itemType || st.type || 'subtask'] || '#A8A19A35',
-                                color: ({ epic: '#4A2FC0', story: '#2E5A8E', task: '#7A5E2A', subtask: '#5C5650' } as Record<string, string>)[st.itemType || st.type || 'subtask'] || '#5C5650',
-                              }}
-                            >sub</span>
-                            <span className="text-[14px] font-mono text-neutral-400">#{st.itemNumber}</span>
-                            <span className="flex-1 text-[14px] text-neutral-600 dark:text-dneutral-600 truncate">{st.title}</span>
+                            <span className="text-faint text-[12px]">└</span>
+                            <TypeTag kind="subtask" size="sm" />
+                            <span className="text-[12px] font-mono text-faint w-[90px] flex-shrink-0">
+                              {st.itemKey ?? `#${st.itemNumber}`}
+                            </span>
+                            <span className="flex-1 min-w-0 text-[13px] text-text truncate">{st.title}</span>
+                            {stBadge ? (
+                              <div className="flex items-center gap-1.5 flex-shrink-0 w-[70px]">
+                                <span className="w-1.5 h-1.5 rounded-full" style={{ background: stBadge.color }} />
+                                <span className="text-[11px] text-mute">{st.priority.toLowerCase()}</span>
+                              </div>
+                            ) : (
+                              <span className="w-[70px] flex-shrink-0 text-[11px] text-faint">—</span>
+                            )}
                             {st.status && (() => {
                               const stStatus = STATUS_BADGE_COLORS[st.status.category || 'backlog'] || STATUS_BADGE_COLORS.backlog;
                               return (
-                                <span className="flex items-center gap-1.5 text-[14px]" style={{ color: stStatus.color }}>
+                                <span className="inline-flex items-center gap-1 text-[11px] w-[80px] flex-shrink-0" style={{ color: stStatus.color }}>
                                   <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: stStatus.dot }} />
-                                  {st.status.name}
+                                  <span className="truncate">{st.status.name}</span>
                                 </span>
                               );
                             })()}
-                            {stBadge && (
-                              <span className="text-[14px] px-1 py-0.5 rounded" style={{ background: stBadge.bg, color: stBadge.color }}>{st.priority.charAt(0).toUpperCase() + st.priority.slice(1)}</span>
-                            )}
-                            {st.storyPoints != null && st.storyPoints > 0 && (
-                              <span className="text-[14px] px-1 py-0.5 rounded" style={{ background: '#88A9D630', color: '#3F5E8E' }}>{st.storyPoints} pts</span>
-                            )}
-                            {stAvatar && st.assignee && (
-                              <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0" style={{ background: stAvatar.bg, color: stAvatar.color }}>
-                                {st.assignee.displayName?.charAt(0)?.toUpperCase() || '?'}
-                              </div>
-                            )}
+                            <span className="text-[13px] tabular-nums text-text w-[40px] text-right flex-shrink-0">
+                              {st.storyPoints != null && st.storyPoints > 0 ? st.storyPoints : '—'}
+                            </span>
+                            <div className="flex-shrink-0 w-7 flex justify-end">
+                              {stAvatar && st.assignee ? (
+                                <div
+                                  className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold"
+                                  style={{ background: stAvatar.bg, color: stAvatar.color }}
+                                  title={st.assignee.displayName}
+                                >
+                                  {st.assignee.displayName?.charAt(0)?.toUpperCase() || '?'}
+                                </div>
+                              ) : (
+                                <span className="text-faint text-[11px]">—</span>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
