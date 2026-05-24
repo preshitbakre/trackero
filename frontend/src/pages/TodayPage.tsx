@@ -1,8 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../api/client';
-import { Eyebrow, KbdKey, MetricNumber, TypeTag, Avatar } from '../components/ui';
-import type { TypeTagKind } from '../components/ui';
 
 interface TodayPayload {
   greeting: {
@@ -133,15 +131,26 @@ export function TodayPage() {
   }
 
   return (
-    <div className="p-8 max-w-screen-2xl grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
+    <div className="p-8 max-w-screen-2xl grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-10">
       <main>
-        <GreetingHero greeting={data.greeting} summary={data.summary} />
-        <ThreeThings items={data.triage} />
-        <ReviewingPanel items={data.reviewing} />
-        <DueSoonPanel items={data.dueSoon} total={data.dueSoonTotalAssigned} />
+        <GreetingHero
+          greeting={data.greeting}
+          summary={data.summary}
+          sprintName={data.currentSprint?.name ?? null}
+        />
+        <ThreeThings
+          items={data.triage}
+          assignedCount={data.triage.length /* TODO: backend should surface a total-assigned count separate from the top-3 triage slice */}
+        />
+        {/* Reviewing + Due soon as a 2-col layout — matches the design's
+            bottom-row split in the main column. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+          <ReviewingPanel items={data.reviewing} />
+          <DueSoonPanel items={data.dueSoon} total={data.dueSoonTotalAssigned} />
+        </div>
       </main>
-      <aside className="space-y-6">
-        <SprintCard sprint={data.currentSprint} />
+      <aside className="space-y-7">
+        <SprintCard sprint={data.currentSprint} summary={data.summary} />
         <LiveRail presence={data.presence} />
         <ActivityRail activity={data.activity} />
       </aside>
@@ -149,34 +158,82 @@ export function TodayPage() {
   );
 }
 
-function GreetingHero({ greeting, summary }: {
+function GreetingHero({ greeting, summary, sprintName }: {
   greeting: TodayPayload['greeting'];
   summary: TodayPayload['summary'];
+  sprintName: string | null;
 }) {
   const partOfDayWord =
     greeting.partOfDay === 'morning' ? 'morning' :
     greeting.partOfDay === 'afternoon' ? 'afternoon' : 'evening';
 
+  // Match the design's exact subline pattern (frame 1, line ~270 of the
+  // clean markup):
+  //   <span>3 cards</span> need your review, <span>1 bug</span> is blocking
+  //   <span class="mono">BST-104</span>, and the team is <span>14 of 38
+  //   points</span> through Sprint 27 — <span class="serif-i">on pace</span>.
+  // Each `<span>` is bold-weight ink; the mono is the item key; the closing
+  // pace word is serif italic.
+  const hasReview = summary.reviewCardCount > 0;
+  const hasBlocker = summary.blockingBugCount > 0;
+  const hasPace = summary.pointsTotal !== null && summary.pointsTotal !== undefined && summary.pointsTotal > 0;
+
   return (
-    <section className="mb-10">
-      <Eyebrow className="mb-3">
+    <section className="mb-12">
+      <div className="smallcaps mb-3">
         {formatEyebrowDate(greeting.localDate, partOfDayWord, greeting.localTime)}
-      </Eyebrow>
-      <h1 className="font-serif text-[48px] leading-[1.05] text-text">
-        Good {partOfDayWord}, <span className="italic">{greeting.name}.</span>
+      </div>
+      {/* Design hero is ~84px serif with italic name on its own line and an
+          em-dash flourish trailing. Letter-spacing pulled tight via .serif. */}
+      <h1 className="serif text-[80px] leading-[0.98] text-ink">
+        Good {partOfDayWord},<br />
+        <span className="serif-i">{greeting.name}.</span>
+        <span className="text-[var(--accent)] ml-2 align-middle text-[60px]">—</span>
       </h1>
-      <p className="mt-4 text-[16px] text-mute max-w-2xl">
-        {summary.reviewCardCount > 0 ? (
-          <><MetricNumber size="sm" italic>{summary.reviewCardCount}</MetricNumber> {summary.reviewCardCount === 1 ? 'card' : 'cards'} await your review</>
+      <p className="mt-5 text-[16px] text-ink max-w-2xl leading-relaxed">
+        {hasReview ? (
+          <>
+            <span className="font-semibold">
+              {summary.reviewCardCount} {summary.reviewCardCount === 1 ? 'card' : 'cards'}
+            </span>{' '}
+            need your review
+          </>
         ) : (
-          <span className="italic">nothing waits for your review</span>
+          <span className="serif-i text-ink-2">nothing waits for your review</span>
         )}
-        {summary.blockingBugItemKey && (
-          <> · <span className="font-medium">{summary.blockingBugItemKey}</span> is blocking work</>
+        {hasBlocker && (
+          <>
+            ,{' '}
+            <span className="font-semibold">
+              {summary.blockingBugCount} {summary.blockingBugCount === 1 ? 'bug' : 'bugs'}
+            </span>{' '}
+            {summary.blockingBugCount === 1 ? 'is' : 'are'} blocking
+            {summary.blockingBugItemKey && (
+              <> <span className="mono text-ink">{summary.blockingBugItemKey}</span></>
+            )}
+          </>
         )}
-        {summary.pointsTotal !== null && summary.pointsTotal > 0 && (
-          <> · the team is <MetricNumber size="sm" italic>{summary.pointsDone}</MetricNumber> of {summary.pointsTotal} pts
-            <span className={`ml-1 italic font-serif ${summary.pace === 'behind' ? 'text-danger' : summary.pace === 'ahead' ? 'text-success' : 'text-mute'}`}>{summary.pace}</span>
+        {hasPace && (
+          <>
+            , and the team is{' '}
+            <span className="font-semibold">
+              {summary.pointsDone} of {summary.pointsTotal} points
+            </span>
+            {sprintName ? <> through {sprintName}</> : null}
+            {summary.pace && (
+              <>
+                {' '}—{' '}
+                <span
+                  className={`serif-i ${
+                    summary.pace === 'behind' ? 'text-[var(--accent)]' :
+                    summary.pace === 'ahead' ? 'text-[var(--c-forest)]' :
+                    'text-ink'
+                  }`}
+                >
+                  {summary.pace}
+                </span>
+              </>
+            )}
           </>
         )}
         .
@@ -185,37 +242,93 @@ function GreetingHero({ greeting, summary }: {
   );
 }
 
-function ThreeThings({ items }: { items: TodayPayload['triage'] }) {
+function ThreeThings({ items, assignedCount }: { items: TodayPayload['triage']; assignedCount: number }) {
+  // Map item type to design's .tmark variant. The design uses
+  // E/S/T/B/s — `subtask` lowercases to 's' inside .tmark.subtask.
+  const tmarkClass = (type: string) => {
+    if (type === 'epic') return 'tmark epic';
+    if (type === 'story') return 'tmark story';
+    if (type === 'bug') return 'tmark bug';
+    if (type === 'subtask') return 'tmark subtask';
+    return 'tmark task';
+  };
+  const tmarkLetter = (type: string) => {
+    if (type === 'subtask') return 's';
+    return type.charAt(0).toUpperCase();
+  };
   return (
     <section className="mb-10">
-      <header className="mb-4 flex items-baseline gap-3">
-        <h2 className="font-serif text-[26px] text-text">Your three things</h2>
-        <span className="text-[11px] text-mute">
-          auto-prioritized · <KbdKey>⌥</KbdKey> to re-rank
-        </span>
+      <header className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-baseline gap-3">
+          <h2 className="serif text-[28px] text-ink">Your three things</h2>
+          <span className="text-[12px] text-[var(--ink-3)]">
+            auto-prioritized · <span className="kbd">⌥</span> to re-rank
+          </span>
+        </div>
+        {assignedCount > 0 && (
+          <Link to="/today?filter=assigned" className="btn-ghost text-[12px]">
+            See all {assignedCount} assigned <span aria-hidden="true">→</span>
+          </Link>
+        )}
       </header>
       {items.length === 0 ? (
-        <p className="italic text-faint text-[13px]">Nothing urgent — go ship something.</p>
+        <p className="serif-i text-[var(--ink-4)] text-[14px]">Nothing urgent — go ship something.</p>
       ) : (
         <ol className="space-y-3">
           {items.map((t, i) => (
-            <li key={t.id} className="bg-card rounded-xl p-4 shadow-[0_1px_2px_rgba(26,20,36,0.04)] lift-on-hover flex items-center gap-4">
-              <span className="font-serif italic text-[36px] text-faint w-10 flex-shrink-0 text-center">{i + 1}</span>
-              <TypeTag kind={t.itemType as TypeTagKind} size="md" />
-              <span className="font-mono text-[11px] text-mute">{t.itemKey}</span>
-              <span className="font-serif text-[15px] text-text flex-1 truncate">{t.title}</span>
-              {t.points !== null && (
-                <MetricNumber size="sm" italic className="text-mute">{t.points}</MetricNumber>
-              )}
-              {t.points !== null && <span className="text-[11px] text-faint">pts</span>}
-              <span className="text-[11px] text-faint">· last touched {formatRelativeTime(t.lastTouchedAt)}</span>
-              {t.assignee && <Avatar user={t.assignee} size="xs" />}
-              <Link
-                to={`/projects/${(t as any).projectId ?? ''}/tasks/${t.id}`}
-                className="text-[12px] text-lilac-dark hover:underline whitespace-nowrap"
-              >
-                Open ↵
-              </Link>
+            <li key={t.id} className="bg-[var(--card-bg)] border border-[var(--line)] rounded-[var(--radius-md)] p-4 flex items-start gap-5">
+              {/* Big serif rank numeral — design uses 1/2/3 in italic-serif at ~48px */}
+              <span className="serif text-[48px] leading-none text-[var(--ink-4)] w-9 flex-shrink-0 text-center">{i + 1}</span>
+
+              <div className="flex-1 min-w-0">
+                {/* Meta row: tmark + key + dot · status pill + (optional blocker chip) */}
+                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                  <span className={tmarkClass(t.itemType)} aria-label={`${t.itemType} type`}>
+                    {tmarkLetter(t.itemType)}
+                  </span>
+                  <span className="mono num text-[12px] text-[var(--ink-3)]">{t.itemKey}</span>
+                  <span className="text-[var(--ink-4)]">·</span>
+                  <span className="status">
+                    <span className="dot" style={{ backgroundColor: 'var(--c-mustard)' }} />
+                    {t.reasonChips?.find((c) => /progress|review|todo|done/i.test(c)) ?? 'open'}
+                  </span>
+                  {/* Reason chips — show non-status chips inline (e.g. "blocked by BST-201") */}
+                  {(t.reasonChips ?? [])
+                    .filter((c) => /blocked/i.test(c))
+                    .slice(0, 1)
+                    .map((c) => (
+                      <span key={c} className="chip chip-accent">{c}</span>
+                    ))}
+                </div>
+
+                <div className="serif text-[16px] text-ink leading-snug truncate">{t.title}</div>
+
+                {/* Meta footer: label chip + pts + last touched */}
+                <div className="flex items-center gap-2 mt-2 flex-wrap text-[12px]">
+                  <span className="chip">
+                    <span className="dot" style={{ backgroundColor: 'var(--c-sky)' }} />
+                    {t.priorityTier}
+                  </span>
+                  {t.points !== null && (
+                    <span className="mono num text-[var(--ink-3)]">{t.points} pts</span>
+                  )}
+                  <span className="mono num text-[var(--ink-4)]">· last touched {formatRelativeTime(t.lastTouchedAt)}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {t.assignee && (
+                  <span className="avatar" style={{ background: 'var(--c-plum)' }}>
+                    {(t.assignee.displayName?.[0] ?? '?').toUpperCase()}
+                  </span>
+                )}
+                <Link
+                  to={`/projects/${(t as any).projectId ?? ''}/tasks/${t.id}`}
+                  className="btn"
+                >
+                  Open <span className="kbd ml-1">↵</span>
+                </Link>
+              </div>
             </li>
           ))}
         </ol>
@@ -226,20 +339,24 @@ function ThreeThings({ items }: { items: TodayPayload['triage'] }) {
 
 function ReviewingPanel({ items }: { items: TodayPayload['reviewing'] }) {
   return (
-    <section className="mb-10">
+    <section>
       <header className="mb-3 flex items-baseline gap-2">
-        <h2 className="font-serif text-[20px] text-text">Reviewing</h2>
-        <span className="text-[11px] text-mute">· {items.length} {items.length === 1 ? 'card' : 'cards'}</span>
+        <h2 className="serif text-[20px] text-ink">Reviewing</h2>
+        <span className="mono text-[12px] text-[var(--ink-3)]">
+          · {items.length} {items.length === 1 ? 'PR' : 'PRs'}
+        </span>
       </header>
       {items.length === 0 ? (
-        <p className="text-[13px] text-mute">Nothing to review right now.</p>
+        <p className="text-[13px] text-[var(--ink-3)]">Nothing to review right now.</p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="divide-y divide-[var(--line)]">
           {items.map((r) => (
-            <li key={r.id} className="flex items-center gap-3 text-[14px]">
-              <span className="font-mono text-[11px] text-mute">{r.itemKey}</span>
-              <span className="flex-1 truncate">{r.title}</span>
-              <Avatar user={r.author} size="xs" />
+            <li key={r.id} className="flex items-center gap-3 py-2 text-[13px]">
+              <span className="mono num text-[12px] text-[var(--ink-3)] w-[64px] flex-shrink-0">{r.itemKey}</span>
+              <span className="flex-1 truncate text-ink">{r.title}</span>
+              <span className="avatar" style={{ background: 'var(--c-sky)' }} title={r.author.displayName}>
+                {(r.author.displayName?.[0] ?? '?').toUpperCase()}
+              </span>
             </li>
           ))}
         </ul>
@@ -250,27 +367,22 @@ function ReviewingPanel({ items }: { items: TodayPayload['reviewing'] }) {
 
 function DueSoonPanel({ items, total }: { items: TodayPayload['dueSoon']; total: number }) {
   return (
-    <section className="mb-10">
+    <section>
       <header className="mb-3 flex items-baseline gap-2">
-        <h2 className="font-serif text-[20px] text-text">Due soon</h2>
-        <span className="text-[11px] text-mute">· {items.length} of {total} assigned</span>
+        <h2 className="serif text-[20px] text-ink">Due soon</h2>
+        <span className="mono text-[12px] text-[var(--ink-3)]">· ends with sprint · {total} assigned</span>
       </header>
       {items.length === 0 ? (
-        <p className="text-[13px] text-mute">Nothing due this week.</p>
+        <p className="text-[13px] text-[var(--ink-3)]">Nothing due this week.</p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="divide-y divide-[var(--line)]">
           {items.map((d) => {
-            const tone = d.dueInDays <= 0
-              ? 'bg-danger/10 text-danger'
-              : d.dueInDays <= 2
-              ? 'bg-warning/10 text-warning'
-              : 'bg-lilac-tint text-lilac-dark';
-            const label = d.dueInDays <= 0 ? `overdue ${-d.dueInDays}d` : d.dueInDays === 0 ? 'today' : `${d.dueInDays}d`;
+            const label = d.dueInDays <= 0 ? `${-d.dueInDays}d over` : d.dueInDays === 0 ? 'today' : `${d.dueInDays}d`;
             return (
-              <li key={d.id} className="flex items-center gap-3 text-[14px]">
-                <span className="flex-1 truncate">{d.title}</span>
-                <span className="font-mono text-[11px] text-mute">{d.itemKey}</span>
-                <span className={`px-2 py-0.5 rounded-full text-[11px] ${tone}`}>{label}</span>
+              <li key={d.id} className="flex items-center gap-3 py-2 text-[13px]">
+                <span className="mono num text-[12px] text-[var(--ink-3)] w-[64px] flex-shrink-0">{d.itemKey}</span>
+                <span className="flex-1 truncate text-ink">{d.title}</span>
+                <span className="mono num text-[12px] text-[var(--ink-3)]">{label}</span>
               </li>
             );
           })}
@@ -280,54 +392,77 @@ function DueSoonPanel({ items, total }: { items: TodayPayload['dueSoon']; total:
   );
 }
 
-function SprintCard({ sprint }: { sprint: TodayPayload['currentSprint'] }) {
+function SprintCard({ sprint, summary }: {
+  sprint: TodayPayload['currentSprint'];
+  summary: TodayPayload['summary'];
+}) {
   if (!sprint) {
     return (
-      <section className="bg-card rounded-xl p-5 shadow-[0_1px_2px_rgba(26,20,36,0.04)]">
-        <Eyebrow size="sm" className="mb-2">No active sprint</Eyebrow>
-        <p className="text-[13px] text-faint">
-          Open <Link to="/projects" className="text-lilac-dark hover:underline">Projects</Link> and start one.
+      <section className="bg-[var(--card-bg)] border border-[var(--line)] rounded-[var(--radius-md)] p-5">
+        <div className="smallcaps mb-2">No active sprint</div>
+        <p className="text-[13px] text-[var(--ink-4)]">
+          Open <Link to="/projects" className="text-[var(--accent)] hover:underline">Projects</Link> and start one.
         </p>
       </section>
     );
   }
 
-  // Editorial pull-quote header: prefer the sprint goal in italic-serif
-  // (matches frame 1's "Ship door-list export and fix the bursty webhooks"
-  // pattern); fall back to the sprint name when no goal is set.
-  const remaining = Math.max(0, sprint.pointsTotal - sprint.pointsDone - sprint.pointsInProgress);
-  const blocked = 0; // backend doesn't carry per-status counts on /today yet
-  const reviewing = 0;
+  // Date labels under the sparkline mirror the design's MAY 19 / TODAY /
+  // MAY 30 strip. Computed from the sprint's start/end via burndown[0]
+  // and the last entry.
+  const burndown = sprint.burndown ?? [];
+  const startLabel = burndown[0]?.day
+    ? new Date(burndown[0].day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase()
+    : null;
+  const endLabel = sprint.endDate
+    ? new Date(sprint.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase()
+    : null;
 
   return (
-    <section className="bg-card rounded-xl p-5 shadow-[0_1px_2px_rgba(26,20,36,0.04)]">
-      <Eyebrow size="sm" className="mb-2">
+    <section className="bg-[var(--card-bg)] border border-[var(--line)] rounded-[var(--radius-md)] p-5">
+      <div className="smallcaps mb-2">
         {sprint.projectName} · day {sprint.dayOf} of {sprint.length}
-      </Eyebrow>
-      <p className="font-serif italic text-[22px] text-text leading-snug">
-        {sprint.goal ? `"${sprint.goal}"` : sprint.name}
+      </div>
+      {/* Editorial pull-quote — design renders the sprint goal in italic
+          serif at ~20px. Falls back to the sprint name + a generic
+          tagline so the slot never reads empty. */}
+      <p className="serif-i text-[20px] leading-snug text-ink">
+        {sprint.goal ? `"${sprint.goal}"` : `"${sprint.name}"`}
       </p>
 
-      {/* Inline burndown sparkline — snapshot-backed via Phase 5.
-          The chart is purely informational; the metric grid below
-          surfaces the numbers anyone reading needs to act on. */}
-      {sprint.burndown && sprint.burndown.length >= 2 && (
-        <BurndownSparkline points={sprint.burndown} className="mt-3" />
-      )}
-
-      {/* 2×2 metric grid per frame 1 — italic-serif numerals + eyebrow labels. */}
-      <div className="mt-4 grid grid-cols-2 gap-4">
-        <MetricCell label="Done" value={sprint.pointsDone} />
-        <MetricCell label="In progress" value={sprint.pointsInProgress} muted />
-        <MetricCell label="Remaining" value={remaining} muted />
-        <MetricCell label="Of total" value={sprint.pointsTotal} muted />
+      {/* Burndown row — eyebrow + mono pts on top, sparkline below, date
+          labels (MAY 19 / TODAY / MAY 30) under that. */}
+      <div className="mt-5">
+        <div className="flex items-center justify-between mb-2">
+          <span className="smallcaps">Burndown</span>
+          <span className="mono num text-[12px] text-[var(--ink-3)]">
+            {sprint.pointsDone}/{sprint.pointsTotal} pts
+          </span>
+        </div>
+        {burndown.length >= 2 ? (
+          <BurndownSparkline points={burndown} />
+        ) : (
+          <div className="h-9 flex items-center justify-center text-[11px] serif-i text-[var(--ink-4)]">
+            Snapshots arrive after the sprint's first cron tick.
+          </div>
+        )}
+        {(startLabel || endLabel) && (
+          <div className="mt-1.5 flex items-center justify-between text-[10px] text-[var(--ink-4)] font-mono">
+            <span>{startLabel ?? ''}</span>
+            <span>TODAY</span>
+            <span>{endLabel ?? ''}</span>
+          </div>
+        )}
       </div>
 
-      {/* These cells stay rendered (zeroed) so the layout doesn't reflow
-          once the backend starts surfacing blocked + reviewing counts. */}
-      <div className="mt-3 hidden">
-        <span>{blocked}</span>
-        <span>{reviewing}</span>
+      {/* 2×2 metric grid — design fields exactly: Done / In progress /
+          Blocked / Awaiting review. Blocked + awaiting-review come from
+          the /api/today summary block (already populated by the backend). */}
+      <div className="mt-5 grid grid-cols-2 gap-y-4 gap-x-6">
+        <MetricCell label="Done" value={sprint.pointsDone} />
+        <MetricCell label="In progress" value={sprint.pointsInProgress} muted />
+        <MetricCell label="Blocked" value={summary.blockingBugCount ?? 0} muted />
+        <MetricCell label="Awaiting review" value={summary.reviewCardCount ?? 0} muted />
       </div>
     </section>
   );
@@ -336,12 +471,13 @@ function SprintCard({ sprint }: { sprint: TodayPayload['currentSprint'] }) {
 function MetricCell({ label, value, muted = false }: { label: string; value: number; muted?: boolean }) {
   return (
     <div>
-      <MetricNumber size="md" italic={muted} className={muted ? 'text-mute' : undefined}>
+      {/* Design's stat-num: serif 56px, letter-spacing -0.03em, line-height 1.
+          The .stat-num.smaller variant drops to 36px — used here so 4 cells
+          fit comfortably in the right rail. */}
+      <div className={`stat-num smaller ${muted ? 'text-[var(--ink-3)]' : 'text-ink'}`}>
         {value}
-      </MetricNumber>
-      <div className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-faint font-semibold">
-        {label}
       </div>
+      <div className="smallcaps mt-0.5">{label}</div>
     </div>
   );
 }
@@ -380,66 +516,70 @@ function BurndownSparkline({ points, className = '' }: {
 }
 
 function LiveRail({ presence }: { presence: TodayPayload['presence'] }) {
+  // Design row: avatar + bold first-name + light "<activity>" + right-side
+  // mono status. Each row reads as a single sentence so the rail tells a
+  // story rather than just listing names.
+  const presenceColors = ['var(--c-sky)', 'var(--c-forest)', 'var(--c-plum)', 'var(--c-clay)', 'var(--c-sage)'];
   return (
     <section>
-      <Eyebrow size="sm" className="mb-2">Live · {presence.count} here now</Eyebrow>
+      <div className="smallcaps mb-3">Live · {presence.count} here now</div>
       {presence.users.length === 0 ? (
-        <p className="text-[11px] text-faint italic">It&apos;s quiet in here.</p>
+        <p className="serif-i text-[13px] text-[var(--ink-4)]">It&apos;s quiet in here.</p>
       ) : (
-        <>
-          {/* Overlapping avatar stack — visual cue that someone's around.
-              Caps at the first 8 visible bubbles; the count in the eyebrow
-              still tells the full story. */}
-          <div className="flex items-center mb-2.5">
-            {presence.users.slice(0, 8).map((u, i) => (
-              <span
-                key={u.id}
-                className="rounded-full ring-2 ring-card"
-                style={{ marginLeft: i === 0 ? 0 : -6, zIndex: 10 - i }}
-                title={u.displayName}
-              >
-                <Avatar
-                  user={{ id: u.id, displayName: u.displayName || `User ${u.id}`, avatarUrl: u.avatarUrl }}
-                  size="sm"
-                />
-              </span>
-            ))}
-            {presence.users.length > 8 && (
-              <span
-                className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-paper ring-2 ring-card text-[10px] font-semibold text-mute"
-                style={{ marginLeft: -6, zIndex: 0 }}
-              >
-                +{presence.users.length - 8}
-              </span>
-            )}
-          </div>
-          <ul className="space-y-1">
-            {presence.users.slice(0, 5).map((u) => (
-              <li key={u.id} className="flex items-center gap-2 text-[12px] text-mute">
-                <span className="text-text font-medium">{u.displayName.split(' ')[0]}</span>
-                <span className="text-faint">·</span>
-                <span className="truncate">{u.activity}</span>
+        <ul className="space-y-2.5">
+          {presence.users.slice(0, 6).map((u, i) => {
+            const first = (u.displayName || `User ${u.id}`).split(' ')[0];
+            const initial = (u.displayName?.[0] ?? '?').toUpperCase();
+            return (
+              <li key={u.id} className="flex items-center gap-2.5 text-[12px]">
+                <span
+                  className="avatar"
+                  style={{ background: presenceColors[i % presenceColors.length] }}
+                  title={u.displayName}
+                >
+                  {initial}
+                </span>
+                <span className="flex-1 min-w-0 truncate">
+                  <span className="font-semibold text-ink">{first}</span>{' '}
+                  <span className="text-[var(--ink-3)]">{u.activity}</span>
+                </span>
               </li>
-            ))}
-          </ul>
-        </>
+            );
+          })}
+        </ul>
       )}
     </section>
   );
 }
 
 function ActivityRail({ activity }: { activity: TodayPayload['activity'] }) {
+  // Design row: mono "<relative time>" + avatar + sentence body.
+  // The avatar maps each actor to one of the signal palette colours so
+  // the same person reads consistently across the rail.
+  const colorFor = (id: number) => {
+    const palette = ['var(--c-sky)', 'var(--c-forest)', 'var(--c-plum)', 'var(--c-clay)', 'var(--c-sage)', 'var(--c-mustard)'];
+    return palette[id % palette.length];
+  };
   return (
     <section>
-      <Eyebrow size="sm" className="mb-2">Activity</Eyebrow>
+      <div className="smallcaps mb-3">Activity</div>
       {activity.length === 0 ? (
-        <p className="text-[11px] text-faint italic">No activity in the last 24h.</p>
+        <p className="serif-i text-[13px] text-[var(--ink-4)]">No activity in the last 24h.</p>
       ) : (
-        <ul className="space-y-1.5">
-          {activity.slice(0, 5).map((a) => (
-            <li key={a.id} className="text-[13px] text-mute">
-              <span className="font-mono text-[10px] text-faint mr-2">{formatRelativeTime(a.ts)}</span>
-              <span>{a.actor.displayName.split(' ')[0]} {a.sentence}</span>
+        <ul className="space-y-2">
+          {activity.slice(0, 6).map((a) => (
+            <li key={a.id} className="flex items-start gap-2.5 text-[12px]">
+              <span className="mono num text-[11px] text-[var(--ink-4)] w-[44px] flex-shrink-0 pt-[3px]">
+                {formatRelativeTime(a.ts)}
+              </span>
+              <span
+                className="avatar flex-shrink-0"
+                style={{ background: colorFor(a.actor.id), width: 18, height: 18, fontSize: 9 }}
+                title={a.actor.displayName}
+              >
+                {(a.actor.displayName?.[0] ?? '?').toUpperCase()}
+              </span>
+              <span className="text-[var(--ink-2)] leading-snug">{a.sentence}</span>
             </li>
           ))}
         </ul>
