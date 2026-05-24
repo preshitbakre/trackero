@@ -12,6 +12,8 @@ import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { toast } from '../components/common/Toast';
 import { LabelPicker } from '../components/ui/LabelPicker';
 import { LabelList } from '../components/ui/LabelBadge';
+import { TypeTag } from '../components/ui';
+import type { TypeTagKind } from '../components/ui';
 
 interface Subtask {
   id: number;
@@ -370,43 +372,74 @@ export function TaskDetailPage() {
   return (
     <div className="flex flex-col h-full">
       <ReadOnlyBanner />
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-neutral-200 dark:border-dneutral-200">
-        <div className="flex items-center gap-3">
+      {/* Header — type chip · itemKey · status · blocker · "N watching" inline */}
+      <div className="flex items-center justify-between px-6 py-3 border-b border-rule">
+        <div className="flex items-center gap-2.5">
           <button
             onClick={() => navigate(-1)}
-            className="p-1 hover:bg-neutral-100 dark:hover:bg-dneutral-200 rounded text-neutral-400"
+            aria-label="Back"
+            className="p-1 hover:bg-paper rounded text-faint"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
+          {task.itemType && (
+            <TypeTag kind={task.itemType as TypeTagKind} size="sm" />
+          )}
           {task.parentInfo ? (
-            <div className="flex items-center gap-1.5 text-[16px] font-mono">
-              <Link to={`/projects/${pid}/tasks/${task.parentInfo.id}`} className="text-neutral-400 hover:text-lilac-dark">
+            <div className="flex items-center gap-1.5 text-[12px] font-mono tracking-wide">
+              <Link to={`/projects/${pid}/tasks/${task.parentInfo.id}`} className="text-faint hover:text-lilac-dark">
                 {task.parentInfo.taskKey}
               </Link>
-              <span className="text-neutral-300 dark:text-dneutral-400">→</span>
-              <span className="text-neutral-700 dark:text-dneutral-700">{taskKey}</span>
+              <span className="text-faint">›</span>
+              <span className="text-text">{taskKey}</span>
             </div>
           ) : (
-            <span className="text-[16px] font-mono text-neutral-400">{taskKey}</span>
+            <span className="text-[12px] font-mono tracking-wide text-faint">{taskKey}</span>
           )}
           {task.status && (
-            <span className="flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-paper text-[11px] tracking-wide">
               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: task.status.color }} />
-              <span className="text-[16px]" style={{ color: task.status.color }}>{task.status.name}</span>
+              <span style={{ color: task.status.color }}>{task.status.name}</span>
             </span>
           )}
+          {/* Blocker chip: surface the first blocking item inline so the gate is visible without scrolling. */}
+          {task.blockedBy && task.blockedBy.length > 0 && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber/15 text-amber-dark text-[11px] tracking-wide"
+              title={`Blocked by ${task.blockedBy.length} item${task.blockedBy.length === 1 ? '' : 's'}`}
+            >
+              <span>blocked by</span>
+              {task.blockedBy[0].dependsOnItem?.itemKey && (
+                <span className="font-mono">{task.blockedBy[0].dependsOnItem.itemKey}</span>
+              )}
+            </span>
+          )}
+          {/* "N watching" badge — moved from the right rail so the social
+              footprint reads next to the title block per frame 6. */}
+          <button
+            type="button"
+            onClick={toggleWatch}
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] tracking-wide transition-colors ${
+              byMeWatching ? 'bg-lilac-tint text-lilac-dark' : 'bg-paper text-mute hover:bg-rule'
+            }`}
+            title={byMeWatching ? 'Stop watching' : 'Watch this item'}
+          >
+            <span>{byMeWatching ? '★' : '☆'}</span>
+            <span>{watcherCount} watching</span>
+          </button>
           <SaveStatusIndicator status={saveStatus} />
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-faint">
+            <span>Created {new Date(task.createdAt).toLocaleDateString()}</span>
+            {task.statusChangedAt && (
+              <span>· Status {new Date(task.statusChangedAt).toLocaleDateString()}</span>
+            )}
+          </div>
           {canEdit && (
             <Button size="sm" variant="danger" onClick={() => setShowDeleteConfirm(true)}>Delete</Button>
-          )}
-        </div>
-        <div className="flex items-center gap-2 text-[16px] text-neutral-400 dark:text-dneutral-500">
-          <span>Created {new Date(task.createdAt).toLocaleDateString()}</span>
-          {task.statusChangedAt && (
-            <span>· Status changed {new Date(task.statusChangedAt).toLocaleDateString()}</span>
           )}
         </div>
       </div>
@@ -415,7 +448,9 @@ export function TaskDetailPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left column — main content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 border-r border-neutral-200 dark:border-dneutral-200" style={{ flexBasis: '60%' }}>
-          {/* Title */}
+          {/* Title — italic serif hero per frame 6. Click-to-edit keeps the
+              autosave UX; the editing input matches the hero's font size so
+              the visual switch isn't jarring. */}
           {editing ? (
             <input
               value={title}
@@ -428,12 +463,12 @@ export function TaskDetailPage() {
               onBlur={handleTitleBlur}
               onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
               autoFocus
-              className="w-full text-[20px] font-bold bg-transparent border-b border-lilac outline-none text-neutral-700 dark:text-dneutral-700"
+              className="w-full font-serif italic text-[40px] leading-[1.1] tracking-tight bg-transparent border-b border-lilac outline-none text-ink dark:text-dneutral-700"
             />
           ) : (
             <h1
               onClick={() => canEdit && setEditing(true)}
-              className={`text-[20px] font-bold text-neutral-700 dark:text-dneutral-700 ${canEdit ? 'cursor-pointer hover:text-lilac-dark' : ''}`}
+              className={`font-serif italic text-[40px] leading-[1.1] tracking-tight text-ink dark:text-dneutral-700 ${canEdit ? 'cursor-pointer hover:text-lilac-dark' : ''}`}
             >
               {task.title}
             </h1>
@@ -711,27 +746,10 @@ export function TaskDetailPage() {
           </div>
         </div>
 
-        {/* Right column — properties + activity */}
+        {/* Right column — properties + activity. The watcher control + count
+            moved up to the header strip (frame 6) so the right rail can lean
+            on Properties first; nothing duplicate-renders. */}
         <div className="flex flex-col overflow-hidden p-6" style={{ flexBasis: '40%', maxWidth: '400px' }}>
-          {/* Phase 7 — watcher controls */}
-          <div className="mb-4 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={toggleWatch}
-              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-[13px] font-medium border transition-colors ${
-                byMeWatching
-                  ? 'bg-lilac-tint text-lilac-dark border-lilac/30'
-                  : 'bg-card text-text border-rule hover:bg-paper'
-              }`}
-            >
-              <span>{byMeWatching ? '★' : '☆'}</span>
-              <span>{byMeWatching ? 'Watching' : 'Watch'}</span>
-            </button>
-            <span className="text-[12px] text-mute">
-              {watcherCount} {watcherCount === 1 ? 'watcher' : 'watchers'}
-            </span>
-          </div>
-
           {/* Properties */}
           <div className="space-y-3 text-[16px] flex-shrink-0">
             <h3 className="text-[16px] font-medium text-neutral-400 uppercase">Properties</h3>
