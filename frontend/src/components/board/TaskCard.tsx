@@ -1,6 +1,8 @@
 import { useDraggable } from '@dnd-kit/core';
 import { Tooltip } from '../common/Tooltip';
 import { AVATAR_COLORS, PRIORITY_BADGE_COLORS } from '../../lib/colors';
+import { TypeTag } from '../ui';
+import type { TypeTagKind } from '../ui';
 
 interface BoardTask {
   id: number;
@@ -36,11 +38,11 @@ export function TaskCard({ task, isDragging, onClick }: TaskCardProps) {
     ? { opacity: 0.4 }
     : undefined;
 
-  const ITEM_TYPE_COLORS: Record<string, string> = { task: '#D6B588', bug: '#E05252', subtask: '#A8A19A' };
-  const ITEM_TYPE_ICONS: Record<string, string> = { task: '\u25CB', bug: '\uD83D\uDC1E', subtask: '\u25E6' };
-  const typeColor = ITEM_TYPE_COLORS[task.itemType] || '#A8A19A';
-  const typeIcon = ITEM_TYPE_ICONS[task.itemType] || '\u25CB';
+  // Frame 5 anatomy: small coloured TypeTag (T/B/S/E/s) opens each row.
+  // The wide priority pill that used to dominate the bottom row shrinks to
+  // a dot + label, so the title block reads as the primary information.
   const typeName = task.itemType || 'task';
+  const typeKind = (typeName as TypeTagKind) || 'task';
   const avatarStyle = task.assignee ? AVATAR_COLORS[task.assignee.id % AVATAR_COLORS.length] : null;
   const initial = task.assignee?.displayName?.charAt(0)?.toUpperCase() || '?';
   const labels = task.labels || [];
@@ -77,9 +79,9 @@ export function TaskCard({ task, isDragging, onClick }: TaskCardProps) {
           </Tooltip>
         )}
         <Tooltip label={typeName.charAt(0).toUpperCase() + typeName.slice(1)}>
-          <span className="text-[16px]" style={{ color: typeColor }}>{typeIcon}</span>
+          <TypeTag kind={typeKind} size="sm" />
         </Tooltip>
-        <span className="font-mono text-[14px] text-neutral-400 dark:text-dneutral-400">{taskKey}</span>
+        <span className="font-mono text-[12px] text-faint">{taskKey}</span>
 
         {task.assignee && avatarStyle && (
           <Tooltip label={task.assignee.displayName}>
@@ -125,8 +127,9 @@ export function TaskCard({ task, isDragging, onClick }: TaskCardProps) {
       {hasMetadata && (
         <div className="flex items-center gap-1.5 flex-wrap mt-2.5">
           {showPriority && priorityBadge && (
-            <span className="text-[14px] font-semibold px-2 py-0.5 rounded" style={{ background: priorityBadge.bg, color: priorityBadge.color }}>
-              {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+            <span className="inline-flex items-center gap-1 text-[11px] text-mute">
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: priorityBadge.color }} />
+              {task.priority.toLowerCase()}
             </span>
           )}
           {showPoints && (
