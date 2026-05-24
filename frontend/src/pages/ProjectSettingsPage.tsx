@@ -7,12 +7,18 @@ import { MembersTab } from '../components/settings/MembersTab';
 import { BoardTab } from '../components/settings/BoardTab';
 import { LabelsTab } from '../components/settings/LabelsTab';
 import { DangerZoneTab } from '../components/settings/DangerZoneTab';
+import { NotificationsTab } from '../components/settings/NotificationsTab';
+import { IntegrationsTab } from '../components/settings/IntegrationsTab';
 
 const TABS = [
   { key: 'general', label: 'General' },
   { key: 'members', label: 'Members' },
-  { key: 'board', label: 'Board' },
+  { key: 'board', label: 'Board statuses' },
   { key: 'labels', label: 'Labels' },
+  // Phase 9 frontend slot. Notifications is post-v1 (per-user prefs already
+  // live under /profile); Integrations binds to the existing v1 backend.
+  { key: 'notifications', label: 'Notifications' },
+  { key: 'integrations', label: 'Integrations' },
   { key: 'danger', label: 'Danger zone' },
 ] as const;
 
@@ -141,6 +147,10 @@ export function ProjectSettingsPage() {
           {activeTab === 'members' && canEdit && <MembersTab />}
           {activeTab === 'board' && canEdit && <BoardTab />}
           {activeTab === 'labels' && canEdit && <LabelsTab />}
+          {activeTab === 'notifications' && canEdit && <NotificationsTab />}
+          {activeTab === 'integrations' && canEdit && projectId && (
+            <IntegrationsTab projectId={parseInt(projectId)} />
+          )}
           {activeTab === 'danger' && canEdit && <DangerZoneTab />}
         </div>
       </div>
