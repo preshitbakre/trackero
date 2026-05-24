@@ -113,6 +113,14 @@ export async function createTestApp(): Promise<INestApplication> {
   `);
   await dataSource.query(`CREATE INDEX IF NOT EXISTS "IDX_wi_search" ON work_items USING gin(search_vector)`);
 
+  // Phase 4 — sectioned search uses pg_trgm similarity for projects/people.
+  // Migration 033 creates the extension + trigram indexes in dev/prod; tests
+  // build schema via synchronize (which doesn't run migrations), so we mirror
+  // the extension here. The actual indexes aren't required for correctness —
+  // similarity() works without them, just slower — so we skip the GIN trigram
+  // index DDL to keep per-suite setup fast.
+  await dataSource.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+
   // Monkey-patch close() so afterAll(() => app.close()) also drops the DB.
   // Existing spec files don't need to change.
   const originalClose = app.close.bind(app);

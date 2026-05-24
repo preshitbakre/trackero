@@ -25,9 +25,12 @@ export class AttachmentsService {
     this.maxSizeMb = this.configService.get<number>('MAX_UPLOAD_SIZE_MB', 10);
   }
 
+  // Phase 10 — exclude soft-deleted work items so a `GET attachments` on a
+  // freshly-deleted item returns 404 (its parent is invisible from this point
+  // forward, even though the row survives for the retention grace window).
   private async verifyItemInProject(projectId: number, workItemId: number): Promise<void> {
     const [item] = await this.dataSource.query(
-      'SELECT id FROM work_items WHERE id = $1 AND project_id = $2',
+      'SELECT id FROM work_items WHERE id = $1 AND project_id = $2 AND deleted_at IS NULL',
       [workItemId, projectId],
     );
     if (!item) {

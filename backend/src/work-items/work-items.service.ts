@@ -1712,9 +1712,13 @@ export class WorkItemsService {
       return;
     }
 
-    // epic | story | task — block if direct subtask children exist
+    // epic | story | task — block if direct subtask children exist.
+    // Phase 10 — soft-deleted children don't block parent deletion; once a
+    // subtask is soft-deleted it's invisible to the rest of the app, so the
+    // "no orphan subtask" invariant is satisfied by the filter below.
     const [subtaskCount] = await this.dataSource.query(
-      `SELECT COUNT(*) as cnt FROM work_items WHERE parent_id = $1 AND item_type = 'subtask'`,
+      `SELECT COUNT(*) as cnt FROM work_items
+       WHERE parent_id = $1 AND item_type = 'subtask' AND deleted_at IS NULL`,
       [item.id],
     );
     if (parseInt(subtaskCount.cnt) > 0) {

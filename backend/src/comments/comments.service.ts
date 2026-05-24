@@ -24,9 +24,12 @@ export class CommentsService {
     private readonly dataSource: DataSource,
   ) {}
 
+  // Phase 10 — exclude soft-deleted work items so comments on a freshly
+  // deleted item 404 from the user perspective (the rows persist for the
+  // retention grace window in case of restore).
   private async verifyItemInProject(projectId: number, workItemId: number): Promise<void> {
     const [item] = await this.dataSource.query(
-      'SELECT id FROM work_items WHERE id = $1 AND project_id = $2',
+      'SELECT id FROM work_items WHERE id = $1 AND project_id = $2 AND deleted_at IS NULL',
       [workItemId, projectId],
     );
     if (!item) {

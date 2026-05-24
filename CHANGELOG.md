@@ -4,6 +4,56 @@ All notable changes to Trackero are tracked here. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.1-baseline-restore] — 2026-05-24
+
+Fix-forward on the v1.11.0 cut. The full backend test suite was failing
+on 19 tests because Phase 4 / Phase 7 / Phase 10 work landed without
+matching entity registration and test updates. Baseline restored:
+436/436 backend tests + 35/36 e2e regression specs green (the one skip
+is a stateful side-effect, not a regression).
+
+### Added entities (so `synchronize: true` builds the tables in tests)
+- `CommentMention` (Phase 7)
+- `CommentReaction` (Phase 7)
+- `WorkItemWatcher` (Phase 7)
+- `ProjectIntegration` (Phase 9)
+- `IntegrationDelivery` (Phase 9)
+
+Each is registered via `TypeOrmModule.forFeature` in its module. Services
+keep using raw SQL via `DataSource`; the registration only exists so
+synchronize creates the schema in test DBs.
+
+### Test-suite fixes
+- `pg_trgm` extension created in `test/setup.ts` so sectioned search
+  doesn't 500 when calling `similarity()` against an unindexed projects
+  / users name (the indexes are not required for correctness, just for
+  prod-scale performance).
+- 7 work-items delete tests updated to assert the soft-delete contract
+  (row survives with `deleted_at` set, not undefined).
+- 6 search tests migrated from the legacy `{ list, total }` shape to
+  the Phase 4 sectioned shape (`{ workItems, projects, sprints,
+  people, quickActions, goTo, total }`).
+- 1 retro-card test updated to expect the post-Phase-6 normalised
+  column vocabulary (`went_well` → `kept` on read).
+
+### Behavior fixes
+- `AttachmentsService.verifyItemInProject` and
+  `CommentsService.verifyItemInProject` add `deleted_at IS NULL` so a
+  freshly soft-deleted work item 404s on its child resources.
+- `SearchService.searchWorkItems` filters out soft-deleted rows.
+- `WorkItemsService.validateDeletion` counts only non-soft-deleted
+  subtask children so deleting an epic / story whose subtasks were
+  already soft-deleted now succeeds (matching the test's intent).
+- `/api/health` returns 200 when the database is connected even if
+  MinIO probe fails — MinIO down is a "degraded" state surfaced in the
+  body, not an "unhealthy" one. SMTP follows the same convention.
+
+### Why this matters
+The original v1.11.0 baseline-broken state was caught only after I
+started a design-parity audit. The audit's safety harness ran the full
+suite as a pre-step and refused to make UI changes until the baseline
+was green. v1.11.1 restores that precondition.
+
 ## [1.11.0-hardening] — 2026-05-24
 
 Phase 10 (final). Soft-delete grace window, retention sweep, expanded

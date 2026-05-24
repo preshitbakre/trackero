@@ -171,6 +171,7 @@ export class SearchService {
       WHERE t.search_vector @@ plainto_tsquery('english', $1)
         AND t.item_type IN ('epic', 'story', 'task', 'bug', 'subtask')
         AND p.status = 'active'
+        AND t.deleted_at IS NULL
         ${whereProject}
         ${whereMembership}
       ORDER BY "relevanceScore" DESC

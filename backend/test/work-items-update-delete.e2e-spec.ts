@@ -293,8 +293,12 @@ describe('WorkItems UPDATE + DELETE (e2e)', () => {
 
       await deleteItem(subId).expect(200);
 
-      const [check] = await ds.query(`SELECT id FROM work_items WHERE id = $1`, [subId]);
-      expect(check).toBeUndefined();
+      // Phase 10 — DELETE is now a soft delete by default. The row survives
+      // with `deleted_at` set; the retention cron hard-deletes after the
+      // grace window. RestoreEndpoint can bring it back within the window.
+      const [check] = await ds.query(`SELECT id, deleted_at FROM work_items WHERE id = $1`, [subId]);
+      expect(check).toBeDefined();
+      expect(check.deleted_at).not.toBeNull();
     });
 
     it('deletes task with no children → 200', async () => {
@@ -303,8 +307,10 @@ describe('WorkItems UPDATE + DELETE (e2e)', () => {
 
       await deleteItem(id).expect(200);
 
-      const [check] = await ds.query(`SELECT id FROM work_items WHERE id = $1`, [id]);
-      expect(check).toBeUndefined();
+      // Phase 10 — soft delete: row survives with deleted_at set.
+      const [check] = await ds.query(`SELECT id, deleted_at FROM work_items WHERE id = $1`, [id]);
+      expect(check).toBeDefined();
+      expect(check.deleted_at).not.toBeNull();
     });
 
     it('deletes epic → 200', async () => {
@@ -314,8 +320,10 @@ describe('WorkItems UPDATE + DELETE (e2e)', () => {
       const del = await deleteItem(id).expect(200);
       expect(del.body.code).toBe('S-0104');
 
-      const [check] = await ds.query(`SELECT id FROM work_items WHERE id = $1`, [id]);
-      expect(check).toBeUndefined();
+      // Phase 10 — soft delete.
+      const [check] = await ds.query(`SELECT id, deleted_at FROM work_items WHERE id = $1`, [id]);
+      expect(check).toBeDefined();
+      expect(check.deleted_at).not.toBeNull();
     });
 
     it('deletes epic with direct subtask children → 400 (post-5.6: subtasks block parent deletion)', async () => {
@@ -340,8 +348,12 @@ describe('WorkItems UPDATE + DELETE (e2e)', () => {
       await deleteItem(subId).expect(200);
       await deleteItem(epicId).expect(200);
 
-      const [check] = await ds.query(`SELECT id FROM work_items WHERE id = $1`, [epicId]);
-      expect(check).toBeUndefined();
+      // Phase 10 — soft delete on the epic. The subtask was soft-deleted first,
+      // so when we delete the epic the subtask-children guard sees no active
+      // children (deleted_at IS NOT NULL is filtered out by findAll/validateDeletion).
+      const [check] = await ds.query(`SELECT id, deleted_at FROM work_items WHERE id = $1`, [epicId]);
+      expect(check).toBeDefined();
+      expect(check.deleted_at).not.toBeNull();
     });
 
     it('deletes bug → 200', async () => {
@@ -350,8 +362,10 @@ describe('WorkItems UPDATE + DELETE (e2e)', () => {
 
       await deleteItem(id).expect(200);
 
-      const [check] = await ds.query(`SELECT id FROM work_items WHERE id = $1`, [id]);
-      expect(check).toBeUndefined();
+      // Phase 10 — soft delete.
+      const [check] = await ds.query(`SELECT id, deleted_at FROM work_items WHERE id = $1`, [id]);
+      expect(check).toBeDefined();
+      expect(check.deleted_at).not.toBeNull();
     });
 
     it('deletes story with direct subtasks → 400 STORY_HAS_DIRECT_SUBTASKS', async () => {
@@ -370,8 +384,10 @@ describe('WorkItems UPDATE + DELETE (e2e)', () => {
 
       await deleteItem(storyId).expect(200);
 
-      const [check] = await ds.query(`SELECT id FROM work_items WHERE id = $1`, [storyId]);
-      expect(check).toBeUndefined();
+      // Phase 10 — soft delete.
+      const [check] = await ds.query(`SELECT id, deleted_at FROM work_items WHERE id = $1`, [storyId]);
+      expect(check).toBeDefined();
+      expect(check.deleted_at).not.toBeNull();
     });
 
     it('returns 404 for non-existent item', async () => {

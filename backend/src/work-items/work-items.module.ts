@@ -6,9 +6,12 @@ import { WorkItemsService } from './work-items.service';
 import { WorkItem } from './entities/work-item.entity';
 import { WorkItemAssociation } from './entities/work-item-association.entity';
 import { ChecklistItem } from './entities/checklist-item.entity';
+import { WorkItemWatcher } from './entities/work-item-watcher.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([WorkItem, WorkItemAssociation, ChecklistItem])],
+  // Phase 7 — register WorkItemWatcher so synchronize builds the
+  // work_item_watchers table in tests.
+  imports: [TypeOrmModule.forFeature([WorkItem, WorkItemAssociation, ChecklistItem, WorkItemWatcher])],
   controllers: [WorkItemsController, HierarchyViewsController],
   providers: [WorkItemsService],
   exports: [WorkItemsService],

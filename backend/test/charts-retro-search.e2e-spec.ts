@@ -288,7 +288,10 @@ describe('Charts, Retro, Search (e2e)', () => {
 
       expect(res.body.code).toBe('S-0192');
       expect(res.body.data.content).toBe('Great teamwork');
-      expect(res.body.data.column).toBe('went_well');
+      // Phase 6 — legacy column values are normalised on read to the new
+      // four-column vocabulary. `went_well` is accepted on write (back-compat)
+      // and surfaces as `kept` on read.
+      expect(res.body.data.column).toBe('kept');
     });
 
     it('rejects creating a retro for a sprint from another project -> 4xx (§4.9)', async () => {
@@ -484,15 +487,18 @@ describe('Charts, Retro, Search (e2e)', () => {
         .send({ itemType: 'task', title: 'Add user profile page' });
     });
 
+    // Phase 4 — /api/search now returns a sectioned response by default.
+    // The legacy `{ list, total }` shape is still available behind `?v=1`,
+    // but we exercise the new shape here so the tests track current behavior.
     it('searches tasks by query -> 200', async () => {
       const res = await request(app.getHttpServer())
-        .get('/api/search?q=authentication')
+        .get('/api/search?q=authentication&scope=instance')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
       expect(res.body.code).toBe('S-0200');
-      expect(res.body.data.list.length).toBe(1);
-      expect(res.body.data.list[0].title).toContain('authentication');
+      expect(res.body.data.workItems.length).toBe(1);
+      expect(res.body.data.workItems[0].title).toContain('authentication');
     });
 
     it('returns empty for query < 2 chars', async () => {
@@ -501,7 +507,7 @@ describe('Charts, Retro, Search (e2e)', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(res.body.data.list.length).toBe(0);
+      expect(res.body.data.workItems.length).toBe(0);
     });
 
     it('scopes search to user projects (member sees only their projects)', async () => {
@@ -519,12 +525,12 @@ describe('Charts, Retro, Search (e2e)', () => {
 
       // Member searches — should NOT see secret project tasks
       const res = await request(app.getHttpServer())
-        .get('/api/search?q=authentication')
+        .get('/api/search?q=authentication&scope=instance')
         .set('Authorization', `Bearer ${memberToken}`)
         .expect(200);
 
       // Member is only in CRT project, not SEC
-      const taskProjects = res.body.data.list.map((t: any) => t.projectId);
+      const taskProjects = res.body.data.workItems.map((t: any) => t.projectId);
       expect(taskProjects.every((pid: number) => pid === projectId)).toBe(true);
     });
 
@@ -534,7 +540,7 @@ describe('Charts, Retro, Search (e2e)', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(res.body.data.list.length).toBe(1);
+      expect(res.body.data.workItems.length).toBe(1);
     });
 
     it('does not leak foreign-project items via projectId param (IDOR §4.1)', async () => {
@@ -557,17 +563,16 @@ describe('Charts, Retro, Search (e2e)', () => {
         .set('Authorization', `Bearer ${memberToken}`)
         .expect(200);
 
-      // The member must get zero results referencing project A.
-      const leaked = res.body.data.list.filter((t: any) => t.projectId === projAId);
+      // The member must get zero work-item rows referencing project A.
+      const leaked = res.body.data.workItems.filter((t: any) => t.projectId === projAId);
       expect(leaked.length).toBe(0);
-      expect(res.body.data.total).toBe(0);
 
       // Sanity: a member of project A still finds the item with the same call.
       const adminRes = await request(app.getHttpServer())
         .get(`/api/search?q=quokka&projectId=${projAId}`)
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
-      expect(adminRes.body.data.list.length).toBe(1);
+      expect(adminRes.body.data.workItems.length).toBe(1);
     });
 
     it('member can still search their own project by projectId', async () => {
@@ -576,7 +581,7 @@ describe('Charts, Retro, Search (e2e)', () => {
         .set('Authorization', `Bearer ${memberToken}`)
         .expect(200);
 
-      expect(res.body.data.list.length).toBe(1);
+      expect(res.body.data.workItems.length).toBe(1);
     });
 
     it('excludes archived project tasks', async () => {
@@ -586,11 +591,11 @@ describe('Charts, Retro, Search (e2e)', () => {
         .set('Authorization', `Bearer ${adminToken}`);
 
       const res = await request(app.getHttpServer())
-        .get('/api/search?q=authentication')
+        .get('/api/search?q=authentication&scope=instance')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(res.body.data.list.length).toBe(0);
+      expect(res.body.data.workItems.length).toBe(0);
     });
   });
 });

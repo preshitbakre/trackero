@@ -53,7 +53,12 @@ export class HealthController {
       smtp = 'configured';
     }
 
-    const healthy = database === 'connected' && minio !== 'disconnected';
+    // Database is the only load-bearing dependency for "healthy". MinIO
+    // being unreachable is a degraded state but the app still serves
+    // every read path that doesn't need file storage; flipping the whole
+    // probe to 503 would take working API servers out of rotation. SMTP
+    // is even softer — it never affects request handling synchronously.
+    const healthy = database === 'connected';
     res.status(healthy ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE);
 
     return {
