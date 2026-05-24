@@ -2,8 +2,10 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
-import { Eyebrow, MetricNumber } from '../components/ui';
+import { Eyebrow } from '../components/ui';
 import { PROJECT_DOT_COLORS } from '../lib/colors';
+import { useRole } from '../hooks/useRole';
+import { CreateProjectDialog } from '../components/common/CreateProjectDialog';
 
 type FilterKey = 'all' | 'active' | 'planning' | 'archived';
 
@@ -41,17 +43,22 @@ interface DirResp {
   projects: DirProject[];
 }
 
-const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'active', label: 'Active' },
-  { key: 'planning', label: 'Planning' },
-  { key: 'archived', label: 'Archived' },
+// Tabs are rendered in this fixed order per frame 3 (Active · n /
+// Planning · n / Archived · n / All · n). Counts come from the API
+// response and are embedded inside the tab pill.
+const FILTERS: { key: FilterKey; label: string; countKey: 'active' | 'planning' | 'archived' | 'all' }[] = [
+  { key: 'active', label: 'Active', countKey: 'active' },
+  { key: 'planning', label: 'Planning', countKey: 'planning' },
+  { key: 'archived', label: 'Archived', countKey: 'archived' },
+  { key: 'all', label: 'All', countKey: 'all' },
 ];
 
 export function ProjectsPage() {
   const [filter, setFilter] = useState<FilterKey>('active');
   const [search, setSearch] = useState('');
   const [mineOnly, setMineOnly] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const { canAdminister } = useRole();
 
   const qc = useQueryClient();
 
@@ -93,9 +100,10 @@ export function ProjectsPage() {
 
   return (
     <div className="max-w-[1200px] mx-auto px-6 py-8">
-      {/* Header */}
-      <div className="flex items-end justify-between gap-6 mb-6">
-        <div>
+      {/* Header — instance eyebrow + italic-serif hero + right-side actions
+          (Mine-only pill, search input, + New project button) per frame 3. */}
+      <div className="flex items-end justify-between gap-6 mb-4 flex-wrap">
+        <div className="min-w-0 flex-1">
           <Eyebrow>Workspace</Eyebrow>
           <h1 className="font-serif italic text-[42px] leading-[1.1] text-ink mt-1">
             Projects
@@ -104,47 +112,62 @@ export function ProjectsPage() {
             Every project you can see, with live status, sprint health, and your pins.
           </p>
         </div>
-        <div className="flex items-center gap-6">
-          <CountStat label="Active" value={counts.active} />
-          <CountStat label="Planning" value={counts.planning} />
-          <CountStat label="Archived" value={counts.archived} />
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="search projects…"
+            className="w-[220px] px-3 py-1.5 text-[13px] bg-paper rounded-md placeholder-faint focus:outline-none focus:ring-1 focus:ring-lilac"
+          />
+          <button
+            type="button"
+            onClick={() => setMineOnly((v) => !v)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] uppercase tracking-[0.14em] font-semibold transition-colors ${
+              mineOnly ? 'bg-lilac-tint text-lilac-dark' : 'bg-paper text-mute hover:bg-rule'
+            }`}
+            aria-pressed={mineOnly}
+          >
+            <span
+              aria-hidden="true"
+              className={`w-3 h-3 rounded-sm border ${mineOnly ? 'bg-lilac border-lilac' : 'border-mute'}`}
+            />
+            Mine only
+          </button>
+          {canAdminister && (
+            <button
+              type="button"
+              onClick={() => setShowCreate(true)}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-lilac text-white text-[13px] font-medium hover:bg-lilac-dark transition-colors"
+            >
+              <span aria-hidden="true">+</span>
+              <span>New project</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-4 pb-3 border-b border-rule">
-        <div className="flex items-center gap-1 bg-paper rounded-full p-1">
-          {FILTERS.map((f) => (
+      {/* Filter tabs — counts embedded per frame 3
+          (Active · 5 | Planning · 2 | Archived · 1 | All · 8). */}
+      <div className="flex items-center gap-1 mb-6 pb-2 border-b border-rule">
+        {FILTERS.map((f) => {
+          const count = counts[f.countKey] ?? 0;
+          const isActive = filter === f.key;
+          return (
             <button
               key={f.key}
               type="button"
               onClick={() => setFilter(f.key)}
-              className={`px-3 py-1 text-[12px] uppercase tracking-[0.16em] font-semibold rounded-full transition-colors ${
-                filter === f.key ? 'bg-card text-ink shadow-sm' : 'text-mute hover:text-text'
+              className={`px-3 py-2 text-[11px] uppercase tracking-[0.16em] font-semibold transition-colors border-b-2 ${
+                isActive
+                  ? 'text-ink border-lilac'
+                  : 'text-mute border-transparent hover:text-text'
               }`}
             >
-              {f.label}
+              {f.label} <span className="text-faint">· {count}</span>
             </button>
-          ))}
-        </div>
-
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name or prefix…"
-          className="flex-1 min-w-[200px] px-3 py-1.5 text-[13px] bg-paper rounded-md placeholder-faint focus:outline-none focus:ring-1 focus:ring-lilac"
-        />
-
-        <label className="flex items-center gap-2 text-[12px] uppercase tracking-[0.14em] font-semibold text-mute cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={mineOnly}
-            onChange={(e) => setMineOnly(e.target.checked)}
-            className="accent-lilac w-4 h-4"
-          />
-          Mine only
-        </label>
+          );
+        })}
       </div>
 
       {/* Content */}
@@ -175,6 +198,7 @@ export function ProjectsPage() {
                   pinMutation.mutate({ projectId: id, pin: !isPinned })
                 }
                 pinPending={pinMutation.isPending}
+                trailingCta={null}
               />
             </Section>
           )}
@@ -185,19 +209,39 @@ export function ProjectsPage() {
                 pinMutation.mutate({ projectId: id, pin: !isPinned })
               }
               pinPending={pinMutation.isPending}
+              trailingCta={
+                canAdminister ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowCreate(true)}
+                    className="bg-card rounded-lg p-4 border border-dashed border-rule hover:border-lilac/40 hover:bg-paper/40 transition-colors flex flex-col items-center justify-center text-center min-h-[160px]"
+                  >
+                    <span className="w-10 h-10 rounded-full border border-rule flex items-center justify-center text-faint text-[18px] mb-2">
+                      +
+                    </span>
+                    <span className="text-[14px] text-text font-medium">New project</span>
+                    <span className="text-[10px] uppercase tracking-[0.16em] text-faint mt-1">
+                      Or press C
+                    </span>
+                  </button>
+                ) : null
+              }
             />
           </Section>
         </>
       )}
-    </div>
-  );
-}
 
-function CountStat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="text-right">
-      <Eyebrow>{label}</Eyebrow>
-      <MetricNumber>{value}</MetricNumber>
+      {showCreate && (
+        <CreateProjectDialog
+          onClose={() => setShowCreate(false)}
+          onCreated={() => {
+            setShowCreate(false);
+            qc.invalidateQueries({ queryKey: ['projects-directory'] });
+            qc.invalidateQueries({ queryKey: ['sidebar-recent-projects'] });
+            document.dispatchEvent(new CustomEvent('projects-updated'));
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -215,12 +259,16 @@ function ProjectGrid({
   items,
   onTogglePin,
   pinPending,
+  trailingCta,
 }: {
   items: DirProject[];
   onTogglePin: (id: number, isPinned: boolean) => void;
   pinPending: boolean;
+  // Optional trailing tile rendered after the last project — used by the
+  // "All projects" section to surface the "+ New project" CTA per frame 3.
+  trailingCta?: React.ReactNode;
 }) {
-  if (items.length === 0) return null;
+  if (items.length === 0 && !trailingCta) return null;
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {items.map((p, i) => (
@@ -232,6 +280,7 @@ function ProjectGrid({
           pinPending={pinPending}
         />
       ))}
+      {trailingCta}
     </div>
   );
 }
