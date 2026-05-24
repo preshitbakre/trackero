@@ -147,9 +147,53 @@ export function LoginPage() {
               />
             </div>
 
+            {/* "Keep me signed in for 30 days" — surfaces the refresh-token
+                lifetime to the user. Backend session/refresh already lasts
+                30 days; the checkbox is informational for v1 (no opt-out
+                flow yet), matching the design's frame 12 placement. */}
+            <label className="flex items-center gap-2 text-[13px] text-mute cursor-pointer select-none">
+              <input
+                type="checkbox"
+                defaultChecked
+                disabled
+                className="w-4 h-4 accent-lilac"
+                aria-label="Keep me signed in for 30 days"
+              />
+              Keep me signed in for 30 days
+            </label>
+
             <Button type="submit" variant="primary" disabled={loading} className="w-full h-11 text-[15px]">
               {loading ? 'Signing in…' : 'Sign in  →'}
             </Button>
+
+            {/* SSO slot — visual stubs for the design's "OR VIA YOUR IDP"
+                section. Buttons are disabled until the auth provider
+                modules ship; they exist now so the layout matches frame 12. */}
+            <div className="pt-2">
+              <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.18em] text-faint font-semibold">
+                <span className="flex-1 h-px bg-rule" />
+                <span>Or via your IdP</span>
+                <span className="flex-1 h-px bg-rule" />
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled
+                  className="h-9 rounded-md border border-rule bg-paper text-text text-[13px] font-medium opacity-70 cursor-not-allowed"
+                  title="Okta SAML — coming in v2"
+                >
+                  Okta SAML
+                </button>
+                <button
+                  type="button"
+                  disabled
+                  className="h-9 rounded-md border border-rule bg-paper text-text text-[13px] font-medium opacity-70 cursor-not-allowed"
+                  title="GitHub OAuth — coming in v2"
+                >
+                  GitHub OAuth
+                </button>
+              </div>
+            </div>
 
             <p className="text-center text-[13px] text-faint pt-3">
               No account?{' '}
