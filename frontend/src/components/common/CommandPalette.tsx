@@ -20,7 +20,8 @@ interface WorkItem {
   projectId: number;
   projectName: string;
   status: { name: string; color: string };
-  assignee: { id: number; displayName: string } | null;
+  assignee: { id: number; displayName: string; avatarUrl?: string | null } | null;
+  storyPoints?: number | null;
 }
 interface ProjectHit {
   id: number;
@@ -458,6 +459,9 @@ function navPathForItem(w: WorkItem): string {
 
 function WorkItemRow({ item }: { item: WorkItem }) {
   const ts = TYPE_STYLES[item.itemType] ?? TYPE_STYLES.task;
+  const assigneeLabel = item.assignee
+    ? `@${item.assignee.displayName.split(' ')[0].toLowerCase()}`
+    : 'unassigned';
   return (
     <>
       <span
@@ -468,7 +472,20 @@ function WorkItemRow({ item }: { item: WorkItem }) {
       </span>
       <span className="text-[12px] font-mono text-faint flex-shrink-0">{item.itemKey}</span>
       <span className="text-[14px] flex-1 truncate">{item.title}</span>
-      <span className="text-[11px] text-mute flex-shrink-0">{item.projectName}</span>
+      {/* Right column per frame 5: status pill · assignee · points.
+          Mirrors the design's per-row metadata band so a result is
+          actionable without opening it. */}
+      <span
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] flex-shrink-0"
+        style={{ backgroundColor: `${item.status.color}1A`, color: item.status.color }}
+      >
+        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: item.status.color }} />
+        {item.status.name}
+      </span>
+      <span className="text-[11px] text-mute flex-shrink-0">{assigneeLabel}</span>
+      {item.storyPoints != null && item.storyPoints > 0 && (
+        <span className="text-[11px] text-mute tabular-nums flex-shrink-0">{item.storyPoints} pts</span>
+      )}
     </>
   );
 }

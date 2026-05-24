@@ -28,7 +28,8 @@ export interface SearchedWorkItem {
   status: { name: string; color: string };
   projectId: number;
   projectName: string;
-  assignee: { id: number; displayName: string } | null;
+  assignee: { id: number; displayName: string; avatarUrl: string | null } | null;
+  storyPoints: number | null;
   relevanceScore: number;
 }
 
@@ -159,10 +160,13 @@ export class SearchService {
       : 'AND t.project_id IN (SELECT project_id FROM project_members WHERE user_id = $USER)';
 
     let sql = `
-      SELECT t.id, t.item_number, t.item_type, t.title, t.project_id as "projectId",
+      SELECT t.id, t.item_number, t.item_type, t.title, t.story_points as "storyPoints",
+        t.project_id as "projectId",
         ps.name as "statusName", ps.color as "statusColor",
         p.name as "projectName", p.prefix,
-        assignee.id as "assigneeId", assignee.display_name as "assigneeDisplayName",
+        assignee.id as "assigneeId",
+        assignee.display_name as "assigneeDisplayName",
+        assignee.avatar_url as "assigneeAvatarUrl",
         ts_rank(t.search_vector, plainto_tsquery('english', $1)) as "relevanceScore"
       FROM work_items t
       JOIN projects p ON p.id = t.project_id
@@ -196,7 +200,14 @@ export class SearchService {
       status: { name: r.statusName, color: r.statusColor },
       projectId: r.projectId,
       projectName: r.projectName,
-      assignee: r.assigneeId ? { id: r.assigneeId, displayName: r.assigneeDisplayName } : null,
+      assignee: r.assigneeId
+        ? {
+            id: r.assigneeId,
+            displayName: r.assigneeDisplayName,
+            avatarUrl: r.assigneeAvatarUrl ?? null,
+          }
+        : null,
+      storyPoints: r.storyPoints != null ? Number(r.storyPoints) : null,
       relevanceScore: parseFloat(r.relevanceScore),
     }));
   }
