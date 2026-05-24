@@ -57,6 +57,8 @@ interface TodayPayload {
     pointsTotal: number;
     pointsInProgress: number;
     endDate: string;
+    // Phase 5 — snapshot-backed burndown, one entry per sprint day.
+    burndown?: Array<{ day: string; completed: number; ideal: number; scope: number }>;
   } | null;
   presence: {
     count: number;
@@ -289,6 +291,14 @@ function SprintCard({ sprint }: { sprint: TodayPayload['currentSprint'] }) {
       </section>
     );
   }
+
+  // Editorial pull-quote header: prefer the sprint goal in italic-serif
+  // (matches frame 1's "Ship door-list export and fix the bursty webhooks"
+  // pattern); fall back to the sprint name when no goal is set.
+  const remaining = Math.max(0, sprint.pointsTotal - sprint.pointsDone - sprint.pointsInProgress);
+  const blocked = 0; // backend doesn't carry per-status counts on /today yet
+  const reviewing = 0;
+
   return (
     <section className="bg-card rounded-xl p-5 shadow-[0_1px_2px_rgba(26,20,36,0.04)]">
       <Eyebrow size="sm" className="mb-2">
@@ -297,20 +307,75 @@ function SprintCard({ sprint }: { sprint: TodayPayload['currentSprint'] }) {
       <p className="font-serif italic text-[22px] text-text leading-snug">
         {sprint.goal ? `"${sprint.goal}"` : sprint.name}
       </p>
-      <div className="mt-4 flex items-baseline gap-4">
-        <div>
-          <MetricNumber size="lg">{sprint.pointsDone}</MetricNumber>
-          <span className="text-[12px] text-mute ml-1">done</span>
-        </div>
-        <div>
-          <MetricNumber size="md" italic className="text-mute">{sprint.pointsInProgress}</MetricNumber>
-          <span className="text-[12px] text-mute ml-1">in progress</span>
-        </div>
+
+      {/* Inline burndown sparkline — snapshot-backed via Phase 5.
+          The chart is purely informational; the metric grid below
+          surfaces the numbers anyone reading needs to act on. */}
+      {sprint.burndown && sprint.burndown.length >= 2 && (
+        <BurndownSparkline points={sprint.burndown} className="mt-3" />
+      )}
+
+      {/* 2×2 metric grid per frame 1 — italic-serif numerals + eyebrow labels. */}
+      <div className="mt-4 grid grid-cols-2 gap-4">
+        <MetricCell label="Done" value={sprint.pointsDone} />
+        <MetricCell label="In progress" value={sprint.pointsInProgress} muted />
+        <MetricCell label="Remaining" value={remaining} muted />
+        <MetricCell label="Of total" value={sprint.pointsTotal} muted />
       </div>
-      <p className="mt-3 text-[11px] text-faint font-mono uppercase tracking-wider">
-        of {sprint.pointsTotal} pts total
-      </p>
+
+      {/* These cells stay rendered (zeroed) so the layout doesn't reflow
+          once the backend starts surfacing blocked + reviewing counts. */}
+      <div className="mt-3 hidden">
+        <span>{blocked}</span>
+        <span>{reviewing}</span>
+      </div>
     </section>
+  );
+}
+
+function MetricCell({ label, value, muted = false }: { label: string; value: number; muted?: boolean }) {
+  return (
+    <div>
+      <MetricNumber size="md" italic={muted} className={muted ? 'text-mute' : undefined}>
+        {value}
+      </MetricNumber>
+      <div className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-faint font-semibold">
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function BurndownSparkline({ points, className = '' }: {
+  points: NonNullable<TodayPayload['currentSprint']>['burndown'];
+  className?: string;
+}) {
+  if (!points || points.length < 2) return null;
+  const w = 220;
+  const h = 36;
+  const maxScope = Math.max(...points.map((p) => p.scope), 1);
+  const x = (i: number) => (i / Math.max(1, points.length - 1)) * w;
+  const y = (v: number) => h - (v / maxScope) * (h - 4) - 2;
+  const idealPath = points
+    .map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.ideal).toFixed(1)}`)
+    .join(' ');
+  const actualPath = points
+    .map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.scope - p.completed).toFixed(1)}`)
+    .join(' ');
+  return (
+    <svg
+      role="img"
+      aria-label="Sprint burndown"
+      viewBox={`0 0 ${w} ${h}`}
+      width="100%"
+      height={h}
+      className={`text-faint ${className}`}
+    >
+      {/* Ideal line — thin dashed, hairline weight */}
+      <path d={idealPath} fill="none" stroke="currentColor" strokeWidth={1} strokeDasharray="2 3" opacity={0.5} />
+      {/* Actual line — lilac, the line that matters */}
+      <path d={actualPath} fill="none" stroke="rgb(124 58 237)" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 
@@ -321,14 +386,43 @@ function LiveRail({ presence }: { presence: TodayPayload['presence'] }) {
       {presence.users.length === 0 ? (
         <p className="text-[11px] text-faint italic">It&apos;s quiet in here.</p>
       ) : (
-        <ul className="space-y-1.5">
-          {presence.users.map((u) => (
-            <li key={u.id} className="flex items-center gap-2 text-[12px] text-mute">
-              <Avatar user={{ id: u.id, displayName: u.displayName || `User ${u.id}`, avatarUrl: u.avatarUrl }} size="xs" />
-              <span>{u.activity}</span>
-            </li>
-          ))}
-        </ul>
+        <>
+          {/* Overlapping avatar stack — visual cue that someone's around.
+              Caps at the first 8 visible bubbles; the count in the eyebrow
+              still tells the full story. */}
+          <div className="flex items-center mb-2.5">
+            {presence.users.slice(0, 8).map((u, i) => (
+              <span
+                key={u.id}
+                className="rounded-full ring-2 ring-card"
+                style={{ marginLeft: i === 0 ? 0 : -6, zIndex: 10 - i }}
+                title={u.displayName}
+              >
+                <Avatar
+                  user={{ id: u.id, displayName: u.displayName || `User ${u.id}`, avatarUrl: u.avatarUrl }}
+                  size="sm"
+                />
+              </span>
+            ))}
+            {presence.users.length > 8 && (
+              <span
+                className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-paper ring-2 ring-card text-[10px] font-semibold text-mute"
+                style={{ marginLeft: -6, zIndex: 0 }}
+              >
+                +{presence.users.length - 8}
+              </span>
+            )}
+          </div>
+          <ul className="space-y-1">
+            {presence.users.slice(0, 5).map((u) => (
+              <li key={u.id} className="flex items-center gap-2 text-[12px] text-mute">
+                <span className="text-text font-medium">{u.displayName.split(' ')[0]}</span>
+                <span className="text-faint">·</span>
+                <span className="truncate">{u.activity}</span>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </section>
   );
