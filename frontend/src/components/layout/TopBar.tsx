@@ -36,12 +36,12 @@ export function TopBar({ currentProjectId, projects = [], onToggleSidebar, sideb
   };
 
   return (
-    <header className="h-14 bg-card/70 backdrop-blur-md dark:bg-dneutral-100/80 flex items-center px-3 sm:px-4 gap-2 sm:gap-4 border-b border-rule dark:border-dneutral-200 z-30 relative">
+    <header className="h-[49px] bg-[var(--paper)] flex items-center gap-4 border-b border-[var(--line)] z-30 relative" style={{ paddingLeft: 18, paddingRight: 18 }}>
       {/* Mobile sidebar toggle */}
       {onToggleSidebar && (
         <button
           onClick={onToggleSidebar}
-          className="lg:hidden w-9 h-9 rounded-md flex items-center justify-center text-mute hover:bg-paper flex-shrink-0"
+          className="lg:hidden w-9 h-9 rounded-[var(--radius)] flex items-center justify-center text-[var(--ink-3)] hover:bg-[var(--paper-2)] flex-shrink-0"
           aria-label={sidebarOpen ? 'Close menu' : 'Open menu'}
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -50,40 +50,53 @@ export function TopBar({ currentProjectId, projects = [], onToggleSidebar, sideb
         </button>
       )}
 
-      {/* Wordmark */}
-      <Link to="/dashboard" className="flex items-center gap-2 group flex-shrink-0">
-        <span className="w-5 h-5 rounded-full border-2 border-text inline-block group-hover:rotate-12 transition-transform" />
-        <span className="font-serif italic text-[20px] leading-none text-text tracking-tight hidden sm:inline">
-          trackero<span className="text-lilac">.</span>
+      {/* Wordmark — open circle + serif italic "trackero." with lilac period.
+          Design's circle is a hairline svg ring, not a 2px border. */}
+      <Link to="/today" className="flex items-center gap-2 group flex-shrink-0">
+        <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <circle cx="10" cy="10" r="9" stroke="var(--ink)" strokeWidth="1.25" />
+        </svg>
+        <span className="serif-i text-[18px] leading-none text-ink tracking-tight hidden sm:inline">
+          trackero<span className="text-[var(--accent)]">.</span>
         </span>
       </Link>
 
-      {/* Breadcrumb */}
-      <div className="h-5 w-px bg-rule mx-1 hidden md:block" />
-      <nav className="flex items-center gap-1.5 text-[14px] flex-1 min-w-0 overflow-hidden">
+      {/* Breadcrumb. Design pattern: <Project ▾> · / · <Page>. The chevron
+          next to the project name implies it's the click target for the
+          project switcher; on Today (no project context) only the page
+          label is shown. */}
+      <nav className="flex items-center gap-2 text-[14px] flex-1 min-w-0 overflow-hidden">
         {segments.map((seg, i) => (
-          <span key={i} className="flex items-center gap-1.5 min-w-0">
-            {i > 0 && <span className="text-faint">/</span>}
+          <span key={i} className="flex items-center gap-2 min-w-0">
+            {i > 0 && <span className="text-[var(--ink-4)]">/</span>}
             {seg.to ? (
-              <Link to={seg.to} className="text-mute hover:text-text truncate">{seg.label}</Link>
+              <Link to={seg.to} className="text-[var(--ink-2)] hover:text-ink truncate flex items-center gap-1">
+                {seg.label}
+                {seg.dropdown && (
+                  <svg className="w-3 h-3 text-[var(--ink-4)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                )}
+              </Link>
             ) : (
-              <span className="text-text truncate font-medium">{seg.label}</span>
+              <span className="text-ink truncate font-medium">{seg.label}</span>
             )}
           </span>
         ))}
       </nav>
 
-      {/* Jump-to-anything */}
+      {/* Jump-to-anything search button — design uses a wide pill with paper-2
+          background, magnifier icon, placeholder text, and a .kbd at the right. */}
       <button
         onClick={openCommandPalette}
-        className="hidden md:flex items-center gap-2 h-9 px-3 rounded-lg bg-paper hover:bg-rule text-mute text-[13px] min-w-[240px] transition-colors flex-shrink-0"
+        className="hidden md:flex items-center gap-2 h-9 px-3 rounded-[var(--radius)] bg-[var(--paper-2)] hover:bg-[var(--paper-3)] text-[var(--ink-3)] text-[13px] min-w-[280px] transition-colors flex-shrink-0"
       >
         <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <circle cx="11" cy="11" r="7" />
           <path d="M21 21l-4.3-4.3" strokeLinecap="round" />
         </svg>
         <span className="flex-1 text-left">Jump to anything…</span>
-        <kbd className="text-[11px] font-mono text-faint">⌘K</kbd>
+        <span className="kbd">⌘K</span>
       </button>
 
       {/* Mobile search icon (replaces full jump-to) */}
@@ -104,14 +117,23 @@ export function TopBar({ currentProjectId, projects = [], onToggleSidebar, sideb
   );
 }
 
-function breadcrumbSegments(pathname: string, currentProject: Project | null): { label: string; to?: string }[] {
-  const segs: { label: string; to?: string }[] = [];
-  if (pathname === '/dashboard') {
+// `dropdown: true` renders a chevron after the segment label so the user
+// knows it's a click target for the project switcher.
+function breadcrumbSegments(
+  pathname: string,
+  currentProject: Project | null,
+): { label: string; to?: string; dropdown?: boolean }[] {
+  const segs: { label: string; to?: string; dropdown?: boolean }[] = [];
+  if (pathname === '/dashboard' || pathname === '/today') {
     segs.push({ label: 'Today' });
     return segs;
   }
   if (pathname.startsWith('/projects/') && currentProject) {
-    segs.push({ label: currentProject.name, to: `/projects/${currentProject.id}/board` });
+    segs.push({
+      label: currentProject.name,
+      to: `/projects/${currentProject.id}/board`,
+      dropdown: true,
+    });
     // Sub-page label from URL
     const parts = pathname.split('/').filter(Boolean); // projects, :id, page, ...
     const page = parts[2];
@@ -122,6 +144,7 @@ function breadcrumbSegments(pathname: string, currentProject: Project | null): {
   }
   if (pathname === '/profile') segs.push({ label: 'Profile' });
   else if (pathname === '/settings') segs.push({ label: 'Instance settings' });
+  else if (pathname === '/projects') segs.push({ label: 'All projects' });
   return segs;
 }
 

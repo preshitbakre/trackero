@@ -489,8 +489,10 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
           </div>
         </DrawerHeader>
 
-        <DrawerBody className="p-4 space-y-6">
-          {/* Title */}
+        <DrawerBody className="p-5 space-y-6">
+          {/* Title — italic-serif hero per frame 6, scaled down to 32px so it
+              still feels like a hero inside the slide-over without dominating.
+              Click-to-edit preserved. */}
           {editing ? (
             <input
               value={title}
@@ -503,21 +505,22 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
               onBlur={handleTitleBlur}
               onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
               autoFocus
-              className="w-full font-serif text-[28px] leading-tight bg-transparent border-b border-lilac outline-none text-text dark:text-dneutral-700"
+              className="w-full serif-i text-[32px] leading-[1.05] bg-transparent border-b border-[var(--accent)] outline-none text-ink"
             />
           ) : (
             <h2
               onClick={() => setEditing(true)}
-              className="font-serif text-[28px] leading-tight text-text dark:text-dneutral-700 cursor-pointer hover:text-lilac-dark"
+              className="serif-i text-[32px] leading-[1.05] text-ink cursor-pointer hover:text-[var(--accent)]"
             >
               {task.title}
             </h2>
           )}
 
-          {/* Properties — 2 columns */}
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-[16px]">
+          {/* Properties — 2 columns. Labels use .smallcaps (10px / 600 /
+              tracking 0.12em / uppercase / --ink-3) per the design canon. */}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-[14px]">
             <div>
-              <span className="block text-[14px] text-neutral-400 mb-1">Priority</span>
+              <span className="smallcaps block mb-1.5">Priority</span>
               <Select
                 value={task.priority}
                 onChange={(val) => handleFieldChange('priority', val, loadTask)}
@@ -533,7 +536,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
             </div>
 
             <div>
-              <span className="block text-[14px] text-neutral-400 mb-1">Story Points</span>
+              <span className="smallcaps block mb-1.5">Story Points</span>
               <input
                 type="text"
                 inputMode="numeric"
@@ -556,7 +559,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
             </div>
 
             <div>
-              <span className="block text-[14px] text-neutral-400 mb-1">Assignee</span>
+              <span className="smallcaps block mb-1.5">Assignee</span>
               <Select
                 value={task.assigneeId ? String(task.assigneeId) : ''}
                 onChange={(val) => {
@@ -572,7 +575,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
             {/* Parent — only for subtasks */}
             {task.itemType === 'subtask' && (
               <div>
-                <span className="block text-[14px] text-neutral-400 mb-1">Parent</span>
+                <span className="smallcaps block mb-1.5">Parent</span>
                 <Combobox
                   value={task.parentId ? String(task.parentId) : ''}
                   onChange={async (val) => {
@@ -623,7 +626,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
 
             {/* Sprint */}
             <div>
-              <span className="block text-[14px] text-neutral-400 mb-1">Sprint</span>
+              <span className="smallcaps block mb-1.5">Sprint</span>
               {task.itemType === 'subtask' ? (
                 <div className="h-[30px] flex items-center px-3 rounded-md border border-neutral-200 dark:border-dneutral-200 bg-neutral-100 dark:bg-dneutral-200 text-[16px] text-neutral-500 dark:text-dneutral-500 cursor-not-allowed">
                   {parentSprintName || 'Inherited'}
@@ -651,7 +654,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
 
           {/* Description */}
           <div>
-            <h3 className="text-[16px] font-medium text-neutral-400 mb-2">Description</h3>
+            <h3 className="smallcaps mb-2">Description</h3>
             <textarea
               value={task.description || ''}
               onChange={(e) => {
@@ -668,7 +671,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
 
           {/* Labels */}
           <div>
-            <h3 className="text-[16px] font-medium text-neutral-400 mb-2">Labels</h3>
+            <h3 className="smallcaps mb-2">Labels</h3>
             {canEdit ? (
               <LabelPicker
                 projectId={projectId}
@@ -690,7 +693,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
 
           {/* Associations */}
           <div>
-            <h3 className="text-[16px] font-medium text-neutral-400 mb-2">Associations</h3>
+            <h3 className="smallcaps mb-2">Associations</h3>
             {associations && (
               <div className="space-y-2">
                 {associations.belongsTo?.length > 0 && (
@@ -919,7 +922,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
 
           {/* Comments */}
           <div>
-            <h3 className="text-[16px] font-medium text-neutral-400 mb-2">
+            <h3 className="smallcaps mb-2">
               Comments {comments.length > 0 && `(${comments.length})`}
             </h3>
             {comments.length > 0 && (

@@ -150,28 +150,35 @@ export function Sidebar({ projects, currentProjectId, onNavigate }: SidebarProps
 
   return (
     <>
-      <aside className="flex flex-col bg-cream dark:bg-dneutral-100 w-[240px] h-full shadow-[4px_0_12px_rgba(26,20,36,0.04)] dark:shadow-[4px_0_12px_rgba(0,0,0,0.3)] flex-shrink-0">
-        {/* Project switcher header card */}
-        <div className="relative p-3 border-b border-rule">
+      <aside className="flex flex-col bg-[var(--paper)] w-[220px] h-full border-r border-[var(--line)] flex-shrink-0">
+        {/* Project switcher header card. Design frame 1: dark ink-filled
+            32px square with the project's first letter in paper colour,
+            then name + "PREFIX · N members" mono subtitle, then a
+            dropdown chevron at the far right. The entire row is the
+            click target that opens the project dropdown. */}
+        <div className="relative px-4 py-4 border-b border-[var(--line)]">
           <button
             onClick={() => setSwitcherOpen((v) => !v)}
-            className="w-full flex items-center gap-3 px-2 py-2 rounded-md hover:bg-paper transition-colors"
+            className="w-full flex items-center gap-3 text-left hover:opacity-90 transition-opacity"
+            aria-label="Switch project"
           >
             <span
-              className="w-7 h-7 rounded-md flex items-center justify-center text-[14px] font-semibold text-white flex-shrink-0"
-              style={{ backgroundColor: currentDotColor }}
+              className="w-8 h-8 rounded-[var(--radius)] flex items-center justify-center text-[14px] font-semibold text-[var(--paper)] flex-shrink-0"
+              style={{ backgroundColor: currentProject ? currentDotColor : 'var(--ink)' }}
             >
               {currentProject?.name?.[0]?.toUpperCase() ?? 'T'}
             </span>
-            <span className="flex-1 min-w-0 text-left">
-              <span className="block text-[14px] font-semibold text-text truncate">
+            <span className="flex-1 min-w-0">
+              <span className="block text-[14px] font-semibold text-ink truncate">
                 {currentProject?.name ?? 'Trackero'}
               </span>
-              <span className="block text-[11px] text-mute truncate">
-                {currentProject ? `${currentProject.prefix} · ${currentProject.memberCount ?? '—'} members` : 'no project'}
+              <span className="block mono text-[11px] text-[var(--ink-3)] truncate">
+                {currentProject
+                  ? `${currentProject.prefix} · ${currentProject.memberCount ?? '—'} members`
+                  : 'no project'}
               </span>
             </span>
-            <svg className="w-3 h-3 text-faint flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-3 h-3 text-[var(--ink-4)] flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M6 9l6 6 6-6" />
             </svg>
           </button>
@@ -351,8 +358,10 @@ export function Sidebar({ projects, currentProjectId, onNavigate }: SidebarProps
 }
 
 function SectionHeader({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  // Design uses .smallcaps for sidebar section labels (10px / 600 /
+  // letter-spacing 0.12em / uppercase / --ink-3 colour).
   return (
-    <div className={`px-3 mt-2 mb-1 text-[11px] uppercase tracking-[0.18em] font-semibold text-faint ${className}`}>
+    <div className={`smallcaps px-4 mt-4 mb-2 ${className}`}>
       {children}
     </div>
   );
@@ -371,17 +380,25 @@ function NavItem({
   active: boolean;
   onClick?: () => void;
 }) {
+  // Design's active state is a lilac dot bullet at the left + lilac text,
+  // NOT a background fill. Hover is the only state with a paper-tinted
+  // background. Text stays at --ink for inactive, --accent for active.
   return (
     <Link
       to={to}
       onClick={onClick}
-      className={`flex items-center gap-2.5 px-3 py-1.5 rounded-md mx-1 text-[14px] transition-colors ${
+      className={`flex items-center gap-2.5 pl-4 pr-3 py-1.5 text-[13.5px] transition-colors ${
         active
-          ? 'bg-lilac-tint text-lilac-dark font-semibold'
-          : 'text-text/80 hover:bg-paper hover:text-text'
+          ? 'text-[var(--accent)] font-medium'
+          : 'text-[var(--ink-2)] hover:bg-[var(--paper-2)]'
       }`}
     >
-      <span className={`w-4 text-center text-[14px] ${active ? 'text-lilac' : 'text-faint'}`}>{icon}</span>
+      {/* Bullet column — 6px lilac dot when active, empty otherwise.
+          Reserved width prevents the icon from shifting on activation. */}
+      <span className="w-1.5 h-1.5 flex-shrink-0">
+        {active && <span className="block w-1.5 h-1.5 rounded-full bg-[var(--accent)]" />}
+      </span>
+      <span className={`w-4 text-center text-[14px] ${active ? 'text-[var(--accent)]' : 'text-[var(--ink-4)]'}`}>{icon}</span>
       <span>{label}</span>
     </Link>
   );
@@ -432,6 +449,11 @@ function SwitcherRow({
 }
 
 function SprintFooter({ sprint }: { sprint: any }) {
+  // Design's sidebar footer card (frame 1, .pbar.accent variant):
+  //   Current sprint                       <-- .smallcaps
+  //   Sprint 27                d4/10       <-- name + .mono.num
+  //   ▓▓▓▓░░░░░░                           <-- .pbar.accent
+  //   14/38 done · May 30                  <-- .mono.num
   const totalPts: number = sprint.totalPoints ?? sprint.total_points ?? 0;
   const donePts: number = sprint.donePoints ?? sprint.done_points ?? 0;
   const startDate = sprint.startDate ?? sprint.start_date;
@@ -446,22 +468,25 @@ function SprintFooter({ sprint }: { sprint: any }) {
     dayOf = Math.max(1, Math.min(length, Math.round((today.getTime() - s.getTime()) / 86400000) + 1));
   }
   const pct = totalPts ? Math.min(100, Math.round((donePts / totalPts) * 100)) : 0;
-  const endLabel = endDate ? new Date(endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase() : '—';
+  const endLabel = endDate ? new Date(endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
 
   return (
-    <div className="px-3 py-3 border-t border-rule">
-      <div className="text-[10px] uppercase tracking-[0.18em] font-semibold text-faint mb-1">Current sprint</div>
+    <div className="px-4 py-4 border-t border-[var(--line)]">
+      <div className="smallcaps mb-1.5">Current sprint</div>
       <div className="flex items-baseline justify-between">
-        <span className="text-[15px] font-semibold text-text">{sprint.name ?? `Sprint ${sprint.number}`}</span>
+        <span className="text-[14px] font-semibold text-ink">
+          {sprint.name ?? `Sprint ${sprint.number}`}
+        </span>
         {dayOf && length && (
-          <span className="text-[11px] text-mute">d{dayOf}/{length}</span>
+          <span className="mono num text-[11px] text-[var(--ink-3)]">d{dayOf}/{length}</span>
         )}
       </div>
-      <div className="mt-2 h-1 rounded-full bg-rule overflow-hidden">
-        <div className="h-full bg-lilac" style={{ width: `${pct}%` }} />
+      {/* .pbar.accent — full-height fill in --accent, track in --paper-3. */}
+      <div className="pbar accent mt-2" aria-hidden="true">
+        <i style={{ width: `${pct}%` }} />
       </div>
-      <div className="mt-2 text-[10px] uppercase tracking-[0.14em] text-mute">
-        {donePts}/{totalPts} DONE · {endLabel}
+      <div className="mono num text-[11px] text-[var(--ink-3)] mt-2">
+        {donePts}/{totalPts} done · {endLabel}
       </div>
     </div>
   );

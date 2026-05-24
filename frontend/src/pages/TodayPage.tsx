@@ -130,9 +130,17 @@ export function TodayPage() {
     );
   }
 
+  // Design measurements at 1440 viewport (extracted from
+  // docs/design-html/Today _ signature moment.html via
+  // getBoundingClientRect):
+  //   main column:  878px wide  (children carry their own padding)
+  //   right rail:   341px wide  (border-l, no flex gap)
+  // We give the main column flex-1 and pin the rail to 341px. The
+  // visual breathing room comes from each section's internal padding,
+  // not from a parent gap.
   return (
-    <div className="p-8 max-w-screen-2xl grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-10">
-      <main>
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_341px] h-full overflow-hidden">
+      <main className="pl-9 pr-6 py-7 overflow-y-auto">
         <GreetingHero
           greeting={data.greeting}
           summary={data.summary}
@@ -140,16 +148,14 @@ export function TodayPage() {
         />
         <ThreeThings
           items={data.triage}
-          assignedCount={data.triage.length /* TODO: backend should surface a total-assigned count separate from the top-3 triage slice */}
+          assignedCount={data.triage.length}
         />
-        {/* Reviewing + Due soon as a 2-col layout — matches the design's
-            bottom-row split in the main column. */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8 mb-10">
           <ReviewingPanel items={data.reviewing} />
           <DueSoonPanel items={data.dueSoon} total={data.dueSoonTotalAssigned} />
         </div>
       </main>
-      <aside className="space-y-7">
+      <aside className="px-6 py-7 space-y-6 border-l border-[var(--line)] overflow-y-auto">
         <SprintCard sprint={data.currentSprint} summary={data.summary} />
         <LiveRail presence={data.presence} />
         <ActivityRail activity={data.activity} />
@@ -183,12 +189,17 @@ function GreetingHero({ greeting, summary, sprintName }: {
       <div className="smallcaps mb-3">
         {formatEyebrowDate(greeting.localDate, partOfDayWord, greeting.localTime)}
       </div>
-      {/* Design hero is ~84px serif with italic name on its own line and an
-          em-dash flourish trailing. Letter-spacing pulled tight via .serif. */}
-      <h1 className="serif text-[80px] leading-[0.98] text-ink">
+      {/* Design measurements (from getComputedStyle on the design HTML):
+          font-size 70px, line-height 64.4px (≈0.92x), letter-spacing -2.1px
+          (-0.03em), Instrument Serif. The italic name sits on its own line
+          and a lilac em-dash trails it on the same line. */}
+      <h1
+        className="serif text-ink"
+        style={{ fontSize: 70, lineHeight: '64.4px', letterSpacing: '-0.03em' }}
+      >
         Good {partOfDayWord},<br />
         <span className="serif-i">{greeting.name}.</span>
-        <span className="text-[var(--accent)] ml-2 align-middle text-[60px]">—</span>
+        <span className="text-[var(--accent)] ml-2 align-middle" style={{ fontSize: 50 }}>—</span>
       </h1>
       <p className="mt-5 text-[16px] text-ink max-w-2xl leading-relaxed">
         {hasReview ? (
