@@ -21,7 +21,7 @@ interface ComboboxProps {
 }
 
 const inputClass =
-  'w-full rounded-md border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 px-3 py-2 text-[16px] text-neutral-700 dark:text-dneutral-700 placeholder-neutral-300 dark:placeholder-dneutral-300 focus:border-lilac dark:focus:border-peri-dm focus:outline-none focus:ring-2 focus:ring-lilac-tint dark:focus:ring-peri-dm/20 h-[30px] truncate';
+  'w-full rounded-md border border-rule bg-card px-3 py-2 text-[14px] text-text placeholder-faint focus:border-lilac focus:outline-none focus:ring-2 focus:ring-lilac-tint h-[32px] truncate';
 
 export function Combobox({ value, onChange, options, placeholder, emptyLabel, className, renderOption }: ComboboxProps) {
   const [search, setSearch] = useState('');
@@ -87,7 +87,7 @@ export function Combobox({ value, onChange, options, placeholder, emptyLabel, cl
           title={selectedOption?.label || ''}
           className={`${inputClass} pr-8`}
         />
-        <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-mute pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </div>
@@ -97,7 +97,7 @@ export function Combobox({ value, onChange, options, placeholder, emptyLabel, cl
           <div className="fixed inset-0 z-[9]" onClick={() => { setOpen(false); setSearch(''); }} />
           <div
             ref={listRef}
-            className="absolute z-10 mt-1 w-full max-h-[260px] overflow-y-auto rounded-md border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 shadow-lg"
+            className="absolute z-10 mt-1 w-full max-h-[260px] overflow-y-auto rounded-md bg-card shadow-[0_1px_3px_rgba(26,20,36,0.04),0_8px_24px_rgba(26,20,36,0.06)]"
           >
             {filtered.map((opt, idx) => {
               const isHighlighted = idx === highlightIdx;
@@ -108,18 +108,18 @@ export function Combobox({ value, onChange, options, placeholder, emptyLabel, cl
                   key={opt.value}
                   type="button"
                   onClick={() => select(opt.value)}
-                  className={`w-full text-left px-3 py-2.5 transition-colors border-b border-neutral-200/60 dark:border-dneutral-200/50 last:border-b-0 ${
+                  className={`w-full text-left px-3 py-2.5 transition-colors border-b border-rule/60 last:border-b-0 ${
                     isHighlighted
-                      ? 'bg-lilac/15'
+                      ? 'bg-lilac-tint'
                       : isSelected
-                        ? 'bg-lilac/10'
-                        : 'hover:bg-lilac/10'
+                        ? 'bg-lilac-tint/60'
+                        : 'hover:bg-lilac-tint/60'
                   }`}
                 >
                   {renderOption ? (
                     renderOption(opt, isHighlighted, isSelected)
                   ) : (
-                    <div className="flex items-center gap-2 text-[14px] text-neutral-700 dark:text-dneutral-700">
+                    <div className="flex items-center gap-2 text-[14px] text-text">
                       {opt.prefix}
                       <span className="truncate">{opt.label}</span>
                     </div>
@@ -128,7 +128,7 @@ export function Combobox({ value, onChange, options, placeholder, emptyLabel, cl
               );
             })}
             {filtered.length === 0 && (
-              <div className="px-3 py-2 text-[14px] text-neutral-400">No matches</div>
+              <div className="px-3 py-2 text-[14px] text-faint">No matches</div>
             )}
           </div>
         </>

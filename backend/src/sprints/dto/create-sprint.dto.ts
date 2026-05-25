@@ -1,14 +1,15 @@
-import { IsString, MaxLength, IsOptional } from 'class-validator';
+import { IsString, MaxLength, IsOptional, IsNotEmpty } from 'class-validator';
 
 export class CreateSprintDto {
-  @IsString()
-  @MaxLength(255)
-  name: string;
-
   @IsOptional()
   @IsString()
+  @MaxLength(255)
+  name?: string;
+
+  @IsString()
+  @IsNotEmpty()
   @MaxLength(2000)
-  goal?: string;
+  goal: string;
 
   @IsString()
   @MaxLength(32)

@@ -52,7 +52,7 @@ export class CommentsService {
     // persist into comment_mentions, and emit one COMMENT_MENTIONED per
     // resolved user. Self-mentions are filtered out.
     const mentionTokens = new Set<string>();
-    const mentionRe = /@([A-Za-z0-9._-]+)/g;
+    const mentionRe = /@\[([^\]]+)\]/g;
     let m: RegExpExecArray | null;
     while ((m = mentionRe.exec(body)) !== null) {
       mentionTokens.add(m[1]);
@@ -71,9 +71,8 @@ export class CommentsService {
         CROSS JOIN UNNEST($2::text[]) AS t(token)
         WHERE u.is_active = TRUE
           AND (
-            LOWER(u.display_name) = LOWER(t.token)
-            OR LOWER(SPLIT_PART(u.display_name, ' ', 1)) = LOWER(t.token)
-            OR LOWER(SPLIT_PART(u.email, '@', 1)) = LOWER(t.token)
+            LOWER(TRIM(u.display_name)) = LOWER(TRIM(t.token))
+            OR LOWER(SPLIT_PART(u.email, '@', 1)) = LOWER(TRIM(t.token))
           )
           AND u.id <> $3
         `,

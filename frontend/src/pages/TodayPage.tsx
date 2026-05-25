@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../api/client';
+import { TypeTag } from '../components/ui/TypeTag';
+import type { TypeTagKind } from '../components/ui/TypeTag';
 
 interface TodayPayload {
   greeting: {
@@ -99,8 +101,13 @@ const formatEyebrowDate = (iso: string, partOfDay: string, time: string): string
 };
 
 export function TodayPage() {
-  const [params] = useSearchParams();
-  const projectId = params.get('projectId');
+  // Today is per-project. The route /projects/:id/today carries the
+  // scope; the legacy ?projectId= query string still works for any
+  // callers that haven't migrated yet, but the URL param wins when
+  // both are present. /today (no projectId) routes via TodayRedirect.
+  const { id: idFromRoute } = useParams<{ id?: string }>();
+  const [search] = useSearchParams();
+  const projectId = idFromRoute ?? search.get('projectId');
   const tz = typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC';
 
   const { data, isLoading, isError } = useQuery<TodayPayload>({
@@ -111,6 +118,7 @@ export function TodayPage() {
       const res = await apiClient.get(`/today?${qs.toString()}`);
       return res.data.data;
     },
+    enabled: !!projectId,
     staleTime: 30_000,
     refetchInterval: 30_000,
   });
@@ -130,32 +138,44 @@ export function TodayPage() {
     );
   }
 
-  // Design measurements at 1440 viewport (extracted from
+  // Design measurements at 1440 viewport (re-extracted from
   // docs/design-html/Today _ signature moment.html via
-  // getBoundingClientRect):
-  //   main column:  878px wide  (children carry their own padding)
-  //   right rail:   341px wide  (border-l, no flex gap)
-  // We give the main column flex-1 and pin the rail to 341px. The
-  // visual breathing room comes from each section's internal padding,
-  // not from a parent gap.
+  // getBoundingClientRect on the actual rail+main split):
+  //   main column:  878px wide  (transparent bg, children carry padding)
+  //   right rail:   340px wide  (--paper-2 tint, border-l --line, no gap;
+  //                              internal sections own their own padding
+  //                              and are separated by 1px --line dividers)
+  // The main column stays flex-1 and the rail is pinned at 340px.
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_341px] h-full overflow-hidden">
-      <main className="pl-9 pr-6 py-7 overflow-y-auto">
-        <GreetingHero
-          greeting={data.greeting}
-          summary={data.summary}
-          sprintName={data.currentSprint?.name ?? null}
-        />
-        <ThreeThings
-          items={data.triage}
-          assignedCount={data.triage.length}
-        />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8 mb-10">
-          <ReviewingPanel items={data.reviewing} />
-          <DueSoonPanel items={data.dueSoon} total={data.dueSoonTotalAssigned} />
-        </div>
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] h-full overflow-hidden">
+      {/* Main column. Width comes from the grid (100vw − sidebar − rail).
+          The page is broken into stacked <section>s — each section owns
+          its OWN horizontal padding (px-9) and brings its own top
+          divider when needed. That keeps the divider spanning the full
+          main-column width instead of being indented by an outer
+          padded wrapper. */}
+      <main className="overflow-y-auto">
+        <section className="px-9 pt-7 pb-8">
+          <GreetingHero
+            greeting={data.greeting}
+            summary={data.summary}
+            sprintName={data.currentSprint?.name ?? null}
+          />
+        </section>
+        <section className="px-9 py-8 border-t border-[var(--line)]">
+          <ThreeThings
+            items={data.triage}
+            assignedCount={data.triage.length}
+          />
+        </section>
+        <section className="px-9 pb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8">
+            <ReviewingPanel items={data.reviewing} />
+            <DueSoonPanel items={data.dueSoon} total={data.dueSoonTotalAssigned} />
+          </div>
+        </section>
       </main>
-      <aside className="px-6 py-7 space-y-6 border-l border-[var(--line)] overflow-y-auto">
+      <aside className="bg-[var(--paper-2)] border-l border-[var(--line)] overflow-y-auto">
         <SprintCard sprint={data.currentSprint} summary={data.summary} />
         <LiveRail presence={data.presence} />
         <ActivityRail activity={data.activity} />
@@ -185,7 +205,7 @@ function GreetingHero({ greeting, summary, sprintName }: {
   const hasPace = summary.pointsTotal !== null && summary.pointsTotal !== undefined && summary.pointsTotal > 0;
 
   return (
-    <section className="mb-12">
+    <section>
       <div className="smallcaps mb-3">
         {formatEyebrowDate(greeting.localDate, partOfDayWord, greeting.localTime)}
       </div>
@@ -256,20 +276,12 @@ function GreetingHero({ greeting, summary, sprintName }: {
 function ThreeThings({ items, assignedCount }: { items: TodayPayload['triage']; assignedCount: number }) {
   // Map item type to design's .tmark variant. The design uses
   // E/S/T/B/s — `subtask` lowercases to 's' inside .tmark.subtask.
-  const tmarkClass = (type: string) => {
-    if (type === 'epic') return 'tmark epic';
-    if (type === 'story') return 'tmark story';
-    if (type === 'bug') return 'tmark bug';
-    if (type === 'subtask') return 'tmark subtask';
-    return 'tmark task';
-  };
-  const tmarkLetter = (type: string) => {
-    if (type === 'subtask') return 's';
-    return type.charAt(0).toUpperCase();
-  };
   return (
-    <section className="mb-10">
-      <header className="mb-4 flex items-center justify-between gap-3">
+    // The outer page section owns the horizontal divider so it spans
+    // the full main-column width edge-to-edge. This component just
+    // renders its own header + list.
+    <section>
+      <header className="mb-5 flex items-center justify-between gap-3">
         <div className="flex items-baseline gap-3">
           <h2 className="serif text-[28px] text-ink">Your three things</h2>
           <span className="text-[12px] text-[var(--ink-3)]">
@@ -287,23 +299,20 @@ function ThreeThings({ items, assignedCount }: { items: TodayPayload['triage']; 
       ) : (
         <ol className="space-y-3">
           {items.map((t, i) => (
-            <li key={t.id} className="bg-[var(--card-bg)] border border-[var(--line)] rounded-[var(--radius-md)] p-4 flex items-start gap-5">
-              {/* Big serif rank numeral — design uses 1/2/3 in italic-serif at ~48px */}
-              <span className="serif text-[48px] leading-none text-[var(--ink-4)] w-9 flex-shrink-0 text-center">{i + 1}</span>
+            <li key={t.id} className="bg-[var(--card-bg)] border border-[var(--line)] px-6 py-5 flex items-start gap-6">
+              {/* Big serif rank numeral — design uses 1/2/3 in italic-serif at ~52px in muted ink-4 */}
+              <span className="serif text-[52px] leading-none text-[var(--ink-4)] w-10 flex-shrink-0 text-center">{i + 1}</span>
 
               <div className="flex-1 min-w-0">
-                {/* Meta row: tmark + key + dot · status pill + (optional blocker chip) */}
-                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                  <span className={tmarkClass(t.itemType)} aria-label={`${t.itemType} type`}>
-                    {tmarkLetter(t.itemType)}
-                  </span>
+                {/* Meta row: tmark + key + status pill + optional blocker chip */}
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <TypeTag kind={(t.itemType || 'task') as TypeTagKind} size="sm" />
                   <span className="mono num text-[12px] text-[var(--ink-3)]">{t.itemKey}</span>
                   <span className="text-[var(--ink-4)]">·</span>
                   <span className="status">
                     <span className="dot" style={{ backgroundColor: 'var(--c-mustard)' }} />
                     {t.reasonChips?.find((c) => /progress|review|todo|done/i.test(c)) ?? 'open'}
                   </span>
-                  {/* Reason chips — show non-status chips inline (e.g. "blocked by BST-201") */}
                   {(t.reasonChips ?? [])
                     .filter((c) => /blocked/i.test(c))
                     .slice(0, 1)
@@ -312,7 +321,10 @@ function ThreeThings({ items, assignedCount }: { items: TodayPayload['triage']; 
                     ))}
                 </div>
 
-                <div className="serif text-[16px] text-ink leading-snug truncate">{t.title}</div>
+                {/* Title — sans-bold ~19px per design (not serif). The
+                    editorial weight comes from the surrounding rank
+                    numeral; the title itself stays a calm sans block. */}
+                <div className="text-[19px] font-semibold text-ink leading-snug">{t.title}</div>
 
                 {/* Meta footer: label chip + pts + last touched */}
                 <div className="flex items-center gap-2 mt-2 flex-wrap text-[12px]">
@@ -327,9 +339,20 @@ function ThreeThings({ items, assignedCount }: { items: TodayPayload['triage']; 
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Right column: avatar on top, Open button stacked beneath
+                  it — per design (image #18) the action stack reads
+                  top-down, not side-by-side. */}
+              <div className="flex flex-col items-end gap-2 flex-shrink-0">
                 {t.assignee && (
-                  <span className="avatar" style={{ background: 'var(--c-plum)' }}>
+                  <span
+                    className="avatar"
+                    style={{
+                      background: 'var(--c-plum)',
+                      width: 36,
+                      height: 36,
+                      fontSize: 13,
+                    }}
+                  >
                     {(t.assignee.displayName?.[0] ?? '?').toUpperCase()}
                   </span>
                 )}
@@ -360,7 +383,7 @@ function ReviewingPanel({ items }: { items: TodayPayload['reviewing'] }) {
       {items.length === 0 ? (
         <p className="text-[13px] text-[var(--ink-3)]">Nothing to review right now.</p>
       ) : (
-        <ul className="divide-y divide-[var(--line)]">
+        <ul className="divide-y divide-dashed divide-[var(--line)]">
           {items.map((r) => (
             <li key={r.id} className="flex items-center gap-3 py-2 text-[13px]">
               <span className="mono num text-[12px] text-[var(--ink-3)] w-[64px] flex-shrink-0">{r.itemKey}</span>
@@ -386,7 +409,7 @@ function DueSoonPanel({ items, total }: { items: TodayPayload['dueSoon']; total:
       {items.length === 0 ? (
         <p className="text-[13px] text-[var(--ink-3)]">Nothing due this week.</p>
       ) : (
-        <ul className="divide-y divide-[var(--line)]">
+        <ul className="divide-y divide-dashed divide-[var(--line)]">
           {items.map((d) => {
             const label = d.dueInDays <= 0 ? `${-d.dueInDays}d over` : d.dueInDays === 0 ? 'today' : `${d.dueInDays}d`;
             return (
@@ -407,9 +430,15 @@ function SprintCard({ sprint, summary }: {
   sprint: TodayPayload['currentSprint'];
   summary: TodayPayload['summary'];
 }) {
+  // Design (rail at 340px): the sprint surface is THREE sibling sections
+  // separated by 1px --line dividers, not one bordered card.
+  //   Section 1 — sprint header: pad 24/24/18, smallcaps + goal pull-quote
+  //   Section 2 — burndown:      pad 20/24/18, eyebrow + sparkline + dates
+  //   Section 3 — 2×2 metrics:   pad 0 (full-bleed), cells own their pad,
+  //                              the inner grid lines also use --line.
   if (!sprint) {
     return (
-      <section className="bg-[var(--card-bg)] border border-[var(--line)] rounded-[var(--radius-md)] p-5">
+      <section className="px-6 py-6 border-b border-[var(--line)]">
         <div className="smallcaps mb-2">No active sprint</div>
         <p className="text-[13px] text-[var(--ink-4)]">
           Open <Link to="/projects" className="text-[var(--accent)] hover:underline">Projects</Link> and start one.
@@ -430,20 +459,19 @@ function SprintCard({ sprint, summary }: {
     : null;
 
   return (
-    <section className="bg-[var(--card-bg)] border border-[var(--line)] rounded-[var(--radius-md)] p-5">
-      <div className="smallcaps mb-2">
-        {sprint.projectName} · day {sprint.dayOf} of {sprint.length}
-      </div>
-      {/* Editorial pull-quote — design renders the sprint goal in italic
-          serif at ~20px. Falls back to the sprint name + a generic
-          tagline so the slot never reads empty. */}
-      <p className="serif-i text-[20px] leading-snug text-ink">
-        {sprint.goal ? `"${sprint.goal}"` : `"${sprint.name}"`}
-      </p>
+    <>
+      {/* 1. Sprint header — design padding 24px 24px 18px */}
+      <section className="px-6 pt-6 pb-[18px] border-b border-[var(--line)]">
+        <div className="smallcaps mb-2">
+          {sprint.projectName} · day {sprint.dayOf} of {sprint.length}
+        </div>
+        <p className="serif-i text-[20px] leading-snug text-ink">
+          {sprint.goal ? `"${sprint.goal}"` : `"${sprint.name}"`}
+        </p>
+      </section>
 
-      {/* Burndown row — eyebrow + mono pts on top, sparkline below, date
-          labels (MAY 19 / TODAY / MAY 30) under that. */}
-      <div className="mt-5">
+      {/* 2. Burndown — design padding 20px 24px 18px */}
+      <section className="px-6 pt-5 pb-[18px] border-b border-[var(--line)]">
         <div className="flex items-center justify-between mb-2">
           <span className="smallcaps">Burndown</span>
           <span className="mono num text-[12px] text-[var(--ink-3)]">
@@ -464,27 +492,49 @@ function SprintCard({ sprint, summary }: {
             <span>{endLabel ?? ''}</span>
           </div>
         )}
-      </div>
+      </section>
 
-      {/* 2×2 metric grid — design fields exactly: Done / In progress /
-          Blocked / Awaiting review. Blocked + awaiting-review come from
-          the /api/today summary block (already populated by the backend). */}
-      <div className="mt-5 grid grid-cols-2 gap-y-4 gap-x-6">
-        <MetricCell label="Done" value={sprint.pointsDone} />
-        <MetricCell label="In progress" value={sprint.pointsInProgress} muted />
-        <MetricCell label="Blocked" value={summary.blockingBugCount ?? 0} muted />
-        <MetricCell label="Awaiting review" value={summary.reviewCardCount ?? 0} muted />
-      </div>
-    </section>
+      {/* 3. 2×2 metric grid — design padding 0 (full-bleed) with --line
+          dividers between cells. Cells use their own internal padding. */}
+      <section className="grid grid-cols-2 border-b border-[var(--line)]">
+        <MetricCell
+          label="Done"
+          value={sprint.pointsDone}
+          className="border-b border-r border-[var(--line)]"
+        />
+        <MetricCell
+          label="In progress"
+          value={sprint.pointsInProgress}
+          muted
+          className="border-b border-[var(--line)]"
+        />
+        <MetricCell
+          label="Blocked"
+          value={summary.blockingBugCount ?? 0}
+          muted
+          className="border-r border-[var(--line)]"
+        />
+        <MetricCell
+          label="Awaiting review"
+          value={summary.reviewCardCount ?? 0}
+          muted
+        />
+      </section>
+    </>
   );
 }
 
-function MetricCell({ label, value, muted = false }: { label: string; value: number; muted?: boolean }) {
+function MetricCell({ label, value, muted = false, className = '' }: {
+  label: string;
+  value: number;
+  muted?: boolean;
+  className?: string;
+}) {
+  // Design metric cell: 18px top/left/right pad, 14px bottom; the .stat-num
+  // .smaller variant drops to 36px so 4 cells fit comfortably in the
+  // 340px rail.
   return (
-    <div>
-      {/* Design's stat-num: serif 56px, letter-spacing -0.03em, line-height 1.
-          The .stat-num.smaller variant drops to 36px — used here so 4 cells
-          fit comfortably in the right rail. */}
+    <div className={`px-[18px] pt-[18px] pb-[14px] ${className}`}>
       <div className={`stat-num smaller ${muted ? 'text-[var(--ink-3)]' : 'text-ink'}`}>
         {value}
       </div>
@@ -529,10 +579,11 @@ function BurndownSparkline({ points, className = '' }: {
 function LiveRail({ presence }: { presence: TodayPayload['presence'] }) {
   // Design row: avatar + bold first-name + light "<activity>" + right-side
   // mono status. Each row reads as a single sentence so the rail tells a
-  // story rather than just listing names.
+  // story rather than just listing names. Section padding 20px 24px 14px
+  // matches the design dump; border-b separates from the activity rail.
   const presenceColors = ['var(--c-sky)', 'var(--c-forest)', 'var(--c-plum)', 'var(--c-clay)', 'var(--c-sage)'];
   return (
-    <section>
+    <section className="px-6 pt-5 pb-[14px] border-b border-[var(--line)]">
       <div className="smallcaps mb-3">Live · {presence.count} here now</div>
       {presence.users.length === 0 ? (
         <p className="serif-i text-[13px] text-[var(--ink-4)]">It&apos;s quiet in here.</p>
@@ -566,13 +617,15 @@ function LiveRail({ presence }: { presence: TodayPayload['presence'] }) {
 function ActivityRail({ activity }: { activity: TodayPayload['activity'] }) {
   // Design row: mono "<relative time>" + avatar + sentence body.
   // The avatar maps each actor to one of the signal palette colours so
-  // the same person reads consistently across the rail.
+  // the same person reads consistently across the rail. Section padding
+  // 16/24/24 matches the design dump; no border-b — this is the last
+  // section, so the trailing space is just the rail's --paper-2 tint.
   const colorFor = (id: number) => {
     const palette = ['var(--c-sky)', 'var(--c-forest)', 'var(--c-plum)', 'var(--c-clay)', 'var(--c-sage)', 'var(--c-mustard)'];
     return palette[id % palette.length];
   };
   return (
-    <section>
+    <section className="px-6 pt-4 pb-6">
       <div className="smallcaps mb-3">Activity</div>
       {activity.length === 0 ? (
         <p className="serif-i text-[13px] text-[var(--ink-4)]">No activity in the last 24h.</p>

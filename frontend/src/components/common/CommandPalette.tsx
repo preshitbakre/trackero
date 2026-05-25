@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { apiClient } from '../../api/client';
-import { KbdKey } from '../ui';
+import { KbdKey, TypeTag } from '../ui';
+import type { TypeTagKind } from '../ui';
 
 /**
  * Phase 4 — sectioned command palette per frame 5.
@@ -80,13 +81,6 @@ interface FlatRow {
   render: () => React.ReactElement;
 }
 
-const TYPE_STYLES: Record<string, { bg: string; text: string }> = {
-  epic: { bg: '#7C5CFC35', text: '#4A2FC0' },
-  story: { bg: '#88A9D640', text: '#2E5A8E' },
-  task: { bg: '#D6B58840', text: '#7A5E2A' },
-  bug: { bg: '#FFB4B435', text: '#A03A3A' },
-  subtask: { bg: '#A8A19A35', text: '#5C5650' },
-};
 
 export function CommandPalette({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
@@ -458,18 +452,12 @@ function navPathForItem(w: WorkItem): string {
 }
 
 function WorkItemRow({ item }: { item: WorkItem }) {
-  const ts = TYPE_STYLES[item.itemType] ?? TYPE_STYLES.task;
   const assigneeLabel = item.assignee
     ? `@${item.assignee.displayName.split(' ')[0].toLowerCase()}`
     : 'unassigned';
   return (
     <>
-      <span
-        className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full flex-shrink-0"
-        style={{ backgroundColor: ts.bg, color: ts.text }}
-      >
-        {item.itemType.slice(0, 4)}
-      </span>
+      <TypeTag kind={(item.itemType || 'task') as TypeTagKind} size="sm" />
       <span className="text-[12px] font-mono text-faint flex-shrink-0">{item.itemKey}</span>
       <span className="text-[14px] flex-1 truncate">{item.title}</span>
       {/* Right column per frame 5: status pill · assignee · points.

@@ -1,7 +1,7 @@
 import { forwardRef, useState, type InputHTMLAttributes } from 'react';
 
 const baseClass =
-  'w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 px-3 py-2 text-[16px] text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400 dark:placeholder-dneutral-400 focus:border-lilac focus:outline-none focus:ring-2 focus:ring-lilac/40';
+  'w-full rounded-md border border-rule bg-card px-3 py-2 text-[14px] text-text placeholder-faint focus:border-lilac focus:outline-none focus:ring-2 focus:ring-lilac-tint';
 
 export interface PasswordInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {}
 
@@ -21,7 +21,7 @@ export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
           type="button"
           tabIndex={-1}
           onClick={() => setVisible((v) => !v)}
-          className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-neutral-500 dark:hover:text-dneutral-600"
+          className="absolute inset-y-0 right-0 flex items-center pr-3 text-faint hover:text-mute"
         >
           {visible ? (
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -82,7 +82,7 @@ export function StoriesPage() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-baseline gap-4 flex-wrap">
-          <h1 className="font-serif text-[36px] leading-none text-text dark:text-dneutral-700">Stories</h1>
+          <h1 className="font-serif text-[36px] text-text">Stories</h1>
           <p className="text-[11px] tracking-[0.18em] uppercase font-serif font-semibold text-faint">
             {stories.length} stor{stories.length === 1 ? 'y' : 'ies'}
           </p>

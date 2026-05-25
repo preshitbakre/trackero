@@ -50,11 +50,27 @@ export function TopBar({ currentProjectId, projects = [], onToggleSidebar, sideb
         </button>
       )}
 
-      {/* Wordmark — open circle + serif italic "trackero." with lilac period.
-          Design's circle is a hairline svg ring, not a 2px border. */}
+      {/* Wordmark — design (Today _ signature moment.html) draws this as
+          three SVG shapes on a 32×32 viewBox: an ink-outline circle
+          (r=13, stroke 2), a 3.5px lilac quarter-arc from 12-o'clock
+          clockwise to ~1:30, and a lilac dot capping the end of the arc.
+          Plus the serif italic "trackero" wordmark with lilac period. */}
       <Link to="/today" className="flex items-center gap-2 group flex-shrink-0">
-        <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-          <circle cx="10" cy="10" r="9" stroke="var(--ink)" strokeWidth="1.25" />
+        <svg
+          className="w-5 h-5"
+          viewBox="0 0 32 32"
+          fill="none"
+          aria-hidden="true"
+        >
+          <circle cx="16" cy="16" r="13" stroke="var(--ink)" strokeWidth="2" />
+          <path
+            d="M16 3a13 13 0 0 1 11.26 6.5"
+            stroke="var(--accent)"
+            strokeWidth="3.5"
+            strokeLinecap="square"
+            fill="none"
+          />
+          <circle cx="27.26" cy="9.5" r="2.5" fill="var(--accent)" />
         </svg>
         <span className="serif-i text-[18px] leading-none text-ink tracking-tight hidden sm:inline">
           trackero<span className="text-[var(--accent)]">.</span>
@@ -188,7 +204,7 @@ function AvatarMenu() {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-48 rounded-lg bg-card dark:bg-dneutral-200 shadow-lg dark:shadow-[0_8px_24px_rgba(0,0,0,0.5)] z-50 overflow-hidden">
+        <div className="dropdown-panel absolute right-0 mt-2 w-48 bg-card dark:bg-dneutral-200 z-50 overflow-hidden">
           <div className="px-4 py-3 border-b border-rule dark:border-dneutral-200">
             <p className="text-[14px] font-medium text-text dark:text-dneutral-700 truncate">{user?.displayName}</p>
             <p className="text-[13px] text-faint dark:text-dneutral-400 truncate">{user?.email}</p>

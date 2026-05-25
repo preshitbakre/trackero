@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
@@ -62,6 +62,21 @@ export function ProjectsPage() {
 
   const qc = useQueryClient();
 
+  useEffect(() => {
+    if (!canAdminister) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'c' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        if ((e.target as HTMLElement)?.isContentEditable) return;
+        e.preventDefault();
+        setShowCreate(true);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [canAdminister]);
+
   const { data, isLoading, isError } = useQuery<DirResp>({
     queryKey: ['projects-directory', filter, search, mineOnly],
     queryFn: async () => {
@@ -105,7 +120,7 @@ export function ProjectsPage() {
       <div className="flex items-end justify-between gap-6 mb-4 flex-wrap">
         <div className="min-w-0 flex-1">
           <Eyebrow>Workspace</Eyebrow>
-          <h1 className="font-serif italic text-[42px] leading-[1.1] text-ink mt-1">
+          <h1 className="font-serif text-[36px] text-text mt-1">
             Projects
           </h1>
           <p className="text-mute text-[14px] mt-1">
@@ -118,7 +133,7 @@ export function ProjectsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="search projects…"
-            className="w-[220px] px-3 py-1.5 text-[13px] bg-paper rounded-md placeholder-faint focus:outline-none focus:ring-1 focus:ring-lilac"
+            className="w-[220px] px-3 py-1.5 text-[13px] bg-paper border border-[var(--line)] rounded-md placeholder-faint focus:outline-none focus:ring-1 focus:ring-lilac"
           />
           <button
             type="button"
@@ -179,7 +194,7 @@ export function ProjectsPage() {
       )}
       {!isLoading && !isError && projects.length === 0 && (
         <div className="py-16 text-center">
-          <div className="font-serif italic text-[28px] text-ink">No projects yet.</div>
+          <div className="font-serif text-[28px] text-text">No projects yet.</div>
           <p className="text-mute mt-2">
             {mineOnly
               ? 'You haven\'t joined any matching projects.'
@@ -214,7 +229,7 @@ export function ProjectsPage() {
                   <button
                     type="button"
                     onClick={() => setShowCreate(true)}
-                    className="bg-card rounded-lg p-4 border border-dashed border-rule hover:border-lilac/40 hover:bg-paper/40 transition-colors flex flex-col items-center justify-center text-center min-h-[160px]"
+                    className="bg-card p-4 border border-dashed border-rule hover:border-lilac/40 hover:bg-paper/40 transition-colors flex flex-col items-center justify-center text-center min-h-[160px]"
                   >
                     <span className="w-10 h-10 rounded-full border border-rule flex items-center justify-center text-faint text-[18px] mb-2">
                       +
@@ -303,7 +318,7 @@ function ProjectCard({
       : 0;
 
   return (
-    <div className="bg-card rounded-lg p-4 border border-rule hover:border-lilac/40 transition-colors flex flex-col gap-3">
+    <div className="bg-card p-4 border border-rule hover:border-lilac/40 transition-colors flex flex-col gap-3">
       <div className="flex items-start gap-3">
         <span
           className="w-9 h-9 rounded-md flex items-center justify-center text-[16px] font-semibold text-white flex-shrink-0"
@@ -394,7 +409,7 @@ function SkeletonGrid() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="bg-card rounded-lg p-4 border border-rule animate-pulse h-[180px]" />
+        <div key={i} className="bg-card p-4 border border-rule animate-pulse h-[180px]" />
       ))}
     </div>
   );

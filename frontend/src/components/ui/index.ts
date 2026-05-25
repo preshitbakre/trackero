@@ -1,8 +1,11 @@
+export { Button } from './Button';
 export { Input } from './Input';
 export { PasswordInput } from './PasswordInput';
 export { NumberInput } from './NumberInput';
 export { Textarea } from './Textarea';
 export { Select } from './Select';
+export { Combobox } from './Combobox';
+export type { ComboboxOption } from './Combobox';
 export { KbdKey } from './KbdKey';
 export { Eyebrow } from './Eyebrow';
 export { TypeTag } from './TypeTag';
@@ -13,3 +16,6 @@ export type { StatusKey } from './StatusPill';
 export { RoleBadge } from './RoleBadge';
 export type { RoleKey } from './RoleBadge';
 export { MetricNumber } from './MetricNumber';
+export { LabelBadge, LabelList } from './LabelBadge';
+export { LabelPicker } from './LabelPicker';
+export { StoryPointsInput, StoryPointsLabel } from './StoryPointsInput';

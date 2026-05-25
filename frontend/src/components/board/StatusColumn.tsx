@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { apiClient } from '../../api/client';
 import { toast } from '../common/Toast';
 import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
 
 interface BoardTask {
   id: number;
@@ -67,35 +68,29 @@ export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId,
   return (
     <div
       ref={setNodeRef}
-      className={`flex flex-col w-[300px] flex-shrink-0 rounded-xl p-3 transition-colors duration-150 ${
+      className={`flex flex-col w-[228px] flex-shrink-0 transition-colors duration-150 ${
         isOver
-          ? 'bg-lilac-tint ring-2 ring-dashed ring-lilac/30'
-          : 'bg-card/60 dark:bg-dneutral-100/30'
+          ? 'bg-[var(--color-lilac-tint)] ring-2 ring-dashed ring-lilac/30'
+          : 'bg-[var(--paper)] border border-[var(--line)]'
       }`}
     >
-      {/* Column header — sticky */}
+      {/* Column header */}
       <div
-        className={`sticky top-0 z-10 flex items-center justify-between pb-3 mb-2 border-b border-rule ${
+        className={`flex items-center gap-2 px-3 pt-3 pb-[10px] border-b border-[var(--line)] ${
           overWip ? 'border-danger/30' : ''
         }`}
         onMouseEnter={() => setHeaderHover(true)}
         onMouseLeave={() => setHeaderHover(false)}
       >
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: status.color }} />
-          <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text dark:text-dneutral-700">{status.name}</span>
-          <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-medium ${
-            overWip
-              ? 'bg-danger/15 text-danger'
-              : 'bg-rule text-mute dark:bg-dneutral-200 dark:text-dneutral-500'
-          }`}>
-            {wipLimit > 0 ? `${taskCount} / ${wipLimit}` : taskCount}
-          </span>
-        </div>
+        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: status.color }} />
+        <span className="text-[12px] font-semibold uppercase tracking-[0.02em] text-ink">{status.name}</span>
+        <span className="font-mono text-[11px] text-mute">
+          {wipLimit > 0 ? `${taskCount}/${wipLimit}` : taskCount}
+        </span>
         {canEdit && (
           <button
             onClick={() => setShowQuickAdd(true)}
-            className={`w-6 h-6 rounded-md flex items-center justify-center text-mute hover:bg-lilac-tint hover:text-lilac-dark transition-opacity duration-100 ${
+            className={`ml-auto w-5 h-5 rounded flex items-center justify-center text-mute hover:bg-[var(--color-lilac-tint)] hover:text-[var(--accent)] transition-opacity duration-100 text-[14px] ${
               headerHover ? 'opacity-100' : 'opacity-0'
             }`}
           >
@@ -104,33 +99,32 @@ export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId,
         )}
       </div>
 
-      {/* Tasks */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 min-h-[100px]">
+      {/* Cards */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-[10px] flex flex-col gap-2 min-h-[100px]">
         {tasks.map((task) => (
           <TaskCard key={task.id} task={task} onClick={() => onTaskClick(task.id)} />
         ))}
 
         {tasks.length === 0 && !showQuickAdd && (
-          <div className="flex flex-col items-center justify-center min-h-[140px] rounded-xl border border-dashed border-rule">
+          <div className="flex flex-col items-center justify-center min-h-[140px] border border-dashed border-[var(--line)]">
             <span className="text-[12px] text-faint">No tasks</span>
             <span className="text-[11px] text-faint mt-1">Drop here or click + to add</span>
           </div>
         )}
       </div>
 
-      {/* Quick add / add task area */}
+      {/* Quick add */}
       {canEdit && (
-        <div className="mt-2">
+        <div className="px-[10px] pb-[10px]">
           {showQuickAdd ? (
             <form onSubmit={handleQuickAdd} className="space-y-1">
-              <input
-                type="text"
+              <Input
                 value={quickTitle}
                 onChange={(e) => setQuickTitle(e.target.value)}
                 placeholder="Task title…"
                 autoFocus
                 onBlur={() => !quickTitle && setShowQuickAdd(false)}
-                className="w-full text-[14px] px-2 py-1.5 rounded-lg border border-rule bg-card text-text placeholder-faint focus:border-lilac focus:outline-none focus:ring-2 focus:ring-lilac/20"
+                className="!text-[13px] !px-2 !py-1.5"
               />
               <div className="flex gap-1">
                 <Button type="submit" variant="primary" size="sm">Add</Button>
@@ -138,12 +132,14 @@ export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId,
               </div>
             </form>
           ) : (
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setShowQuickAdd(true)}
-              className="w-full py-2 rounded-lg text-center text-[12px] cursor-pointer text-faint hover:bg-lilac-tint hover:text-lilac-dark transition-colors duration-150"
+              className="w-full !text-[11px] !h-auto !py-1.5 text-faint"
             >
               + Add task
-            </button>
+            </Button>
           )}
         </div>
       )}

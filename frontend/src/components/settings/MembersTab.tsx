@@ -298,7 +298,7 @@ function AddMemberDialog({ projectId, isAdmin, onClose, onAdded }: {
                 />
                 {searching && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[16px] text-neutral-400">...</span>}
                 {showResults && results.length > 0 && (
-                  <div className="absolute z-10 mt-1 w-full rounded-md bg-white dark:bg-dneutral-200 shadow-lg dark:shadow-[0_8px_24px_rgba(0,0,0,0.5)] max-h-48 overflow-y-auto">
+                  <div className="dropdown-panel absolute z-10 mt-1 w-full bg-white dark:bg-dneutral-200 max-h-48 overflow-y-auto">
                     {results.map((u) => (
                       <button
                         key={u.id}
@@ -317,7 +317,7 @@ function AddMemberDialog({ projectId, isAdmin, onClose, onAdded }: {
                   </div>
                 )}
                 {showResults && results.length === 0 && search.length >= 1 && !searching && (
-                  <div className="absolute z-10 mt-1 w-full rounded-md bg-white dark:bg-dneutral-200 shadow-lg dark:shadow-[0_8px_24px_rgba(0,0,0,0.5)] p-3 text-[16px] text-neutral-400 text-center">
+                  <div className="dropdown-panel absolute z-10 mt-1 w-full bg-white dark:bg-dneutral-200 p-3 text-[16px] text-neutral-400 text-center">
                     No users found
                   </div>
                 )}

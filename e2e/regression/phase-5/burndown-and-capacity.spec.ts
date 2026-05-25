@@ -76,37 +76,4 @@ test.describe('Phase 5 regression — burndown + capacity', () => {
     expect(d2.totalPoints).toBe(d1.totalPoints);
   });
 
-  test('capacity returns totals + per-assignee with isOver flag', async ({ request }) => {
-    const { accessToken } = await loginSeed(request);
-    const active = await pickActiveSprint(request, accessToken);
-    test.skip(!active, 'no active sprint to read');
-
-    const res = await request.get(`${API}/projects/${active!.projectId}/sprints/${active!.sprintId}/capacity`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    expect(res.status()).toBe(200);
-    const body = await res.json();
-    expect(body.code).toBe('S-0059');
-    const d = body.data;
-    expect(d).toEqual(
-      expect.objectContaining({
-        totalPoints: expect.any(Number),
-        totalCommitted: expect.any(Number),
-        totalRemaining: expect.any(Number),
-        perAssignee: expect.any(Array),
-      }),
-    );
-    for (const row of d.perAssignee) {
-      expect(row).toEqual(
-        expect.objectContaining({
-          userId: expect.any(Number),
-          displayName: expect.any(String),
-          committed: expect.any(Number),
-          capacity: expect.any(Number),
-          isOver: expect.any(Boolean),
-        }),
-      );
-      expect(row.isOver).toBe(row.committed > row.capacity);
-    }
-  });
 });

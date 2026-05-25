@@ -6,16 +6,18 @@ import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
 import { Select } from '../ui/Select';
 import { Combobox } from '../ui/Combobox';
+import { TypeTag } from '../ui/TypeTag';
+import type { TypeTagKind } from '../ui/TypeTag';
 import { Drawer, DrawerHeader, DrawerBody, DrawerFooter } from './Drawer';
 import { toast } from './Toast';
+import { TYPE_TAG_BG } from '../../lib/colors';
 
-// Item type definitions with colors matching the spec
 const ITEM_TYPES = [
-  { value: 'epic', label: 'Epic', color: '#7C5CFC' },
-  { value: 'story', label: 'Story', color: '#88A9D6' },
-  { value: 'task', label: 'Task', color: '#D6B588' },
-  { value: 'bug', label: 'Bug', color: '#E05252' },
-  { value: 'subtask', label: 'Subtask', color: '#A8A19A' },
+  { value: 'epic', label: 'Epic', color: TYPE_TAG_BG.epic.bg },
+  { value: 'story', label: 'Story', color: TYPE_TAG_BG.story.bg },
+  { value: 'task', label: 'Task', color: TYPE_TAG_BG.task.bg },
+  { value: 'bug', label: 'Bug', color: TYPE_TAG_BG.bug.bg },
+  { value: 'subtask', label: 'Subtask', color: TYPE_TAG_BG.subtask.bg },
 ] as const;
 
 type ItemType = 'epic' | 'story' | 'task' | 'bug' | 'subtask';
@@ -137,7 +139,7 @@ export function CreateItemDialog({
           setLinkToOptions(items.map((i: any) => ({
             value: String(i.id),
             label: `#${i.itemNumber} — ${i.title}`,
-            prefix: (<span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: typeColor(i.itemType) }} />) as React.ReactNode,
+            prefix: (<TypeTag kind={(i.itemType || 'task') as TypeTagKind} size="sm" />) as React.ReactNode,
           })));
         } catch {
           if (!ignored) setLinkToOptions([]);

@@ -6,6 +6,7 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { TodayPage } from './pages/TodayPage';
+import { TodayHome } from './pages/TodayHome';
 import { EpicsPage } from './pages/EpicsPage';
 import { EpicDetailPage } from './pages/EpicDetailPage';
 import { SprintsPage } from './pages/SprintsPage';
@@ -21,6 +22,7 @@ import { TaskDetailPage } from './pages/TaskDetailPage';
 import { StoriesPage } from './pages/StoriesPage';
 import { StoryDetailPage } from './pages/StoryDetailPage';
 import { ProjectsPage } from './pages/ProjectsPage';
+import { SetupWizardPage } from './pages/SetupWizardPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AdminRoute } from './components/AdminRoute';
 import { AppShell } from './components/layout/AppShell';
@@ -45,6 +47,7 @@ export function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/setup" element={<SetupWizardPage />} />
           <Route
             element={
               <ProtectedRoute>
@@ -52,12 +55,15 @@ export function App() {
               </ProtectedRoute>
             }
           >
-            {/* Phase 2 — /today is canonical. /dashboard renders the
-                same TodayPage for one release of backward-compat so
-                bookmarks / sidebar deep-links don't 404; remove the
-                old route in the next minor release. */}
-            <Route path="/today" element={<TodayPage />} />
-            <Route path="/dashboard" element={<TodayPage />} />
+            {/* Today is per-project. /today and /dashboard land on
+                TodayHome which resolves the user's default project
+                (pinned > most-recent) and redirects to
+                /projects/:id/today. The same TodayPage component serves
+                both project-scoped and legacy ?projectId= URLs — the
+                route param wins when set. */}
+            <Route path="/today" element={<TodayHome />} />
+            <Route path="/dashboard" element={<TodayHome />} />
+            <Route path="/projects/:id/today" element={<TodayPage />} />
             <Route path="/dashboard-legacy" element={<DashboardPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/projects/:id/board" element={<BoardPage />} />

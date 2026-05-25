@@ -109,15 +109,15 @@ export function ProjectSettingsPage() {
   const projectPrefix = project?.prefix ?? '';
 
   return (
-    <div className="p-6">
-      <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-faint mb-1">
+    <div className="px-6 pt-5 pb-6">
+      <div className="smallcaps text-faint mb-0.5">
         Project · {projectName}{projectPrefix ? ` · ${projectPrefix}` : ''}
       </div>
-      <h1 className="font-serif text-[28px] text-text dark:text-dneutral-700 mb-6">Settings</h1>
+      <h1 className="font-serif text-[36px] text-text mb-5">Settings</h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-8">
-        {/* Left vertical nav (collapses to horizontal scroll on narrow screens) */}
-        <nav className="lg:sticky lg:top-4 self-start flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible scrollbar-none">
+      <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr] gap-6">
+        {/* Left vertical nav */}
+        <nav className="lg:sticky lg:top-4 self-start flex lg:flex-col gap-0.5 overflow-x-auto lg:overflow-visible scrollbar-none">
           {visibleTabs.map((tab) => {
             const isActive = activeTab === tab.key;
             const isDanger = tab.key === 'danger';
@@ -125,7 +125,7 @@ export function ProjectSettingsPage() {
               <button
                 key={tab.key}
                 onClick={() => setTab(tab.key)}
-                className={`text-left px-3 py-2 rounded-md text-[14px] whitespace-nowrap transition-colors ${
+                className={`text-left px-3 py-[7px] rounded-[var(--radius)] text-[13px] whitespace-nowrap transition-colors ${
                   isActive
                     ? isDanger
                       ? 'bg-danger/10 text-danger font-medium'
@@ -142,7 +142,7 @@ export function ProjectSettingsPage() {
         </nav>
 
         {/* Content */}
-        <div className="max-w-3xl">
+        <div>
           {activeTab === 'general' && <GeneralTab canEdit={canEdit} />}
           {activeTab === 'members' && canEdit && <MembersTab />}
           {activeTab === 'board' && canEdit && <BoardTab />}

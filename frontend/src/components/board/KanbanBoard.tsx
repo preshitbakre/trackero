@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import {
   DndContext,
   DragEndEvent,
@@ -18,12 +18,13 @@ import { getSocket } from '../../lib/socket';
 import { useAuthStore } from '../../store/auth.store';
 import { useRole } from '../../hooks/useRole';
 import { toast } from '../common/Toast';
+import { Select, Button, Avatar, KbdKey } from '../ui';
 import { StatusColumn } from './StatusColumn';
 import { TaskCard } from './TaskCard';
 import { TaskDetailPanel } from '../tasks/TaskDetailPanel';
 import { CardSkeleton } from '../common/Skeleton';
-import { Select } from '../ui/Select';
 import { ErrorState } from '../common/ErrorState';
+import { CreateItemDialog } from '../common/CreateItemDialog';
 import { AssigneeMultiSelect } from '../common/AssigneeMultiSelect';
 
 interface BoardTask {
@@ -53,13 +54,19 @@ interface BoardColumn {
 
 export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; headerSlot?: React.ReactNode } = {}) {
   const { id: projectId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [columns, setColumns] = useState<BoardColumn[]>([]);
   const [activeTask, setActiveTask] = useState<BoardTask | null>(null);
-  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
+  const selectedTaskId = searchParams.get('task') ? parseInt(searchParams.get('task')!) : null;
   const [sprintId, setSprintId] = useState<string>('');
   const [selectedAssignees, setSelectedAssignees] = useState<number[]>([]);
   const [assigneeOptions, setAssigneeOptions] = useState<{ id: number; name: string }[]>([]);
-  const [sprints, setSprints] = useState<{ id: number; name: string; status: string }[]>([]);
+  const [sprints, setSprints] = useState<{
+    id: number; name: string; status: string;
+    startDate: string | null; endDate: string | null;
+    totalPoints: number; completedPoints: number;
+  }[]>([]);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const { canEdit } = useRole();
@@ -229,46 +236,88 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
   const activeSprint = sprintId
     ? sprints.find((s) => String(s.id) === sprintId)
     : sprints.find((s) => s.status === 'active');
-  const totalTasks = columns.reduce((sum, c) => sum + c.taskCount, 0);
+  const sprintMeta = (() => {
+    if (!activeSprint) return null;
+    const parts: string[] = [];
+    if (activeSprint.startDate && activeSprint.endDate) {
+      const start = new Date(activeSprint.startDate);
+      const end = new Date(activeSprint.endDate);
+      const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86400000));
+      const elapsed = Math.max(0, Math.ceil((Date.now() - start.getTime()) / 86400000));
+      parts.push(`d${Math.min(elapsed, totalDays)}/${totalDays}`);
+      parts.push(`ends ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`);
+    }
+    parts.push(`${activeSprint.completedPoints}/${activeSprint.totalPoints} pts`);
+    return parts.join(' · ');
+  })();
 
   return (
     <div className="flex flex-col h-full">
-      {/* Editorial header */}
-      <div className="px-6 pt-6 pb-2">
-        {activeSprint ? (
-          <>
-            <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-faint mb-1">
-              {activeSprint.status === 'active' ? 'CURRENT SPRINT' : activeSprint.status.toUpperCase()}
-              {' · '}
-              {totalTasks} {totalTasks === 1 ? 'ITEM' : 'ITEMS'}
-            </div>
-            <h1 className="font-serif italic text-[36px] leading-tight text-text">
-              {activeSprint.name}
-            </h1>
-          </>
-        ) : (
-          <h1 className="font-serif text-[28px] text-text">Board</h1>
-        )}
-      </div>
+      {/* Toolbar */}
+      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-[10px] px-6 py-[14px] border-b border-[var(--line)] bg-white">
+        {/* Sprint name + meta */}
+        <div className="flex items-center gap-3">
+          {activeSprint ? (
+            <>
+              <span className="font-serif text-[26px] leading-[26px] tracking-[-0.02em] text-ink">
+                {activeSprint.name}
+              </span>
+              {sprintMeta && (
+                <span className="font-mono text-[11px] text-mute self-end mb-[2px]">{sprintMeta}</span>
+              )}
+            </>
+          ) : (
+            <span className="font-serif text-[26px] leading-[26px] tracking-[-0.02em] text-ink">Board</span>
+          )}
+        </div>
 
-      {/* Filter bar */}
-      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 px-6 py-2">
-        {headerSlot}
-        <div className="flex-1" />
+        {/* Divider */}
+        <div className="w-px h-5 bg-rule" />
+
+        {/* Sprint filter */}
         <Select
           value={sprintId}
           onChange={setSprintId}
-          placeholder="All sprints"
           options={[
             { value: '', label: 'All sprints' },
             ...sprints.map((s) => ({ value: String(s.id), label: `${s.name} (${s.status})` })),
           ]}
+          placeholder="Sprint"
         />
+
+        {/* Assignee filter + selected avatars */}
         <AssigneeMultiSelect
           options={assigneeOptions}
           selected={selectedAssignees}
           onChange={setSelectedAssignees}
         />
+        {selectedAssignees.length > 0 && (
+          <div className="flex items-center">
+            {assigneeOptions
+              .filter((m) => selectedAssignees.includes(m.id))
+              .slice(0, 5)
+              .map((member, i) => (
+                <Avatar
+                  key={member.id}
+                  user={{ id: member.id, displayName: member.name }}
+                  size="xs"
+                  className={`border-[1.5px] border-white ${i > 0 ? '-ml-2' : ''}`}
+                  style={{ zIndex: 5 - i }}
+                />
+              ))}
+          </div>
+        )}
+
+        {headerSlot}
+        <div className="flex-1" />
+
+        {/* New item */}
+        {canEdit && (
+          <Button variant="ink" size="sm" onClick={() => setShowCreateDialog(true)} className="gap-1.5">
+            + New item
+            <KbdKey>C</KbdKey>
+          </Button>
+        )}
       </div>
 
       {/* Loading skeleton */}
@@ -276,7 +325,7 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
         <div className="flex-1 p-4">
           <div className="flex gap-4">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="w-[280px] space-y-2 p-2">
+              <div key={i} className="w-[228px] space-y-2 p-2">
                 <div className="h-6 w-24 bg-neutral-200 dark:bg-dneutral-200 rounded animate-pulse mb-3" />
                 <CardSkeleton />
                 <CardSkeleton />
@@ -298,15 +347,17 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
         onDragEnd={handleDragEnd}
         onDragOver={handleDragOver}
       >
-        <div className="flex-1 overflow-x-auto px-6 pb-4 pt-2">
-          <div className="flex gap-4 h-full">
+        <div className="flex-1 overflow-x-auto p-4 bg-[var(--paper-2)]">
+          <div className="flex gap-3 h-full">
             {columns.map((col) => (
               <StatusColumn
                 key={col.status.id}
                 status={col.status}
                 tasks={col.tasks}
                 taskCount={col.taskCount}
-                onTaskClick={(taskId) => setSelectedTaskId(taskId)}
+                onTaskClick={(taskId) => {
+                  setSearchParams((prev) => { const p = new URLSearchParams(prev); p.set('task', String(taskId)); return p; });
+                }}
                 projectId={parseInt(projectId || '0')}
                 onTaskCreated={loadBoard}
                 canEdit={canEdit}
@@ -320,35 +371,24 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
         </DragOverlay>
       </DndContext>
 
-      {selectedTaskId && projectId && (() => {
-        // Check if the selected task is a subtask — if so, open parent with subtask stacked
-        const selectedTask = columns.flatMap((c) => c.tasks).find((t) => t.id === selectedTaskId);
-        const isSubtask = selectedTask?.itemType === 'subtask';
+      {selectedTaskId && projectId && (
+        <TaskDetailPanel
+          key={`task-${selectedTaskId}`}
+          projectId={parseInt(projectId)}
+          taskId={selectedTaskId}
+          projectPrefix=""
+          onClose={() => setSearchParams((prev) => { const p = new URLSearchParams(prev); p.delete('task'); return p; })}
+          onUpdated={loadBoard}
+        />
+      )}
 
-        if (isSubtask && selectedTask?.parentRef?.id) {
-          // Open parent drawer with subtask pre-stacked on top
-          return (
-            <TaskDetailPanel
-              projectId={parseInt(projectId)}
-              taskId={selectedTask.parentRef.id}
-              projectPrefix=""
-              onClose={() => setSelectedTaskId(null)}
-              onUpdated={loadBoard}
-              defaultSubtaskId={selectedTaskId}
-            />
-          );
-        }
-
-        return (
-          <TaskDetailPanel
-            projectId={parseInt(projectId)}
-            taskId={selectedTaskId}
-            projectPrefix=""
-            onClose={() => setSelectedTaskId(null)}
-            onUpdated={loadBoard}
-          />
-        );
-      })()}
+      {showCreateDialog && projectId && (
+        <CreateItemDialog
+          projectId={parseInt(projectId)}
+          onClose={() => setShowCreateDialog(false)}
+          onCreated={() => { setShowCreateDialog(false); loadBoard(); }}
+        />
+      )}
     </div>
   );
 }

@@ -18,7 +18,8 @@ export function LoginPage() {
     apiClient.get('/auth/setup-status').then((res) => {
       setIsSetup(res.data.data.isSetup);
       if (!res.data.data.isSetup) {
-        navigate('/register');
+        navigate('/setup');
+        return;
       }
     }).catch(() => setIsSetup(true));
   }, [navigate]);

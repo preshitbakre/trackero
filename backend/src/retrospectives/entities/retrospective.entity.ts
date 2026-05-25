@@ -35,6 +35,9 @@ export class Retrospective {
   @Column({ name: 'closed_at', type: 'timestamptz', nullable: true })
   closedAt: Date | null;
 
+  @Column({ name: 'max_votes_per_user', type: 'int', default: 5 })
+  maxVotesPerUser: number;
+
   @Column({ name: 'authors_revealed_at', type: 'timestamptz', nullable: true })
   authorsRevealedAt: Date | null;
 

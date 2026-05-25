@@ -396,6 +396,25 @@ export class TodayService {
     const end = new Date(sprint.end_date);
     const lengthDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86_400_000));
     const dayOf = Math.max(0, Math.min(lengthDays, Math.ceil((Date.now() - start.getTime()) / 86_400_000)));
+
+    // Burndown — Phase 5 snapshot read. Each row is one day's
+    // total_points/completed_points pair; `ideal` is the straight-line
+    // descent from total → 0 across the sprint's length, so the sparkline
+    // has both an "as planned" and an "actual" track to compare.
+    const snapshots = await this.dataSource.query(
+      `SELECT snapshot_date::text AS day, total_points AS scope, completed_points AS completed
+         FROM sprint_daily_snapshots
+        WHERE sprint_id = $1
+        ORDER BY snapshot_date ASC`,
+      [sprintId],
+    );
+    const burndown = snapshots.map((row: { day: string; scope: number; completed: number }, i: number) => ({
+      day: row.day,
+      scope: row.scope,
+      completed: row.completed,
+      ideal: Math.max(0, Math.round(row.scope * (1 - (i / Math.max(1, lengthDays - 1))))),
+    }));
+
     return {
       id: sprint.id,
       projectId: sprint.project_id,
@@ -410,8 +429,7 @@ export class TodayService {
       pointsBlocked: 0,
       pointsAwaitingReview: 0,
       endDate: sprint.end_date,
-      // Phase 5 fills this from sprint_daily_snapshots.
-      burndown: [],
+      burndown,
     };
   }
 

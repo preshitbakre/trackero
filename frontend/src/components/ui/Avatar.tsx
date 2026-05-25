@@ -10,13 +10,14 @@ interface AvatarProps {
   user: AvatarUser;
   size?: 'xs' | 'sm' | 'md' | 'lg';
   className?: string;
+  style?: React.CSSProperties;
 }
 
 const SIZE_PX: Record<NonNullable<AvatarProps['size']>, number> = {
-  xs: 20,
-  sm: 24,
-  md: 28,
-  lg: 32,
+  xs: 24,
+  sm: 28,
+  md: 32,
+  lg: 36,
 };
 
 function initialsFor(displayName: string): string {
@@ -33,7 +34,7 @@ function initialsFor(displayName: string): string {
  * surfaces (TopBar avatar menu, TaskCard assignee, reporter row,
  * settings user table, notification rows).
  */
-export function Avatar({ user, size = 'sm', className = '' }: AvatarProps) {
+export function Avatar({ user, size = 'sm', className = '', style }: AvatarProps) {
   const px = SIZE_PX[size];
   if (user.avatarUrl) {
     return (
@@ -43,6 +44,7 @@ export function Avatar({ user, size = 'sm', className = '' }: AvatarProps) {
         width={px}
         height={px}
         className={`rounded-full object-cover flex-shrink-0 ${className}`}
+        style={style}
       />
     );
   }
@@ -59,6 +61,7 @@ export function Avatar({ user, size = 'sm', className = '' }: AvatarProps) {
         color: palette.color,
         fontSize: Math.max(10, Math.round(px * 0.4)),
         lineHeight: 1,
+        ...style,
       }}
     >
       {initialsFor(user.displayName)}

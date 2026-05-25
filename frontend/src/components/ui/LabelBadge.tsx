@@ -39,7 +39,7 @@ export function LabelList({ labels, max = 3, size = 'sm' }: LabelListProps) {
         <LabelBadge key={l.id} name={l.name} color={l.color} size={size} />
       ))}
       {remaining > 0 && (
-        <span className="text-[11px] text-neutral-400">+{remaining}</span>
+        <span className="text-[11px] text-faint">+{remaining}</span>
       )}
     </span>
   );

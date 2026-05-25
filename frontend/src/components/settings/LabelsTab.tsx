@@ -59,8 +59,8 @@ export function LabelsTab() {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 animate-pulse">
-        {[1, 2, 3, 4].map((i) => <div key={i} className="h-16 bg-neutral-200 dark:bg-dneutral-200 rounded-lg" />)}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-0 animate-pulse">
+        {[1, 2, 3, 4].map((i) => <div key={i} className="h-12 bg-neutral-200 rounded" />)}
       </div>
     );
   }
@@ -70,37 +70,43 @@ export function LabelsTab() {
   }
 
   return (
-    <div className="max-w-3xl">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-[16px] font-semibold text-neutral-700 dark:text-dneutral-700">Labels ({labels.length})</h2>
-        <button onClick={() => setShowCreate(true)} className="text-[16px] font-medium text-lilac-dark hover:underline">+ Create label</button>
+    <div>
+      <div className="flex items-baseline justify-between mb-1">
+        <h2 className="font-serif text-[20px] text-text">Labels</h2>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="text-[12px] font-medium text-text border border-rule rounded-[var(--radius)] px-3 py-1.5 hover:bg-paper transition-colors"
+        >
+          + New label
+        </button>
       </div>
+      <p className="text-[12px] text-mute mb-4">
+        Color tags applied to work items. Used everywhere — list views, board cards, filters, charts.
+      </p>
 
       {labels.length === 0 ? (
-        <div className="text-center py-8 text-neutral-400 dark:text-dneutral-500">
-          <p>No labels yet. Create labels to categorize your tasks.</p>
+        <div className="text-center py-8 text-[13px] text-faint">
+          No labels yet. Create labels to categorize your tasks.
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 border-t border-l border-rule">
           {labels.map((label) => (
-            <div key={label.id} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-white dark:bg-dneutral-100 shadow-[0_2px_8px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.35)]">
-              <span className="w-5 h-5 rounded-full flex-shrink-0" style={{ backgroundColor: label.color }} />
-              <div className="flex-1 min-w-0">
-                <p className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700 truncate">{label.name}</p>
-                <p className="text-[16px] text-neutral-400 dark:text-dneutral-500">{label.taskCount} task{label.taskCount !== 1 ? 's' : ''}</p>
-              </div>
-              <button onClick={() => setEditingLabel(label)} className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-dneutral-200 text-neutral-400 hover:text-neutral-600" title="Edit">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-              </button>
-              <button onClick={() => setDeletingLabel(label)} className="p-1 rounded hover:bg-danger/10 text-neutral-400 hover:text-danger" title="Delete">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-            </div>
+            <button
+              key={label.id}
+              onClick={() => setEditingLabel(label)}
+              className="flex items-center gap-3 px-4 py-3 border-b border-r border-rule text-left hover:bg-paper/60 transition-colors"
+            >
+              <span className="w-4 h-4 rounded-[3px] flex-shrink-0" style={{ backgroundColor: label.color }} />
+              <span className="text-[13px] font-medium text-text truncate flex-1">{label.name}</span>
+              <span className="text-[11px] font-mono text-faint uppercase">{label.color}</span>
+            </button>
           ))}
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center justify-center gap-1.5 px-4 py-3 border-b border-r border-rule text-[12px] text-mute hover:text-text hover:bg-paper/60 transition-colors"
+          >
+            + add label
+          </button>
         </div>
       )}
 
@@ -115,6 +121,7 @@ export function LabelsTab() {
             loadLabels();
             toast(editingLabel ? 'Label updated' : 'Label created');
           }}
+          onDelete={editingLabel ? () => { setDeletingLabel(editingLabel); setEditingLabel(null); } : undefined}
         />
       )}
 
@@ -134,11 +141,12 @@ export function LabelsTab() {
   );
 }
 
-function LabelDialog({ projectId, editing, onClose, onSaved }: {
+function LabelDialog({ projectId, editing, onClose, onSaved, onDelete }: {
   projectId: string;
   editing: LabelRow | null;
   onClose: () => void;
   onSaved: () => void;
+  onDelete?: () => void;
 }) {
   const [name, setName] = useState(editing?.name || '');
   const [color, setColor] = useState(editing?.color || '#3B82F6');
@@ -165,9 +173,7 @@ function LabelDialog({ projectId, editing, onClose, onSaved }: {
   };
 
   const applyCustomHex = () => {
-    if (/^#[0-9A-Fa-f]{6}$/.test(customHex)) {
-      setColor(customHex);
-    }
+    if (/^#[0-9A-Fa-f]{6}$/.test(customHex)) setColor(customHex);
   };
 
   const titleId = 'label-dialog-title';
@@ -176,23 +182,23 @@ function LabelDialog({ projectId, editing, onClose, onSaved }: {
       open
       onClose={onClose}
       titleId={titleId}
-      overlayClassName="fixed inset-0 z-50 bg-neutral-700/50"
-      contentClassName="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-white dark:bg-dneutral-100 rounded-lg p-6 shadow-xl dark:shadow-[0_12px_36px_rgba(0,0,0,0.6)] focus:outline-none"
+      overlayClassName="fixed inset-0 z-50 bg-ink/40"
+      contentClassName="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-card rounded-lg p-6 shadow-xl focus:outline-none"
     >
-      <h2 id={titleId} className="text-[22px] font-bold mb-4 text-neutral-700 dark:text-dneutral-700">{editing ? 'Edit label' : 'Create label'}</h2>
+      <h2 id={titleId} className="font-serif text-[20px] text-text mb-4">{editing ? 'Edit label' : 'Create label'}</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && <div className="text-[16px] text-danger">{error}</div>}
+        {error && <div className="text-[12px] text-danger">{error}</div>}
 
         <div>
-          <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Name</label>
+          <label className="block text-[12px] font-medium text-mute mb-1">Name</label>
           <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={15} autoFocus />
         </div>
 
         <div>
-          <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Color</label>
-          <div className="grid grid-cols-6 gap-3 mb-2">
+          <label className="block text-[12px] font-medium text-mute mb-1">Color</label>
+          <div className="grid grid-cols-6 gap-2 mb-2">
             {PRESET_COLORS.map((c) => (
-              <button key={c} type="button" onClick={() => setColor(c)} className={`w-7 h-7 rounded-full border-2 ${color === c ? 'border-lilac' : 'border-transparent hover:border-neutral-400'}`} style={{ backgroundColor: c }} />
+              <button key={c} type="button" onClick={() => setColor(c)} className={`w-6 h-6 rounded-full border-2 ${color === c ? 'border-lilac' : 'border-transparent hover:border-mute'}`} style={{ backgroundColor: c }} />
             ))}
           </div>
           <Input
@@ -205,19 +211,22 @@ function LabelDialog({ projectId, editing, onClose, onSaved }: {
             className="!w-28 font-mono"
           />
         </div>
+
         <div>
-          <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Preview</label>
-          <div className="overflow-hidden">
-            <span className="inline-block max-w-full px-3 py-1 rounded-full text-[16px] text-white truncate" style={{ backgroundColor: color }}>
-              {name || 'label'}
-            </span>
-          </div>
+          <label className="block text-[12px] font-medium text-mute mb-1">Preview</label>
+          <span className="inline-block px-3 py-1 rounded-full text-[12px] text-white truncate" style={{ backgroundColor: color }}>
+            {name || 'label'}
+          </span>
         </div>
 
-        <div className="flex justify-end gap-2">
+        <div className="flex items-center gap-2">
+          {editing && onDelete && (
+            <button type="button" onClick={onDelete} className="text-[12px] text-danger hover:underline mr-auto">Delete</button>
+          )}
+          <div className="flex-1" />
           <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
           <Button type="submit" variant="primary" disabled={loading}>
-            {loading ? 'Saving...' : editing ? 'Save' : 'Create'}
+            {loading ? 'Saving…' : editing ? 'Save' : 'Create'}
           </Button>
         </div>
       </form>

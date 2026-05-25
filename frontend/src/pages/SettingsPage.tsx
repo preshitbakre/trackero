@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/auth.store';
 import { Select } from '../components/ui/Select';
@@ -15,6 +15,7 @@ interface UserRow {
   role: string;
   isActive: boolean;
   lastLoginAt: string | null;
+  projectCount: number;
 }
 
 interface InvitationRow {
@@ -23,6 +24,7 @@ interface InvitationRow {
   role: string;
   status: string;
   expiresAt: string;
+  createdAt: string;
   invitedByName?: string | null;
 }
 
@@ -31,13 +33,6 @@ const ROLE_LABELS: Record<string, string> = {
   project_manager: 'PM',
   member: 'Member',
   viewer: 'Viewer',
-};
-
-const ROLE_BADGE_STYLE: Record<string, string> = {
-  admin: 'bg-ink text-white',
-  project_manager: 'bg-lilac-tint text-lilac-dark',
-  member: 'bg-card border border-rule text-text',
-  viewer: 'bg-paper text-mute',
 };
 
 function timeAgo(iso: string | null): string {
@@ -50,18 +45,32 @@ function timeAgo(iso: string | null): string {
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h`;
   const days = Math.floor(h / 24);
+  if (days === 1) return 'yesterday';
   if (days < 7) return `${days}d`;
   if (days < 30) return `${Math.floor(days / 7)}w`;
   return `${Math.floor(days / 30)}mo`;
 }
 
+function timeSince(iso: string): string {
+  const d = new Date(iso);
+  const diff = Math.max(0, Date.now() - d.getTime());
+  const m = Math.floor(diff / 60_000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const days = Math.floor(h / 24);
+  return `${days}d ago`;
+}
+
 export function SettingsPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [invitations, setInvitations] = useState<InvitationRow[]>([]);
-  const [invitationFilter, setInvitationFilter] = useState<'pending' | 'accepted' | 'expired'>('pending');
+  const [invitationFilter, setInvitationFilter] = useState<'pending' | 'accepted' | 'expired' | 'invite'>('pending');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('member');
   const [memberSearch, setMemberSearch] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [confirmRoleChange, setConfirmRoleChange] = useState<{ userId: number; role: string; displayName: string } | null>(null);
   const [confirmDeactivate, setConfirmDeactivate] = useState<{ userId: number; displayName: string } | null>(null);
   const [projectCount, setProjectCount] = useState<number | null>(null);
@@ -146,81 +155,104 @@ export function SettingsPage() {
     invitationFilter === 'accepted' ? acceptedInvitations :
     expiredInvitations;
 
-  // Loose "expires this week" count for the header strip.
   const expiringThisWeek = pendingInvitations.filter((i) => {
     const ms = new Date(i.expiresAt).getTime() - Date.now();
     return ms > 0 && ms < 7 * 86_400_000;
   }).length;
 
-  // Seats utilised: heuristic — active users / target capacity. If no capacity
-  // env is exposed, use a soft target of 25 (the design's "97%" came from 24/25).
   const seatTarget = 25;
   const seatPct = activeUsers.length > 0 ? Math.min(100, Math.round((activeUsers.length / seatTarget) * 100)) : 0;
 
   return (
-    <div className="p-6 max-w-6xl">
-      <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-faint mb-1">
-        Instance · {typeof window !== 'undefined' ? window.location.hostname : 'trackero.local'} · Admin only
-      </div>
-      <div className="flex items-baseline justify-between gap-4 mb-6 flex-wrap">
-        <h1 className="font-serif text-[28px] text-text">
-          Users <span className="italic">&amp; invitations</span>
-        </h1>
-        <Button onClick={() => document.getElementById('invite-form')?.scrollIntoView({ behavior: 'smooth' })}>+ Invite people</Button>
-      </div>
-
-      {/* Stat strip */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
-        <Stat n={activeUsers.length} label="Active users" />
-        <Stat n={pendingInvitations.length} label="Pending invitations" />
-        <Stat n={expiringThisWeek} label="Expired this week" />
-        <Stat n={projectCount ?? '—'} label="Projects" />
-        <Stat n={`${seatPct}%`} label="Seats utilised" />
+    <div>
+      {/* Header — compact padding */}
+      <div className="px-6 pt-5 pb-3">
+        <div className="smallcaps text-faint mb-0.5">
+          Instance · {typeof window !== 'undefined' ? window.location.hostname : 'trackero.local'} · admin only
+        </div>
+        <div className="flex items-baseline justify-between gap-4 flex-wrap">
+          <h1 className="font-serif text-[36px] text-text">
+            Users <span className="serif-i">&amp; invitations</span>
+          </h1>
+          <Button onClick={() => setInvitationFilter('invite')}>
+            <svg className="w-3 h-3 mr-1.5 inline" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 3v10M3 8h10" /></svg>
+            Invite people
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
-        {/* Members */}
-        <section>
-          <div className="flex items-baseline gap-3 mb-3">
+      {/* Stat strip — full-bleed borders (no horizontal padding on the border) */}
+      <div className="flex border-t border-b border-rule">
+        <StatCell n={activeUsers.length} label="active users" />
+        <StatCell n={pendingInvitations.length} label="pending invitations" />
+        <StatCell n={expiringThisWeek} label="expired this week" accent />
+        <StatCell n={projectCount ?? '—'} label="projects" />
+        <StatCell n={`${seatPct} %`} label="seats utilised" last />
+      </div>
+
+      {/* Two-column: members left, invitations right — fills remaining viewport */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-0 h-[calc(100vh-218px)] overflow-hidden">
+
+        {/* ── Members ── */}
+        <section className="flex flex-col border-r border-rule min-h-0">
+          <div className="flex items-baseline gap-3 px-6 pt-4 pb-3">
             <h2 className="font-serif text-[20px] text-text">Members</h2>
-            <span className="text-[12px] text-mute">· {users.length} users</span>
-            <div className="ml-auto">
-              <Input
+            <span className="text-[12px] font-mono text-mute">· {users.length} users</span>
+            <div className="flex-1" />
+            <div className="relative">
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-faint pointer-events-none" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5L14 14" /></svg>
+              <input
                 type="search"
                 value={memberSearch}
                 onChange={(e) => setMemberSearch(e.target.value)}
                 placeholder="search users…"
-                className="w-[200px]"
+                className="pl-8 pr-3 py-1.5 text-[13px] bg-transparent border border-rule rounded-[var(--radius)] w-[200px] outline-none focus:border-lilac text-text placeholder:text-faint"
               />
             </div>
           </div>
-          <div className="rounded-xl bg-card overflow-hidden">
-            <div className="grid grid-cols-[1fr_auto_auto_auto] gap-3 px-4 py-2 border-b border-rule text-[10px] uppercase tracking-[0.16em] text-faint">
-              <span>User</span>
-              <span>Role</span>
-              <span>Last seen</span>
-              <span></span>
-            </div>
+
+          {/* Table header */}
+          <div className="grid grid-cols-[1fr_100px_100px_80px_28px] gap-2 px-4 py-2 border-b border-rule">
+            <span className="smallcaps text-faint">User</span>
+            <span className="smallcaps text-faint">Role</span>
+            <span className="smallcaps text-faint">Projects</span>
+            <span className="smallcaps text-faint">Last seen</span>
+            <span />
+          </div>
+
+          {/* Table body — fills remaining height, scrollable */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
             {filteredUsers.map((u) => {
               const isSelf = u.id === user?.id;
               const avatar = AVATAR_COLORS[u.id % AVATAR_COLORS.length];
-              const initial = (u.displayName || u.email)[0]?.toUpperCase() || '?';
+              const emailPrefix = u.email.split('@')[0];
+              const isSelected = u.id === selectedUserId;
+
               return (
-                <div key={u.id} className="grid grid-cols-[1fr_auto_auto_auto] gap-3 px-4 py-3 items-center border-b border-rule/60 last:border-b-0">
+                <div
+                  key={u.id}
+                  onClick={() => setSelectedUserId(u.id)}
+                  className={`grid grid-cols-[1fr_100px_100px_80px_28px] gap-2 py-3 items-center border-b border-rule/40 last:border-b-0 cursor-pointer transition-colors ${
+                    isSelected
+                      ? 'bg-lilac-tint/50 border-l-[3px] border-l-lilac pl-[13px] pr-4'
+                      : 'hover:bg-[var(--paper-2)]/60 px-4'
+                  }`}
+                >
+                  {/* User */}
                   <div className="flex items-center gap-3 min-w-0">
                     <span
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-semibold flex-shrink-0"
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-bold flex-shrink-0 uppercase"
                       style={{ backgroundColor: avatar.bg, color: avatar.color }}
                     >
-                      {initial}
+                      {(u.displayName || '?').split(' ').map(w => w[0]).join('').slice(0, 2)}
                     </span>
                     <div className="min-w-0">
-                      <div className="text-[14px] font-medium text-text truncate">
-                        {u.displayName} {isSelf && <span className="text-[11px] text-faint">· you</span>}
-                      </div>
-                      <div className="text-[12px] text-mute truncate">{u.email}</div>
+                      <div className="text-[13px] font-medium text-text truncate">{u.displayName}</div>
+                      <div className="text-[11px] font-mono text-mute truncate">@{emailPrefix} · {u.email}</div>
                     </div>
                   </div>
+
+                  {/* Role */}
                   <div>
                     {u.isActive && !isSelf ? (
                       <Select
@@ -237,26 +269,27 @@ export function SettingsPage() {
                         ]}
                       />
                     ) : (
-                      <span className={`text-[11px] uppercase tracking-[0.12em] px-2 py-0.5 rounded ${ROLE_BADGE_STYLE[u.role] ?? 'text-mute'}`}>
-                        {ROLE_LABELS[u.role] ?? u.role}
-                      </span>
+                      <RoleBadge role={u.role} />
                     )}
                   </div>
-                  <div className="text-[12px] text-mute">
+
+                  {/* Projects */}
+                  <div className="text-[12px] font-mono text-mute tabular-nums">
+                    {u.projectCount} project{u.projectCount !== 1 ? 's' : ''}
+                  </div>
+
+                  {/* Last seen */}
+                  <div className="text-[12px] font-mono text-mute tabular-nums">
                     {u.isActive ? timeAgo(u.lastLoginAt) : <span className="text-danger">Inactive</span>}
                   </div>
-                  <div className="text-right">
-                    {u.isActive && !isSelf && (
-                      <button onClick={() => setConfirmDeactivate({ userId: u.id, displayName: u.displayName })} className="text-[12px] text-faint hover:text-danger">
-                        Deactivate
-                      </button>
-                    )}
-                    {!u.isActive && (
-                      <button onClick={() => handleReactivate(u.id)} className="text-[12px] text-faint hover:text-mint-dark">
-                        Reactivate
-                      </button>
-                    )}
-                  </div>
+
+                  {/* Actions */}
+                  <RowMenu
+                    isSelf={isSelf}
+                    isActive={u.isActive}
+                    onDeactivate={() => setConfirmDeactivate({ userId: u.id, displayName: u.displayName })}
+                    onReactivate={() => handleReactivate(u.id)}
+                  />
                 </div>
               );
             })}
@@ -266,68 +299,99 @@ export function SettingsPage() {
           </div>
         </section>
 
-        {/* Invitations panel */}
-        <aside>
-          <div className="flex items-baseline gap-3 mb-3">
-            <h2 className="font-serif text-[20px] text-text">Invitations</h2>
-            <span className="text-[12px] text-mute">· sent via email · expire in 7 days</span>
-          </div>
+        {/* ── Invitations panel ── */}
+        <aside className="flex flex-col bg-[var(--paper-2)] min-h-0">
+          <div className="pt-4 px-5">
+            <h2 className="font-serif text-[20px] text-text mb-0.5">Invitations</h2>
+            <div className="text-[12px] text-mute mb-3">Sent via email · expire in 7 days.</div>
 
-          <div className="rounded-xl bg-card overflow-hidden">
-            <div className="flex gap-1 px-3 pt-3 border-b border-rule">
+            {/* Filter tabs — pill style, "Send invite" as last tab */}
+            <div className="flex gap-1.5 mb-4 flex-wrap">
               <FilterTab active={invitationFilter === 'pending'} onClick={() => setInvitationFilter('pending')} count={pendingInvitations.length}>Pending</FilterTab>
               <FilterTab active={invitationFilter === 'accepted'} onClick={() => setInvitationFilter('accepted')} count={acceptedInvitations.length}>Accepted</FilterTab>
               <FilterTab active={invitationFilter === 'expired'} onClick={() => setInvitationFilter('expired')} count={expiredInvitations.length}>Expired</FilterTab>
+              <button
+                onClick={() => setInvitationFilter('invite')}
+                className={`px-3 py-1 text-[12px] font-medium rounded-full border transition-colors ${
+                  invitationFilter === 'invite'
+                    ? 'bg-ink text-white border-ink'
+                    : 'bg-transparent text-mute border-rule hover:text-text hover:border-text'
+                }`}
+              >
+                + Send invite
+              </button>
             </div>
+          </div>
 
-            <div className="px-3 py-2 max-h-[400px] overflow-y-auto custom-scrollbar">
-              {visibleInvitations.length === 0 && (
-                <div className="py-6 text-center text-[13px] text-faint">No {invitationFilter} invitations.</div>
-              )}
-              {visibleInvitations.map((inv) => {
-                const ms = new Date(inv.expiresAt).getTime() - Date.now();
-                const days = Math.max(0, Math.floor(ms / 86_400_000));
-                const expireLabel = inv.status === 'expired'
-                  ? 'EXPIRED'
-                  : days <= 0 ? 'EXPIRES TODAY' : `EXPIRES IN ${days}D`;
-                return (
-                  <div key={inv.id} className="py-2 border-b border-rule/60 last:border-b-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[13px] text-text truncate flex-1">{inv.email}</span>
-                      <span className={`text-[10px] uppercase tracking-[0.12em] px-1.5 py-0.5 rounded ${ROLE_BADGE_STYLE[inv.role] ?? 'text-mute'}`}>
-                        {ROLE_LABELS[inv.role] ?? inv.role}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex items-baseline justify-between text-[11px] text-faint">
-                      <span>{inv.invitedByName ? `by ${inv.invitedByName} · ` : ''}{timeAgo(inv.expiresAt)} ago</span>
-                      <span className={inv.status === 'expired' ? 'text-danger' : 'text-mute'}>{expireLabel}</span>
-                    </div>
+          {/* Content area — fills remaining height, scrollable */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-5 pb-5">
+            {invitationFilter === 'invite' ? (
+              <form id="invite-form" onSubmit={handleInvite} className="space-y-3">
+                <Input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="email@org.com" required />
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <Select
+                      value={inviteRole}
+                      onChange={setInviteRole}
+                      options={[
+                        { value: 'admin', label: 'Admin' },
+                        { value: 'project_manager', label: 'PM' },
+                        { value: 'member', label: 'Member' },
+                        { value: 'viewer', label: 'Viewer' },
+                      ]}
+                    />
                   </div>
-                );
-              })}
-            </div>
-
-            {/* Send invite form */}
-            <form id="invite-form" onSubmit={handleInvite} className="p-3 border-t border-rule space-y-2 bg-paper/50">
-              <div className="text-[10px] uppercase tracking-[0.16em] font-semibold text-faint">Send an invite</div>
-              <Input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="email@org.com" required />
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Select
-                    value={inviteRole}
-                    onChange={setInviteRole}
-                    options={[
-                      { value: 'member', label: 'Member' },
-                      { value: 'viewer', label: 'Viewer' },
-                      { value: 'project_manager', label: 'PM' },
-                      { value: 'admin', label: 'Admin' },
-                    ]}
-                  />
+                  <Button type="submit">Send</Button>
                 </div>
-                <Button type="submit">Send</Button>
-              </div>
-              <p className="text-[11px] text-faint pt-1">Paste a line per row for bulk invites.</p>
-            </form>
+                <p className="text-[11px] text-faint">Paste a line per row for bulk invites.</p>
+              </form>
+            ) : (
+              <>
+                {visibleInvitations.length === 0 && (
+                  <div className="py-6 text-center text-[13px] text-faint">No {invitationFilter} invitations.</div>
+                )}
+                {visibleInvitations.map((inv) => {
+                  const ms = new Date(inv.expiresAt).getTime() - Date.now();
+                  const days = Math.max(0, Math.floor(ms / 86_400_000));
+                  const isExpiring = inv.status === 'expired' || days <= 0;
+                  const expireLabel = inv.status === 'expired'
+                    ? 'EXPIRED'
+                    : days <= 0 ? 'EXPIRES TODAY!' : `EXPIRES IN ${days}D`;
+
+                  return (
+                    <div
+                      key={inv.id}
+                      className={`py-3 border-b border-rule/30 last:border-b-0 ${
+                        isExpiring ? 'bg-danger/5 border border-danger/20 rounded-[var(--radius)] px-3 my-1' : ''
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <svg className="w-[13px] h-[13px] text-mute flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                          <path d="M2.5 8.5L4 3.5h8L13.5 8.5v5h-11z" />
+                          <path d="M2.5 8.5h3l.5 1.5h4l.5-1.5h3" />
+                        </svg>
+                        <span className="text-[13px] font-mono text-text truncate flex-1">{inv.email}</span>
+                        <RoleBadge role={inv.role} />
+                      </div>
+                      <div className="mt-1.5 flex items-center gap-2 text-[11px] text-faint ml-[21px]">
+                        {inv.invitedByName && (
+                          <>
+                            <span className="w-5 h-5 rounded-full bg-lilac-tint text-lilac-dark text-[9px] font-bold flex items-center justify-center flex-shrink-0 uppercase">
+                              {inv.invitedByName.split(' ').map(w => w[0]).join('').slice(0, 2)}
+                            </span>
+                            <span>by {inv.invitedByName.split(' ')[0]} · {timeSince(inv.createdAt)}</span>
+                          </>
+                        )}
+                        <div className="flex-1" />
+                        <span className={`font-mono text-[10px] uppercase tracking-wider ${isExpiring ? 'text-danger font-semibold' : 'text-mute'}`}>
+                          {isExpiring && '⚠ '}{expireLabel}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
           </div>
         </aside>
       </div>
@@ -364,12 +428,32 @@ export function SettingsPage() {
   );
 }
 
-function Stat({ n, label }: { n: number | string; label: string }) {
+function StatCell({ n, label, accent, last }: { n: number | string; label: string; accent?: boolean; last?: boolean }) {
   return (
-    <div className="rounded-xl bg-card px-4 py-3">
-      <div className="font-serif italic text-[36px] leading-none text-text">{n}</div>
-      <div className="text-[10px] uppercase tracking-[0.16em] text-faint mt-2">{label}</div>
+    <div className={`flex-1 py-5 px-6 ${!last ? 'border-r border-rule' : ''}`}>
+      <div className={`font-serif text-[38px] leading-none ${accent ? 'text-[var(--accent)]' : 'text-text'}`}>{n}</div>
+      <div className="text-[10px] uppercase tracking-[0.16em] font-mono text-faint mt-2">{label}</div>
     </div>
+  );
+}
+
+function RoleBadge({ role }: { role: string }) {
+  const styles: Record<string, string> = {
+    admin: 'bg-ink text-white',
+    project_manager: 'bg-[var(--accent)] text-white',
+    member: 'bg-transparent border border-rule text-text',
+    viewer: 'bg-transparent border border-rule text-mute',
+  };
+  return (
+    <span className={`inline-flex items-center gap-1 text-[11px] uppercase tracking-[0.08em] px-2 py-0.5 rounded-[var(--radius)] ${styles[role] ?? 'text-mute border border-rule'}`}>
+      {role === 'admin' && (
+        <svg className="w-[9px] h-[9px]" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+          <rect x="3.5" y="7" width="9" height="6.5" />
+          <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
+        </svg>
+      )}
+      {ROLE_LABELS[role] ?? role}
+    </span>
   );
 }
 
@@ -377,11 +461,69 @@ function FilterTab({ active, onClick, count, children }: { active: boolean; onCl
   return (
     <button
       onClick={onClick}
-      className={`px-3 pb-2 text-[12px] font-medium border-b-2 -mb-px ${
-        active ? 'border-lilac text-lilac-dark' : 'border-transparent text-mute hover:text-text'
+      className={`px-3 py-1 text-[12px] font-medium rounded-full border transition-colors ${
+        active
+          ? 'bg-ink text-white border-ink'
+          : 'bg-transparent text-mute border-rule hover:text-text hover:border-text'
       }`}
     >
-      {children} <span className="text-faint">· {count}</span>
+      {children} · {count}
     </button>
+  );
+}
+
+function RowMenu({ isSelf, isActive, onDeactivate, onReactivate }: {
+  isSelf: boolean;
+  isActive: boolean;
+  onDeactivate: () => void;
+  onReactivate: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  if (isSelf) return <div />;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        className="w-7 h-7 flex items-center justify-center rounded hover:bg-paper text-faint hover:text-text"
+      >
+        <svg className="w-[14px] h-[14px]" viewBox="0 0 16 16" fill="currentColor" stroke="none">
+          <circle cx="3.5" cy="8" r=".8" />
+          <circle cx="8" cy="8" r=".8" />
+          <circle cx="12.5" cy="8" r=".8" />
+        </svg>
+      </button>
+      {open && (
+        <div className="dropdown-panel absolute right-0 mt-1 w-36 bg-card z-50 py-1">
+          {isActive && (
+            <button
+              onClick={() => { setOpen(false); onDeactivate(); }}
+              className="w-full text-left px-3 py-1.5 text-[13px] text-danger hover:bg-danger/10"
+            >
+              Deactivate
+            </button>
+          )}
+          {!isActive && (
+            <button
+              onClick={() => { setOpen(false); onReactivate(); }}
+              className="w-full text-left px-3 py-1.5 text-[13px] text-text hover:bg-paper"
+            >
+              Reactivate
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

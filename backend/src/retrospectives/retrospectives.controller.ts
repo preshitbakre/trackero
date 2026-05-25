@@ -46,10 +46,10 @@ export class RetrospectivesController {
   async addCard(
     @Param('projectId', ParseIntPipe) projectId: number,
     @Param('retroId', ParseIntPipe) retroId: number,
-    @Body() body: { column: string; content: string },
+    @Body() body: { column: string; content: string; isActionItem?: boolean },
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.retroService.addCard(projectId, retroId, body.column, body.content, user.userId);
+    return this.retroService.addCard(projectId, retroId, body.column, body.content, user.userId, body.isActionItem);
   }
 
   @Put('retro/:retroId/cards/:cardId')
@@ -59,9 +59,9 @@ export class RetrospectivesController {
     @Param('projectId', ParseIntPipe) projectId: number,
     @Param('retroId', ParseIntPipe) retroId: number,
     @Param('cardId', ParseIntPipe) cardId: number,
-    @Body() body: { content: string },
+    @Body() body: { content?: string; isActionItem?: boolean },
   ) {
-    return this.retroService.updateCard(projectId, retroId, cardId, body.content);
+    return this.retroService.updateCard(projectId, retroId, cardId, body.content, body.isActionItem);
   }
 
   @Delete('retro/:retroId/cards/:cardId')

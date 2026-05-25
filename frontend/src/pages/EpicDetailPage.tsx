@@ -10,14 +10,8 @@ import { AVATAR_COLORS, PRIORITY_BADGE_COLORS, STATUS_BADGE_COLORS } from '../li
 import { toast } from '../components/common/Toast';
 import { LabelList } from '../components/ui/LabelBadge';
 import { ErrorState } from '../components/common/ErrorState';
-
-// Type colors matching the spec
-const ITEM_TYPE_STYLES: Record<string, { bg: string; text: string }> = {
-  epic:    { bg: '#7C5CFC35', text: '#4A2FC0' },
-  story:   { bg: '#88A9D640', text: '#2E5A8E' },
-  task:    { bg: '#D6B58840', text: '#7A5E2A' },
-  subtask: { bg: '#A8A19A35', text: '#5C5650' },
-};
+import { TypeTag } from '../components/ui/TypeTag';
+import type { TypeTagKind } from '../components/ui/TypeTag';
 
 interface ChildItem {
   id: number;
@@ -300,7 +294,7 @@ export function EpicDetailPage() {
           </div>
 
           <div className="flex items-center justify-between mb-2">
-            <h1 className="text-[22px] font-bold text-neutral-700 dark:text-dneutral-700">{epic.title}</h1>
+            <h1 className="text-[20px] font-semibold text-text">{epic.title}</h1>
             {canEdit && (
               <div className="flex gap-2 relative flex-shrink-0">
                 <Button size="sm" variant="secondary" onClick={() => setShowCreate('story')}>+ Add story</Button>
@@ -316,7 +310,7 @@ export function EpicDetailPage() {
                 {showAddExisting && (
                   <>
                     <div className="fixed inset-0 z-[9]" onClick={() => { setShowAddExisting(false); setAddExistingSearch(''); }} />
-                    <div className="absolute top-full right-0 mt-2 w-[420px] bg-white dark:bg-dneutral-100 rounded-lg shadow-xl dark:shadow-[0_8px_30px_rgba(0,0,0,0.4)] border border-neutral-200 dark:border-dneutral-200 z-10 overflow-hidden">
+                    <div className="dropdown-panel absolute top-full right-0 mt-2 w-[420px] bg-white dark:bg-dneutral-100 border border-neutral-200 dark:border-dneutral-200 z-10 overflow-hidden">
                       <div className="p-3 border-b border-neutral-100 dark:border-dneutral-200">
                         <input
                           type="text"
@@ -342,19 +336,11 @@ export function EpicDetailPage() {
                             onClick={() => handleAddExistingItem(item.id)}
                             className="w-full text-left px-4 py-2.5 flex items-center gap-2.5 hover:bg-lilac/10 dark:hover:bg-peri-dm/10 transition-colors border-b border-neutral-50 dark:border-dneutral-200/30 last:border-b-0"
                           >
-                            <span
-                              className="text-[11px] font-semibold uppercase px-1.5 py-0.5 rounded-full flex-shrink-0"
-                              style={{
-                                backgroundColor: (ITEM_TYPE_STYLES[item.itemType] || ITEM_TYPE_STYLES.subtask).bg,
-                                color: (ITEM_TYPE_STYLES[item.itemType] || ITEM_TYPE_STYLES.subtask).text,
-                              }}
-                            >
-                              {item.itemType}
-                            </span>
-                            <span className="text-[14px] text-neutral-400 dark:text-dneutral-400 flex-shrink-0">
+                            <TypeTag kind={(item.itemType || 'task') as TypeTagKind} size="sm" />
+                            <span className="text-[14px] text-mute flex-shrink-0">
                               {item.itemKey}
                             </span>
-                            <span className="text-[14px] text-neutral-700 dark:text-dneutral-700 truncate">
+                            <span className="text-[14px] text-text truncate">
                               {item.title}
                             </span>
                           </button>
@@ -456,19 +442,8 @@ export function EpicDetailPage() {
                         className="flex items-center gap-3 px-4 py-2.5 border-b border-neutral-100 dark:border-dneutral-200/50 last:border-b-0 hover:bg-neutral-50/50 dark:hover:bg-dneutral-100/50 cursor-pointer transition-colors"
                         style={{ paddingLeft: `${16 + item.depth * 24}px` }}
                       >
-                        {/* Type pill */}
-                        <span
-                          className="text-[11px] font-semibold uppercase px-1.5 py-0.5 rounded-full flex-shrink-0"
-                          style={{
-                            backgroundColor: (ITEM_TYPE_STYLES[item.itemType] || ITEM_TYPE_STYLES.subtask).bg,
-                            color: (ITEM_TYPE_STYLES[item.itemType] || ITEM_TYPE_STYLES.subtask).text,
-                          }}
-                        >
-                          {item.itemType}
-                        </span>
-
-                        {/* Item key */}
-                        <span className="font-mono text-[14px] text-neutral-400 dark:text-dneutral-400 shrink-0 w-20">
+                        <TypeTag kind={(item.itemType || 'task') as TypeTagKind} size="sm" />
+                        <span className="font-mono text-[14px] text-mute shrink-0 w-20">
                           {item.itemKey}
                         </span>
 

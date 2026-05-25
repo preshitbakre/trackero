@@ -50,8 +50,8 @@ export class SprintsService {
 
     const sprint = this.sprintRepo.create({
       projectId,
-      name: dto.name,
-      goal: dto.goal || null,
+      name: dto.name?.trim() || `Sprint ${sprintNumber}`,
+      goal: dto.goal,
       startDate: dto.startDate,
       endDate: dto.endDate,
       sprintNumber,
@@ -129,13 +129,30 @@ export class SprintsService {
   }
 
   /**
-   * The Sidebar footer card + Today aggregator (Phase 2) want a quick
-   * "what's the active sprint for this project?" lookup. Returns null
-   * when there isn't one — caller decides how to render the empty state.
+   * Active sprint lookup for the sidebar footer card. When a userId is
+   * given, also returns that user's own assigned/done point totals
+   * (donePoints / totalPoints on the response) so the footer can render
+   * a per-user progress bar instead of team-wide stats. Without userId
+   * it stays the plain entity.
    */
-  async findActive(projectId: number): Promise<Sprint | null> {
-    return this.sprintRepo.findOne({
+  async findActive(projectId: number, userId?: number): Promise<(Sprint & { donePoints?: number; totalPoints?: number }) | null> {
+    const sprint = await this.sprintRepo.findOne({
       where: { projectId, status: 'active' },
+    });
+    if (!sprint || userId === undefined) return sprint;
+
+    const [pts] = await this.dataSource.query(
+      `SELECT
+         COALESCE(SUM(wi.story_points), 0)::int AS total,
+         COALESCE(SUM(CASE WHEN ps.category = 'done' THEN wi.story_points ELSE 0 END), 0)::int AS done
+         FROM work_items wi
+         JOIN project_statuses ps ON ps.id = wi.status_id
+        WHERE wi.sprint_id = $1 AND wi.assignee_id = $2`,
+      [sprint.id, userId],
+    );
+    return Object.assign(sprint, {
+      donePoints: pts.done,
+      totalPoints: pts.total,
     });
   }
 

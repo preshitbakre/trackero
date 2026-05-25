@@ -241,14 +241,49 @@ export class DirectoryService {
     );
   }
 
-  async recentForSidebar(userId: number, limit = 8): Promise<Array<{ id: number; name: string; prefix: string; isPinned: boolean }>> {
+  async recentForSidebar(
+    userId: number,
+    limit = 8,
+  ): Promise<
+    Array<{
+      id: number;
+      name: string;
+      prefix: string;
+      isPinned: boolean;
+      role: string | null;
+      activeSprint: { id: number; name: string; status: string; pointsDone: number; pointsTotal: number } | null;
+      lastActivityAt: string | null;
+    }>
+  > {
+    // One query joins project + membership role + pinned flag + the
+    // single 'active' sprint (if any) + that sprint's points totals.
+    // The switcher dropdown turns this into the design's sublines
+    // ("BST · Sprint 27 · 14/38 pts", "OPS · No active sprint", etc.)
+    // and the VIEWER badge for read-only memberships.
     const rows = await this.dataSource.query(
-      `SELECT p.id, p.name, p.prefix, (pn.project_id IS NOT NULL) AS is_pinned
+      `SELECT
+         p.id, p.name, p.prefix,
+         p.last_activity_at AS "lastActivityAt",
+         pm.role,
+         (pn.project_id IS NOT NULL) AS is_pinned,
+         s.id           AS sprint_id,
+         s.name         AS sprint_name,
+         s.status       AS sprint_status,
+         COALESCE(SUM(wi.story_points), 0)::int AS sprint_total,
+         COALESCE(SUM(CASE WHEN ps.category = 'done' THEN wi.story_points ELSE 0 END), 0)::int AS sprint_done,
+         MAX(pv.visited_at) AS last_visit
          FROM project_visits pv
          JOIN projects p ON p.id = pv.project_id
+         LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = pv.user_id
          LEFT JOIN pinned_projects pn ON pn.user_id = pv.user_id AND pn.project_id = pv.project_id
+         LEFT JOIN sprints s ON s.project_id = p.id AND s.status = 'active'
+         LEFT JOIN work_items wi ON wi.sprint_id = s.id
+         LEFT JOIN project_statuses ps ON ps.id = wi.status_id
         WHERE pv.user_id = $1
-        ORDER BY pv.visited_at DESC
+        GROUP BY p.id, p.name, p.prefix, p.last_activity_at,
+                 pm.role, pn.project_id,
+                 s.id, s.name, s.status
+        ORDER BY MAX(pv.visited_at) DESC
         LIMIT $2`,
       [userId, limit],
     );
@@ -257,6 +292,17 @@ export class DirectoryService {
       name: r.name,
       prefix: r.prefix,
       isPinned: r.is_pinned,
+      role: r.role ?? null,
+      lastActivityAt: r.lastActivityAt ? new Date(r.lastActivityAt).toISOString() : null,
+      activeSprint: r.sprint_id
+        ? {
+            id: r.sprint_id,
+            name: r.sprint_name,
+            status: r.sprint_status,
+            pointsDone: r.sprint_done,
+            pointsTotal: r.sprint_total,
+          }
+        : null,
     }));
   }
 

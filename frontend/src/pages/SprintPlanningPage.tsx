@@ -6,13 +6,8 @@ import { apiClient } from '../api/client';
 import { useRole } from '../hooks/useRole';
 import { LabelList } from '../components/ui/LabelBadge';
 import { toast } from '../components/common/Toast';
-
-const TYPE_STYLES: Record<string, { bg: string; text: string }> = {
-  epic:    { bg: '#7C5CFC35', text: '#4A2FC0' },
-  story:   { bg: '#88A9D640', text: '#2E5A8E' },
-  task:    { bg: '#D6B58840', text: '#7A5E2A' },
-  subtask: { bg: '#A8A19A35', text: '#5C5650' },
-};
+import { TypeTag } from '../components/ui/TypeTag';
+import type { TypeTagKind } from '../components/ui/TypeTag';
 
 interface PlanTask {
   id: number;
@@ -26,37 +21,41 @@ interface PlanTask {
   parentId?: number | null;
   childCount?: number;
   labels?: { id: number; name: string; color: string }[];
+  assignee?: { id: number; displayName: string; avatarUrl?: string } | null;
 }
 
-function DraggableTask({ task, readOnly, subtaskCount }: { task: PlanTask; readOnly?: boolean; subtaskCount?: number }) {
+function DraggableTask({ task, readOnly, subtaskCount, showAssignee }: { task: PlanTask; readOnly?: boolean; subtaskCount?: number; showAssignee?: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id, disabled: readOnly });
   const style: React.CSSProperties = {
     transform: transform && !isDragging ? `translate3d(0, ${transform.y}px, 0)` : undefined,
     transition,
     opacity: isDragging ? 0.4 : undefined,
   };
-  const typeStyle = TYPE_STYLES[task.itemType] || TYPE_STYLES.task;
   const priorityColors: Record<string, string> = { urgent: 'bg-priority-urgent', high: 'bg-priority-high', medium: 'bg-priority-medium', low: 'bg-priority-low', none: 'bg-priority-none' };
 
   return (
     <div ref={setNodeRef} style={style} {...(readOnly ? {} : listeners)} {...attributes}
-      className={`flex items-center gap-2 px-3 py-2 rounded shadow-sm dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)] bg-neutral-50 dark:bg-dneutral-100 ${readOnly ? 'cursor-default' : 'cursor-grab'}`}
+      className={`flex items-center gap-2 px-3 py-2 border-b border-rule bg-transparent ${readOnly ? 'cursor-default' : 'cursor-grab'}`}
     >
-      <span
-        className="text-[11px] font-semibold uppercase px-1.5 py-0.5 rounded-full flex-shrink-0"
-        style={{ backgroundColor: typeStyle.bg, color: typeStyle.text }}
-      >
-        {task.itemType}
-      </span>
-      <span className="text-[14px] font-mono text-neutral-400 flex-shrink-0">{task.itemKey || `#${task.itemNumber}`}</span>
-      <span className="flex-1 text-[16px] truncate text-neutral-700 dark:text-dneutral-700">{task.title}</span>
+      <TypeTag kind={(task.itemType || 'task') as TypeTagKind} size="sm" />
+      <span className="text-[14px] font-mono text-mute flex-shrink-0">{task.itemKey || `#${task.itemNumber}`}</span>
+      <span className="flex-1 text-[14px] truncate text-text">{task.title}</span>
       <LabelList labels={task.labels || []} max={2} />
+      {showAssignee && task.assignee && (
+        <span
+          className="inline-flex items-center justify-center rounded-full bg-lilac text-white flex-shrink-0"
+          style={{ width: 22, height: 22, fontSize: 10, fontWeight: 600 }}
+          title={task.assignee.displayName}
+        >
+          {initials(task.assignee.displayName)}
+        </span>
+      )}
       {subtaskCount != null && subtaskCount > 0 && (
         <span className="text-[12px] text-neutral-400 flex-shrink-0">{subtaskCount} sub</span>
       )}
       <span className={`w-2 h-2 rounded-full flex-shrink-0 ${priorityColors[task.priority]}`} />
       {task.storyPoints != null && task.storyPoints > 0 && (
-        <span className="text-[14px] text-neutral-400 flex-shrink-0">{task.storyPoints}pts</span>
+        <span className="text-[14px] text-neutral-400 flex-shrink-0">{task.storyPoints}</span>
       )}
     </div>
   );
@@ -65,44 +64,11 @@ function DraggableTask({ task, readOnly, subtaskCount }: { task: PlanTask; readO
 function DroppableZone({ id, children, label }: { id: string; children: React.ReactNode; label: string }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
-    <div ref={setNodeRef} className={`flex-1 min-h-0 rounded-xl p-3 overflow-y-auto transition-colors ${isOver ? 'bg-lilac-tint ring-2 ring-dashed ring-lilac/30' : 'bg-card/60 border border-rule'}`}>
+    <div ref={setNodeRef} className={`flex-1 min-h-0 rounded-xl p-3 overflow-y-auto transition-colors ${isOver ? 'bg-lilac-tint ring-2 ring-dashed ring-lilac/30' : 'border border-dashed border-rule'}`}>
       <p className="text-[11px] uppercase tracking-[0.16em] text-faint mb-2">{label}</p>
       <div className="space-y-2">{children}</div>
     </div>
   );
-}
-
-/** Cell-based progress meter — N segments shown, fills proportionally to committed/of-capacity. */
-function CapacityCells({ committed, capacity }: { committed: number; capacity: number }) {
-  const cells = 14;
-  const ratio = capacity > 0 ? committed / capacity : 0;
-  const filled = Math.min(cells, Math.round(ratio * cells));
-  const over = committed > capacity;
-  return (
-    <div className="flex gap-[3px]">
-      {Array.from({ length: cells }, (_, i) => {
-        const isFilled = i < filled;
-        const isLast = i === filled - 1;
-        const color = over ? 'bg-danger' : isLast ? 'bg-lilac' : isFilled ? 'bg-text' : 'bg-rule';
-        return <span key={i} className={`h-5 flex-1 rounded-sm ${color}`} />;
-      })}
-    </div>
-  );
-}
-
-interface CapacityRow {
-  userId: number;
-  displayName: string;
-  committed: number;
-  capacity: number;
-  isOver: boolean;
-}
-
-interface CapacityResp {
-  totalPoints: number;
-  totalCommitted: number;
-  totalRemaining: number;
-  perAssignee: CapacityRow[];
 }
 
 export function SprintPlanningPage() {
@@ -111,8 +77,6 @@ export function SprintPlanningPage() {
   const [backlogItems, setBacklogItems] = useState<PlanTask[]>([]);
   const [sprintItems, setSprintItems] = useState<PlanTask[]>([]);
   const [subtaskCounts, setSubtaskCounts] = useState<Map<number, number>>(new Map());
-  const [velocity, setVelocity] = useState<number>(0);
-  const [capacity, setCapacity] = useState<CapacityResp | null>(null);
   const [starting, setStarting] = useState(false);
 
   const { isReadOnly } = useRole();
@@ -128,10 +92,9 @@ export function SprintPlanningPage() {
   const loadData = useCallback(async () => {
     if (!projectId || !sprintId) return;
     try {
-      const [sprintRes, itemsRes, velRes] = await Promise.all([
+      const [sprintRes, itemsRes] = await Promise.all([
         apiClient.get(`/projects/${projectId}/sprints/${sprintId}`),
         apiClient.get(`/projects/${projectId}/items?itemType=epic,story,task&limit=200`),
-        apiClient.get(`/projects/${projectId}/velocity`),
       ]);
       setSprint(sprintRes.data.data);
       const allItems: PlanTask[] = (itemsRes.data.data.list || []).map((i: any) => ({
@@ -141,7 +104,6 @@ export function SprintPlanningPage() {
 
       // Count subtasks per parent
       const counts = new Map<number, number>();
-      // Fetch subtasks just for counting
       const subRes = await apiClient.get(`/projects/${projectId}/items?itemType=subtask&limit=500`);
       const subtasks = subRes.data.data.list || [];
       for (const st of subtasks) {
@@ -149,24 +111,8 @@ export function SprintPlanningPage() {
       }
       setSubtaskCounts(counts);
 
-      // Split into backlog vs sprint (exclude subtasks from planning view)
       setBacklogItems(allItems.filter((t) => t.sprintId === null || t.sprintId === undefined));
       setSprintItems(allItems.filter((t) => t.sprintId === parseInt(sprintId!)));
-
-      const velData = velRes.data.data || [];
-      if (velData.length > 0) {
-        const avg = velData.reduce((sum: number, v: any) => sum + (v.completed_points || 0), 0) / velData.length;
-        setVelocity(Math.round(avg));
-      }
-
-      // Phase 5 — pull server-computed per-assignee capacity. Soft-fail so
-      // the planning page keeps rendering if the new endpoint is unreachable.
-      try {
-        const cap = await apiClient.get(`/projects/${projectId}/sprints/${sprintId}/capacity`);
-        setCapacity(cap.data.data);
-      } catch {
-        setCapacity(null);
-      }
     } catch (err) { console.error(err); }
   }, [projectId, sprintId]);
 
@@ -217,7 +163,6 @@ export function SprintPlanningPage() {
 
   const committedPoints = sprintItems.reduce((sum, t) => sum + (t.storyPoints || 0), 0);
   const backlogPoints = backlogItems.reduce((sum, t) => sum + (t.storyPoints || 0), 0);
-  const capacityLocal = velocity || Math.max(committedPoints, backlogPoints, 1);
   const startLabel = (() => {
     const start = sprint?.startDate ?? sprint?.start_date;
     if (!start) return null;
@@ -243,7 +188,7 @@ export function SprintPlanningPage() {
             {startLabel ? ` · STARTS ${startLabel}` : ''}
             {lengthDays ? ` · ${lengthDays} DAYS` : ''}
           </div>
-          <h1 className="font-serif text-[36px] leading-tight text-text dark:text-dneutral-700">
+          <h1 className="font-serif text-[36px] text-text">
             {sprint?.name || 'Sprint'}
             {sprint?.goal && <span className="italic"> — &ldquo;{sprint.goal}&rdquo;</span>}
           </h1>
@@ -291,44 +236,6 @@ export function SprintPlanningPage() {
         </div>
       </div>
 
-      {/* Capacity meter */}
-      <div className="mb-6 grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 items-center">
-        <div>
-          <div className="flex items-baseline gap-3 mb-2">
-            <span className="font-serif italic text-[32px] leading-none text-text">{committedPoints}</span>
-            <span className="text-[14px] text-mute">of <span className="font-semibold text-text">{capacityLocal}</span> POINTS COMMITTED</span>
-          </div>
-          <CapacityCells committed={committedPoints} capacity={capacityLocal} />
-        </div>
-        <div className="rounded-xl bg-card px-5 py-3">
-          <div className="text-[10px] uppercase tracking-[0.16em] text-faint">Avg velocity · last 3 sprints</div>
-          <div className="font-serif italic text-[28px] leading-none text-text mt-1">
-            {velocity || '—'}
-            <span className="text-mute text-[18px]">/{capacityLocal}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Per-assignee load (Phase 5, frame 8) */}
-      {capacity && capacity.perAssignee.length > 0 && (
-        <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px]">
-          <span className="text-[10px] uppercase tracking-[0.16em] text-faint">Per assignee</span>
-          {capacity.perAssignee.map((row) => (
-            <span
-              key={row.userId}
-              className={`inline-flex items-baseline gap-1 ${row.isOver ? 'text-priority-urgent' : 'text-text'}`}
-              title={`${row.displayName}: ${row.committed} committed / ${row.capacity} capacity`}
-            >
-              <span className="font-semibold">{initials(row.displayName)}</span>
-              <span>
-                {row.committed}/{row.capacity}
-              </span>
-              {row.isOver && <span className="italic">(over)</span>}
-            </span>
-          ))}
-        </div>
-      )}
-
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={(e) => { handleDragEnd(e).finally(() => setActiveTask(null)); }}>
         <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 min-h-0 overflow-hidden">
           <div className="flex flex-col min-h-0">
@@ -350,32 +257,33 @@ export function SprintPlanningPage() {
             <div className="flex items-baseline gap-2 mb-2 flex-shrink-0">
               <span className="font-serif italic text-[18px] text-text">{sprint?.name || 'Sprint'}</span>
               <span className="text-[12px] text-mute">{sprintItems.length} items · {committedPoints} pts committed</span>
-              <span className="ml-auto text-[11px] uppercase tracking-[0.16em] text-faint">↑ RE-ORDER</span>
+              <span className="ml-auto text-[11px] uppercase tracking-[0.16em] text-faint">↑↓ TO RE-ORDER</span>
             </div>
             <DroppableZone id="sprint-zone" label="DROP TO COMMIT">
               <SortableContext items={sprintItems.map((t) => t.id)} strategy={verticalListSortingStrategy}>
                 {sprintItems.map((task) => (
-                  <DraggableTask key={task.id} task={task} readOnly={isReadOnly} subtaskCount={subtaskCounts.get(task.id)} />
+                  <DraggableTask key={task.id} task={task} readOnly={isReadOnly} subtaskCount={subtaskCounts.get(task.id)} showAssignee />
                 ))}
               </SortableContext>
               {sprintItems.length === 0 && <p className="text-[12px] text-faint text-center py-4">Drag items here</p>}
+              {backlogItems.length > 0 && (
+                <div className="mt-2 border border-dashed border-lilac/30 rounded px-3 py-2 text-center text-[12px] text-faint">
+                  + Drop {backlogItems[0].itemKey || `#${backlogItems[0].itemNumber}`} here
+                  {backlogItems[0].storyPoints ? ` · +${backlogItems[0].storyPoints} pts` : ''}
+                </div>
+              )}
             </DroppableZone>
           </div>
         </div>
 
         <DragOverlay dropAnimation={null}>
           {activeTask && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded bg-neutral-50 dark:bg-dneutral-100 shadow-xl dark:shadow-[0_12px_36px_rgba(0,0,0,0.6)] opacity-90">
-              <span
-                className="text-[11px] font-semibold uppercase px-1.5 py-0.5 rounded-full"
-                style={{ backgroundColor: (TYPE_STYLES[activeTask.itemType] || TYPE_STYLES.task).bg, color: (TYPE_STYLES[activeTask.itemType] || TYPE_STYLES.task).text }}
-              >
-                {activeTask.itemType}
-              </span>
-              <span className="text-[14px] font-mono text-neutral-400">{activeTask.itemKey || `#${activeTask.itemNumber}`}</span>
-              <span className="text-[16px] text-neutral-700 dark:text-dneutral-700 truncate">{activeTask.title}</span>
+            <div className="flex items-center gap-2 px-3 py-2 rounded bg-card shadow-xl opacity-90">
+              <TypeTag kind={(activeTask.itemType || 'task') as TypeTagKind} size="sm" />
+              <span className="text-[14px] font-mono text-mute">{activeTask.itemKey || `#${activeTask.itemNumber}`}</span>
+              <span className="text-[14px] text-text truncate">{activeTask.title}</span>
               {activeTask.storyPoints != null && activeTask.storyPoints > 0 && (
-                <span className="text-[14px] text-neutral-400">{activeTask.storyPoints}pts</span>
+                <span className="text-[14px] text-mute">{activeTask.storyPoints}pts</span>
               )}
             </div>
           )}

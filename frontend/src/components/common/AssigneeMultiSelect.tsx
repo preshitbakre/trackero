@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Input } from '../ui/Input';
 
 interface AssigneeOption {
   id: number;
@@ -42,10 +43,10 @@ export function AssigneeMultiSelect({ options, selected, onChange }: AssigneeMul
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className={`flex items-center gap-1.5 text-[16px] px-3 py-1 rounded-md border min-w-[140px] ${
+        className={`inline-flex items-center gap-1.5 text-[14px] font-medium px-3 rounded-md border h-[32px] min-w-[140px] ${
           selected.length > 0
-            ? 'bg-lilac-tint dark:bg-peri-dm/30 border-lilac dark:border-peri-dm text-lilac-dark dark:text-peri-dm'
-            : 'border-neutral-200 dark:border-dneutral-300 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-dneutral-200'
+            ? 'bg-lilac-tint border-lilac text-lilac-dark'
+            : 'border-rule text-faint hover:bg-paper'
         }`}
       >
         <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
@@ -61,7 +62,7 @@ export function AssigneeMultiSelect({ options, selected, onChange }: AssigneeMul
         {selected.length > 0 && (
           <button
             onClick={(e) => { e.stopPropagation(); onChange([]); }}
-            className="ml-auto text-neutral-400 hover:text-neutral-600 dark:hover:text-dneutral-600"
+            className="ml-auto text-faint hover:text-mute"
           >
             ×
           </button>
@@ -69,15 +70,14 @@ export function AssigneeMultiSelect({ options, selected, onChange }: AssigneeMul
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-1 w-56 rounded-lg border border-neutral-200 dark:border-dneutral-300 bg-white dark:bg-dneutral-100 shadow-lg z-[60] overflow-hidden">
-          <div className="p-2 border-b border-neutral-200 dark:border-dneutral-200">
-            <input
-              type="text"
+        <div className="absolute left-0 mt-1 w-56 bg-card shadow-[0_8px_30px_rgba(26,20,36,0.18),0_2px_8px_rgba(26,20,36,0.10)] z-[60] overflow-hidden">
+          <div className="p-2 border-b border-rule">
+            <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search..."
               autoFocus
-              className="w-full text-[16px] px-2 py-1.5 rounded border border-neutral-200 dark:border-dneutral-300 bg-transparent text-neutral-700 dark:text-dneutral-700 placeholder-neutral-400 focus:border-lilac focus:outline-none"
+              className="!text-[13px] !py-1.5"
             />
           </div>
           <div className="max-h-[240px] overflow-y-auto custom-scrollbar">
@@ -86,20 +86,20 @@ export function AssigneeMultiSelect({ options, selected, onChange }: AssigneeMul
                 <button
                   key={opt.id}
                   onClick={() => toggle(opt.id)}
-                  className="flex items-center gap-2 w-full text-left px-3 py-2 text-[16px] hover:bg-neutral-100 dark:hover:bg-dneutral-200"
+                  className="flex items-center gap-2 w-full text-left px-3 py-2 text-[14px] hover:bg-lilac-tint"
                 >
-                  <span className={`w-4 h-4 rounded border flex items-center justify-center text-white text-[16px] ${
+                  <span className={`w-4 h-4 rounded border flex items-center justify-center text-white text-[10px] ${
                     selected.includes(opt.id)
                       ? 'bg-lilac border-lilac'
-                      : 'border-neutral-300 dark:border-dneutral-400'
+                      : 'border-rule'
                   }`}>
                     {selected.includes(opt.id) && '✓'}
                   </span>
-                  <span className="text-neutral-700 dark:text-dneutral-700 truncate">{opt.name}</span>
+                  <span className="text-text truncate">{opt.name}</span>
                 </button>
               ))
             ) : (
-              <p className="px-3 py-2 text-[16px] text-neutral-400">No results</p>
+              <p className="px-3 py-2 text-[14px] text-faint">No results</p>
             )}
           </div>
         </div>

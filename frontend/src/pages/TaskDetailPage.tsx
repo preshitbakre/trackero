@@ -13,14 +13,22 @@ import { toast } from '../components/common/Toast';
 import { LabelPicker } from '../components/ui/LabelPicker';
 import { LabelList } from '../components/ui/LabelBadge';
 import { TypeTag } from '../components/ui';
+import { Avatar } from '../components/ui/Avatar';
+import { STATUS_BADGE_COLORS, PRIORITY_DOT_COLORS } from '../lib/colors';
+import { MarkdownField } from '../components/ui/MarkdownField';
+import { MentionTextarea } from '../components/ui/MentionTextarea';
+import { CommentBody } from '../components/ui/CommentBody';
 import type { TypeTagKind } from '../components/ui';
 
 interface Subtask {
   id: number;
   itemNumber: number;
   title: string;
+  itemType?: string;
   statusId: number;
   completedAt: string | null;
+  status?: { id: number; name: string; category: string; color: string };
+  assignee?: { id: number; displayName: string; avatarUrl: string | null };
 }
 
 interface Dependency {
@@ -42,7 +50,11 @@ interface TaskDetail {
   status?: { id: number; name: string; category: string; color: string };
   storyPoints: number | null;
   assigneeId: number | null;
+  assignee?: { id: number; displayName: string; avatarUrl: string | null };
+  reporterId?: number | null;
+  reporter?: { id: number; displayName: string; avatarUrl: string | null };
   sprintId: number | null;
+  sprint?: { id: number; name: string };
   startDate: string | null;
   endDate: string | null;
   completedAt: string | null;
@@ -50,6 +62,7 @@ interface TaskDetail {
   createdAt: string;
   parentId?: number | null;
   parentInfo?: { id: number; taskKey: string; title: string } | null;
+  breadcrumb?: { id: number; itemKey: string; itemType: string; title: string }[];
   subtasks?: Subtask[];
   checklistItems?: { id: number; title: string; isCompleted: boolean }[];
   blockedBy?: Dependency[];
@@ -64,6 +77,8 @@ interface CommentItem {
   editedAt: string | null;
   createdAt: string;
   author?: { id: number; displayName: string; avatarUrl: string | null };
+  reactions?: { emoji: string; count: number; byMe: boolean }[];
+  mentions?: { id: number; displayName: string }[];
 }
 
 interface AttachmentItem {
@@ -84,6 +99,36 @@ interface ActivityItem {
   user?: { id: number; displayName: string; avatarUrl: string | null };
 }
 
+function statusCategory(status?: { category: string }): string {
+  return status?.category?.toLowerCase().replace(/\s+/g, '_') || 'backlog';
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(dateStr).toLocaleDateString();
+}
+
+function daysUntil(dateStr: string): string {
+  const diff = new Date(dateStr).getTime() - Date.now();
+  const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+  if (days < 0) return `${Math.abs(days)}d overdue`;
+  if (days === 0) return 'today';
+  return `in ${days}d`;
+}
+
 export function TaskDetailPage() {
   const { id: projectId, taskId: taskIdParam } = useParams();
   const navigate = useNavigate();
@@ -99,7 +144,6 @@ export function TaskDetailPage() {
   const [newComment, setNewComment] = useState('');
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [checklistItems, setChecklistItems] = useState<{ id: number; title: string; isCompleted: boolean }[]>([]);
-  // Phase 7 — watcher state for the "N watching" badge in the header.
   const [watcherCount, setWatcherCount] = useState<number>(0);
   const [byMeWatching, setByMeWatching] = useState<boolean>(false);
   const [showAddChecklist, setShowAddChecklist] = useState(false);
@@ -108,21 +152,16 @@ export function TaskDetailPage() {
   const [showAddSubtask, setShowAddSubtask] = useState(false);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [assigneeOptions, setAssigneeOptions] = useState<{ value: string; label: string }[]>([]);
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [sprintOptions, setSprintOptions] = useState<{ value: string; label: string }[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [associations, setAssociations] = useState<any>(null);
+  const [discussionTab, setDiscussionTab] = useState<'comments' | 'activity'>('comments');
   const [showAddAssociation, setShowAddAssociation] = useState(false);
   const [addAssocLinkType, setAddAssocLinkType] = useState<string>('belongs_to');
   const [assocSearchQuery, setAssocSearchQuery] = useState('');
   const [assocSearchResults, setAssocSearchResults] = useState<any[]>([]);
   const [assocSearching, setAssocSearching] = useState(false);
-
-  const PREVIEW_LIMIT = 5;
-  const isSectionExpanded = (key: string) => expandedSections[key] ?? false;
-  const isSectionCollapsed = (key: string) => collapsedSections[key] ?? false;
-  const toggleExpand = (key: string) => setExpandedSections((prev) => ({ ...prev, [key]: !prev[key] }));
-  const toggleCollapse = (key: string) => setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  const [projectMembers, setProjectMembers] = useState<{ id: number; displayName: string; avatarUrl: string | null }[]>([]);
 
   const { canEdit } = useRole();
 
@@ -148,15 +187,35 @@ export function TaskDetailPage() {
       const opts = (res.data.data.list || []).map((o: any) => ({ value: String(o.value), label: o.label }));
       setAssigneeOptions([{ value: '', label: 'Unassigned' }, ...opts]);
     }).catch((err) => { console.error(err); });
+    apiClient.get(`/projects/${pid}/members`).then((res) => {
+      const list = res.data.data?.list || res.data.data || [];
+      setProjectMembers(list.map((m: any) => ({
+        id: m.user?.id ?? m.userId ?? m.id,
+        displayName: m.user?.displayName ?? m.displayName ?? '',
+        avatarUrl: m.user?.avatarUrl ?? m.avatarUrl ?? null,
+      })));
+    }).catch((err) => { console.error(err); });
+    apiClient.get(`/projects/${pid}/sprints?limit=100`).then((res) => {
+      const list = res.data.data.list || [];
+      setSprintOptions([{ value: '', label: 'Backlog' }, ...list.map((s: any) => ({ value: String(s.id), label: s.name }))]);
+    }).catch((err) => { console.error(err); });
   }, [pid]);
 
   const loadTask = async () => {
     try {
       const { data } = await apiClient.get(`/projects/${pid}/items/${tid}`);
-      setTask(data.data);
-      setTitle(data.data.title);
-      setStoryPoints(data.data.storyPoints != null ? String(data.data.storyPoints) : '');
-      setChecklistItems(data.data.checklistItems || []);
+      const item = data.data;
+      if (item.children && !item.subtasks) {
+        item.subtasks = item.children;
+      }
+      if (!item.parentInfo && item.breadcrumb && item.breadcrumb.length > 1) {
+        const parent = item.breadcrumb[item.breadcrumb.length - 2];
+        item.parentInfo = { id: parent.id, taskKey: parent.itemKey, title: parent.title };
+      }
+      setTask(item);
+      setTitle(item.title);
+      setStoryPoints(item.storyPoints != null ? String(item.storyPoints) : '');
+      setChecklistItems(item.checklistItems || []);
     } catch (err) { console.error(err); }
   };
 
@@ -167,7 +226,6 @@ export function TaskDetailPage() {
     } catch (err) { console.error(err); }
   };
 
-  // Phase 7 — watcher state + toggle.
   const loadWatchers = async () => {
     try {
       const { data } = await apiClient.get(`/projects/${pid}/items/${tid}/watchers`);
@@ -308,8 +366,6 @@ export function TaskDetailPage() {
   const handleDownload = async (attachmentId: number) => {
     try {
       const { data } = await apiClient.get(`/projects/${pid}/items/${tid}/attachments/${attachmentId}/url`);
-      // 'noopener,noreferrer' prevents the new tab from accessing window.opener
-      // (reverse tabnabbing) and strips the Referer header to the presigned URL.
       window.open(data.data.url, '_blank', 'noopener,noreferrer');
     } catch (err: any) {
       toast(err.response?.data?.message || 'Failed to download', 'error');
@@ -362,95 +418,121 @@ export function TaskDetailPage() {
   if (!task) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="text-neutral-400">Loading...</div>
+        <div style={{ color: 'var(--ink-4)' }}>Loading...</div>
       </div>
     );
   }
 
   const taskKey = projectPrefix ? `${projectPrefix}-${task.itemNumber}` : `#${task.itemNumber}`;
+  const subtasks = task.subtasks || [];
+  const statusKey = statusCategory(task.status);
+  const statusColors = STATUS_BADGE_COLORS[statusKey] || STATUS_BADGE_COLORS.backlog;
+
+  const allAssocRows: { type: string; item: any; id: number }[] = [];
+  if (associations) {
+    (associations.blockedBy || []).forEach((a: any) => allAssocRows.push({ type: 'blocked by', item: a.item, id: a.id }));
+    (associations.blocks || []).forEach((a: any) => allAssocRows.push({ type: 'blocks', item: a.item, id: a.id }));
+    (associations.relatesTo || []).forEach((a: any) => allAssocRows.push({ type: 'relates to', item: a.item, id: a.id }));
+    (associations.belongsTo || []).forEach((a: any) => allAssocRows.push({ type: 'part of', item: a.item, id: a.id }));
+    (associations.causedBy || []).forEach((a: any) => allAssocRows.push({ type: 'caused by', item: a.item, id: a.id }));
+  }
 
   return (
     <div className="flex flex-col h-full">
       <ReadOnlyBanner />
-      {/* Header — type chip · itemKey · status · blocker · "N watching" inline */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-rule">
-        <div className="flex items-center gap-2.5">
-          <button
-            onClick={() => navigate(-1)}
-            aria-label="Back"
-            className="p-1 hover:bg-paper rounded text-faint"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          {task.itemType && (
-            <TypeTag kind={task.itemType as TypeTagKind} size="sm" />
-          )}
-          {task.parentInfo ? (
-            <div className="flex items-center gap-1.5 text-[12px] font-mono tracking-wide">
-              <Link to={`/projects/${pid}/tasks/${task.parentInfo.id}`} className="text-faint hover:text-lilac-dark">
-                {task.parentInfo.taskKey}
-              </Link>
-              <span className="text-faint">›</span>
-              <span className="text-text">{taskKey}</span>
-            </div>
-          ) : (
-            <span className="text-[12px] font-mono tracking-wide text-faint">{taskKey}</span>
-          )}
-          {task.status && (
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-paper text-[11px] tracking-wide">
-              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: task.status.color }} />
-              <span style={{ color: task.status.color }}>{task.status.name}</span>
-            </span>
-          )}
-          {/* Blocker chip: surface the first blocking item inline so the gate is visible without scrolling. */}
-          {task.blockedBy && task.blockedBy.length > 0 && (
-            <span
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber/15 text-amber-dark text-[11px] tracking-wide"
-              title={`Blocked by ${task.blockedBy.length} item${task.blockedBy.length === 1 ? '' : 's'}`}
-            >
-              <span>blocked by</span>
-              {task.blockedBy[0].dependsOnItem?.itemKey && (
-                <span className="font-mono">{task.blockedBy[0].dependsOnItem.itemKey}</span>
-              )}
-            </span>
-          )}
-          {/* "N watching" badge — moved from the right rail so the social
-              footprint reads next to the title block per frame 6. */}
-          <button
-            type="button"
-            onClick={toggleWatch}
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] tracking-wide transition-colors ${
-              byMeWatching ? 'bg-lilac-tint text-lilac-dark' : 'bg-paper text-mute hover:bg-rule'
-            }`}
-            title={byMeWatching ? 'Stop watching' : 'Watch this item'}
-          >
-            <span>{byMeWatching ? '★' : '☆'}</span>
-            <span>{watcherCount} watching</span>
-          </button>
-          <SaveStatusIndicator status={saveStatus} />
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="hidden md:flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-faint">
-            <span>Created {new Date(task.createdAt).toLocaleDateString()}</span>
-            {task.statusChangedAt && (
-              <span>· Status {new Date(task.statusChangedAt).toLocaleDateString()}</span>
-            )}
-          </div>
-          {canEdit && (
-            <Button size="sm" variant="danger" onClick={() => setShowDeleteConfirm(true)}>Delete</Button>
-          )}
-        </div>
-      </div>
 
       {/* Two-column layout */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left column — main content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 border-r border-neutral-200 dark:border-dneutral-200" style={{ flexBasis: '60%' }}>
-          {/* Title — italic serif hero per frame 6. Click-to-edit keeps the
-              autosave UX; the editing input matches the hero's font size so
-              the visual switch isn't jarring. */}
+        {/* ── Left column — main content ── */}
+        <div
+          className="flex flex-col flex-1 overflow-y-auto"
+          style={{ padding: '24px 36px' }}
+        >
+          {/* Breadcrumb */}
+          <div
+            className="flex items-center gap-1.5"
+            style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 14, lineHeight: '16.8px' }}
+          >
+            {task.parentInfo ? (
+              <>
+                <span className="mono" style={{ fontWeight: 500 }}>
+                  <Link to={`/projects/${pid}/tasks/${task.parentInfo.id}`} className="hover:underline" style={{ color: 'var(--ink-3)' }}>
+                    {task.parentInfo.taskKey}
+                  </Link>
+                </span>
+                <span>{task.parentInfo.title}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+                <span className="mono" style={{ fontWeight: 500 }}>{taskKey}</span>
+              </>
+            ) : (
+              <button
+                onClick={() => navigate(-1)}
+                className="flex items-center gap-1 hover:underline"
+                style={{ color: 'var(--ink-3)' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+                Back
+              </button>
+            )}
+          </div>
+
+          {/* Meta row — type chip + key + status + blockers + watcher + actions */}
+          <div
+            className="flex items-center gap-2"
+            style={{ fontSize: '13.5px', marginBottom: 10, height: 26 }}
+          >
+            {task.itemType && (
+              <TypeTag kind={task.itemType as TypeTagKind} size="sm" />
+            )}
+            <span className="mono" style={{ fontWeight: 500, fontSize: 12, color: 'var(--ink-3)' }}>{taskKey}</span>
+            <span style={{ color: 'var(--ink-4)' }}>·</span>
+            {task.status && (
+              <span className="status">
+                <span className="dot" style={{ backgroundColor: statusColors.dot }} />
+                <span>{task.status.name}</span>
+              </span>
+            )}
+            {task.blockedBy && task.blockedBy.length > 0 && (
+              <>
+                <span style={{ color: 'var(--ink-4)' }}>·</span>
+                <span className="chip chip-accent" style={{ height: 20, fontSize: 11 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></svg>
+                </span>
+              </>
+            )}
+            <div className="flex-1" />
+            <button
+              type="button"
+              onClick={toggleWatch}
+              className="chip"
+              style={{
+                height: 22,
+                fontSize: 11,
+                background: byMeWatching ? 'var(--accent-bg)' : undefined,
+                color: byMeWatching ? 'var(--accent-ink)' : undefined,
+                borderColor: byMeWatching ? 'transparent' : undefined,
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M2 12s4-8 10-8 10 8 10 8-4 8-10 8-10-8-10-8z" />
+              </svg>
+              {watcherCount} watching
+            </button>
+            <SaveStatusIndicator status={saveStatus} />
+            {canEdit && (
+              <button
+                className=""
+                style={{ width: 30, height: 30, padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#E53E3E', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}
+                onClick={() => setShowDeleteConfirm(true)}
+                title="Delete"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
+              </button>
+            )}
+          </div>
+
+          {/* Title */}
           {editing ? (
             <input
               value={title}
@@ -463,514 +545,644 @@ export function TaskDetailPage() {
               onBlur={handleTitleBlur}
               onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
               autoFocus
-              className="w-full font-serif italic text-[40px] leading-[1.1] tracking-tight bg-transparent border-b border-lilac outline-none text-ink dark:text-dneutral-700"
+              className="w-full serif bg-transparent outline-none"
+              style={{
+                fontSize: 38,
+                lineHeight: '39.9px',
+                marginBottom: 18,
+                borderBottom: '1px solid var(--accent)',
+                paddingBottom: 4,
+              }}
             />
           ) : (
-            <h1
+            <div
               onClick={() => canEdit && setEditing(true)}
-              className={`font-serif italic text-[40px] leading-[1.1] tracking-tight text-ink dark:text-dneutral-700 ${canEdit ? 'cursor-pointer hover:text-lilac-dark' : ''}`}
+              className={`serif ${canEdit ? 'cursor-pointer' : ''}`}
+              style={{
+                fontSize: 38,
+                lineHeight: '39.9px',
+                marginBottom: 18,
+              }}
             >
               {task.title}
-            </h1>
+            </div>
           )}
 
           {/* Description */}
-          <div>
-            <h3 className="text-[16px] font-medium text-neutral-400 mb-2">Description</h3>
-            <textarea
+          <div style={{ maxWidth: 720, marginBottom: 0 }}>
+            <MarkdownField
               value={task.description || ''}
-              onChange={(e) => {
-                if (!canEdit) return;
-                const val = e.target.value;
+              onChange={(val) => {
                 setTask((prev) => prev ? { ...prev, description: val } : prev);
                 debouncedFieldChange('description', val || null, loadTask);
               }}
               onBlur={() => flushDebounce()}
-              placeholder={canEdit ? 'Add a description...' : 'No description'}
-              rows={5}
-              disabled={!canEdit}
-              className={`w-full text-[16px] text-neutral-700 dark:text-dneutral-700 min-h-[100px] p-3 rounded border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 placeholder-neutral-400 resize-y focus:border-lilac focus:outline-none focus:ring-2 focus:ring-lilac/40 ${!canEdit ? 'opacity-75 cursor-default' : ''}`}
+              placeholder="Add a description..."
+              readOnly={!canEdit}
             />
           </div>
 
           {/* Subtasks */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <button onClick={() => toggleCollapse('subtasks')} className="flex items-center gap-1.5 text-[16px] font-medium text-neutral-400 hover:text-neutral-600 dark:hover:text-dneutral-600">
-                <svg className={`w-3.5 h-3.5 transition-transform ${isSectionCollapsed('subtasks') ? '-rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-                Subtasks {task.subtasks && task.subtasks.length > 0 && `(${task.subtasks.length})`}
-              </button>
+          <div style={{ marginTop: 22 }}>
+            <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+              <div className="smallcaps">
+                Subtasks{subtasks.length > 0 && ` (${subtasks.length})`}
+              </div>
+              {canEdit && !showAddSubtask && (
+                <button
+                  onClick={() => setShowAddSubtask(true)}
+                  style={{ fontSize: '11.5px', color: 'var(--ink-2)', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                >
+                  + Add subtask
+                </button>
+              )}
             </div>
-            {!isSectionCollapsed('subtasks') && (
-              <>
-                {task.subtasks && task.subtasks.length > 0 && (
-                  <div className="space-y-1 mb-2">
-                    {(isSectionExpanded('subtasks') ? task.subtasks : task.subtasks.slice(0, PREVIEW_LIMIT)).map((st) => (
-                      <Link
-                        key={st.id}
-                        to={`/projects/${pid}/tasks/${st.id}`}
-                        className="flex items-center gap-2 text-[16px] py-1.5 px-2 rounded hover:bg-neutral-100 dark:hover:bg-dneutral-200"
-                      >
-                        <span className={st.completedAt ? 'text-success' : 'text-neutral-400'}>
-                          {st.completedAt ? '☑' : '☐'}
-                        </span>
-                        <span className={`flex-1 ${st.completedAt ? 'line-through text-neutral-400' : 'text-neutral-700 dark:text-dneutral-700'}`}>
-                          {st.title}
-                        </span>
-                        <span className="text-neutral-400 text-[16px]">→</span>
-                      </Link>
-                    ))}
-                    {task.subtasks.length > PREVIEW_LIMIT && (
-                      <button onClick={() => toggleExpand('subtasks')} className="text-[16px] text-lilac-dark hover:underline px-2 py-1">
-                        {isSectionExpanded('subtasks') ? 'Show less' : `Show all (${task.subtasks.length})`}
-                      </button>
-                    )}
-                  </div>
-                )}
-                {canEdit && (showAddSubtask ? (
-                  <form onSubmit={(e) => { e.preventDefault(); handleCreateSubtask(); }} className="flex gap-1">
-                    <Input value={newSubtaskTitle} onChange={(e) => setNewSubtaskTitle(e.target.value)} placeholder="Subtask title..." autoFocus className="flex-1" />
-                    <Button type="submit" variant="primary" size="sm">Add</Button>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setShowAddSubtask(false)}>Cancel</Button>
-                  </form>
-                ) : (
-                  <button onClick={() => setShowAddSubtask(true)} className="text-[16px] text-neutral-400 hover:text-lilac-dark">+ Add subtask</button>
-                ))}
-              </>
+
+            {subtasks.length > 0 && (
+              <div className="flex flex-col" style={{ gap: 1 }}>
+                {subtasks.map((st) => {
+                  const stKey = projectPrefix ? `${projectPrefix}-${st.itemNumber}` : `#${st.itemNumber}`;
+                  const stStatusKey = statusCategory(st.status);
+                  const stStatusColors = STATUS_BADGE_COLORS[stStatusKey] || STATUS_BADGE_COLORS.backlog;
+                  const stType = st.itemType || 'task';
+                  return (
+                    <Link
+                      key={st.id}
+                      to={`/projects/${pid}/tasks/${st.id}`}
+                      className="flex items-center gap-2 hover:bg-[var(--shade)]"
+                      style={{ padding: '6px 4px', borderRadius: 4, fontSize: '13.5px' }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={!!st.completedAt}
+                        readOnly
+                        style={{ width: 14, height: 14, accentColor: 'var(--accent)' }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <TypeTag kind={(stType || 'task') as TypeTagKind} size="sm" />
+                      <span className="mono" style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 500 }}>{stKey}</span>
+                      <span className={`flex-1 truncate ${st.completedAt ? 'line-through' : ''}`} style={{ color: st.completedAt ? 'var(--ink-4)' : 'var(--ink)' }}>
+                        {st.title}
+                      </span>
+                      <span className="status">
+                        <span className="dot" style={{ backgroundColor: stStatusColors.dot }} />
+                      </span>
+                      {st.assignee && (
+                        <Avatar user={st.assignee} size="xs" />
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+
+            {subtasks.length === 0 && !showAddSubtask && (
+              <p style={{ fontSize: '13.5px', color: 'var(--ink-4)' }}>No subtasks</p>
+            )}
+
+            {canEdit && showAddSubtask && (
+              <form onSubmit={(e) => { e.preventDefault(); handleCreateSubtask(); }} className="flex gap-1" style={{ marginTop: 8 }}>
+                <Input value={newSubtaskTitle} onChange={(e) => setNewSubtaskTitle(e.target.value)} placeholder="Subtask title..." autoFocus className="flex-1" />
+                <Button type="submit" variant="primary" size="sm">Add</Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setShowAddSubtask(false)}>Cancel</Button>
+              </form>
             )}
           </div>
 
           {/* Checklist */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <button onClick={() => toggleCollapse('checklist')} className="flex items-center gap-1.5 text-[16px] font-medium text-neutral-400 hover:text-neutral-600 dark:hover:text-dneutral-600">
-                <svg className={`w-3.5 h-3.5 transition-transform ${isSectionCollapsed('checklist') ? '-rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-                Checklist {checklistItems.length > 0 && `(${checklistItems.filter((i) => i.isCompleted).length}/${checklistItems.length})`}
-              </button>
-              {canEdit && !showAddChecklist && !isSectionCollapsed('checklist') && (
-                <button onClick={() => setShowAddChecklist(true)} className="text-[16px] text-lilac-dark hover:underline">+ Add item</button>
+          <div style={{ marginTop: 22 }}>
+            <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+              <div className="smallcaps">
+                Checklist{checklistItems.length > 0 && ` (${checklistItems.filter(i => i.isCompleted).length}/${checklistItems.length})`}
+              </div>
+              {canEdit && !showAddChecklist && (
+                <button
+                  onClick={() => setShowAddChecklist(true)}
+                  style={{ fontSize: '11.5px', color: 'var(--ink-2)', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                >
+                  + Add item
+                </button>
               )}
             </div>
-            {!isSectionCollapsed('checklist') && (
-              <>
-                {checklistItems.length > 0 && (
-                  <div className="space-y-1 mb-2">
-                    {(isSectionExpanded('checklist') ? checklistItems : checklistItems.slice(0, PREVIEW_LIMIT)).map((item) => (
-                      <div key={item.id} className="flex items-center gap-2 text-[16px] py-1 px-2 rounded hover:bg-neutral-100 dark:hover:bg-dneutral-200">
-                        <input type="checkbox" checked={item.isCompleted} onChange={() => canEdit && handleToggleChecklist(item.id, item.isCompleted)} className="w-4 h-4 rounded border-neutral-200" />
-                        <span className={`flex-1 ${item.isCompleted ? 'line-through text-neutral-400' : 'text-neutral-700 dark:text-dneutral-700'}`}>{item.title}</span>
-                        {canEdit && <button onClick={() => handleDeleteChecklist(item.id)} className="text-[16px] text-neutral-400 hover:text-danger">×</button>}
-                      </div>
-                    ))}
-                    {checklistItems.length > PREVIEW_LIMIT && (
-                      <button onClick={() => toggleExpand('checklist')} className="text-[16px] text-lilac-dark hover:underline px-2 py-1">
-                        {isSectionExpanded('checklist') ? 'Show less' : `Show all (${checklistItems.length})`}
-                      </button>
+
+            {checklistItems.length > 0 && (
+              <div className="flex flex-col" style={{ gap: 1 }}>
+                {checklistItems.map((item) => (
+                  <div key={item.id} className="flex items-center gap-2" style={{ padding: '4px 4px', fontSize: '13.5px' }}>
+                    <input
+                      type="checkbox"
+                      checked={item.isCompleted}
+                      onChange={() => canEdit && handleToggleChecklist(item.id, item.isCompleted)}
+                      style={{ width: 14, height: 14, accentColor: 'var(--accent)' }}
+                    />
+                    <span className={`flex-1 ${item.isCompleted ? 'line-through' : ''}`} style={{ color: item.isCompleted ? 'var(--ink-4)' : 'var(--ink)' }}>
+                      {item.title}
+                    </span>
+                    {canEdit && (
+                      <button onClick={() => handleDeleteChecklist(item.id)} style={{ color: 'var(--ink-4)', fontSize: 14 }}>×</button>
                     )}
                   </div>
-                )}
-                {checklistItems.length === 0 && !showAddChecklist && <p className="text-[16px] text-neutral-400">No checklist items</p>}
-                {showAddChecklist && canEdit && (
-                  <form onSubmit={handleAddChecklistItem} className="flex gap-1">
-                    <Input value={newChecklistTitle} onChange={(e) => setNewChecklistTitle(e.target.value)} placeholder="Checklist item..." autoFocus className="flex-1" />
-                    <Button type="submit" variant="primary" size="sm">Add</Button>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setShowAddChecklist(false)}>Cancel</Button>
-                  </form>
-                )}
-              </>
+                ))}
+              </div>
+            )}
+            {checklistItems.length === 0 && !showAddChecklist && (
+              <p style={{ fontSize: '13.5px', color: 'var(--ink-4)' }}>No checklist items</p>
+            )}
+
+            {canEdit && showAddChecklist && (
+              <form onSubmit={handleAddChecklistItem} className="flex gap-1" style={{ marginTop: 8 }}>
+                <Input value={newChecklistTitle} onChange={(e) => setNewChecklistTitle(e.target.value)} placeholder="Checklist item..." autoFocus className="flex-1" />
+                <Button type="submit" variant="primary" size="sm">Add</Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setShowAddChecklist(false)}>Cancel</Button>
+              </form>
             )}
           </div>
 
-          {/* Dependencies */}
-          {((task.blockedBy && task.blockedBy.length > 0) || (task.blocks && task.blocks.length > 0)) && (
-            <div>
-              <h3 className="text-[16px] font-medium text-neutral-400 mb-2">Dependencies</h3>
-              {task.blockedBy && task.blockedBy.length > 0 && (
-                <div className="mb-2">
-                  <span className="text-[16px] text-neutral-400 uppercase">Blocked by:</span>
-                  {task.blockedBy.map((dep) => (
-                    <div key={dep.id} className="flex items-center gap-2 text-[16px] py-1 px-2">
-                      <span className="text-danger">🔒</span>
-                      <span className="text-neutral-600 dark:text-dneutral-600">#{dep.dependsOnItem?.itemKey} {dep.dependsOnItem?.title}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {task.blocks && task.blocks.length > 0 && (
-                <div>
-                  <span className="text-[16px] text-neutral-400 uppercase">Blocks:</span>
-                  {task.blocks.map((dep) => (
-                    <div key={dep.id} className="flex items-center gap-2 text-[16px] py-1 px-2">
-                      <span className="text-warning">⏳</span>
-                      <span className="text-neutral-600 dark:text-dneutral-600">#{dep.item?.itemKey} {dep.item?.title}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Attachments */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <button onClick={() => toggleCollapse('attachments')} className="flex items-center gap-1.5 text-[16px] font-medium text-neutral-400 hover:text-neutral-600 dark:hover:text-dneutral-600">
-                <svg className={`w-3.5 h-3.5 transition-transform ${isSectionCollapsed('attachments') ? '-rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-                Attachments {attachments.length > 0 && `(${attachments.length})`}
+          {/* Comments / Activity — tabbed */}
+          <div style={{ marginTop: 24, marginBottom: 24, display: 'flex', flexDirection: 'column', height: 420, flexShrink: 0, border: '1px solid var(--line-2)', borderRadius: 0, overflow: 'hidden' }}>
+            {/* Tab bar */}
+            <div className="flex" style={{ borderBottom: '1px solid var(--line-2)', flexShrink: 0 }}>
+              <button
+                onClick={() => setDiscussionTab('comments')}
+                className="smallcaps"
+                style={{
+                  padding: '10px 16px',
+                  fontSize: 11,
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  borderBottom: discussionTab === 'comments' ? '2px solid var(--accent)' : '2px solid transparent',
+                  color: discussionTab === 'comments' ? 'var(--ink)' : 'var(--ink-3)',
+                  marginBottom: -1,
+                }}
+              >
+                Comments{comments.length > 0 ? ` · ${comments.length}` : ''}
               </button>
-              {canEdit && !isSectionCollapsed('attachments') && (
-                <label className="text-[16px] text-lilac-dark hover:underline cursor-pointer">
-                  + Upload
-                  <input type="file" className="hidden" onChange={handleUpload} />
-                </label>
-              )}
-            </div>
-            {!isSectionCollapsed('attachments') && (
-              <>
-                {attachments.length > 0 ? (
-                  <div className="space-y-2">
-                    {(isSectionExpanded('attachments') ? attachments : attachments.slice(0, PREVIEW_LIMIT)).map((att) => (
-                      <button key={att.id} onClick={() => handleDownload(att.id)} className="flex items-start gap-2 w-full text-left text-[16px] p-2 rounded hover:bg-neutral-100 dark:hover:bg-dneutral-200">
-                        <span className="text-neutral-400 flex-shrink-0 mt-0.5">📎</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[16px] text-neutral-700 dark:text-dneutral-700 truncate">{att.originalFilename}</p>
-                          <p className="text-[16px] text-neutral-400 dark:text-dneutral-500">{(att.sizeBytes / 1024).toFixed(0)} KB</p>
-                        </div>
-                      </button>
-                    ))}
-                    {attachments.length > PREVIEW_LIMIT && (
-                      <button onClick={() => toggleExpand('attachments')} className="text-[16px] text-lilac-dark hover:underline px-2 py-1">
-                        {isSectionExpanded('attachments') ? 'Show less' : `Show all (${attachments.length})`}
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-[16px] text-neutral-400">No attachments</p>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Comments */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <button onClick={() => toggleCollapse('comments')} className="flex items-center gap-1.5 text-[16px] font-medium text-neutral-400 hover:text-neutral-600 dark:hover:text-dneutral-600">
-                <svg className={`w-3.5 h-3.5 transition-transform ${isSectionCollapsed('comments') ? '-rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-                Comments {comments.length > 0 && `(${comments.length})`}
+              <button
+                onClick={() => setDiscussionTab('activity')}
+                className="smallcaps"
+                style={{
+                  padding: '10px 16px',
+                  fontSize: 11,
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  borderBottom: discussionTab === 'activity' ? '2px solid var(--accent)' : '2px solid transparent',
+                  color: discussionTab === 'activity' ? 'var(--ink)' : 'var(--ink-3)',
+                  marginBottom: -1,
+                }}
+              >
+                Activity{activity.length > 0 ? ` · ${activity.length}` : ''}
               </button>
             </div>
-            {!isSectionCollapsed('comments') && (
-              <>
-                {comments.length > 0 && (
-                  <div className="space-y-3 mb-3">
-                    {(isSectionExpanded('comments') ? comments : comments.slice(0, PREVIEW_LIMIT)).map((c) => (
-                      <div key={c.id} className="text-[16px]">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="font-medium text-neutral-700 dark:text-dneutral-700">{c.author?.displayName || 'Unknown'}</span>
-                          <span className="text-[16px] text-neutral-400">{new Date(c.createdAt).toLocaleString()}{c.editedAt && ' (edited)'}</span>
+
+            {/* Comments tab */}
+            {discussionTab === 'comments' && (
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+                <div className="custom-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {comments.length === 0 && (
+                    <p style={{ fontSize: 13, color: 'var(--ink-4)' }}>No comments yet</p>
+                  )}
+                  {comments.map((c) => (
+                    <div key={`c-${c.id}`} className="flex gap-3" style={{ fontSize: '13.5px' }}>
+                      {c.author && <Avatar user={c.author} size="sm" />}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2" style={{ marginBottom: 4 }}>
+                          <span style={{ fontWeight: 500 }}>{c.author?.displayName || 'Unknown'}</span>
+                          <span className="mono" style={{ fontSize: 11, color: 'var(--ink-3)' }}>{timeAgo(c.createdAt)}{c.editedAt && ' (edited)'}</span>
                         </div>
-                        <p className="text-neutral-600 dark:text-dneutral-600 whitespace-pre-wrap">{c.body}</p>
-                        {/* Phase 7 — reactions + quick-react row. Clicking
-                            an existing reaction toggles the caller's stance. */}
-                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                          {((c as any).reactions ?? []).map((r: any) => (
+                        <CommentBody body={c.body} />
+                        <div className="flex items-center gap-1.5 flex-wrap" style={{ marginTop: 6 }}>
+                          {(c.reactions ?? []).map((r) => (
                             <button
                               key={r.emoji}
                               type="button"
                               onClick={() => toggleReaction(c.id, r.emoji)}
                               disabled={!canEdit}
-                              className={`px-1.5 py-0.5 rounded-full text-[12px] inline-flex items-center gap-1 transition-colors ${
-                                r.byMe
-                                  ? 'bg-lilac-tint text-lilac-dark border border-lilac/30'
-                                  : 'bg-paper text-mute hover:bg-rule'
-                              }`}
+                              style={{
+                                padding: '2px 6px',
+                                borderRadius: 999,
+                                fontSize: 12,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                background: r.byMe ? 'var(--accent-bg)' : 'var(--shade)',
+                                color: r.byMe ? 'var(--accent-ink)' : 'var(--ink-2)',
+                                border: r.byMe ? '1px solid var(--accent-2)' : '1px solid transparent',
+                                cursor: canEdit ? 'pointer' : 'default',
+                              }}
                             >
-                              <span>{r.emoji}</span>
-                              <span className="font-medium">{r.count}</span>
+                              {r.emoji} <span style={{ fontWeight: 500 }}>{r.count}</span>
                             </button>
                           ))}
                           {canEdit && (
                             <button
                               type="button"
                               onClick={() => toggleReaction(c.id, '👍')}
-                              className="px-1.5 py-0.5 rounded-full text-[12px] text-faint hover:bg-paper hover:text-text"
+                              style={{ fontSize: 12, color: 'var(--ink-4)', padding: '2px 4px' }}
                               title="React with 👍"
                             >
                               + 👍
                             </button>
                           )}
-                          {((c as any).mentions ?? []).length > 0 && (
-                            <span className="text-[11px] italic text-faint ml-1">
-                              mentions: {((c as any).mentions as Array<any>).map((m: any) => `@${m.displayName}`).join(', ')}
-                            </span>
-                          )}
                         </div>
                       </div>
-                    ))}
-                    {comments.length > PREVIEW_LIMIT && (
-                      <button onClick={() => toggleExpand('comments')} className="text-[16px] text-lilac-dark hover:underline px-2 py-1">
-                        {isSectionExpanded('comments') ? 'Show less' : `Show all (${comments.length})`}
-                      </button>
-                    )}
-                  </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Comment input — pinned at bottom */}
+                {canEdit && (
+                  <form
+                    onSubmit={handleAddComment}
+                    className="flex items-center gap-3"
+                    style={{
+                      padding: '10px 12px',
+                      borderTop: '1px solid var(--line-2)',
+                      background: 'var(--card-bg, #fff)',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <MentionTextarea
+                      value={newComment}
+                      onChange={setNewComment}
+                      onSubmit={() => { if (newComment.trim()) handleAddComment({ preventDefault: () => {} } as any); }}
+                      members={projectMembers}
+                    />
+                    <span className="flex items-center gap-1">
+                      <span className="kbd">@</span>
+                      <span className="kbd">/</span>
+                    </span>
+                    <button
+                      type="submit"
+                      className="btn"
+                      style={{ height: 26, padding: '0 10px', fontSize: '12px' }}
+                    >
+                      <span className="kbd" style={{ marginRight: 4 }}>⌘↵</span>
+                    </button>
+                  </form>
                 )}
-              </>
+              </div>
             )}
-            {canEdit && (
-              <form onSubmit={handleAddComment} className="flex gap-1">
-                <textarea
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  onKeyDown={(e) => {
-                    // Phase 7 — ⌘↵ / Ctrl+↵ submits the comment from the
-                    // textarea so users don't have to leave the keyboard.
-                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddComment(e as any);
-                    }
-                  }}
-                  rows={2}
-                  placeholder="Add a comment… (⌘↵ to post, @ to mention)"
-                  className="flex-1 text-[16px] px-2 py-1.5 rounded border border-neutral-200 dark:border-dneutral-300 bg-transparent text-neutral-700 dark:text-dneutral-700 resize-none"
-                />
-                <Button type="submit" variant="primary" size="sm">Post</Button>
-              </form>
+
+            {/* Activity tab */}
+            {discussionTab === 'activity' && (
+              <div className="custom-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {activity.length === 0 && (
+                  <p style={{ fontSize: 13, color: 'var(--ink-4)' }}>No activity yet</p>
+                )}
+                {activity.map((a) => (
+                  <div key={`a-${a.id}`} className="flex items-center gap-3" style={{ fontSize: 12, color: 'var(--ink-3)' }}>
+                    {a.user && <Avatar user={a.user} size="xs" />}
+                    <span>
+                      <strong style={{ fontWeight: 500 }}>{a.user?.displayName || 'Unknown'}</strong>
+                      {' '}
+                      <ActivityDescription action={a.action} field={a.fieldChanged} oldValue={a.oldValue} newValue={a.newValue} />
+                    </span>
+                    <span className="mono" style={{ fontSize: 11 }}>{timeAgo(a.createdAt)}</span>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
 
-        {/* Right column — properties + activity. The watcher control + count
-            moved up to the header strip (frame 6) so the right rail can lean
-            on Properties first; nothing duplicate-renders. */}
-        <div className="flex flex-col overflow-hidden p-6" style={{ flexBasis: '40%', maxWidth: '400px' }}>
-          {/* Properties */}
-          <div className="space-y-3 text-[16px] flex-shrink-0">
-            <h3 className="text-[16px] font-medium text-neutral-400 uppercase">Properties</h3>
+        {/* ── Right column — properties sidebar ── */}
+        <div
+          className="flex flex-col overflow-y-auto"
+          style={{
+            width: 280,
+            minWidth: 280,
+            padding: '24px 22px',
+            background: 'var(--paper-2)',
+            flexShrink: 0,
+            gap: 16,
+          }}
+        >
+          {/* Status */}
+          <PropertyRow label="Status">
+            {canEdit ? (
+              <Select
+                value={statusKey}
+                onChange={(val) => {
+                  handleFieldChange('statusId', val, loadTask);
+                }}
+                options={[
+                  { value: 'backlog', label: 'Backlog' },
+                  { value: 'todo', label: 'Todo' },
+                  { value: 'in_progress', label: 'In Progress' },
+                  { value: 'in_review', label: 'In Review' },
+                  { value: 'done', label: 'Done' },
+                  { value: 'cancelled', label: 'Cancelled' },
+                ]}
+              />
+            ) : (
+              <span className="status">
+                <span className="dot" style={{ backgroundColor: statusColors.dot }} />
+                <span>{task.status?.name || 'Unknown'}</span>
+              </span>
+            )}
+          </PropertyRow>
 
-            <div className="flex items-center justify-between">
-              <span className="text-neutral-400">Priority</span>
-              {canEdit ? (
-                <Select
-                  value={task.priority}
-                  onChange={(val) => handleFieldChange('priority', val, loadTask)}
-                  options={[
-                    { value: 'urgent', label: 'Urgent' },
-                    { value: 'high', label: 'High' },
-                    { value: 'medium', label: 'Medium' },
-                    { value: 'low', label: 'Low' },
-                    { value: 'none', label: 'None' },
-                  ]}
-                />
-              ) : (
-                <span className="text-neutral-700 dark:text-dneutral-700">{task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}</span>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-neutral-400">Story Points</span>
-              {canEdit ? (
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={storyPoints}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (v === '' || /^\d+$/.test(v)) {
-                      setStoryPoints(v);
-                      const parsed = v === '' ? null : parseInt(v, 10);
-                      if (parsed !== (task.storyPoints ?? null)) {
-                        debouncedFieldChange('storyPoints', parsed, loadTask);
-                      }
-                    }
-                  }}
-                  onBlur={() => flushDebounce()}
-                  onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                  className="w-20 text-right rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 px-2 py-1 text-[16px] text-neutral-700 dark:text-dneutral-700 focus:border-lilac focus:outline-none focus:ring-2 focus:ring-lilac/40"
-                  placeholder="-"
-                />
-              ) : (
-                <span className="text-neutral-700 dark:text-dneutral-700">{storyPoints || '-'}</span>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-neutral-400">Assignee</span>
-              {canEdit ? (
-                <Select
-                  value={task.assigneeId ? String(task.assigneeId) : ''}
-                  onChange={(val) => {
-                    const assigneeId = val ? parseInt(val) : null;
-                    saveAssignee(assigneeId, loadTask);
-                  }}
-                  options={assigneeOptions}
-                  placeholder="Unassigned"
-                />
-              ) : (
-                <span className="text-neutral-700 dark:text-dneutral-700">
-                  {assigneeOptions.find((o) => o.value === String(task.assigneeId))?.label || 'Unassigned'}
-                </span>
-              )}
-            </div>
-
-            {task.itemType === 'subtask' && task.parentInfo && (
-              <div className="flex items-center justify-between">
-                <span className="text-neutral-400">Parent</span>
-                <Link to={`/projects/${pid}/tasks/${task.parentInfo.id}`} className="text-[16px] text-lilac-dark hover:underline">
-                  {task.parentInfo.taskKey}
-                </Link>
+          {/* Assignee */}
+          <PropertyRow label="Assignee">
+            {canEdit ? (
+              <Select
+                value={task.assigneeId ? String(task.assigneeId) : ''}
+                onChange={(val) => {
+                  const assigneeId = val ? parseInt(val) : null;
+                  saveAssignee(assigneeId, loadTask);
+                }}
+                options={assigneeOptions}
+                placeholder="Unassigned"
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                {task.assignee ? (
+                  <>
+                    <Avatar user={task.assignee} size="xs" />
+                    <span>{task.assignee.displayName}</span>
+                  </>
+                ) : (
+                  <span style={{ color: 'var(--ink-4)' }}>Unassigned</span>
+                )}
               </div>
             )}
+          </PropertyRow>
 
-            {/* Labels */}
-            <div>
-              <h3 className="text-[16px] font-medium text-neutral-400 mb-2">Labels</h3>
-              {canEdit ? (
-                <LabelPicker
-                  projectId={pid}
-                  selectedIds={(task.labels || []).map(l => l.id)}
-                  onChange={async (ids) => {
-                    try {
-                      await apiClient.put(`/projects/${pid}/items/${tid}`, { labelIds: ids });
-                      await loadTask();
-                    } catch (err: any) {
-                      toast(err.response?.data?.message || 'Failed to update labels', 'error');
-                    }
-                  }}
-                />
+          {/* Reporter */}
+          <PropertyRow label="Reporter">
+            <div className="flex items-center gap-2">
+              {task.reporter ? (
+                <>
+                  <Avatar user={task.reporter} size="xs" />
+                  <span>{task.reporter.displayName}</span>
+                </>
               ) : (
-                <LabelList labels={task.labels || []} max={10} size="md" />
+                <span style={{ color: 'var(--ink-4)' }}>—</span>
               )}
             </div>
-            {/* Associations */}
-            <div>
-              <h3 className="text-[16px] font-medium text-neutral-400 mb-2">Associations</h3>
-              {associations && (
-                <div className="space-y-2">
-                  {associations.belongsTo?.length > 0 && (
-                    <div>
-                      <span className="text-[12px] text-neutral-400 uppercase">Part of</span>
-                      {associations.belongsTo.map((a: any) => (
-                        <PageAssociationRow key={a.id} assoc={a} pid={pid} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} />
-                      ))}
-                    </div>
-                  )}
-                  {associations.blocks?.length > 0 && (
-                    <div>
-                      <span className="text-[12px] text-neutral-400 uppercase">Blocks</span>
-                      {associations.blocks.map((a: any) => (
-                        <PageAssociationRow key={a.id} assoc={a} pid={pid} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} />
-                      ))}
-                    </div>
-                  )}
-                  {associations.blockedBy?.length > 0 && (
-                    <div>
-                      <span className="text-[12px] text-neutral-400 uppercase">Blocked by</span>
-                      {associations.blockedBy.map((a: any) => (
-                        <PageAssociationRow key={a.id} assoc={a} pid={pid} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} />
-                      ))}
-                    </div>
-                  )}
-                  {associations.relatesTo?.length > 0 && (
-                    <div>
-                      <span className="text-[12px] text-neutral-400 uppercase">Related</span>
-                      {associations.relatesTo.map((a: any) => (
-                        <PageAssociationRow key={a.id} assoc={a} pid={pid} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} />
-                      ))}
-                    </div>
-                  )}
-                  {associations.causedBy?.length > 0 && (
-                    <div>
-                      <span className="text-[12px] text-neutral-400 uppercase">Caused by</span>
-                      {associations.causedBy.map((a: any) => (
-                        <PageAssociationRow key={a.id} assoc={a} pid={pid} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-              {canEdit && !showAddAssociation && (
-                <button onClick={() => setShowAddAssociation(true)} className="text-[14px] text-lilac-dark hover:underline mt-2">
-                  + Link item
-                </button>
-              )}
-              {showAddAssociation && canEdit && (
-                <div className="mt-2 p-3 rounded-lg bg-neutral-50 dark:bg-dneutral-100 shadow-sm dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)] space-y-2">
-                  <div className="flex gap-2 flex-wrap">
-                    {[
-                      { value: 'belongs_to', label: 'Part of' },
-                      { value: 'relates_to', label: 'Related' },
-                      { value: 'blocks', label: 'Blocks' },
-                      { value: 'caused_by', label: 'Caused by' },
-                    ].map((lt) => (
-                      <button
-                        key={lt.value}
-                        onClick={() => setAddAssocLinkType(lt.value)}
-                        className={`text-[14px] px-2 py-1 rounded ${addAssocLinkType === lt.value ? 'bg-lilac text-white' : 'text-neutral-400 hover:bg-neutral-100 dark:hover:bg-dneutral-200'}`}
+          </PropertyRow>
+
+          {/* Sprint */}
+          <PropertyRow label="Sprint">
+            {canEdit ? (
+              <Select
+                value={task.sprintId ? String(task.sprintId) : ''}
+                onChange={(val) => {
+                  handleFieldChange('sprintId', val ? parseInt(val) : null, loadTask);
+                }}
+                options={sprintOptions}
+                placeholder="Backlog"
+              />
+            ) : (
+              <span className="flex items-center gap-1.5">
+                <span className="dot" style={{ backgroundColor: 'var(--accent)' }} />
+                <span>{task.sprint?.name || 'Backlog'}</span>
+              </span>
+            )}
+          </PropertyRow>
+
+          {/* Story Points */}
+          <PropertyRow label="Story points">
+            {canEdit ? (
+              <input
+                type="text"
+                inputMode="numeric"
+                value={storyPoints}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === '' || /^\d+$/.test(v)) {
+                    setStoryPoints(v);
+                    const parsed = v === '' ? null : parseInt(v, 10);
+                    if (parsed !== (task.storyPoints ?? null)) {
+                      debouncedFieldChange('storyPoints', parsed, loadTask);
+                    }
+                  }
+                }}
+                onBlur={() => flushDebounce()}
+                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                className="mono"
+                style={{
+                  width: 40,
+                  fontSize: '13.5px',
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  color: 'var(--ink)',
+                  padding: 0,
+                }}
+                placeholder="—"
+              />
+            ) : (
+              <span className="mono">{storyPoints || '—'}</span>
+            )}
+          </PropertyRow>
+
+          {/* Priority */}
+          <PropertyRow label="Priority">
+            {canEdit ? (
+              <Select
+                value={task.priority}
+                onChange={(val) => handleFieldChange('priority', val, loadTask)}
+                options={[
+                  { value: 'urgent', label: 'Urgent' },
+                  { value: 'high', label: 'High' },
+                  { value: 'medium', label: 'Medium' },
+                  { value: 'low', label: 'Low' },
+                  { value: 'none', label: 'None' },
+                ]}
+              />
+            ) : (
+              <span className="flex items-center gap-2">
+                <PriorityBars level={task.priority} />
+                <span>{task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}</span>
+              </span>
+            )}
+          </PropertyRow>
+
+          {/* Due date */}
+          <PropertyRow label="Due">
+            {task.endDate ? (
+              <span className="mono" style={{ fontSize: '13.5px' }}>
+                {new Date(task.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · {daysUntil(task.endDate)}
+              </span>
+            ) : (
+              <span style={{ color: 'var(--ink-4)' }}>—</span>
+            )}
+          </PropertyRow>
+
+          {/* Labels */}
+          <PropertyRow label="Labels">
+            {canEdit ? (
+              <LabelPicker
+                projectId={pid}
+                selectedIds={(task.labels || []).map(l => l.id)}
+                onChange={async (ids) => {
+                  try {
+                    await apiClient.put(`/projects/${pid}/items/${tid}`, { labelIds: ids });
+                    await loadTask();
+                  } catch (err: any) {
+                    toast(err.response?.data?.message || 'Failed to update labels', 'error');
+                  }
+                }}
+              />
+            ) : (
+              <div className="flex items-center gap-1 flex-wrap">
+                <LabelList labels={task.labels || []} max={10} size="md" />
+              </div>
+            )}
+          </PropertyRow>
+
+          {/* Associations */}
+          <div>
+            <div className="smallcaps" style={{ marginBottom: 4 }}>Associations</div>
+            {allAssocRows.length > 0 && (
+              <div className="flex flex-col" style={{ gap: 6 }}>
+                {allAssocRows.map((row) => {
+                  if (!row.item) return null;
+                  return (
+                    <div key={row.id} className="group flex items-center gap-1.5" style={{ fontSize: '13.5px' }}>
+                      <span style={{ color: 'var(--ink-3)', fontSize: 12, flexShrink: 0 }}>{row.type}</span>
+                      <Link
+                        to={`/projects/${pid}/tasks/${row.item.id}`}
+                        className="mono hover:underline"
+                        style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 500, flexShrink: 0 }}
                       >
-                        {lt.label}
+                        {row.item.itemKey}
+                      </Link>
+                      <span className="truncate" style={{ color: 'var(--ink)' }}>{row.item.title}</span>
+                      {canEdit && (
+                        <button
+                          onClick={() => handleRemoveAssociation(row.id)}
+                          className="opacity-0 group-hover:opacity-100"
+                          style={{ color: 'var(--ink-4)', fontSize: 12, flexShrink: 0 }}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {canEdit && !showAddAssociation && (
+              <button
+                onClick={() => setShowAddAssociation(true)}
+                style={{ fontSize: '11.5px', color: 'var(--ink-2)', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                </svg>
+                Link an item
+              </button>
+            )}
+            {showAddAssociation && canEdit && (
+              <div style={{ marginTop: 8, padding: 10, background: 'var(--card-bg, #fff)', borderRadius: 'var(--radius)', border: '1px solid var(--line-2)' }}>
+                <div className="flex gap-1 flex-wrap" style={{ marginBottom: 8 }}>
+                  {[
+                    { value: 'belongs_to', label: 'Part of' },
+                    { value: 'relates_to', label: 'Related' },
+                    { value: 'blocks', label: 'Blocks' },
+                    { value: 'caused_by', label: 'Caused by' },
+                  ].map((lt) => (
+                    <button
+                      key={lt.value}
+                      onClick={() => setAddAssocLinkType(lt.value)}
+                      className="chip"
+                      style={{
+                        height: 22,
+                        fontSize: 11,
+                        background: addAssocLinkType === lt.value ? 'var(--accent)' : undefined,
+                        color: addAssocLinkType === lt.value ? '#fff' : undefined,
+                        borderColor: addAssocLinkType === lt.value ? 'transparent' : undefined,
+                      }}
+                    >
+                      {lt.label}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  value={assocSearchQuery}
+                  onChange={(e) => handleAssocSearch(e.target.value)}
+                  placeholder="Search items..."
+                  autoFocus
+                  className="input"
+                  style={{ fontSize: 13, marginBottom: 6 }}
+                />
+                {assocSearching && <p style={{ fontSize: 12, color: 'var(--ink-4)' }}>Searching...</p>}
+                {assocSearchResults.length > 0 && (
+                  <div style={{ maxHeight: 140, overflowY: 'auto' }}>
+                    {assocSearchResults.map((t: any) => (
+                      <button
+                        key={t.id}
+                        onClick={() => handleAddAssociation(t.id)}
+                        className="w-full text-left flex items-center gap-2 hover:bg-[var(--shade)]"
+                        style={{ padding: '4px 6px', borderRadius: 4, fontSize: '13.5px' }}
+                      >
+                        <span className="mono" style={{ fontSize: 12, color: 'var(--ink-3)' }}>{t.itemKey}</span>
+                        <span className="truncate">{t.title}</span>
                       </button>
                     ))}
                   </div>
-                  <input
-                    type="text"
-                    value={assocSearchQuery}
-                    onChange={(e) => handleAssocSearch(e.target.value)}
-                    placeholder="Search items..."
-                    autoFocus
-                    className="w-full text-[16px] px-2 py-1.5 rounded border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 text-neutral-700 dark:text-dneutral-700 placeholder-neutral-300 dark:placeholder-dneutral-300 focus:border-lilac focus:outline-none"
-                  />
-                  {assocSearching && <p className="text-[14px] text-neutral-400">Searching...</p>}
-                  {assocSearchResults.length > 0 && (
-                    <div className="max-h-[160px] overflow-y-auto space-y-1">
-                      {assocSearchResults.map((t: any) => (
-                        <button key={t.id} onClick={() => handleAddAssociation(t.id)} className="w-full text-left flex items-center gap-2 px-2 py-1.5 rounded hover:bg-neutral-100 dark:hover:bg-dneutral-200 text-[16px]">
-                          <span className="font-mono text-[14px] text-neutral-400">{t.itemKey}</span>
-                          <span className="text-neutral-700 dark:text-dneutral-700 truncate">{t.title}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {assocSearchQuery.length >= 2 && !assocSearching && assocSearchResults.length === 0 && (
-                    <p className="text-[14px] text-neutral-400">No items found</p>
-                  )}
-                  <Button variant="ghost" size="sm" onClick={() => { setShowAddAssociation(false); setAssocSearchQuery(''); setAssocSearchResults([]); }}>Cancel</Button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Activity Log */}
-          <div className="flex flex-col flex-1 overflow-hidden mt-6">
-            <h3 className="text-[16px] font-medium text-neutral-400 uppercase mb-3 flex-shrink-0">Activity</h3>
-            {activity.length > 0 ? (
-              <div className="space-y-3 overflow-y-auto flex-1">
-                {activity.map((a) => (
-                  <div key={a.id} className="flex gap-2 text-[16px]">
-                    <div className="w-6 h-6 rounded-full bg-neutral-200 dark:bg-dneutral-300 flex items-center justify-center text-neutral-500 text-[16px] flex-shrink-0">
-                      {a.user?.displayName?.charAt(0)?.toUpperCase() || '?'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-neutral-600 dark:text-dneutral-600">
-                        <span className="font-medium text-neutral-700 dark:text-dneutral-700">{a.user?.displayName || 'Unknown'}</span>
-                        {' '}
-                        <ActivityDescription action={a.action} field={a.fieldChanged} oldValue={a.oldValue} newValue={a.newValue} />
-                      </p>
-                      <p className="text-neutral-400 dark:text-dneutral-500 text-[16px]">{new Date(a.createdAt).toLocaleString()}</p>
-                    </div>
-                  </div>
-                ))}
+                )}
+                {assocSearchQuery.length >= 2 && !assocSearching && assocSearchResults.length === 0 && (
+                  <p style={{ fontSize: 12, color: 'var(--ink-4)' }}>No items found</p>
+                )}
+                <Button variant="ghost" size="sm" onClick={() => { setShowAddAssociation(false); setAssocSearchQuery(''); setAssocSearchResults([]); }}>Cancel</Button>
               </div>
-            ) : (
-              <p className="text-[16px] text-neutral-400">No activity yet</p>
             )}
           </div>
+
+          {/* Attachments */}
+          <div>
+            <div className="smallcaps" style={{ marginBottom: 4 }}>
+              Attachments{attachments.length > 0 && ` · ${attachments.length}`}
+            </div>
+            {attachments.length > 0 && (
+              <div className="flex flex-col" style={{ gap: 6 }}>
+                {attachments.map((att) => (
+                  <button
+                    key={att.id}
+                    onClick={() => handleDownload(att.id)}
+                    className="flex items-center gap-2 text-left hover:bg-[var(--shade)]"
+                    style={{ padding: '4px 0', fontSize: '13.5px', borderRadius: 4 }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" strokeWidth="1.5">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                    </svg>
+                    <span className="truncate flex-1">{att.originalFilename}</span>
+                    <span className="mono" style={{ fontSize: 11, color: 'var(--ink-3)', flexShrink: 0 }}>{formatFileSize(att.sizeBytes)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {canEdit && (
+              <label
+                style={{ fontSize: '11.5px', color: 'var(--ink-2)', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+                Upload
+                <input type="file" className="hidden" onChange={handleUpload} />
+              </label>
+            )}
+          </div>
+
+          {/* Parent link (for subtasks) */}
+          {task.itemType === 'subtask' && task.parentInfo && (
+            <PropertyRow label="Parent">
+              <Link
+                to={`/projects/${pid}/tasks/${task.parentInfo.id}`}
+                className="mono hover:underline"
+                style={{ fontSize: '13.5px', color: 'var(--accent)' }}
+              >
+                {task.parentInfo.taskKey}
+              </Link>
+            </PropertyRow>
+          )}
         </div>
       </div>
 
@@ -988,46 +1200,45 @@ export function TaskDetailPage() {
   );
 }
 
-function PageAssociationRow({ assoc, pid, onRemove }: { assoc: any; pid: number; onRemove?: () => void }) {
-  const item = assoc.item;
-  if (!item) return null;
-
-  const typeColors: Record<string, { bg: string; text: string }> = {
-    epic: { bg: '#7C5CFC35', text: '#4A2FC0' },
-    story: { bg: '#88A9D640', text: '#2E5A8E' },
-    task: { bg: '#D6B58840', text: '#7A5E2A' },
-    subtask: { bg: '#A8A19A35', text: '#5C5650' },
-    bug: { bg: '#FF634735', text: '#CC3300' },
-  };
-  const style = typeColors[item.itemType] || typeColors.task;
-
+function PropertyRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="group flex items-center gap-2 text-[16px] py-1 px-2 rounded hover:bg-neutral-100 dark:hover:bg-dneutral-200">
-      <span
-        className="text-[11px] font-semibold uppercase px-1.5 py-0.5 rounded-full flex-shrink-0"
-        style={{ backgroundColor: style.bg, color: style.text }}
-      >
-        {item.itemType}
-      </span>
-      <Link to={`/projects/${pid}/tasks/${item.id}`} className="font-mono text-[14px] text-neutral-400 flex-shrink-0 hover:text-lilac-dark">{item.itemKey}</Link>
-      <span className="text-neutral-600 dark:text-dneutral-600 truncate flex-1">{item.title}</span>
-      {onRemove && (
-        <button onClick={onRemove} className="text-neutral-400 hover:text-danger opacity-0 group-hover:opacity-100 text-[14px]">x</button>
-      )}
+    <div className="flex flex-col">
+      <div className="smallcaps" style={{ lineHeight: '14px', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: '13.5px', lineHeight: '18.9px' }}>{children}</div>
     </div>
+  );
+}
+
+function PriorityBars({ level }: { level: string }) {
+  const filled = level === 'urgent' ? 4 : level === 'high' ? 3 : level === 'medium' ? 2 : level === 'low' ? 1 : 0;
+  const color = PRIORITY_DOT_COLORS[level] || PRIORITY_DOT_COLORS.none;
+  return (
+    <span className="inline-flex items-end gap-0.5" style={{ height: 14 }}>
+      {[1, 2, 3, 4].map((i) => (
+        <span
+          key={i}
+          style={{
+            width: 3,
+            height: 4 + i * 2.5,
+            borderRadius: 1,
+            backgroundColor: i <= filled ? color : 'var(--paper-3)',
+          }}
+        />
+      ))}
+    </span>
   );
 }
 
 function ActivityDescription({ action, field, newValue }: { action: string; field: string | null; oldValue: string | null; newValue: string | null }) {
   switch (action) {
     case 'created':
-      return <>created this task</>;
+      return <>created this item</>;
     case 'updated':
-      return <>updated {field || 'this task'}</>;
+      return <>updated {field || 'this item'}</>;
     case 'status_changed':
       return <>changed status</>;
     case 'assigned':
-      return <>{newValue ? 'assigned this task' : 'unassigned this task'}</>;
+      return <>{newValue ? 'assigned this item' : 'unassigned this item'}</>;
     case 'comment_added':
       return <>added a comment</>;
     case 'attachment_added':

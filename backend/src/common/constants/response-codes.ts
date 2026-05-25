@@ -9,6 +9,7 @@ export const ResponseCodes = {
   AUTH_PASSWORD_CHANGED:  { code: 'S-0007', message: 'Password changed' },
   AUTH_PASSWORD_RESET_SENT: { code: 'S-0008', message: 'Password reset email sent' },
   AUTH_PASSWORD_RESET:    { code: 'S-0009', message: 'Password reset successful' },
+  AUTH_SETUP_COMPLETE:    { code: 'S-0010A', message: 'Instance setup complete' },
 
   // Users (S-0010 – S-0019)
   USERS_LISTED:           { code: 'S-0010', message: 'Users retrieved' },
@@ -61,7 +62,6 @@ export const ResponseCodes = {
   SPRINT_COMPLETED:       { code: 'S-0056', message: 'Sprint completed' },
   SPRINT_CANCELLED:       { code: 'S-0057', message: 'Sprint cancelled' },
   SPRINT_BURNDOWN:        { code: 'S-0058', message: 'Burndown data retrieved' },
-  SPRINT_CAPACITY:        { code: 'S-0059', message: 'Sprint capacity retrieved' },
 
   // Tasks (S-0105, S-0106, S-0109, S-0110) — surviving task-era keys.
   // The legacy `TASKS_LISTED`/`TASK_CREATED`/`TASK_FETCHED`/`TASK_UPDATED`/
@@ -222,9 +222,11 @@ export const ResponseCodes = {
   PROJECT_ARCHIVED_ERROR: { code: 'F-L-0052', message: 'This project is archived. Unarchive it to make changes.' },
   RETRO_EXISTS:           { code: 'F-L-0053', message: 'A retrospective already exists for this sprint' },
   RETRO_CLOSED:           { code: 'F-L-0058', message: 'Retrospective is closed; edits are locked.' },
+  VOTE_LIMIT_REACHED:     { code: 'F-L-0059', message: 'You have used all your votes for this retrospective.' },
   LAST_PROJECT_MANAGER:   { code: 'F-L-0054', message: 'Cannot remove or demote the last project manager' },
   PROJECT_NOT_ARCHIVED:   { code: 'F-L-0055', message: 'Project must be archived before it can be deleted' },
   RATE_LIMITED:           { code: 'F-L-0057', message: 'Too many requests. Please try again later.' },
+  ALREADY_SETUP:          { code: 'F-L-0080', message: 'Instance is already set up' },
 
   FILE_REQUIRED:          { code: 'F-L-0060', message: 'File is required' },
   FILE_TOO_LARGE:         { code: 'F-L-0061', message: 'File exceeds maximum allowed size' },

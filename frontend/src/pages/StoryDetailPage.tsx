@@ -10,13 +10,8 @@ import { AVATAR_COLORS, PRIORITY_BADGE_COLORS, STATUS_BADGE_COLORS } from '../li
 import { toast } from '../components/common/Toast';
 import { LabelList } from '../components/ui/LabelBadge';
 import { ErrorState } from '../components/common/ErrorState';
-
-const ITEM_TYPE_STYLES: Record<string, { bg: string; text: string }> = {
-  epic:    { bg: '#7C5CFC35', text: '#4A2FC0' },
-  story:   { bg: '#88A9D640', text: '#2E5A8E' },
-  task:    { bg: '#D6B58840', text: '#7A5E2A' },
-  subtask: { bg: '#A8A19A35', text: '#5C5650' },
-};
+import { TypeTag } from '../components/ui/TypeTag';
+import type { TypeTagKind } from '../components/ui/TypeTag';
 
 interface ChildItem {
   id: number;
@@ -242,7 +237,7 @@ export function StoryDetailPage() {
                 <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#88A9D6' }} />
                 <span className="text-[14px] text-neutral-400">{story.itemKey}</span>
               </div>
-              <h1 className="text-[22px] font-bold text-neutral-700 dark:text-dneutral-700">{story.title}</h1>
+              <h1 className="text-[20px] font-semibold text-text">{story.title}</h1>
             </div>
             {canEdit && (
               <div className="flex gap-2 flex-shrink-0">
@@ -317,21 +312,18 @@ export function StoryDetailPage() {
                     const statusBadge = STATUS_BADGE_COLORS[item.status?.category || 'backlog'] || STATUS_BADGE_COLORS.backlog;
                     const priorityBadge = PRIORITY_BADGE_COLORS[item.priority];
                     const avatarColor = item.assignee ? AVATAR_COLORS[item.assignee.id % AVATAR_COLORS.length] : null;
-                    const typeStyle = ITEM_TYPE_STYLES[item.itemType] || ITEM_TYPE_STYLES.subtask;
                     const isSubtask = item.itemType === 'subtask';
 
                     return (
                       <div
                         key={item.id}
                         onClick={() => setSelectedTaskId(item.id)}
-                        className="flex items-center gap-3 px-4 py-2.5 border-b border-neutral-100 dark:border-dneutral-200/50 last:border-b-0 hover:bg-neutral-50/50 cursor-pointer transition-colors"
+                        className="flex items-center gap-3 px-4 py-2.5 border-b border-rule/60 last:border-b-0 hover:bg-lilac-tint/50 cursor-pointer transition-colors"
                         style={{ paddingLeft: isSubtask ? '40px' : '16px' }}
                       >
-                        <span className="text-[11px] font-semibold uppercase px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ backgroundColor: typeStyle.bg, color: typeStyle.text }}>
-                          {item.itemType === 'subtask' ? 'sub' : item.itemType}
-                        </span>
-                        <span className="font-mono text-[14px] text-neutral-400 shrink-0 w-20">{item.itemKey}</span>
-                        <span className="text-[16px] text-neutral-700 dark:text-dneutral-700 truncate flex-1 min-w-0">{item.title}</span>
+                        <TypeTag kind={(item.itemType || 'task') as TypeTagKind} size="sm" />
+                        <span className="font-mono text-[14px] text-mute shrink-0 w-20">{item.itemKey}</span>
+                        <span className="text-[14px] text-text truncate flex-1 min-w-0">{item.title}</span>
                         <LabelList labels={item.labels || []} max={2} />
                         <span className="inline-flex items-center gap-1 text-[12px] px-2 py-0.5 rounded-full shrink-0" style={{ background: statusBadge?.bg, color: statusBadge?.color }}>
                           <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: statusBadge?.dot }} />

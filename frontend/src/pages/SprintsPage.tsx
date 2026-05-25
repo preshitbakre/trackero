@@ -5,7 +5,6 @@ import { toast } from '../components/common/Toast';
 import { useRole } from '../hooks/useRole';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { createPortal } from 'react-dom';
-import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Textarea } from '../components/ui/Textarea';
 import { CardSkeleton } from '../components/common/Skeleton';
@@ -116,7 +115,7 @@ export function SprintsPage() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-baseline gap-4 flex-wrap">
-          <h1 className="font-serif text-[36px] leading-none text-text dark:text-dneutral-700">Sprints</h1>
+          <h1 className="font-serif text-[36px] text-text">Sprints</h1>
           <p className="text-[11px] tracking-[0.18em] uppercase font-serif font-semibold text-faint">
             {sprints.length} sprint{sprints.length !== 1 ? 's' : ''} · {sprints.filter(s => s.status === 'active').length} active
           </p>
@@ -241,6 +240,7 @@ export function SprintsPage() {
         <CreateSprintDialog
           projectId={projectId!}
           defaultDuration={defaultDuration}
+          nextSprintNumber={Math.max(0, ...sprints.map((s) => s.sprintNumber)) + 1}
           onClose={() => setShowCreate(false)}
           onCreated={() => { setShowCreate(false); loadSprints(); toast('Sprint created'); }}
         />
@@ -260,14 +260,14 @@ export function SprintsPage() {
   );
 }
 
-function CreateSprintDialog({ projectId, defaultDuration, onClose, onCreated }: {
+function CreateSprintDialog({ projectId, defaultDuration, nextSprintNumber, onClose, onCreated }: {
   projectId: string;
   defaultDuration: number;
+  nextSprintNumber: number;
   onClose: () => void;
   onCreated: () => void;
 }) {
   const today = todayStr();
-  const [name, setName] = useState('');
   const [goal, setGoal] = useState('');
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(addDays(today, defaultDuration));
@@ -292,13 +292,12 @@ function CreateSprintDialog({ projectId, defaultDuration, onClose, onCreated }: 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!goal.trim()) return;
     setError('');
     setLoading(true);
     try {
       await apiClient.post(`/projects/${projectId}/sprints`, {
-        name: name.trim(),
-        goal: goal.trim() || undefined,
+        goal: goal.trim(),
         startDate,
         endDate,
       });
@@ -314,18 +313,13 @@ function CreateSprintDialog({ projectId, defaultDuration, onClose, onCreated }: 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-700/50" onClick={onClose}>
       <div className="bg-white dark:bg-dneutral-100 rounded-lg p-6 w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-[22px] font-bold mb-4 text-neutral-700 dark:text-dneutral-700">Create Sprint</h2>
+        <h2 className="text-[22px] font-bold mb-4 text-neutral-700 dark:text-dneutral-700">Create Sprint {nextSprintNumber}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && <div className="text-[16px] text-danger">{error}</div>}
 
           <div>
-            <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Sprint name</label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={255} autoFocus placeholder="e.g. Sprint 1" />
-          </div>
-
-          <div>
-            <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Goal (optional)</label>
-            <Textarea value={goal} onChange={(e) => setGoal(e.target.value)} rows={2} placeholder="What should this sprint achieve?" />
+            <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Goal</label>
+            <Textarea value={goal} onChange={(e) => setGoal(e.target.value)} rows={2} placeholder="What should this sprint achieve?" required autoFocus />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

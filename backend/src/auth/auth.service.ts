@@ -14,7 +14,9 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { SetupDto } from './dto/setup.dto';
 import { EmailService } from '../common/services/email.service';
+import { InstanceSetting } from './entities/instance-setting.entity';
 
 @Injectable()
 export class AuthService {
@@ -33,7 +35,96 @@ export class AuthService {
 
   async getSetupStatus() {
     const userCount = await this.userRepo.count();
-    return { isSetup: userCount > 0 };
+    const isSetup = userCount > 0;
+    if (!isSetup) {
+      return { isSetup };
+    }
+    const instanceNameRow = await this.dataSource
+      .getRepository(InstanceSetting)
+      .findOne({ where: { key: 'instance_name' } });
+    return {
+      isSetup,
+      instanceName: instanceNameRow?.value ?? null,
+    };
+  }
+
+  async setup(dto: SetupDto) {
+    // Hash password outside transaction (CPU-intensive)
+    const passwordHash = await bcrypt.hash(dto.admin.password, 12);
+
+    const saved = await this.dataSource.transaction(async (manager) => {
+      // Same advisory lock as register() to prevent race conditions
+      await manager.query('SELECT pg_advisory_xact_lock($1)', [991001]);
+
+      const userCount = await manager.count(User);
+      if (userCount > 0) {
+        throw new AppLogicException('ALREADY_SETUP', HttpStatus.CONFLICT);
+      }
+
+      // Create admin user
+      const admin = manager.create(User, {
+        email: dto.admin.email,
+        passwordHash,
+        displayName: dto.admin.displayName,
+        role: 'admin',
+        isActive: true,
+      });
+      const savedAdmin = await manager.save(admin);
+
+      // Save instance settings
+      await manager
+        .createQueryBuilder()
+        .insert()
+        .into(InstanceSetting)
+        .values({ key: 'instance_name', value: dto.instance.name })
+        .orUpdate(['value'], ['key'])
+        .execute();
+
+      if (dto.instance.url) {
+        await manager
+          .createQueryBuilder()
+          .insert()
+          .into(InstanceSetting)
+          .values({ key: 'instance_url', value: dto.instance.url })
+          .orUpdate(['value'], ['key'])
+          .execute();
+      }
+
+      // Create pending invitations
+      if (dto.invites?.length) {
+        for (const invite of dto.invites) {
+          const token = crypto.randomBytes(32).toString('hex');
+          const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+          const expiresAt = new Date();
+          expiresAt.setDate(expiresAt.getDate() + 7);
+
+          const invitation = manager.create(Invitation, {
+            email: invite.email,
+            token: hashedToken,
+            role: invite.role,
+            invitedBy: savedAdmin.id,
+            status: 'pending',
+            expiresAt,
+          });
+          await manager.save(invitation);
+
+          // Fire-and-forget: send invitation email outside transaction scope
+          this.emailService
+            .sendInvitation(invite.email, token, invite.role)
+            .catch(() => {
+              /* best-effort during setup */
+            });
+        }
+      }
+
+      return savedAdmin;
+    });
+
+    const tokens = await this.generateTokens(saved);
+    return {
+      user: this.sanitizeUser(saved),
+      ...tokens,
+    };
   }
 
   async register(dto: RegisterDto) {

@@ -30,7 +30,7 @@ export function TypeTag({ kind, size = 'sm', className = '' }: TypeTagProps) {
     <span
       role="img"
       aria-label={`${kind} type`}
-      className={`inline-flex items-center justify-center rounded font-mono font-bold flex-shrink-0 ${className}`}
+      className={`inline-flex items-center justify-center rounded-[2px] font-mono font-bold flex-shrink-0 ${className}`}
       style={{
         width: sizePx,
         height: sizePx,

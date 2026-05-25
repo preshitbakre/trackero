@@ -22,6 +22,7 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { SetupDto } from './dto/setup.dto';
 import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 
 @Controller('auth')
@@ -41,6 +42,15 @@ export class AuthController {
   @ResponseCode('HEALTH_OK')
   async inviteInfo(@Query('token') token: string) {
     return this.authService.getInviteInfo(token);
+  }
+
+  @Post('setup')
+  @Public()
+  @Throttle({ default: { limit: parseInt(process.env.AUTH_THROTTLE_LIMIT || '5', 10), ttl: parseInt(process.env.AUTH_THROTTLE_TTL || '60000', 10) } })
+  @HttpCode(HttpStatus.CREATED)
+  @ResponseCode('AUTH_SETUP_COMPLETE')
+  async setup(@Body() dto: SetupDto) {
+    return this.authService.setup(dto);
   }
 
   @Post('register')

@@ -60,11 +60,11 @@ export const STATUS_BADGE_COLORS: Record<string, { bg: string; color: string; do
 
 /** Avatar rotation colors — lilac first to lead the brand */
 export const AVATAR_COLORS = [
-  { bg: '#7C3AED1A', color: '#6326D6' },  // lilac
-  { bg: '#D688D050', color: '#8E3E88' },  // orchid
-  { bg: '#88A9D650', color: '#3F5E8E' },  // peri
-  { bg: '#88D68E50', color: '#3E8E44' },  // mint
-  { bg: '#D6B58850', color: '#8C6638' },  // tan
+  { bg: '#7C3AED', color: '#FFFFFF' },  // lilac
+  { bg: '#8E3E88', color: '#FFFFFF' },  // orchid
+  { bg: '#3F5E8E', color: '#FFFFFF' },  // peri
+  { bg: '#3E8E44', color: '#FFFFFF' },  // mint
+  { bg: '#8C6638', color: '#FFFFFF' },  // tan
 ];
 
 /** Type icon styles — single-letter tag colours
@@ -77,13 +77,14 @@ export const TYPE_ICON_COLORS: Record<string, string> = {
   subtask: '#A8A1B5',
 };
 
-/** Type tag background colours (for the small T / B / S / E squares) */
+/** Type tag colours (for the small T / B / S / E squares) — solid bg, white text.
+ *  Matches the CSS `.tmark` classes (--c-sky, --c-forest, --c-plum, --accent, --ink-3). */
 export const TYPE_TAG_BG: Record<string, { bg: string; color: string }> = {
-  task: { bg: '#E8E3F0', color: '#1A1424' },
-  bug: { bg: '#E0525215', color: '#E05252' },
-  story: { bg: '#D688D020', color: '#8E3E88' },
-  epic: { bg: '#7C3AED15', color: '#6326D6' },
-  subtask: { bg: '#E8E3F0', color: '#6B6377' },
+  task: { bg: '#1F5A8A', color: '#FFFFFF' },
+  bug: { bg: '#7C3AED', color: '#FFFFFF' },
+  story: { bg: '#1F5236', color: '#FFFFFF' },
+  epic: { bg: '#5A1A6E', color: '#FFFFFF' },
+  subtask: { bg: '#7A6F88', color: '#FFFFFF' },
 };
 
 export const TYPE_ICONS: Record<string, string> = {

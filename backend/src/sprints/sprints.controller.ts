@@ -3,7 +3,6 @@ import {
   UseGuards, HttpCode, HttpStatus, ParseIntPipe,
 } from '@nestjs/common';
 import { SprintsService } from './sprints.service';
-import { SprintCapacityService } from './sprint-capacity.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { ProjectAccessGuard } from '../common/guards/project-access.guard';
@@ -19,7 +18,6 @@ import { UpdateSprintDto } from './dto/update-sprint.dto';
 export class SprintsController {
   constructor(
     private readonly sprintsService: SprintsService,
-    private readonly capacityService: SprintCapacityService,
   ) {}
 
   @Post()
@@ -52,8 +50,13 @@ export class SprintsController {
   @ResponseCode('SPRINT_FETCHED')
   async findActive(
     @Param('projectId', ParseIntPipe) projectId: number,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.sprintsService.findActive(projectId);
+    // The sidebar footer card asks for the active sprint. Per-user
+    // donePoints/totalPoints come back too so the footer shows the
+    // caller's OWN progress (not team-wide) — same query, filtered by
+    // assignee_id = caller. Viewers see zeros (no items assigned).
+    return this.sprintsService.findActive(projectId, user.userId);
   }
 
   @Get(':sprintId')
@@ -133,13 +136,4 @@ export class SprintsController {
     return this.sprintsService.getBurndown(projectId, sprintId);
   }
 
-  @Get(':sprintId/capacity')
-  @Roles('admin', 'project_manager', 'member', 'viewer')
-  @ResponseCode('SPRINT_CAPACITY')
-  async capacity(
-    @Param('projectId', ParseIntPipe) projectId: number,
-    @Param('sprintId', ParseIntPipe) sprintId: number,
-  ) {
-    return this.capacityService.getCapacity(projectId, sprintId);
-  }
 }

@@ -7,7 +7,6 @@ import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } 
 import { CSS } from '@dnd-kit/utilities';
 import { apiClient } from '../../api/client';
 import { toast } from '../common/Toast';
-import { Select } from '../ui/Select';
 import { Input } from '../ui/Input';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { Modal } from '../common/Modal';
@@ -32,12 +31,11 @@ const PRESET_COLORS = [
 ];
 
 const CATEGORY_OPTIONS = [
-  { value: 'backlog', label: 'Open' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'done', label: 'Done' },
+  { value: 'backlog', label: 'backlog' },
+  { value: 'in_progress', label: 'in progress' },
+  { value: 'done', label: 'done' },
 ];
 
-// ─── Color Picker Dot ─────────────────────────────────────────
 function ColorPickerDot({ color, onChange }: { color: string; onChange: (color: string) => void }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
@@ -52,20 +50,20 @@ function ColorPickerDot({ color, onChange }: { color: string; onChange: (color: 
     <>
       <button
         onClick={handleOpen}
-        className="w-4 h-4 rounded-full border border-neutral-300 dark:border-dneutral-300 hover:ring-2 hover:ring-lilac/40 flex-shrink-0"
+        className="w-3 h-3 rounded-full hover:ring-2 hover:ring-lilac/40 flex-shrink-0"
         style={{ backgroundColor: color }}
         title="Change color"
       />
       {open && createPortal(
         <>
           <div className="fixed inset-0 z-[60]" onClick={() => setOpen(false)} />
-          <div className="fixed z-[61] p-2 rounded-lg bg-white dark:bg-dneutral-100 shadow-lg dark:shadow-[0_8px_24px_rgba(0,0,0,0.5)]" style={{ top: pos.top, left: pos.left }}>
+          <div className="fixed z-[61] p-2 rounded-lg bg-card shadow-lg" style={{ top: pos.top, left: pos.left }}>
             <div className="grid grid-cols-6 gap-1.5">
               {PRESET_COLORS.map((c) => (
                 <button
                   key={c}
                   onClick={() => { onChange(c); setOpen(false); }}
-                  className={`w-5 h-5 rounded-full border-2 ${color === c ? 'border-lilac' : 'border-transparent hover:border-neutral-400'}`}
+                  className={`w-5 h-5 rounded-full border-2 ${color === c ? 'border-lilac' : 'border-transparent hover:border-mute'}`}
                   style={{ backgroundColor: c }}
                 />
               ))}
@@ -78,16 +76,47 @@ function ColorPickerDot({ color, onChange }: { color: string; onChange: (color: 
   );
 }
 
-// ─── Sortable Status Row ──────────────────────────────────────
-function SortableStatusRow({ status, onUpdate, onDelete }: {
+const CATEGORY_DISPLAY: Record<string, string> = {
+  backlog: 'backlog',
+  in_progress: 'in progress',
+  done: 'done',
+};
+
+function CategoryBadge({ category }: { category: string }) {
+  const label = CATEGORY_DISPLAY[category] ?? category.replace(/_/g, ' ');
+  return (
+    <span className="text-[11px] font-mono text-mute border border-rule rounded-[var(--radius)] px-2 py-0.5 whitespace-nowrap">
+      {label}
+    </span>
+  );
+}
+
+function SortableStatusRow({ status, onUpdate, onDelete, onSaveWip }: {
   status: Status;
   onUpdate: (id: number, data: Partial<Status>) => void;
   onDelete: (id: number) => void;
+  onSaveWip: (id: number, val: number) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: status.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(status.name);
+  const [wipVal, setWipVal] = useState(String(status.wipLimit || 0));
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setWipVal(String(status.wipLimit || 0));
+  }, [status.wipLimit]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
 
   const handleSaveName = () => {
     if (editName.trim() && editName !== status.name) {
@@ -96,14 +125,19 @@ function SortableStatusRow({ status, onUpdate, onDelete }: {
     setEditing(false);
   };
 
-  return (
-    <div ref={setNodeRef} style={style} className="flex items-center gap-2 px-3 h-[38px] border-b border-neutral-100 dark:border-dneutral-200 last:border-b-0">
-      <span {...listeners} {...attributes} className="cursor-grab text-neutral-400 hover:text-neutral-600 text-[16px] flex-shrink-0">&#x2807;</span>
+  const handleWipBlur = () => {
+    const n = parseInt(wipVal) || 0;
+    if (n !== (status.wipLimit || 0)) onSaveWip(status.id, n);
+  };
 
-      {/* Color dot — clickable */}
+  return (
+    <div ref={setNodeRef} style={style} className="grid grid-cols-[20px_16px_1fr_auto_auto_28px] gap-3 items-center py-3 border-b border-rule last:border-b-0">
+      <span {...listeners} {...attributes} className="cursor-grab text-faint hover:text-mute text-[12px] flex-shrink-0 flex items-center justify-center">
+        <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor"><circle cx="2" cy="2" r="1.2" /><circle cx="6" cy="2" r="1.2" /><circle cx="2" cy="7" r="1.2" /><circle cx="6" cy="7" r="1.2" /><circle cx="2" cy="12" r="1.2" /><circle cx="6" cy="12" r="1.2" /></svg>
+      </span>
+
       <ColorPickerDot color={status.color} onChange={(c) => onUpdate(status.id, { color: c })} />
 
-      {/* Name — inline edit */}
       {editing ? (
         <Input
           value={editName}
@@ -111,49 +145,63 @@ function SortableStatusRow({ status, onUpdate, onDelete }: {
           onBlur={handleSaveName}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') { setEditName(status.name); setEditing(false); } }}
           autoFocus
-          className="!w-28 !h-[26px] !text-[16px] !px-1.5"
+          className="!h-[28px] !text-[13px] !px-2 !w-40"
         />
       ) : (
-        <span onClick={() => setEditing(true)} className="text-[16px] text-neutral-700 dark:text-dneutral-700 cursor-text hover:text-lilac-dark truncate w-28 flex-shrink-0 group/name inline-flex items-center gap-1">
+        <span onClick={() => setEditing(true)} className="text-[13px] font-medium text-text cursor-text truncate">
           {status.name}
-          <svg className="w-3 h-3 text-neutral-300 opacity-0 group-hover/name:opacity-100 transition-opacity flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-          </svg>
         </span>
       )}
 
-      {/* Category */}
-      <Select
-        value={status.category}
-        onChange={(val) => onUpdate(status.id, { category: val })}
-        options={CATEGORY_OPTIONS}
-      />
+      <div className="flex items-center gap-3">
+        <CategoryBadge category={status.category} />
+        <span className="text-[11px] font-mono text-faint uppercase">WIP</span>
+        <input
+          type="text"
+          value={parseInt(wipVal) === 0 ? '—' : wipVal}
+          onFocus={(e) => { if (e.target.value === '—') { setWipVal(''); } }}
+          onChange={(e) => { const v = e.target.value; if (v === '' || /^\d+$/.test(v)) setWipVal(v); }}
+          onBlur={handleWipBlur}
+          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+          className="w-10 h-7 text-center text-[13px] font-mono text-text bg-transparent border border-rule rounded-[var(--radius)] outline-none focus:border-lilac"
+        />
+      </div>
 
-      {/* Default indicator */}
-      {status.isDefault && (
-        <span className="text-[16px] px-1.5 py-0.5 rounded bg-lilac-tint dark:bg-peri-dm/30 text-lilac-dark dark:text-peri-dm flex-shrink-0">default</span>
-      )}
-
-      {/* Actions */}
-      <div className="flex items-center gap-1 ml-auto flex-shrink-0">
-        <button onClick={() => onDelete(status.id)} className="text-[16px] text-neutral-400 hover:text-danger" title="Delete">&#x2715;</button>
+      <div className="relative" ref={menuRef}>
+        <button
+          onClick={() => setMenuOpen((v) => !v)}
+          className="w-7 h-7 flex items-center justify-center rounded hover:bg-paper text-faint hover:text-text"
+        >
+          <svg className="w-[14px] h-[14px]" viewBox="0 0 16 16" fill="currentColor"><circle cx="3.5" cy="8" r=".9" /><circle cx="8" cy="8" r=".9" /><circle cx="12.5" cy="8" r=".9" /></svg>
+        </button>
+        {menuOpen && (
+          <div className="dropdown-panel absolute right-0 mt-1 w-36 bg-card z-50 py-1">
+            <button
+              onClick={() => { setMenuOpen(false); onUpdate(status.id, { category: status.category === 'backlog' ? 'in_progress' : status.category === 'in_progress' ? 'done' : 'backlog' }); }}
+              className="w-full text-left px-3 py-1.5 text-[12px] text-text hover:bg-paper"
+            >
+              Change category
+            </button>
+            <button
+              onClick={() => { setMenuOpen(false); onDelete(status.id); }}
+              className="w-full text-left px-3 py-1.5 text-[12px] text-danger hover:bg-danger/10"
+            >
+              Delete
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ─── Main Board Tab ───────────────────────────────────────────
 export function BoardTab() {
   const { id: projectId } = useParams();
   const [statuses, setStatuses] = useState<Status[]>([]);
-  const [wipValues, setWipValues] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [showAddStatus, setShowAddStatus] = useState(false);
   const [deletingStatusId, setDeletingStatusId] = useState<number | null>(null);
-  // Statuses whose WIP input has unsaved user edits. Stored in a ref so
-  // loadData() doesn't need to be re-created when the set changes.
-  const dirtyWipIdsRef = useRef<Set<number>>(new Set());
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -165,17 +213,6 @@ export function BoardTab() {
       const statusRes = await apiClient.get(`/projects/${projectId}/statuses`);
       const s = Array.isArray(statusRes.data.data) ? statusRes.data.data : statusRes.data.data.list || [];
       setStatuses(s);
-      // Preserve any in-progress WIP edits the user has made; only overwrite
-      // entries that are NOT marked dirty.
-      setWipValues((prev) => {
-        const next: Record<number, string> = {};
-        s.forEach((st: Status) => {
-          next[st.id] = dirtyWipIdsRef.current.has(st.id) && prev[st.id] != null
-            ? prev[st.id]
-            : String(st.wipLimit || 0);
-        });
-        return next;
-      });
     } catch (err) {
       console.error(err);
       setError(true);
@@ -185,13 +222,21 @@ export function BoardTab() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // ─── Status handlers ───
   const handleUpdateStatus = async (statusId: number, data: Partial<Status>) => {
     try {
       await apiClient.put(`/projects/${projectId}/statuses/${statusId}`, data);
       loadData();
     } catch (err: any) {
       toast(err.response?.data?.message || 'Failed to update', 'error');
+    }
+  };
+
+  const handleSaveWip = async (statusId: number, val: number) => {
+    try {
+      await apiClient.put(`/projects/${projectId}/statuses/${statusId}`, { wipLimit: val });
+      loadData();
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to save WIP', 'error');
     }
   };
 
@@ -206,16 +251,13 @@ export function BoardTab() {
     }
   };
 
-
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-
     const oldIndex = statuses.findIndex((s) => s.id === active.id);
     const newIndex = statuses.findIndex((s) => s.id === over.id);
     const reordered = arrayMove(statuses, oldIndex, newIndex);
     setStatuses(reordered);
-
     try {
       await apiClient.put(`/projects/${projectId}/statuses/reorder`, {
         statusIds: reordered.map((s) => s.id),
@@ -225,36 +267,10 @@ export function BoardTab() {
     }
   };
 
-  // ─── WIP handlers ───
-  const handleSaveWip = async () => {
-    const failed: Array<{ statusName: string; message: string }> = [];
-    for (const st of statuses) {
-      const newVal = parseInt(wipValues[st.id] || '0') || 0;
-      if (newVal !== (st.wipLimit || 0)) {
-        try {
-          await apiClient.put(`/projects/${projectId}/statuses/${st.id}`, { wipLimit: newVal });
-          // Success — clear the dirty mark so loadData picks up the new server value.
-          dirtyWipIdsRef.current.delete(st.id);
-        } catch (err: any) {
-          // Keep dirty so the user's failed input is preserved across the
-          // subsequent loadData() and remains visible for retry.
-          failed.push({ statusName: st.name, message: err?.response?.data?.message || 'save failed' });
-        }
-      } else {
-        // No-op save: nothing to keep dirty.
-        dirtyWipIdsRef.current.delete(st.id);
-      }
-    }
-    await loadData();
-    if (failed.length === 0) toast('WIP limits saved');
-    else if (failed.length === 1) toast(`Failed to save ${failed[0].statusName}: ${failed[0].message}`, 'error');
-    else toast(`${failed.length} WIP limits failed to save`, 'error');
-  };
-
   if (loading) {
     return (
-      <div className="space-y-6 animate-pulse">
-        {[1, 2, 3].map((i) => <div key={i} className="h-32 bg-neutral-200 dark:bg-dneutral-200 rounded" />)}
+      <div className="space-y-4 animate-pulse">
+        {[1, 2, 3].map((i) => <div key={i} className="h-12 bg-neutral-200 rounded" />)}
       </div>
     );
   }
@@ -264,57 +280,36 @@ export function BoardTab() {
   }
 
   return (
-    <div className="max-w-3xl space-y-8">
-      {/* ─── Section 1: Status Columns ─── */}
-      <section>
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-[16px] font-semibold text-neutral-700 dark:text-dneutral-700">Status columns</h2>
-          <button onClick={() => setShowAddStatus(true)} className="text-[16px] font-medium text-lilac-dark hover:underline">+ Add status</button>
-        </div>
-        <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 mb-3">Drag to reorder. Category determines board behavior.</p>
+    <div>
+      {/* Header */}
+      <div className="flex items-baseline justify-between mb-1">
+        <h2 className="font-serif text-[20px] text-text">Board statuses</h2>
+        <button
+          onClick={() => setShowAddStatus(true)}
+          className="text-[12px] font-medium text-text border border-rule rounded-[var(--radius)] px-3 py-1.5 hover:bg-paper transition-colors"
+        >
+          + New status
+        </button>
+      </div>
+      <p className="text-[12px] text-mute mb-4">
+        The columns on every board. Drag to reorder. Categorize each as backlog, in-progress, or done — Trackero uses categories for charts and progress.
+      </p>
 
-        <div className="rounded-lg shadow-sm dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)] overflow-hidden">
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={statuses.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-              {statuses.map((st) => (
-                <SortableStatusRow key={st.id} status={st} onUpdate={handleUpdateStatus} onDelete={(id) => setDeletingStatusId(id)} />
-              ))}
-            </SortableContext>
-          </DndContext>
-        </div>
-      </section>
-
-      {/* ─── Section 2: WIP Limits ─── */}
-      <section>
-        <h2 className="text-[16px] font-semibold text-neutral-700 dark:text-dneutral-700 mb-2">WIP limits</h2>
-        <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 mb-3">Set max tasks per column. 0 = no limit.</p>
-
-        <div className="space-y-1.5">
+      {/* Status rows */}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={statuses.map((s) => s.id)} strategy={verticalListSortingStrategy}>
           {statuses.map((st) => (
-            <div key={st.id} className="flex items-center gap-3 h-[30px]">
-              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: st.color }} />
-              <span className="text-[16px] text-neutral-700 dark:text-dneutral-700 w-28 truncate">{st.name}</span>
-              <Input
-                value={wipValues[st.id] || '0'}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (v === '' || /^\d+$/.test(v)) {
-                    dirtyWipIdsRef.current.add(st.id);
-                    setWipValues({ ...wipValues, [st.id]: v });
-                  }
-                }}
-                className="!w-16 !text-center !text-[16px]"
-              />
-              {(parseInt(wipValues[st.id] || '0') || 0) === 0 && (
-                <span className="text-[16px] text-neutral-400 dark:text-dneutral-500">(no limit)</span>
-              )}
-            </div>
+            <SortableStatusRow
+              key={st.id}
+              status={st}
+              onUpdate={handleUpdateStatus}
+              onDelete={(id) => setDeletingStatusId(id)}
+              onSaveWip={handleSaveWip}
+            />
           ))}
-        </div>
-        <Button variant="primary" onClick={handleSaveWip} className="mt-3">Save WIP limits</Button>
-      </section>
+        </SortableContext>
+      </DndContext>
 
-      {/* ─── Dialogs ─── */}
       {showAddStatus && (
         <AddStatusDialog
           projectId={projectId!}
@@ -332,12 +327,10 @@ export function BoardTab() {
           onCancel={() => setDeletingStatusId(null)}
         />
       )}
-
     </div>
   );
 }
 
-// ─── Add Status Dialog ────────────────────────────────────────
 function AddStatusDialog({ projectId, onClose, onCreated }: { projectId: string; onClose: () => void; onCreated: () => void }) {
   const [name, setName] = useState('');
   const [color, setColor] = useState('#6B7280');
@@ -365,34 +358,39 @@ function AddStatusDialog({ projectId, onClose, onCreated }: { projectId: string;
       open
       onClose={onClose}
       titleId={titleId}
-      overlayClassName="fixed inset-0 z-50 bg-neutral-700/50"
-      contentClassName="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-white dark:bg-dneutral-100 rounded-lg p-6 shadow-xl dark:shadow-[0_12px_36px_rgba(0,0,0,0.6)] focus:outline-none"
+      overlayClassName="fixed inset-0 z-50 bg-ink/40"
+      contentClassName="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-card rounded-lg p-6 shadow-xl focus:outline-none"
     >
-      <h2 id={titleId} className="text-[22px] font-bold mb-4 text-neutral-700 dark:text-dneutral-700">Add status</h2>
+      <h2 id={titleId} className="font-serif text-[20px] text-text mb-4">Add status</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && <div className="text-[16px] text-danger">{error}</div>}
+        {error && <div className="text-[12px] text-danger">{error}</div>}
         <div>
-          <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Name</label>
+          <label className="block text-[12px] font-medium text-mute mb-1">Name</label>
           <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={50} autoFocus />
         </div>
         <div>
-          <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Color</label>
+          <label className="block text-[12px] font-medium text-mute mb-1">Color</label>
           <div className="grid grid-cols-6 gap-2 mb-2">
             {PRESET_COLORS.map((c) => (
-              <button key={c} type="button" onClick={() => setColor(c)} className={`w-7 h-7 rounded-full border-2 ${color === c ? 'border-lilac' : 'border-transparent'}`} style={{ backgroundColor: c }} />
+              <button key={c} type="button" onClick={() => setColor(c)} className={`w-6 h-6 rounded-full border-2 ${color === c ? 'border-lilac' : 'border-transparent'}`} style={{ backgroundColor: c }} />
             ))}
           </div>
         </div>
         <div>
-          <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Category</label>
-          <Select value={category} onChange={setCategory} options={CATEGORY_OPTIONS} className="w-full" />
+          <label className="block text-[12px] font-medium text-mute mb-1">Category</label>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="w-full h-9 px-3 text-[13px] text-text bg-transparent border border-rule rounded-[var(--radius)] outline-none focus:border-lilac"
+          >
+            {CATEGORY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
         </div>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button type="submit" variant="primary" disabled={loading}>{loading ? 'Creating...' : 'Add'}</Button>
+          <Button type="submit" variant="primary" disabled={loading}>{loading ? 'Creating…' : 'Add'}</Button>
         </div>
       </form>
     </Modal>
   );
 }
-

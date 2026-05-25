@@ -33,6 +33,9 @@ export class RetroCard {
   @Column({ type: 'int', default: 0 })
   votes: number;
 
+  @Column({ name: 'is_action_item', type: 'boolean', default: false })
+  isActionItem: boolean;
+
   @Column({ name: 'sort_order', type: 'int', default: 0 })
   sortOrder: number;
 

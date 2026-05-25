@@ -83,14 +83,15 @@ export function NotificationBell() {
     setShowDropdown(false);
 
     switch (notif.referenceType) {
+      case 'work_item':
       case 'task':
-        if (notif.projectId) navigate(`/projects/${notif.projectId}/board`);
+        if (notif.projectId) navigate(`/projects/${notif.projectId}/tasks/${notif.referenceId}`);
         break;
       case 'sprint':
         if (notif.projectId) navigate(`/projects/${notif.projectId}/sprints`);
         break;
       case 'comment':
-        if (notif.projectId) navigate(`/projects/${notif.projectId}/board`);
+        if (notif.projectId) navigate(`/projects/${notif.projectId}/tasks/${notif.referenceId}`);
         break;
       case 'project':
         navigate(`/projects/${notif.referenceId}/board`);
@@ -121,14 +122,14 @@ export function NotificationBell() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
         </svg>
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-danger text-white text-[16px] font-bold rounded-full flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-danger text-white text-[10px] leading-none font-bold rounded-full flex items-center justify-center">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
       {showDropdown && (
-        <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-dneutral-200 rounded-lg shadow-lg dark:shadow-[0_8px_24px_rgba(0,0,0,0.5)] z-50 max-h-96 overflow-hidden flex flex-col">
+        <div className="dropdown-panel absolute right-0 mt-2 w-80 bg-white dark:bg-dneutral-200 z-50 max-h-96 overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-4 py-2 border-b border-neutral-200 dark:border-dneutral-300">
             <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700">Notifications</span>
             {unreadCount > 0 && (

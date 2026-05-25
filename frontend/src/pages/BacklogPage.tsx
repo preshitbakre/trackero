@@ -18,6 +18,7 @@ import { CreateItemDialog } from '../components/common/CreateItemDialog';
 import { LabelList } from '../components/ui/LabelBadge';
 import { TypeTag } from '../components/ui';
 import { calculateMidpoint } from '../lib/lexorank';
+import { ConfirmDialog } from '../components/common/ConfirmDialog';
 
 interface BacklogTask {
   id: number;
@@ -109,7 +110,7 @@ function SortableTaskRow({ task, selected, onSelect, onClick, subtaskCount, coll
         {task.title}
       </span>
 
-      <div className="flex-shrink-0 min-w-0">
+      <div className="flex-shrink-0 w-[100px] min-w-0">
         <LabelList labels={task.labels || []} max={2} />
       </div>
 
@@ -175,6 +176,7 @@ export function BacklogPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [defaultSubtaskId, setDefaultSubtaskId] = useState<number | undefined>(undefined);
   const [showCreate, setShowCreate] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const user = useAuthStore((s) => s.user);
@@ -193,19 +195,19 @@ export function BacklogPage() {
     setLoading(true);
     setError(false);
     try {
-      const { data: taskData } = await apiClient.get(`/projects/${projectId}/items?itemType=epic,story,task,subtask&limit=300`);
+      const { data: taskData } = await apiClient.get(`/projects/${projectId}/items?itemType=epic,story,task,bug,subtask&limit=300`);
       const allItems: BacklogTask[] = taskData.data.list || [];
-      // Backlog items: items with no sprint (epics/stories always have sprint=null or informational)
-      // Tasks: only those with no sprint
-      // Subtasks: only those whose parent task is in backlog
-      const backlogTaskIds = new Set(
-        allItems.filter((t) => (t.itemType || t.type) === 'task' && (t.sprintId === null || t.sprintId === undefined)).map((t) => t.id),
+      const backlogWorkIds = new Set(
+        allItems.filter((t) => {
+          const tp = t.itemType || t.type;
+          return (tp === 'task' || tp === 'bug') && (t.sprintId === null || t.sprintId === undefined);
+        }).map((t) => t.id),
       );
       const backlogTasks = allItems.filter((t) => {
         const type = t.itemType || t.type;
-        if (type === 'epic' || type === 'story') return t.sprintId === null || t.sprintId === undefined;
-        if (type === 'task') return backlogTaskIds.has(t.id);
-        if (type === 'subtask') return t.parentId !== null && backlogTaskIds.has(t.parentId);
+        if (type === 'epic' || type === 'story') return true;
+        if (type === 'task' || type === 'bug') return backlogWorkIds.has(t.id);
+        if (type === 'subtask') return t.parentId !== null && backlogWorkIds.has(t.parentId);
         return false;
       });
       setTasks(backlogTasks);
@@ -276,6 +278,15 @@ export function BacklogPage() {
     loadData();
   };
 
+  const handleBulkDelete = async () => {
+    if (!projectId || selectedIds.size === 0) return;
+    for (const taskId of selectedIds) {
+      await apiClient.delete(`/projects/${projectId}/items/${taskId}`);
+    }
+    setSelectedIds(new Set());
+    loadData();
+  };
+
   const handleBulkAssignToMe = async () => {
     if (!projectId || selectedIds.size === 0 || !user) return;
     for (const taskId of selectedIds) {
@@ -329,7 +340,7 @@ export function BacklogPage() {
         {/* STEP 6: Page header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-baseline gap-4 flex-wrap">
-            <h1 className="font-serif italic text-[36px] leading-none text-text dark:text-dneutral-700">
+            <h1 className="font-serif text-[36px] text-text">
               Backlog
             </h1>
             <p className="text-[11px] tracking-[0.18em] uppercase font-serif font-semibold text-faint">
@@ -352,6 +363,7 @@ export function BacklogPage() {
             {sprints.map((s) => (
               <Button key={s.id} size="sm" variant="secondary" onClick={() => handleBulkMoveToSprint(s.id)}>&rarr; {s.name}</Button>
             ))}
+            <Button size="sm" variant="danger" onClick={() => setShowBulkDeleteConfirm(true)}>Delete</Button>
             <Button variant="ghost" onClick={() => setSelectedIds(new Set())} className="ml-auto">Clear</Button>
           </div>
         )}
@@ -373,21 +385,21 @@ export function BacklogPage() {
           </div>
         )}
 
-        {/* Editorial table header — matches the design's column labels. */}
+        {/* Editorial table header — widths mirror SortableTaskRow flex items */}
         {parentTasks.length > 0 && (
           <div className="flex items-center gap-3 px-4 pb-1 mb-0 border-b-2 border-rule text-[10px] uppercase tracking-[0.16em] text-faint font-semibold">
-            {canEdit && <span className="w-3.5" />}
-            {canEdit && <span className="w-3.5" />}
-            <span className="w-3" />
-            <span className="w-4" />
-            <span className="w-[90px]">ID</span>
-            <span className="flex-1">Title</span>
-            <span className="min-w-0">Labels</span>
-            <span className="w-[70px]">Priority</span>
-            <span className="w-[80px]">Status</span>
-            <span className="w-[40px] text-right">Pts</span>
-            <span className="w-7 text-right">Owner</span>
-            {canEdit && sprints.length > 0 && <span className="w-[140px] text-right">Move</span>}
+            {canEdit && <span className="w-3.5 flex-shrink-0" />}{/* checkbox */}
+            {canEdit && <span className="w-3.5 flex-shrink-0" />}{/* drag handle */}
+            <span className="w-3 flex-shrink-0" />{/* collapse toggle */}
+            <span className="w-4 flex-shrink-0" />{/* type tag */}
+            <span className="w-[90px] flex-shrink-0">ID</span>
+            <span className="flex-1 min-w-0">Title</span>
+            <span className="w-[100px] flex-shrink-0">Labels</span>
+            <span className="w-[70px] flex-shrink-0">Priority</span>
+            <span className="w-[80px] flex-shrink-0">Status</span>
+            <span className="w-[40px] flex-shrink-0 text-right">Pts</span>
+            <span className="w-7 flex-shrink-0 text-right">Owner</span>
+            {canEdit && sprints.length > 0 && <span className="w-[140px] flex-shrink-0 text-right">Move</span>}
           </div>
         )}
         <SortableContext items={parentTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
@@ -520,6 +532,17 @@ export function BacklogPage() {
           defaultSubtaskId={defaultSubtaskId}
           onClose={() => { setSelectedTaskId(null); setDefaultSubtaskId(undefined); }}
           onUpdated={loadData}
+        />
+      )}
+
+      {showBulkDeleteConfirm && (
+        <ConfirmDialog
+          title="Delete items"
+          message={`Are you sure you want to delete ${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''}? This action cannot be undone.`}
+          confirmLabel="Delete"
+          danger
+          onConfirm={() => { setShowBulkDeleteConfirm(false); handleBulkDelete(); }}
+          onCancel={() => setShowBulkDeleteConfirm(false)}
         />
       )}
     </>

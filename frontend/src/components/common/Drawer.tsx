@@ -9,8 +9,6 @@ interface DrawerProps {
   level?: number;
   /** When true, the drawer shifts left to make room for an overlay on top */
   pushed?: boolean;
-  /** Width class when pushed. Default: "w-[560px]" */
-  pushedWidth?: string;
   /** Accessible name for the drawer (visually hidden — caller renders its own heading). */
   ariaLabel?: string;
   children: React.ReactNode;
@@ -37,7 +35,6 @@ export function Drawer({
   width = 'w-[480px]',
   level = 0,
   pushed = false,
-  pushedWidth = 'w-[560px]',
   ariaLabel = 'Drawer',
   children,
 }: DrawerProps) {
@@ -59,12 +56,20 @@ export function Drawer({
         {/* Panel — below header */}
         <DialogPrimitive.Content
           aria-label={ariaLabel}
-          // Backdrop click closes (Radix fires onInteractOutside).
-          // Nothing extra to wire — Root's onOpenChange handles it.
-          className={`fixed right-0 bottom-0 bg-[#F2F9F3] dark:bg-dneutral-50 shadow-[-8px_0_24px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_24px_rgba(0,0,0,0.4)] flex flex-col overflow-hidden transition-all duration-200 focus:outline-none ${
-            pushed ? pushedWidth : width
-          }`}
-          style={{ zIndex: panelZ, top: '3.5rem' }}
+          onInteractOutside={(e) => {
+            const target = e.target as HTMLElement | null;
+            if (target?.closest?.('[data-radix-popper-content-wrapper], [data-radix-select-viewport], [data-radix-menu-content], [role="listbox"], [role="option"], [role="menu"], [role="menuitem"]')) {
+              e.preventDefault();
+            }
+          }}
+          onPointerDownOutside={(e) => {
+            const target = e.target as HTMLElement | null;
+            if (target?.closest?.('[data-radix-popper-content-wrapper], [data-radix-select-viewport], [data-radix-menu-content], [role="listbox"], [role="option"], [role="menu"], [role="menuitem"]')) {
+              e.preventDefault();
+            }
+          }}
+          className={`fixed bottom-0 bg-[#F2F9F3] dark:bg-dneutral-50 shadow-[-8px_0_24px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_24px_rgba(0,0,0,0.4)] flex flex-col overflow-hidden transition-all duration-200 focus:outline-none ${pushed ? 'w-[530px]' : width}`}
+          style={{ zIndex: panelZ, top: '3.5rem', right: 0 }}
         >
           {/* Visually-hidden title for a11y; caller renders its own header. */}
           <DialogPrimitive.Title className="sr-only">{ariaLabel}</DialogPrimitive.Title>

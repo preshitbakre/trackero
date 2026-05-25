@@ -167,7 +167,34 @@ export class RetrospectivesService {
       return { ...c, authorId: null as unknown as number };
     });
 
-    return { ...retro, cards: sanitisedCards };
+    const uniqueVotersResult = await this.dataSource.query(
+      `SELECT COUNT(DISTINCT rv.user_id)::int AS count
+       FROM retro_votes rv
+       JOIN retro_cards rc ON rc.id = rv.card_id
+       WHERE rc.retrospective_id = $1`,
+      [retro.id],
+    );
+    const uniqueVoters: number = uniqueVotersResult[0]?.count ?? 0;
+
+    let currentUserVotesUsed = 0;
+    if (viewerUserId != null) {
+      const userVotesResult = await this.dataSource.query(
+        `SELECT COUNT(*)::int AS count
+         FROM retro_votes rv
+         JOIN retro_cards rc ON rc.id = rv.card_id
+         WHERE rc.retrospective_id = $1 AND rv.user_id = $2`,
+        [retro.id, viewerUserId],
+      );
+      currentUserVotesUsed = userVotesResult[0]?.count ?? 0;
+    }
+
+    return {
+      ...retro,
+      cards: sanitisedCards,
+      uniqueVoters,
+      currentUserVotesUsed,
+      maxVotesPerUser: retro.maxVotesPerUser,
+    };
   }
 
   private async findRetroForProject(projectId: number, retroId: number): Promise<Retrospective> {
@@ -179,7 +206,7 @@ export class RetrospectivesService {
     return retro;
   }
 
-  async addCard(projectId: number, retroId: number, column: string, content: string, userId: number) {
+  async addCard(projectId: number, retroId: number, column: string, content: string, userId: number, isActionItem?: boolean) {
     const retro = await this.findRetroForProject(projectId, retroId);
     this.assertOpen(retro);
 
@@ -203,17 +230,19 @@ export class RetrospectivesService {
       content: stripHtml(content),
       authorId: userId,
       sortOrder: (maxOrder?.max ?? -1) + 1,
+      isActionItem: isActionItem ?? false,
     });
     const saved = await this.cardRepo.save(card);
     return this.normaliseColumn(saved);
   }
 
-  async updateCard(projectId: number, retroId: number, cardId: number, content: string) {
+  async updateCard(projectId: number, retroId: number, cardId: number, content?: string, isActionItem?: boolean) {
     const retro = await this.findRetroForProject(projectId, retroId);
     this.assertOpen(retro);
     const card = await this.cardRepo.findOne({ where: { id: cardId, retrospectiveId: retroId } });
     if (!card) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
-    card.content = stripHtml(content);
+    if (content !== undefined) card.content = stripHtml(content);
+    if (isActionItem !== undefined) card.isActionItem = isActionItem;
     const saved = await this.cardRepo.save(card);
     return this.normaliseColumn(saved);
   }
@@ -233,6 +262,18 @@ export class RetrospectivesService {
     if (!card) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
 
     const existingVote = await this.voteRepo.findOne({ where: { cardId, userId } });
+    if (!existingVote) {
+      const userVoteCount = await this.dataSource.query(
+        `SELECT COUNT(*)::int AS count FROM retro_votes rv
+         JOIN retro_cards rc ON rc.id = rv.card_id
+         WHERE rc.retrospective_id = $1 AND rv.user_id = $2`,
+        [retroId, userId],
+      );
+      if (userVoteCount[0].count >= retro.maxVotesPerUser) {
+        throw new AppLogicException('VOTE_LIMIT_REACHED', HttpStatus.CONFLICT);
+      }
+    }
+
     if (existingVote) {
       // Remove vote — no uniqueness concern on delete.
       await this.voteRepo.remove(existingVote);

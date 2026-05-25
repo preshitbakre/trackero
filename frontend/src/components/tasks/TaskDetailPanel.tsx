@@ -13,6 +13,11 @@ import { useTaskAutoSave } from '../../hooks/useTaskAutoSave';
 import { useRole } from '../../hooks/useRole';
 import { SaveStatusIndicator } from '../common/SaveStatusIndicator';
 import { LabelPicker } from '../ui/LabelPicker';
+import { MarkdownField } from '../ui/MarkdownField';
+import { MentionTextarea } from '../ui/MentionTextarea';
+import { CommentBody } from '../ui/CommentBody';
+import { TypeTag } from '../ui/TypeTag';
+import type { TypeTagKind } from '../ui/TypeTag';
 import { LabelList } from '../ui/LabelBadge';
 
 interface Subtask {
@@ -98,6 +103,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [storyPoints, setStoryPoints] = useState<string>('');
   const [openSubtaskId, setOpenSubtaskId] = useState<number | null>(defaultSubtaskId || null);
+  const [resolvedParentId, setResolvedParentId] = useState<number | null>(null);
   const [checklistItems, setChecklistItems] = useState<{ id: number; title: string; isCompleted: boolean }[]>([]);
   const [showAddChecklist, setShowAddChecklist] = useState(false);
   const [newChecklistTitle, setNewChecklistTitle] = useState('');
@@ -113,6 +119,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
   const [assocSearchQuery, setAssocSearchQuery] = useState('');
   const [assocSearchResults, setAssocSearchResults] = useState<any[]>([]);
   const [assocSearching, setAssocSearching] = useState(false);
+  const [projectMembers, setProjectMembers] = useState<{ id: number; displayName: string; avatarUrl: string | null }[]>([]);
   const assocSearchSeqRef = useRef(0);
   const { saveStatus, flushDebounce, debouncedFieldChange, handleFieldChange, saveAssignee } = useTaskAutoSave({ projectId, taskId, onUpdated });
 
@@ -125,6 +132,10 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
       try {
         const { data } = await apiClient.get(`/projects/${projectId}/items/${taskId}`);
         if (ignored) return;
+        if (!isSubtask && data.data.itemType === 'subtask' && data.data.parentId) {
+          setResolvedParentId(data.data.parentId);
+          return;
+        }
         setTask(data.data);
         setTitle(data.data.title);
         setStoryPoints(data.data.storyPoints != null ? String(data.data.storyPoints) : '');
@@ -164,7 +175,15 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
       const opts = (res.data.data.list || []).map((o: any) => ({ value: String(o.value), label: o.label }));
       setAssigneeOptions([{ value: '', label: 'Unassigned' }, ...opts]);
     }).catch((err) => { console.error(err); });
-    // Parent options loaded after task is fetched (depends on itemType)
+    apiClient.get(`/projects/${projectId}/members`).then((res) => {
+      if (ignored) return;
+      const list = res.data.data?.list || res.data.data || [];
+      setProjectMembers(list.map((m: any) => ({
+        id: m.user?.id ?? m.userId ?? m.id,
+        displayName: m.user?.displayName ?? m.displayName ?? '',
+        avatarUrl: m.user?.avatarUrl ?? m.avatarUrl ?? null,
+      })));
+    }).catch((err) => { console.error(err); });
     apiClient.get(`/projects/${projectId}/sprints?limit=100`).then((res) => {
       if (ignored) return;
       const list = res.data.data.list || [];
@@ -393,6 +412,20 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
     }
   };
 
+  if (resolvedParentId) {
+    return (
+      <TaskDetailPanel
+        key={`parent-${resolvedParentId}-sub-${taskId}`}
+        projectId={projectId}
+        taskId={resolvedParentId}
+        projectPrefix={projectPrefix}
+        onClose={onClose}
+        onUpdated={onUpdated}
+        defaultSubtaskId={taskId}
+      />
+    );
+  }
+
   const taskKey = task ? (projectPrefix ? `${projectPrefix}-${task.itemNumber}` : `#${task.itemNumber}`) : '';
   const level = isSubtask ? 1 : 0;
   const parentKey = task ? (parentTaskKey || (task.parentInfo ? task.parentInfo.taskKey : null)) : null;
@@ -414,25 +447,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
         <DrawerHeader>
           <div className="flex items-center justify-between px-4 py-2">
             <div className="flex items-center gap-3">
-              {(() => {
-                const typeColors: Record<string, { bg: string; text: string }> = {
-                  epic: { bg: '#7C5CFC35', text: '#4A2FC0' },
-                  story: { bg: '#88A9D640', text: '#2E5A8E' },
-                  task: { bg: '#D6B58840', text: '#7A5E2A' },
-                  subtask: { bg: '#A8A19A35', text: '#5C5650' },
-                  bug: { bg: '#FF634735', text: '#CC3300' },
-                };
-                const t = task.itemType || 'task';
-                const style = typeColors[t] || typeColors.task;
-                return (
-                  <span
-                    className="px-2 py-0.5 rounded text-[12px] font-semibold uppercase leading-none"
-                    style={{ backgroundColor: style.bg, color: style.text }}
-                  >
-                    {t}
-                  </span>
-                );
-              })()}
+              <TypeTag kind={(task.itemType || 'task') as TypeTagKind} size="md" />
               {isSubtask && parentKey ? (
                 <div className="flex items-center gap-1.5 text-[16px] font-mono">
                   <button onClick={onClose} className="text-neutral-400 hover:text-lilac-dark">{parentKey}</button>
@@ -594,27 +609,15 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                   className="w-full"
                   renderOption={(opt, isHighlighted, isSelected) => {
                     if (!opt.data) {
-                      return <span className="text-[14px] text-neutral-500">{opt.label}</span>;
+                      return <span className="text-[14px] text-mute">{opt.label}</span>;
                     }
-                    const typeStyles: Record<string, { bg: string; text: string }> = {
-                      epic: { bg: '#7C5CFC35', text: '#4A2FC0' },
-                      story: { bg: '#88A9D640', text: '#2E5A8E' },
-                      task: { bg: '#D6B58840', text: '#7A5E2A' },
-                      subtask: { bg: '#A8A19A35', text: '#5C5650' },
-                    };
-                    const style = typeStyles[opt.data.itemType] || typeStyles.subtask;
                     return (
                       <div>
                         <div className="flex items-center gap-2 mb-0.5">
-                          <span
-                            className="text-[11px] font-semibold uppercase px-1.5 py-0.5 rounded-full"
-                            style={{ backgroundColor: style.bg, color: style.text }}
-                          >
-                            {opt.data.itemType}
-                          </span>
-                          <span className="text-[13px] font-mono text-neutral-400">{opt.data.itemKey}</span>
+                          <TypeTag kind={(opt.data.itemType || 'task') as TypeTagKind} size="sm" />
+                          <span className="text-[13px] font-mono text-mute">{opt.data.itemKey}</span>
                         </div>
-                        <p className={`text-[14px] line-clamp-2 ${isHighlighted ? 'text-lilac-dark' : isSelected ? 'text-neutral-700 dark:text-dneutral-700 font-medium' : 'text-neutral-600 dark:text-dneutral-600'}`}>
+                        <p className={`text-[14px] line-clamp-2 ${isHighlighted ? 'text-lilac-dark' : isSelected ? 'text-text font-medium' : 'text-text'}`}>
                           {opt.data.title}
                         </p>
                       </div>
@@ -655,17 +658,16 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
           {/* Description */}
           <div>
             <h3 className="smallcaps mb-2">Description</h3>
-            <textarea
+            <MarkdownField
               value={task.description || ''}
-              onChange={(e) => {
-                const val = e.target.value;
+              onChange={(val) => {
                 setTask((prev) => prev ? { ...prev, description: val } : prev);
                 debouncedFieldChange('description', val || null, loadTask);
               }}
               onBlur={() => flushDebounce()}
               placeholder="Add a description..."
-              rows={3}
-              className="w-full text-[16px] text-neutral-700 dark:text-dneutral-700 min-h-[60px] p-3 rounded border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 placeholder-neutral-400 resize-none focus:border-lilac focus:outline-none focus:ring-2 focus:ring-lilac/30"
+              readOnly={!canEdit}
+              minHeight={60}
             />
           </div>
 
@@ -698,7 +700,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
               <div className="space-y-2">
                 {associations.belongsTo?.length > 0 && (
                   <div>
-                    <span className="text-[12px] text-neutral-400 uppercase">Part of</span>
+                    <span className="text-[12px] text-faint uppercase">Part of</span>
                     {associations.belongsTo.map((a: any) => (
                       <AssociationRow key={a.id} assoc={a} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} />
                     ))}
@@ -706,7 +708,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                 )}
                 {associations.blocks?.length > 0 && (
                   <div>
-                    <span className="text-[12px] text-neutral-400 uppercase">Blocks</span>
+                    <span className="text-[12px] text-faint uppercase">Blocks</span>
                     {associations.blocks.map((a: any) => (
                       <AssociationRow key={a.id} assoc={a} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} />
                     ))}
@@ -714,7 +716,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                 )}
                 {associations.blockedBy?.length > 0 && (
                   <div>
-                    <span className="text-[12px] text-neutral-400 uppercase">Blocked by</span>
+                    <span className="text-[12px] text-faint uppercase">Blocked by</span>
                     {associations.blockedBy.map((a: any) => (
                       <AssociationRow key={a.id} assoc={a} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} />
                     ))}
@@ -722,7 +724,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                 )}
                 {associations.relatesTo?.length > 0 && (
                   <div>
-                    <span className="text-[12px] text-neutral-400 uppercase">Related</span>
+                    <span className="text-[12px] text-faint uppercase">Related</span>
                     {associations.relatesTo.map((a: any) => (
                       <AssociationRow key={a.id} assoc={a} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} />
                     ))}
@@ -730,7 +732,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                 )}
                 {associations.causedBy?.length > 0 && (
                   <div>
-                    <span className="text-[12px] text-neutral-400 uppercase">Caused by</span>
+                    <span className="text-[12px] text-faint uppercase">Caused by</span>
                     {associations.causedBy.map((a: any) => (
                       <AssociationRow key={a.id} assoc={a} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} />
                     ))}
@@ -744,7 +746,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
               </button>
             )}
             {showAddAssociation && canEdit && (
-              <div className="mt-2 p-3 rounded-lg bg-neutral-50 dark:bg-dneutral-100 shadow-sm dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)] space-y-2">
+              <div className="mt-2 p-3 rounded-lg bg-paper shadow-sm space-y-2">
                 <div className="flex gap-2 flex-wrap">
                   {[
                     { value: 'belongs_to', label: 'Part of' },
@@ -755,42 +757,32 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                     <button
                       key={lt.value}
                       onClick={() => setAddAssocLinkType(lt.value)}
-                      className={`text-[14px] px-2 py-1 rounded ${addAssocLinkType === lt.value ? 'bg-lilac text-white' : 'text-neutral-400 hover:bg-neutral-100 dark:hover:bg-dneutral-200'}`}
+                      className={`text-[14px] px-2 py-1 rounded ${addAssocLinkType === lt.value ? 'bg-lilac text-white' : 'text-faint hover:bg-lilac-tint'}`}
                     >
                       {lt.label}
                     </button>
                   ))}
                 </div>
-                <input
-                  type="text"
+                <Input
                   value={assocSearchQuery}
                   onChange={(e) => handleAssocSearch(e.target.value)}
                   onFocus={() => { if (assocSearchResults.length === 0) handleAssocSearch(''); }}
                   placeholder="Search items..."
                   autoFocus
-                  className="w-full text-[14px] px-2 py-1.5 rounded border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 text-neutral-700 dark:text-dneutral-700 placeholder-neutral-300 dark:placeholder-dneutral-300 focus:border-lilac focus:outline-none h-[30px]"
+                  className="!text-[14px] !py-1.5 !h-[32px]"
                 />
-                {assocSearching && <p className="text-[12px] text-neutral-400">Searching...</p>}
-                <div className="max-h-[240px] overflow-y-auto border border-neutral-200 dark:border-dneutral-200 rounded">
-                  {assocSearchResults.map((t: any) => {
-                    const TYPE_STYLES: Record<string, { bg: string; text: string }> = {
-                      epic: { bg: '#7C5CFC35', text: '#4A2FC0' }, story: { bg: '#88A9D640', text: '#2E5A8E' },
-                      task: { bg: '#D6B58840', text: '#7A5E2A' }, bug: { bg: '#E0525235', text: '#A03030' }, subtask: { bg: '#A8A19A35', text: '#5C5650' },
-                    };
-                    const ts = TYPE_STYLES[t.itemType] || TYPE_STYLES.task;
-                    return (
-                      <button key={t.id} onClick={() => handleAddAssociation(t.id)}
-                        className="w-full text-left flex items-center gap-2 px-3 py-2 border-b border-neutral-100 dark:border-dneutral-200/30 last:border-b-0 hover:bg-lilac-tint transition-colors">
-                        <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ backgroundColor: ts.bg, color: ts.text }}>
-                          {t.itemType === 'subtask' ? 'sub' : t.itemType}
-                        </span>
-                        <span className="font-mono text-[12px] text-neutral-400 flex-shrink-0">{t.itemKey || `#${t.itemNumber}`}</span>
-                        <span className="text-[14px] text-neutral-700 dark:text-dneutral-700 truncate">{t.title}</span>
-                      </button>
-                    );
-                  })}
+                {assocSearching && <p className="text-[12px] text-faint">Searching...</p>}
+                <div className="max-h-[240px] overflow-y-auto border border-rule rounded">
+                  {assocSearchResults.map((t: any) => (
+                    <button key={t.id} onClick={() => handleAddAssociation(t.id)}
+                      className="w-full text-left flex items-center gap-2 px-3 py-2 border-b border-rule/60 last:border-b-0 hover:bg-lilac-tint transition-colors">
+                      <TypeTag kind={(t.itemType || 'task') as TypeTagKind} size="sm" />
+                      <span className="font-mono text-[12px] text-mute flex-shrink-0">{t.itemKey || `#${t.itemNumber}`}</span>
+                      <span className="text-[14px] text-text truncate">{t.title}</span>
+                    </button>
+                  ))}
                   {!assocSearching && assocSearchResults.length === 0 && (
-                    <p className="text-[12px] text-neutral-400 px-3 py-2">No items found</p>
+                    <p className="text-[12px] text-faint px-3 py-2">No items found</p>
                   )}
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => { setShowAddAssociation(false); setAssocSearchQuery(''); setAssocSearchResults([]); }}>Cancel</Button>
@@ -798,8 +790,8 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
             )}
           </div>
 
-          {/* Subtasks — only on parent tasks */}
-          {!isSubtask && (
+          {/* Subtasks — only on parent tasks (never on subtasks) */}
+          {!isSubtask && task.itemType !== 'subtask' && (
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-[16px] font-medium text-neutral-400">
@@ -938,19 +930,20 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                         {c.editedAt && ' (edited)'}
                       </span>
                     </div>
-                    <p className="text-neutral-600 dark:text-dneutral-600 whitespace-pre-wrap">{c.body}</p>
+                    <CommentBody body={c.body} style={{ color: undefined }} />
                   </div>
                 ))}
               </div>
             )}
             {canEdit && (
-              <form onSubmit={handleAddComment} className="flex gap-1">
-                <input
-                  type="text"
+              <form onSubmit={handleAddComment} className="flex items-center gap-1">
+                <MentionTextarea
                   value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
+                  onChange={setNewComment}
+                  onSubmit={() => { if (newComment.trim()) handleAddComment({ preventDefault: () => {} } as any); }}
+                  members={projectMembers}
                   placeholder="Add a comment..."
-                  className="flex-1 text-[16px] px-2 py-1.5 rounded border border-neutral-200 dark:border-dneutral-300 bg-transparent text-neutral-700 dark:text-dneutral-700"
+                  className="text-[16px] px-2 py-1.5 rounded border border-neutral-200 dark:border-dneutral-300 bg-transparent text-neutral-700 dark:text-dneutral-700"
                 />
                 <Button type="submit" variant="primary" size="sm">Post</Button>
               </form>
@@ -992,27 +985,13 @@ function AssociationRow({ assoc, onRemove }: { assoc: any; onRemove?: () => void
   const item = assoc.item;
   if (!item) return null;
 
-  const typeColors: Record<string, { bg: string; text: string }> = {
-    epic: { bg: '#7C5CFC35', text: '#4A2FC0' },
-    story: { bg: '#88A9D640', text: '#2E5A8E' },
-    task: { bg: '#D6B58840', text: '#7A5E2A' },
-    subtask: { bg: '#A8A19A35', text: '#5C5650' },
-    bug: { bg: '#FF634735', text: '#CC3300' },
-  };
-  const style = typeColors[item.itemType] || typeColors.task;
-
   return (
-    <div className="group flex items-center gap-2 text-[16px] py-1 px-2 rounded hover:bg-neutral-100 dark:hover:bg-dneutral-200">
-      <span
-        className="text-[11px] font-semibold uppercase px-1.5 py-0.5 rounded-full flex-shrink-0"
-        style={{ backgroundColor: style.bg, color: style.text }}
-      >
-        {item.itemType}
-      </span>
-      <span className="font-mono text-[14px] text-neutral-400 flex-shrink-0">{item.itemKey}</span>
-      <span className="text-neutral-600 dark:text-dneutral-600 truncate flex-1">{item.title}</span>
+    <div className="group flex items-center gap-2 text-[14px] py-1 px-2 rounded hover:bg-lilac-tint">
+      <TypeTag kind={(item.itemType || 'task') as TypeTagKind} size="sm" />
+      <span className="font-mono text-[12px] text-mute flex-shrink-0">{item.itemKey}</span>
+      <span className="text-text truncate flex-1">{item.title}</span>
       {onRemove && (
-        <button onClick={onRemove} className="text-neutral-400 hover:text-danger opacity-0 group-hover:opacity-100 text-[14px]">x</button>
+        <button onClick={onRemove} className="text-faint hover:text-danger opacity-0 group-hover:opacity-100 text-[14px]">x</button>
       )}
     </div>
   );

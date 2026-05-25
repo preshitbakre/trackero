@@ -24,16 +24,28 @@ export class UsersService {
 
   async listUsers(page: number = 1, limit: number = 20) {
     limit = clampLimit(limit);
-    const qb = this.userRepo.createQueryBuilder('u')
-      .select([
-        'u.id', 'u.email', 'u.displayName', 'u.role',
-        'u.avatarUrl', 'u.isActive', 'u.lastLoginAt', 'u.createdAt',
-      ])
-      .orderBy('u.createdAt', 'DESC');
+    const offset = (page - 1) * limit;
 
-    const total = await qb.getCount();
-    qb.skip((page - 1) * limit).take(limit);
-    const data = await qb.getMany();
+    const countResult = await this.dataSource.query(
+      'SELECT COUNT(*)::int AS total FROM users',
+    );
+    const total = countResult[0]?.total ?? 0;
+
+    const data = await this.dataSource.query(
+      `SELECT u.id, u.email, u.display_name AS "displayName", u.role,
+              u.avatar_url AS "avatarUrl", u.is_active AS "isActive",
+              u.last_login_at AS "lastLoginAt", u.created_at AS "createdAt",
+              COALESCE(pc.cnt, 0)::int AS "projectCount"
+       FROM users u
+       LEFT JOIN (
+         SELECT user_id, COUNT(*)::int AS cnt
+         FROM project_members
+         GROUP BY user_id
+       ) pc ON pc.user_id = u.id
+       ORDER BY u.created_at DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset],
+    );
 
     return new PaginatedResponse(data, total, page, limit);
   }
@@ -206,14 +218,15 @@ export class UsersService {
   }
 
   async listInvitations() {
-    // SECURITY: never return the (hashed) token to clients. Even the SHA-256
-    // digest is sensitive — an attacker who exfiltrates it can craft the raw
-    // token by brute force only if it's weak, but there is no legitimate
-    // client-side use for it, so we project only metadata.
-    const invitations = await this.invitationRepo.find({
-      select: ['id', 'email', 'role', 'projectId', 'invitedBy', 'status', 'expiresAt', 'createdAt'],
-      order: { createdAt: 'DESC' },
-    });
-    return new PaginatedResponse(invitations, invitations.length, 1, invitations.length || 1);
+    const list = await this.dataSource.query(
+      `SELECT i.id, i.email, i.role, i.project_id AS "projectId",
+              i.invited_by AS "invitedBy", i.status,
+              i.expires_at AS "expiresAt", i.created_at AS "createdAt",
+              u.display_name AS "invitedByName"
+       FROM invitations i
+       LEFT JOIN users u ON u.id = i.invited_by
+       ORDER BY i.created_at DESC`,
+    );
+    return new PaginatedResponse(list, list.length, 1, list.length || 1);
   }
 }

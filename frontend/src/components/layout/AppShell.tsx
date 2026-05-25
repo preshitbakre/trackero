@@ -148,36 +148,43 @@ export function AppShell() {
     return match ? parseInt(match[1]) : null;
   })();
 
+  // Design layout (frame 1): the Sidebar runs floor-to-ceiling and the
+  // TopBar sits *to the right of* the sidebar inside the main column.
+  // The trackero. wordmark therefore lives in the TopBar (not over the
+  // sidebar). This matches the design's outer flex-row structure where
+  // sidebar is the first flex item and the topbar+content stack is the
+  // second.
   return (
-    <div className="flex flex-col h-screen bg-paper dark:bg-dneutral-50">
-      <TopBar
-        currentProjectId={currentProjectId}
-        projects={projects}
-        onToggleSidebar={() => setMobileNavOpen((v) => !v)}
-        sidebarOpen={mobileNavOpen}
-      />
-      <div className="flex flex-1 overflow-hidden relative">
-        {/* Sidebar: visible by default on lg+, slides over on mobile when toggled. */}
+    <div className="flex h-screen bg-paper dark:bg-dneutral-50 overflow-hidden">
+      {/* Full-height Sidebar */}
+      <div
+        className={`flex-shrink-0 fixed inset-y-0 left-0 z-20 transform transition-transform duration-200 lg:static lg:translate-x-0 ${
+          mobileNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        }`}
+      >
+        <Sidebar
+          projects={projects}
+          currentProjectId={currentProjectId}
+          onNavigate={() => setMobileNavOpen(false)}
+        />
+      </div>
+
+      {/* Mobile backdrop */}
+      {mobileNavOpen && (
         <div
-          className={`flex-shrink-0 fixed inset-y-0 left-0 z-20 transform transition-transform duration-200 lg:static lg:translate-x-0 ${
-            mobileNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-          }`}
-          style={{ top: 56 }}
-        >
-          <Sidebar
-            projects={projects}
-            currentProjectId={currentProjectId}
-            onNavigate={() => setMobileNavOpen(false)}
-          />
-        </div>
-        {/* Mobile backdrop */}
-        {mobileNavOpen && (
-          <div
-            className="fixed inset-0 bg-ink/30 z-10 lg:hidden"
-            style={{ top: 56 }}
-            onClick={() => setMobileNavOpen(false)}
-          />
-        )}
+          className="fixed inset-0 bg-ink/30 z-10 lg:hidden"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
+
+      {/* Main column (topbar + outlet stacked) */}
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+        <TopBar
+          currentProjectId={currentProjectId}
+          projects={projects}
+          onToggleSidebar={() => setMobileNavOpen((v) => !v)}
+          sidebarOpen={mobileNavOpen}
+        />
         <main className="flex-1 min-w-0 min-h-0 overflow-auto">
           <Outlet />
         </main>
