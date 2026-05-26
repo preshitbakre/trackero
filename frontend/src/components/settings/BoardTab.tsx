@@ -8,6 +8,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { apiClient } from '../../api/client';
 import { toast } from '../common/Toast';
 import { Input } from '../ui/Input';
+import { DragHandleDots, EllipsisDots } from '../icons';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { Modal } from '../common/Modal';
 import { Button } from '../ui/Button';
@@ -133,7 +134,7 @@ function SortableStatusRow({ status, onUpdate, onDelete, onSaveWip }: {
   return (
     <div ref={setNodeRef} style={style} className="grid grid-cols-[20px_16px_1fr_auto_auto_28px] gap-3 items-center py-3 border-b border-rule last:border-b-0">
       <span {...listeners} {...attributes} className="cursor-grab text-faint hover:text-mute text-[12px] flex-shrink-0 flex items-center justify-center">
-        <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor"><circle cx="2" cy="2" r="1.2" /><circle cx="6" cy="2" r="1.2" /><circle cx="2" cy="7" r="1.2" /><circle cx="6" cy="7" r="1.2" /><circle cx="2" cy="12" r="1.2" /><circle cx="6" cy="12" r="1.2" /></svg>
+        <DragHandleDots />
       </span>
 
       <ColorPickerDot color={status.color} onChange={(c) => onUpdate(status.id, { color: c })} />
@@ -172,7 +173,7 @@ function SortableStatusRow({ status, onUpdate, onDelete, onSaveWip }: {
           onClick={() => setMenuOpen((v) => !v)}
           className="w-7 h-7 flex items-center justify-center rounded hover:bg-paper text-faint hover:text-text"
         >
-          <svg className="w-[14px] h-[14px]" viewBox="0 0 16 16" fill="currentColor"><circle cx="3.5" cy="8" r=".9" /><circle cx="8" cy="8" r=".9" /><circle cx="12.5" cy="8" r=".9" /></svg>
+          <EllipsisDots />
         </button>
         {menuOpen && (
           <div className="dropdown-panel absolute right-0 mt-1 w-36 bg-card z-50 py-1">

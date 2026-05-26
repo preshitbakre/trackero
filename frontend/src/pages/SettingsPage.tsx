@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { Plus, Search, Lock, Inbox } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/auth.store';
 import { Select } from '../components/ui/Select';
@@ -7,6 +8,7 @@ import { Button } from '../components/ui/Button';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { toast } from '../components/common/Toast';
 import { AVATAR_COLORS } from '../lib/colors';
+import { EllipsisDots } from '../components/icons';
 
 interface UserRow {
   id: number;
@@ -174,7 +176,7 @@ export function SettingsPage() {
             Users <span className="serif-i">&amp; invitations</span>
           </h1>
           <Button onClick={() => setInvitationFilter('invite')}>
-            <svg className="w-3 h-3 mr-1.5 inline" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 3v10M3 8h10" /></svg>
+            <Plus size={12} className="mr-1.5 inline" />
             Invite people
           </Button>
         </div>
@@ -199,7 +201,7 @@ export function SettingsPage() {
             <span className="text-[12px] font-mono text-mute">· {users.length} users</span>
             <div className="flex-1" />
             <div className="relative">
-              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-faint pointer-events-none" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5L14 14" /></svg>
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
               <input
                 type="search"
                 value={memberSearch}
@@ -365,10 +367,7 @@ export function SettingsPage() {
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        <svg className="w-[13px] h-[13px] text-mute flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                          <path d="M2.5 8.5L4 3.5h8L13.5 8.5v5h-11z" />
-                          <path d="M2.5 8.5h3l.5 1.5h4l.5-1.5h3" />
-                        </svg>
+                        <Inbox size={13} className="text-mute flex-shrink-0" />
                         <span className="text-[13px] font-mono text-text truncate flex-1">{inv.email}</span>
                         <RoleBadge role={inv.role} />
                       </div>
@@ -446,10 +445,7 @@ function RoleBadge({ role }: { role: string }) {
   return (
     <span className={`inline-flex items-center gap-1 text-[11px] uppercase tracking-[0.08em] px-2 py-0.5 rounded-[var(--radius)] ${styles[role] ?? 'text-mute border border-rule'}`}>
       {role === 'admin' && (
-        <svg className="w-[9px] h-[9px]" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-          <rect x="3.5" y="7" width="9" height="6.5" />
-          <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
-        </svg>
+        <Lock size={9} />
       )}
       {ROLE_LABELS[role] ?? role}
     </span>
@@ -497,11 +493,7 @@ function RowMenu({ isSelf, isActive, onDeactivate, onReactivate }: {
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
         className="w-7 h-7 flex items-center justify-center rounded hover:bg-paper text-faint hover:text-text"
       >
-        <svg className="w-[14px] h-[14px]" viewBox="0 0 16 16" fill="currentColor" stroke="none">
-          <circle cx="3.5" cy="8" r=".8" />
-          <circle cx="8" cy="8" r=".8" />
-          <circle cx="12.5" cy="8" r=".8" />
-        </svg>
+        <EllipsisDots />
       </button>
       {open && (
         <div className="dropdown-panel absolute right-0 mt-1 w-36 bg-card z-50 py-1">

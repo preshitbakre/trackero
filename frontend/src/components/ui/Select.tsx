@@ -1,4 +1,5 @@
 import * as SelectPrimitive from '@radix-ui/react-select';
+import { ChevronDown } from 'lucide-react';
 
 const EMPTY_VALUE = '__none__';
 
@@ -34,9 +35,7 @@ export function Select({ value, onChange, options, placeholder, className }: Sel
           <SelectPrimitive.Value placeholder={placeholder || 'Select...'} />
         </span>
         <SelectPrimitive.Icon className="flex-shrink-0">
-          <svg className="w-3.5 h-3.5 text-mute" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
+          <ChevronDown size={14} className="text-mute" />
         </SelectPrimitive.Icon>
       </SelectPrimitive.Trigger>
 

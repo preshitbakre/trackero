@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react';
+import { Check } from 'lucide-react';
 import { Logo } from '../ui/Logo';
 
 const STEPS = [
@@ -50,9 +51,7 @@ function StepItem({
     >
       {isComplete ? (
         <span className="w-[24px] h-[24px] rounded-full bg-[var(--accent)] flex items-center justify-center flex-shrink-0">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M2.5 6.5L5 9L9.5 3.5" />
-          </svg>
+          <Check size={12} className="text-white" strokeWidth={2} />
         </span>
       ) : isActive ? (
         <span className="w-[24px] h-[24px] rounded-full bg-[var(--accent)] flex items-center justify-center flex-shrink-0 text-white text-[12px] font-semibold">

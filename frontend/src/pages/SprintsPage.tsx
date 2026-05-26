@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { RefreshCw } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { toast } from '../components/common/Toast';
 import { useRole } from '../hooks/useRole';
@@ -134,9 +135,7 @@ export function SprintsPage() {
       ) : sprints.length === 0 ? (
         <div className="text-center py-16">
           <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: '#88A9D620' }}>
-            <svg className="w-8 h-8" style={{ color: '#3F5E8E' }} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
-            </svg>
+            <RefreshCw size={32} style={{ color: '#3F5E8E' }} strokeWidth={1.5} />
           </div>
           <h3 className="text-[16px] font-medium text-neutral-500 mb-1">No sprints yet</h3>
           <p className="text-[14px] text-neutral-400 mb-4">Create a sprint to start planning your work</p>

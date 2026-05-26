@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { ThumbsUp, Pencil, Trash2, Plus } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { useRole } from '../hooks/useRole';
 import { Button } from '../components/ui/Button';
@@ -520,15 +521,7 @@ export function RetroPage() {
                               color: isTop ? '#FAF8FD' : '#443458',
                             }}
                           >
-                            <svg
-                              width="10"
-                              height="10"
-                              viewBox="0 0 16 16"
-                              fill="currentColor"
-                            >
-                              <path d="M8.834.066c.763.087 1.5.295 2.01.884.505.581.656 1.378.656 2.3 0 .467-.087 1.119-.157 1.637L11.328 5h1.422c.603 0 1.174.085 1.668.485.517.418.83 1.044.929 1.765.088.64.166 1.524.086 2.343a6.1 6.1 0 0 1-.805 2.596c-.359.595-.91 1.09-1.578 1.342-.652.245-1.376.244-2.05.244H7.247c-.56 0-1.109-.115-1.607-.376l-.142-.074a3.7 3.7 0 0 0-1.268-.392C4.098 12.906 4 12.778 4 12.625V6.78c0-.093.045-.18.126-.22C5.253 5.993 6.07 5.19 6.596 4.2c.278-.523.545-1.1.697-1.6.146-.479.26-1.074.188-1.573-.057-.375.193-.714.556-.82z" />
-                              <path d="M2.75 6h-.5a.75.75 0 0 0-.75.75v5.5c0 .414.336.75.75.75h.5a.75.75 0 0 0 .75-.75v-5.5A.75.75 0 0 0 2.75 6" />
-                            </svg>
+                            <ThumbsUp size={10} fill="currentColor" stroke="none" />
                             {card.votes}
                           </button>
 
@@ -590,38 +583,14 @@ export function RetroPage() {
                                   className="p-1 rounded text-mute hover:text-ink"
                                   title="Edit"
                                 >
-                                  <svg
-                                    className="w-3.5 h-3.5"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                    />
-                                  </svg>
+                                  <Pencil size={14} />
                                 </button>
                                 <button
                                   onClick={() => handleDeleteCard(card.id)}
                                   className="p-1 rounded text-mute hover:text-danger"
                                   title="Delete"
                                 >
-                                  <svg
-                                    className="w-3.5 h-3.5"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                    />
-                                  </svg>
+                                  <Trash2 size={14} />
                                 </button>
                               </div>
                             )}
@@ -662,16 +631,7 @@ export function RetroPage() {
                       className="w-full flex items-center justify-center gap-1.5 border border-dashed border-rule text-mute hover:text-ink"
                       style={{ height: 40, fontSize: 12, fontWeight: 500, borderRadius: 0 }}
                     >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 12 12"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                      >
-                        <path d="M6 1v10M1 6h10" strokeLinecap="round" />
-                      </svg>
+                      <Plus size={12} />
                       Add a card &middot; anonymously
                     </button>
                   )}

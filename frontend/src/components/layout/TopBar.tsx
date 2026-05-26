@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Menu, X, Search, ChevronDown } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useRole } from '../../hooks/useRole';
 import { NotificationBell } from '../notifications/NotificationBell';
@@ -45,9 +46,7 @@ export function TopBar({ currentProjectId, projects = [], onToggleSidebar, sideb
           className="lg:hidden w-9 h-9 rounded-[var(--radius)] flex items-center justify-center text-[var(--ink-3)] hover:bg-[var(--paper-2)] flex-shrink-0"
           aria-label={sidebarOpen ? 'Close menu' : 'Open menu'}
         >
-          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            {sidebarOpen ? <path d="M6 6l12 12M6 18L18 6" strokeLinecap="round" /> : <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />}
-          </svg>
+          {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
       )}
 
@@ -72,9 +71,7 @@ export function TopBar({ currentProjectId, projects = [], onToggleSidebar, sideb
               <Link to={seg.to} className="text-[var(--ink-2)] hover:text-ink truncate flex items-center gap-1">
                 {seg.label}
                 {seg.dropdown && (
-                  <svg className="w-3 h-3 text-[var(--ink-4)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
+                  <ChevronDown size={12} className="text-[var(--ink-4)]" />
                 )}
               </Link>
             ) : (
@@ -90,10 +87,7 @@ export function TopBar({ currentProjectId, projects = [], onToggleSidebar, sideb
         onClick={openCommandPalette}
         className="hidden md:flex items-center gap-2 h-9 px-3 rounded-[var(--radius)] bg-[var(--paper-2)] hover:bg-[var(--paper-3)] text-[var(--ink-3)] text-[13px] min-w-[280px] transition-colors flex-shrink-0"
       >
-        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="11" cy="11" r="7" />
-          <path d="M21 21l-4.3-4.3" strokeLinecap="round" />
-        </svg>
+        <Search size={14} />
         <span className="flex-1 text-left">Jump to anything…</span>
         <span className="kbd">⌘K</span>
       </button>
@@ -104,10 +98,7 @@ export function TopBar({ currentProjectId, projects = [], onToggleSidebar, sideb
         className="md:hidden w-9 h-9 rounded-full flex items-center justify-center text-mute hover:bg-paper flex-shrink-0"
         aria-label="Search"
       >
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="11" cy="11" r="7" />
-          <path d="M21 21l-4.3-4.3" strokeLinecap="round" />
-        </svg>
+        <Search size={16} />
       </button>
 
       <NotificationBell />

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { Search } from 'lucide-react';
 import { apiClient } from '../../api/client';
 import { KbdKey, TypeTag } from '../ui';
 import type { TypeTagKind } from '../ui';
@@ -322,9 +323,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       <div className="fixed top-[12%] left-1/2 -translate-x-1/2 z-50 w-full max-w-2xl bg-card dark:bg-dneutral-100 rounded-xl shadow-2xl overflow-hidden">
         {/* Search bar */}
         <div className="flex items-center px-4 border-b border-rule">
-          <svg className="w-4 h-4 text-faint mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
+          <Search size={16} className="text-faint mr-3" />
           <input
             ref={inputRef}
             type="text"

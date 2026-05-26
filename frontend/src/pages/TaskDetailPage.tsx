@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { ChevronRight, ChevronLeft, AlertCircle, Eye, Trash2, Link2, Plus, FileText } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { useRole } from '../hooks/useRole';
 import { Select } from '../components/ui/Select';
@@ -461,7 +462,7 @@ export function TaskDetailPage() {
                   </Link>
                 </span>
                 <span>{task.parentInfo.title}</span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+                <ChevronRight size={12} />
                 <span className="mono" style={{ fontWeight: 500 }}>{taskKey}</span>
               </>
             ) : (
@@ -470,7 +471,7 @@ export function TaskDetailPage() {
                 className="flex items-center gap-1 hover:underline"
                 style={{ color: 'var(--ink-3)' }}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+                <ChevronLeft size={14} />
                 Back
               </button>
             )}
@@ -496,7 +497,7 @@ export function TaskDetailPage() {
               <>
                 <span style={{ color: 'var(--ink-4)' }}>·</span>
                 <span className="chip chip-accent" style={{ height: 20, fontSize: 11 }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></svg>
+                  <AlertCircle size={12} strokeWidth={2.5} />
                 </span>
               </>
             )}
@@ -513,10 +514,7 @@ export function TaskDetailPage() {
                 borderColor: byMeWatching ? 'transparent' : undefined,
               }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M2 12s4-8 10-8 10 8 10 8-4 8-10 8-10-8-10-8z" />
-              </svg>
+              <Eye size={14} />
               {watcherCount} watching
             </button>
             <SaveStatusIndicator status={saveStatus} />
@@ -527,7 +525,7 @@ export function TaskDetailPage() {
                 onClick={() => setShowDeleteConfirm(true)}
                 title="Delete"
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
+                <Trash2 size={16} />
               </button>
             )}
           </div>
@@ -1071,10 +1069,7 @@ export function TaskDetailPage() {
                 onClick={() => setShowAddAssociation(true)}
                 style={{ fontSize: '11.5px', color: 'var(--ink-2)', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                </svg>
+                <Link2 size={12} />
                 Link an item
               </button>
             )}
@@ -1150,10 +1145,7 @@ export function TaskDetailPage() {
                     className="flex items-center gap-2 text-left hover:bg-[var(--shade)]"
                     style={{ padding: '4px 0', fontSize: '13.5px', borderRadius: 4 }}
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" strokeWidth="1.5">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                    </svg>
+                    <FileText size={16} stroke="var(--ink-3)" strokeWidth={1.5} />
                     <span className="truncate flex-1">{att.originalFilename}</span>
                     <span className="mono" style={{ fontSize: 11, color: 'var(--ink-3)', flexShrink: 0 }}>{formatFileSize(att.sizeBytes)}</span>
                   </button>
@@ -1164,7 +1156,7 @@ export function TaskDetailPage() {
               <label
                 style={{ fontSize: '11.5px', color: 'var(--ink-2)', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+                <Plus size={12} />
                 Upload
                 <input type="file" className="hidden" onChange={handleUpload} />
               </label>

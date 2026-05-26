@@ -2,10 +2,16 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { ChevronDown, Search } from 'lucide-react';
 import { apiClient } from '../../api/client';
 import { CreateProjectDialog } from '../common/CreateProjectDialog';
 import { useRole } from '../../hooks/useRole';
 import { PROJECT_DOT_COLORS } from '../../lib/colors';
+import {
+  TodayIcon, BoardIcon, BacklogIcon, SprintsIcon, EpicsIcon,
+  StoriesIcon, ChartsIcon, RetroIcon, MembersIcon, SettingsIcon,
+  EnterKeyGlyph,
+} from '../icons';
 
 interface Project {
   id: number;
@@ -65,95 +71,22 @@ type NavKey =
   | 'members'
   | 'settings';
 
-const ICON_SVG_PROPS = {
-  width: 14,
-  height: 14,
-  viewBox: '0 0 16 16',
-  fill: 'none',
-  stroke: 'currentColor',
-  strokeWidth: 1.5,
-  strokeLinecap: 'round' as const,
-  strokeLinejoin: 'round' as const,
-  'aria-hidden': true,
+const NAV_ICONS: Record<NavKey, React.FC<{ className?: string; size?: number }>> = {
+  today: TodayIcon,
+  board: BoardIcon,
+  backlog: BacklogIcon,
+  sprints: SprintsIcon,
+  epics: EpicsIcon,
+  stories: StoriesIcon,
+  charts: ChartsIcon,
+  retro: RetroIcon,
+  members: MembersIcon,
+  settings: SettingsIcon,
 };
 
 function NavIcon({ name }: { name: NavKey }) {
-  switch (name) {
-    case 'today':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <path d="M2.5 8L8 3l5.5 5" />
-          <path d="M3.5 7.5v6h9v-6" />
-        </svg>
-      );
-    case 'board':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <rect x="2.5" y="2.5" width="3" height="11" />
-          <rect x="6.5" y="2.5" width="3" height="7" />
-          <rect x="10.5" y="2.5" width="3" height="9" />
-        </svg>
-      );
-    case 'backlog':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <path d="M3 4h10M3 8h10M3 12h7" />
-        </svg>
-      );
-    case 'sprints':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <circle cx="8" cy="8" r="5.5" />
-          <path d="M8 4v4l2.5 2" />
-        </svg>
-      );
-    case 'epics':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <path d="M3.5 13.5V3" />
-          <path d="M3.5 3h7l-1 2 1 2h-7" />
-        </svg>
-      );
-    case 'stories':
-      // Stories isn't in the canonical design HTML (it lists Today/Board/
-      // Backlog/Sprints/Epics/Charts/Retro under WORK). Render a card icon
-      // tuned to the same 14×14 / 1.5px stroke / 16-viewBox grid so it
-      // sits visually alongside the others without looking off.
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <rect x="2.5" y="3.5" width="11" height="9" rx="1" />
-          <path d="M5 7h6M5 9.5h4" />
-        </svg>
-      );
-    case 'charts':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <path d="M2.5 13.5h11" />
-          <path d="M4 11V8M7 11V4.5M10 11V7M13 11V9.5" />
-        </svg>
-      );
-    case 'retro':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <path d="M2.5 4.5h11v6h-4l-2.5 2.5V10.5h-4.5z" />
-        </svg>
-      );
-    case 'members':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <circle cx="6" cy="6" r="2.5" />
-          <path d="M2 13c.5-2.2 2.2-3.5 4-3.5s3.5 1.3 4 3.5" />
-          <path d="M10.5 4a2 2 0 0 1 0 4M13.5 13c-.3-1.6-1.2-2.7-2.5-3.2" />
-        </svg>
-      );
-    case 'settings':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <circle cx="8" cy="8" r="2" />
-          <path d="M8 1.5v1.8M8 12.7v1.8M14.5 8h-1.8M3.3 8H1.5M12.6 3.4l-1.3 1.3M4.7 11.3l-1.3 1.3M12.6 12.6l-1.3-1.3M4.7 4.7L3.4 3.4" />
-        </svg>
-      );
-  }
+  const Icon = NAV_ICONS[name];
+  return <Icon />;
 }
 
 type WorkLink = { key: string; iconKey: NavKey; label: string };
@@ -328,9 +261,7 @@ export function Sidebar({ projects, currentProjectId, onNavigate }: SidebarProps
                   : 'no project'}
               </span>
             </span>
-            <svg className="w-3 h-3 text-[var(--ink-4)] flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M6 9l6 6 6-6" />
-            </svg>
+            <ChevronDown size={12} className="text-[var(--ink-4)] flex-shrink-0" />
           </button>
 
           {switcherOpen && createPortal(
@@ -357,19 +288,7 @@ export function Sidebar({ projects, currentProjectId, onNavigate }: SidebarProps
                     border-bottom 1px rgb(207,194,221) (mauve), text 13px
                     mute, kbd ⌘P on the right. */}
                 <div className="relative flex items-center gap-2 px-[14px] py-3 border-b border-[rgb(207,194,221)]">
-                  <svg
-                    className="w-3.5 h-3.5 text-[var(--mute)] flex-shrink-0"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <circle cx="7" cy="7" r="4.5" />
-                    <path d="M10.5 10.5L14 14" />
-                  </svg>
+                  <Search size={14} className="text-[var(--mute)] flex-shrink-0" />
                   <input
                     type="text"
                     autoFocus
@@ -709,22 +628,7 @@ function SwitcherRow({
         </span>
       </span>
       {!active && (
-        // Enter-key glyph — paths copied verbatim from the design HTML
-        // (Project switcher _ sidebar dropdown.html). viewBox 0 0 16 16,
-        // 11x11 render, 1.5 stroke, round caps.
-        <svg
-          className="w-[11px] h-[11px] text-[var(--faint)] flex-shrink-0"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M13 4v3.5a2 2 0 0 1-2 2H3" />
-          <path d="M5.5 7L3 9.5l2.5 2.5" />
-        </svg>
+        <EnterKeyGlyph className="w-[11px] h-[11px] text-[var(--faint)] flex-shrink-0" />
       )}
     </Link>
   );

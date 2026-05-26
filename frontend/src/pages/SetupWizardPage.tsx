@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { Lock, Users, Check } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/auth.store';
 import { SetupWizardLayout, SETUP_STEPS, type SetupWizardFooter } from '../components/layout/SetupWizardLayout';
@@ -14,35 +15,19 @@ import { Logo } from '../components/ui/Logo';
 const WELCOME_CARDS = [
   {
     num: '01',
-    icon: (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="11" width="18" height="11" rx="0" />
-        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-      </svg>
-    ),
+    icon: <Lock size={14} strokeWidth={1.5} />,
     title: 'Your account',
     desc: "Name, email, password. You'll be the admin — irrevocably.",
   },
   {
     num: '02',
-    icon: (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-      </svg>
-    ),
+    icon: <Users size={14} strokeWidth={1.5} />,
     title: 'Your team',
     desc: 'Invite the first few teammates. Skip and add them later if you prefer.',
   },
   {
     num: '03',
-    icon: (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="20 6 9 17 4 12" />
-      </svg>
-    ),
+    icon: <Check size={14} strokeWidth={1.5} />,
     title: "You're in",
     desc: 'A starter project, a welcome email, and the keys to the instance.',
   },

@@ -4,6 +4,7 @@ import {
   DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+import { ChevronDown, CheckCircle } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/auth.store';
 import { useRole } from '../hooks/useRole';
@@ -92,9 +93,7 @@ function SortableTaskRow({ task, selected, highlighted, onSelect, onClick, subta
           className="text-faint hover:text-text"
           aria-label={collapsed ? 'Expand subtasks' : 'Collapse subtasks'}
         >
-          <svg className={`w-3 h-3 transition-transform duration-150 ${collapsed ? '-rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
+          <ChevronDown size={12} className={`transition-transform duration-150 ${collapsed ? '-rotate-90' : ''}`} />
         </button>
       ) : <span className="w-3" />}
 
@@ -491,9 +490,7 @@ export function BacklogPage() {
         {tasks.length === 0 && !showCreate && !loading && (
           <div className="text-center py-16">
             <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: '#88D68E40' }}>
-              <svg className="w-8 h-8" style={{ color: '#3E8E44' }} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-              </svg>
+              <CheckCircle size={32} style={{ color: '#3E8E44' }} strokeWidth={1.5} />
             </div>
             <h3 className="text-[16px] font-medium text-neutral-500 mb-1">Backlog is clear</h3>
             <p className="text-[14px] text-neutral-400">All tasks have been assigned to sprints. Nice work!</p>

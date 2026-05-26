@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { ChevronDown } from 'lucide-react';
 
 export interface ComboboxOption {
   value: string;
@@ -87,9 +88,7 @@ export function Combobox({ value, onChange, options, placeholder, emptyLabel, cl
           title={selectedOption?.label || ''}
           className={`${inputClass} pr-8`}
         />
-        <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-mute pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
+        <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-mute pointer-events-none" />
       </div>
 
       {open && (

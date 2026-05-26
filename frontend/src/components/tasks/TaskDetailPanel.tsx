@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Trash2, Maximize2, X } from 'lucide-react';
 import { apiClient } from '../../api/client';
 import { useAuthStore } from '../../store/auth.store';
 import { Select } from '../ui/Select';
@@ -472,9 +473,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                   className="p-1 hover:bg-danger/10 rounded text-neutral-400 hover:text-danger"
                   title="Delete"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
+                  <Trash2 size={20} />
                 </button>
               )}
               <button
@@ -482,14 +481,10 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                 className="p-1 hover:bg-neutral-100 dark:hover:bg-dneutral-200 rounded text-neutral-400"
                 title="Open full screen"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
-                </svg>
+                <Maximize2 size={20} />
               </button>
               <button onClick={onClose} className="p-1 hover:bg-neutral-100 dark:hover:bg-dneutral-200 rounded text-neutral-400">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <X size={20} />
               </button>
             </div>
           </div>
