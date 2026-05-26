@@ -38,6 +38,12 @@ export class Project {
   @Column({ name: 'estimation_scale', type: 'varchar', length: 10, default: 'free' })
   estimationScale: 'free' | 'fibonacci' | 'tshirt';
 
+  @Column({ name: 'last_activity_at', type: 'timestamptz', nullable: true })
+  lastActivityAt: Date | null;
+
+  @Column({ name: 'archived_at', type: 'timestamptz', nullable: true })
+  archivedAt: Date | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

@@ -580,8 +580,8 @@ export function TaskDetailPage() {
             />
           </div>
 
-          {/* Subtasks */}
-          <div style={{ marginTop: 22 }}>
+          {/* Subtasks — hidden for subtask items (no nesting) */}
+          {task.itemType !== 'subtask' && <div style={{ marginTop: 22 }}>
             <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
               <div className="smallcaps">
                 Subtasks{subtasks.length > 0 && ` (${subtasks.length})`}
@@ -645,7 +645,7 @@ export function TaskDetailPage() {
                 <Button type="button" variant="ghost" size="sm" onClick={() => setShowAddSubtask(false)}>Cancel</Button>
               </form>
             )}
-          </div>
+          </div>}
 
           {/* Checklist */}
           <div style={{ marginTop: 22 }}>

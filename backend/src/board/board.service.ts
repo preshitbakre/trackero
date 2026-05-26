@@ -176,37 +176,6 @@ export class BoardService {
       }
     }
 
-    // Epic colors for task/bug items: one recursive CTE walking 'belongs_to'
-    // associations up to the epic ancestor. The base case starts from ALL ids
-    // at once and carries the originating item id (root_id) down through the
-    // recursion so the final SELECT maps each starting item to its epic color.
-    const epicColors = new Map<number, string>();
-    const epicCandidateIds = allItems
-      .filter((i) => i.itemType === 'task' || i.itemType === 'bug')
-      .map((i) => i.id);
-    if (epicCandidateIds.length > 0) {
-      const rows = await this.dataSource.query(
-        `WITH RECURSIVE ancestors AS (
-           SELECT a.item_id AS root_id, a.linked_item_id AS id, wi.item_type, wi.color
-           FROM work_item_associations a
-           JOIN work_items wi ON wi.id = a.linked_item_id
-           WHERE a.item_id = ANY($1) AND a.link_type = 'belongs_to'
-           UNION ALL
-           SELECT anc.root_id, a2.linked_item_id, wi2.item_type, wi2.color
-           FROM work_item_associations a2
-           JOIN work_items wi2 ON wi2.id = a2.linked_item_id
-           JOIN ancestors anc ON a2.item_id = anc.id
-           WHERE a2.link_type = 'belongs_to'
-         )
-         SELECT DISTINCT ON (root_id) root_id, color
-         FROM ancestors WHERE item_type = 'epic'`,
-        [epicCandidateIds],
-      );
-      for (const r of rows) {
-        if (r.color) epicColors.set(r.root_id, r.color);
-      }
-    }
-
     // Step 3: build each column's enriched items via map/set lookups — no awaits.
     const columns = statuses.map((status, statusIdx) => {
       const items = itemsByStatus[statusIdx];
@@ -229,11 +198,6 @@ export class BoardService {
         let parentRef: { id: number; itemKey: string; title: string } | null = null;
         if (item.itemType === 'subtask' && item.parentId) {
           parentRef = parentRefs.get(item.parentId) || null;
-        }
-
-        let epicColor: string | null = null;
-        if (item.itemType === 'task' || item.itemType === 'bug') {
-          epicColor = epicColors.get(item.id) || null;
         }
 
         return {
@@ -260,7 +224,6 @@ export class BoardService {
           })),
           sortOrder: item.sortOrder,
           parentRef,
-          epicColor,
         };
       });
 
