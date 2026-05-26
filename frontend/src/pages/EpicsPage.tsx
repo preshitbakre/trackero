@@ -13,7 +13,6 @@ interface Epic {
   itemType: string;
   title: string;
   priority: string;
-  color: string;
   createdAt: string;
   status: { id: number; name: string; category: string; color: string } | null;
   assignee: { id: number; displayName: string } | null;
@@ -93,7 +92,6 @@ export function EpicsPage() {
               className="p-4 rounded-lg bg-white dark:bg-dneutral-100 shadow-[0_2px_8px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.35)]"
             >
               <div className="flex items-center gap-3">
-                <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: epic.color }} />
                 <h3 className="flex-1 min-w-0 text-[16px] font-medium text-neutral-700 dark:text-dneutral-700 truncate">
                   {epic.title}
                 </h3>
@@ -116,7 +114,7 @@ export function EpicsPage() {
                   <div className="mt-2 h-1.5 rounded-full bg-neutral-100 dark:bg-dneutral-200">
                     <div
                       className="h-1.5 rounded-full transition-all"
-                      style={{ width: `${epic.progress.progressPercent}%`, backgroundColor: epic.color }}
+                      style={{ width: `${epic.progress.progressPercent}%`, backgroundColor: 'var(--accent)' }}
                     />
                   </div>
                 </>

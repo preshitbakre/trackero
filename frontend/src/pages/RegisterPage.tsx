@@ -4,6 +4,8 @@ import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/auth.store';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { validatePassword } from '../lib/password';
+import { Logo } from '../components/ui/Logo';
 
 export function RegisterPage() {
   const [searchParams] = useSearchParams();
@@ -45,8 +47,9 @@ export function RegisterPage() {
       return;
     }
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
+    const pwErr = validatePassword(password);
+    if (pwErr) {
+      setError(pwErr);
       return;
     }
 
@@ -81,10 +84,8 @@ export function RegisterPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-paper dark:bg-dneutral-50 px-4">
         <div className="w-full max-w-sm space-y-6 text-center">
-          <h1 className="font-serif italic text-[32px] text-text dark:text-dneutral-700 leading-none">
-            trackero<span className="text-lilac not-italic">.</span>
-          </h1>
-          <div className="rounded-md bg-tan-light dark:bg-tan-dm/30 p-4">
+          <Logo height={28} variant="dark" />
+          <div className="rounded-md bg-tan-light dark:bg-tan-dm/30 p-4 mt-6">
             <p className="text-[16px] text-neutral-600 dark:text-tan-dm font-medium">Registration is invite-only</p>
             <p className="mt-1 text-[16px] text-tan dark:text-tan-dm">
               Ask your admin to send you an invitation link.
@@ -102,9 +103,7 @@ export function RegisterPage() {
     <div className="flex min-h-screen items-center justify-center bg-paper dark:bg-dneutral-50 px-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
-          <h1 className="font-serif italic text-[32px] text-text dark:text-dneutral-700 leading-none">
-            trackero<span className="text-lilac not-italic">.</span>
-          </h1>
+          <Logo height={28} variant="dark" />
           {isFirstRun ? (
             <>
               <p className="mt-2 text-[16px] text-neutral-500 dark:text-neutral-400">Set up your instance</p>

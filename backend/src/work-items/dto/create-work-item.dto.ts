@@ -53,11 +53,6 @@ export class CreateWorkItemDto {
   endDate?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(7)
-  color?: string;
-
-  @IsOptional()
   @IsArray()
   @IsInt({ each: true })
   labelIds?: number[];

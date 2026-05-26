@@ -70,6 +70,10 @@
   color-scheme: light;
 }
 
+html, body {
+  overscroll-behavior: none;
+}
+
 body {
   background: var(--paper);
   color: var(--ink);

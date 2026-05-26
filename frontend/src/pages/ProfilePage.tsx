@@ -64,7 +64,7 @@ export function ProfilePage() {
       : 'text-mute';
 
   return (
-    <div className="p-8 max-w-2xl">
+    <div className="p-6">
       <Eyebrow className="mb-2">Account · {user?.email ?? '—'}</Eyebrow>
       <h1 className="font-serif text-[36px] text-text mb-6">
         Profile

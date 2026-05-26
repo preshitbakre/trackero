@@ -1,6 +1,6 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, EntityManager } from 'typeorm';
+import { Repository, DataSource, EntityManager, IsNull } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { WorkItem } from './entities/work-item.entity';
 import { WorkItemAssociation } from './entities/work-item-association.entity';
@@ -134,7 +134,6 @@ export class WorkItemsService {
         sortOrder: 'n',
         endDate: dto.endDate ?? null,
         startDate: dto.startDate ?? null,
-        color: dto.color ?? (itemType === 'epic' ? '#7C5CFC' : itemType === 'task' ? '#D6B588' : itemType === 'bug' ? '#E57373' : itemType === 'subtask' ? '#A8A19A' : '#88A9D6'),
         addedMidSprint,
       });
 
@@ -154,6 +153,10 @@ export class WorkItemsService {
       // do it before the final relations reload.
       if (dto.linkedItemId && dto.linkType) {
         await this.createAssociation(projectId, saved.id, dto.linkedItemId, dto.linkType, userId, manager);
+      }
+
+      if (itemType === 'subtask' && dto.parentId) {
+        await this.createAssociation(projectId, saved.id, dto.parentId, 'belongs_to', userId, manager);
       }
 
       // Reload with relations for response
@@ -223,7 +226,6 @@ export class WorkItemsService {
       storyPoints: item.storyPoints,
       endDate: item.endDate,
       startDate: item.startDate,
-      color: item.color,
       labels: (item.labels || []).map((l) => ({
         id: l.id,
         name: l.name,
@@ -301,12 +303,22 @@ export class WorkItemsService {
       }).setParameter('labelId', query.labelId);
     }
 
-    // Filter: full-text search
+    // Filter: full-text search + item number / item key
     if (query.search) {
-      qb.andWhere(`wi.search_vector @@ plainto_tsquery('english', :search)`, { search: query.search });
+      const term = query.search.trim();
+      const numMatch = term.match(/^#?(\d+)$/) || term.match(/^[A-Za-z]+-(\d+)$/);
+      if (numMatch) {
+        qb.andWhere(`wi.item_number = :itemNum`, { itemNum: parseInt(numMatch[1], 10) });
+      } else {
+        qb.andWhere(
+          `(wi.search_vector @@ plainto_tsquery('english', :search) OR wi.title ILIKE :titleLike)`,
+          { search: term, titleLike: `%${term}%` },
+        );
+      }
     }
 
-    // Sorting
+    // Sorting — subtasks always sort oldest-first within their parent group;
+    // all other item types respect the caller's requested sort.
     const sortColumn = query.sort || 'createdAt';
     const sortOrder = query.order || 'DESC';
     const sortMap: Record<string, string> = {
@@ -319,11 +331,19 @@ export class WorkItemsService {
     const sortField = sortMap[sortColumn] || 'wi.createdAt';
     qb.orderBy(sortField, sortOrder as 'ASC' | 'DESC');
 
-    // Pagination
-    const [items, total] = await qb
+    const [rawItems, total] = await qb
       .skip((page - 1) * limit)
       .take(limit)
       .getManyAndCount();
+
+    // Stable sort: subtasks ordered oldest-first within their parent group
+    const items = rawItems;
+    items.sort((a, b) => {
+      if (a.itemType === 'subtask' && b.itemType === 'subtask' && a.parentId === b.parentId) {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }
+      return 0;
+    });
 
     // Get child counts for all items in batch
     const itemIds = items.map(i => i.id);
@@ -367,11 +387,11 @@ export class WorkItemsService {
     );
     const projectPrefix: string = projectRow?.prefix;
 
-    // Children (direct only)
+    // Children (direct only) — oldest first
     const children = await this.workItemRepo.find({
-      where: { parentId: id },
+      where: { parentId: id, deletedAt: IsNull() },
       relations: ['status', 'assignee'],
-      order: { sortOrder: 'ASC' },
+      order: { createdAt: 'ASC' },
     });
 
     const childrenFormatted = children.map(c => ({
@@ -398,7 +418,6 @@ export class WorkItemsService {
         itemKey: projectPrefix ? `${projectPrefix}-${current.itemNumber}` : `${current.itemNumber}`,
         itemType: current.itemType,
         title: current.title,
-        color: current.color,
       });
       if (current.parentId && !visited.has(current.parentId)) {
         current = await this.workItemRepo.findOne({ where: { id: current.parentId } });
@@ -487,7 +506,7 @@ export class WorkItemsService {
     }
 
     const [children, total] = await this.workItemRepo.findAndCount({
-      where: { parentId: id },
+      where: { parentId: id, deletedAt: IsNull() },
       relations: ['status', 'assignee', 'labels'],
       order: { sortOrder: 'ASC' },
       skip: (p - 1) * l,
@@ -618,8 +637,6 @@ export class WorkItemsService {
     if ((dto as any).reviewerId !== undefined) item.reviewerId = (dto as any).reviewerId;
     if (dto.endDate !== undefined) item.endDate = dto.endDate;
     if (dto.startDate !== undefined) item.startDate = dto.startDate;
-    if (dto.color !== undefined) item.color = dto.color;
-
     // Sprint — only for non-subtasks (subtask rejection handled above)
     if (dto.sprintId !== undefined && item.itemType !== 'subtask') {
       item.sprintId = dto.sprintId;
@@ -1112,7 +1129,7 @@ export class WorkItemsService {
 
     return {
       belongsTo: outgoing.filter(a => a.linkType === 'belongs_to').map(a => ({ id: a.id, item: fmt(a.linkedItem) })),
-      members: incoming.filter(a => a.linkType === 'belongs_to').map(a => ({ id: a.id, item: fmt(a.item) })),
+      contains: incoming.filter(a => a.linkType === 'belongs_to').map(a => ({ id: a.id, item: fmt(a.item) })),
       relatesTo: [
         ...outgoing.filter(a => a.linkType === 'relates_to').map(a => ({ id: a.id, item: fmt(a.linkedItem) })),
         ...incoming.filter(a => a.linkType === 'relates_to').map(a => ({ id: a.id, item: fmt(a.item) })),
@@ -1120,6 +1137,7 @@ export class WorkItemsService {
       blocks: incoming.filter(a => a.linkType === 'blocks').map(a => ({ id: a.id, item: fmt(a.item) })),
       blockedBy: outgoing.filter(a => a.linkType === 'blocks').map(a => ({ id: a.id, item: fmt(a.linkedItem) })),
       causedBy: outgoing.filter(a => a.linkType === 'caused_by').map(a => ({ id: a.id, item: fmt(a.linkedItem) })),
+      causes: incoming.filter(a => a.linkType === 'caused_by').map(a => ({ id: a.id, item: fmt(a.item) })),
     };
   }
 
@@ -1182,7 +1200,6 @@ export class WorkItemsService {
           category: (epic.status as any).category,
           color: (epic.status as any).color,
         } : null,
-        color: epic.color,
         assignee: epic.assignee ? {
           id: epic.assignee.id,
           displayName: (epic.assignee as any).displayName,
@@ -1320,7 +1337,7 @@ export class WorkItemsService {
         SELECT wi.id, wi.item_type AS "itemType", wi.parent_id AS "parentId",
                wi.title, wi.priority, wi.story_points AS "storyPoints",
                wi.status_id AS "statusId", wi.sprint_id AS "sprintId",
-               wi.item_number AS "itemNumber", wi.color, wi.sort_order AS "sortOrder",
+               wi.item_number AS "itemNumber", wi.sort_order AS "sortOrder",
                wi.assignee_id AS "assigneeId", wi.end_date AS "endDate",
                ps.name AS "statusName", ps.category AS "statusCategory", ps.color AS "statusColor"
         FROM work_items wi
@@ -1338,7 +1355,7 @@ export class WorkItemsService {
         SELECT wi.id, wi.item_type AS "itemType", wi.parent_id AS "parentId",
                wi.title, wi.priority, wi.story_points AS "storyPoints",
                wi.status_id AS "statusId", wi.sprint_id AS "sprintId",
-               wi.item_number AS "itemNumber", wi.color, wi.sort_order AS "sortOrder",
+               wi.item_number AS "itemNumber", wi.sort_order AS "sortOrder",
                wi.assignee_id AS "assigneeId", wi.end_date AS "endDate",
                ps.name AS "statusName", ps.category AS "statusCategory", ps.color AS "statusColor"
         FROM work_items wi
@@ -1366,7 +1383,6 @@ export class WorkItemsService {
         title: item.title,
         priority: item.priority,
         storyPoints: item.storyPoints,
-        color: item.color,
         status: { id: item.statusId, name: item.statusName, category: item.statusCategory, color: item.statusColor },
         parentId: item.parentId,
         sprintId: item.sprintId,
@@ -1575,7 +1591,7 @@ export class WorkItemsService {
    * The canonical Trackero hierarchy model (Task 5.6 reconciliation):
    *   - `subtask` is the ONLY item type that uses `parent_id`. A subtask
    *     MUST have a parent. The parent's itemType must be one of
-   *     `task` | `story` | `epic`.
+   *     `task` | `story` | `epic` | `bug`.
    *   - All non-subtask items (`epic`, `story`, `task`, `bug`) have
    *     `parent_id = NULL`. Cross-type linkage (epic↔story, story↔task,
    *     epic↔task, epic↔bug, etc.) lives in `work_item_associations`
@@ -1597,7 +1613,7 @@ export class WorkItemsService {
       if (parent === null) {
         throw new AppLogicException('SUBTASK_REQUIRES_PARENT', HttpStatus.BAD_REQUEST);
       }
-      if (!['task', 'story', 'epic'].includes(parent.itemType)) {
+      if (!['task', 'story', 'epic', 'bug'].includes(parent.itemType)) {
         throw new AppLogicException('INVALID_PARENT_CHILD_TYPE', HttpStatus.BAD_REQUEST,
           `A ${parent.itemType} cannot be parent of a subtask`);
       }
@@ -1689,7 +1705,7 @@ export class WorkItemsService {
    * Validates whether a work item can be deleted.
    *
    * Under the post-5.6 canonical model the only items that use `parent_id` are
-   * subtasks, and a subtask's parent may be a `task`, `story`, or `epic`. So
+   * subtasks, and a subtask's parent may be a `task`, `story`, `epic`, or `bug`. So
    * the only "blocking children" any non-leaf item can carry are direct
    * subtasks. The rule is symmetric across all three valid subtask parents:
    * an item with direct subtask children cannot be deleted — the subtasks
@@ -1708,11 +1724,11 @@ export class WorkItemsService {
    */
   async validateDeletion(item: WorkItem): Promise<void> {
     // Leaf types: always deletable
-    if (item.itemType === 'subtask' || item.itemType === 'bug') {
+    if (item.itemType === 'subtask') {
       return;
     }
 
-    // epic | story | task — block if direct subtask children exist.
+    // epic | story | task | bug — block if direct subtask children exist.
     // Phase 10 — soft-deleted children don't block parent deletion; once a
     // subtask is soft-deleted it's invisible to the rest of the app, so the
     // "no orphan subtask" invariant is satisfied by the filter below.
@@ -1725,7 +1741,7 @@ export class WorkItemsService {
       // Use the type-specific code where one exists (preserves existing API
       // contract for story/task); fall back to STORY_HAS_DIRECT_SUBTASKS for
       // epic — same shape, same HTTP status.
-      if (item.itemType === 'task') {
+      if (item.itemType === 'task' || item.itemType === 'bug') {
         throw new AppLogicException('TASK_HAS_SUBTASKS', HttpStatus.BAD_REQUEST);
       }
       throw new AppLogicException('STORY_HAS_DIRECT_SUBTASKS', HttpStatus.BAD_REQUEST);

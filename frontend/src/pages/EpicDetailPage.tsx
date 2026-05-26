@@ -40,7 +40,6 @@ interface EpicDetail {
   title: string;
   description: string | null;
   priority: string;
-  color: string;
   status: { id: number; name: string; category: string; color: string } | null;
   assignee: { id: number; displayName: string } | null;
   sprint: { id: number; name: string } | null;
@@ -370,7 +369,7 @@ export function EpicDetailPage() {
               <div className="w-full max-w-md h-2 rounded-full bg-neutral-100 dark:bg-dneutral-200 overflow-hidden">
                 <div
                   className="h-full rounded-full transition-all duration-300"
-                  style={{ width: `${epic.progress.progressPercent}%`, backgroundColor: epic.color }}
+                  style={{ width: `${epic.progress.progressPercent}%`, backgroundColor: 'var(--accent)' }}
                 />
               </div>
             </div>
@@ -507,6 +506,7 @@ export function EpicDetailPage() {
           projectPrefix={projectPrefix}
           onClose={() => setSelectedTaskId(null)}
           onUpdated={loadData}
+          onNavigateToTask={(id) => setSelectedTaskId(id)}
         />
       )}
 

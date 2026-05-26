@@ -46,11 +46,6 @@ export class UpdateWorkItemDto {
   endDate?: string | null;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(7)
-  color?: string;
-
-  @IsOptional()
   @IsArray()
   @IsInt({ each: true })
   labelIds?: number[];

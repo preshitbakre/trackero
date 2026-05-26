@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import {
   DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors,
 } from '@dnd-kit/core';
@@ -8,17 +8,19 @@ import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/auth.store';
 import { useRole } from '../hooks/useRole';
 import { ReadOnlyBanner } from '../components/common/ReadOnlyBanner';
+import { Avatar } from '../components/ui/Avatar';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { TaskDetailPanel } from '../components/tasks/TaskDetailPanel';
 import { RowSkeleton } from '../components/common/Skeleton';
 import { ErrorState } from '../components/common/ErrorState';
-import { PRIORITY_BORDER_COLORS, PRIORITY_BADGE_COLORS, STATUS_BADGE_COLORS, AVATAR_COLORS } from '../lib/colors';
+import { PRIORITY_BORDER_COLORS, PRIORITY_BADGE_COLORS, STATUS_BADGE_COLORS } from '../lib/colors';
 import { CreateItemDialog } from '../components/common/CreateItemDialog';
 import { LabelList } from '../components/ui/LabelBadge';
 import { TypeTag } from '../components/ui';
 import { calculateMidpoint } from '../lib/lexorank';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
+import { Drawer } from '../components/common/Drawer';
 
 interface BacklogTask {
   id: number;
@@ -46,8 +48,8 @@ interface SprintTarget {
   totalPoints: number;
 }
 
-function SortableTaskRow({ task, selected, onSelect, onClick, subtaskCount, collapsed, onToggleCollapse, canEdit = true, sprints = [], onMoveSprint }: {
-  task: BacklogTask; selected: boolean; onSelect: (id: number) => void; onClick: () => void;
+function SortableTaskRow({ task, selected, highlighted, onSelect, onClick, subtaskCount, collapsed, onToggleCollapse, canEdit = true, sprints = [], onMoveSprint }: {
+  task: BacklogTask; selected: boolean; highlighted?: boolean; onSelect: (id: number) => void; onClick: () => void;
   subtaskCount?: number; collapsed?: boolean; onToggleCollapse?: () => void; canEdit?: boolean;
   sprints?: SprintTarget[]; onMoveSprint?: (taskId: number, sprintId: number) => void;
 }) {
@@ -60,7 +62,6 @@ function SortableTaskRow({ task, selected, onSelect, onClick, subtaskCount, coll
     borderLeftWidth: 4,
   };
   const badge = PRIORITY_BADGE_COLORS[task.priority];
-  const avatar = task.assignee ? AVATAR_COLORS[task.assignee.id % 4] : null;
 
   const typeKind = (task.itemType || task.type || 'task') as 'task' | 'bug' | 'story' | 'epic' | 'subtask';
   return (
@@ -71,7 +72,7 @@ function SortableTaskRow({ task, selected, onSelect, onClick, subtaskCount, coll
       // cards or drop shadows. The lilac-tint selected state matches the
       // design's row-highlight treatment.
       className={`flex items-center gap-3 px-4 py-2 border-b border-rule transition-colors ${
-        selected ? 'bg-lilac-tint/60' : 'hover:bg-paper/50'
+        highlighted ? 'bg-lilac-tint/60' : selected ? 'bg-lilac-tint/40' : 'hover:bg-paper/50'
       }`}
     >
       {canEdit && (
@@ -99,7 +100,7 @@ function SortableTaskRow({ task, selected, onSelect, onClick, subtaskCount, coll
 
       <TypeTag kind={typeKind} size="sm" />
 
-      <span className="text-[12px] font-mono text-faint flex-shrink-0 w-[90px]">
+      <span onClick={onClick} className="text-[12px] font-mono text-faint flex-shrink-0 w-[90px] cursor-pointer hover:text-lilac-dark">
         {task.itemKey ?? `#${task.itemNumber}`}
       </span>
 
@@ -136,15 +137,9 @@ function SortableTaskRow({ task, selected, onSelect, onClick, subtaskCount, coll
         {task.storyPoints != null && task.storyPoints > 0 ? task.storyPoints : '—'}
       </span>
 
-      <div className="flex-shrink-0 w-7 flex justify-end">
-        {avatar && task.assignee ? (
-          <div
-            className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold"
-            style={{ background: avatar.bg, color: avatar.color }}
-            title={task.assignee.displayName}
-          >
-            {task.assignee.displayName?.charAt(0)?.toUpperCase() || '?'}
-          </div>
+      <div className="flex-shrink-0 w-7 flex justify-end" title={task.assignee?.displayName}>
+        {task.assignee ? (
+          <Avatar user={task.assignee} size="xs" />
         ) : (
           <span className="text-faint text-[12px]">—</span>
         )}
@@ -173,8 +168,16 @@ export function BacklogPage() {
   const [tasks, setTasks] = useState<BacklogTask[]>([]);
   const [sprints, setSprints] = useState<SprintTarget[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
-  const [defaultSubtaskId, setDefaultSubtaskId] = useState<number | undefined>(undefined);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedTaskId = searchParams.get('task') ? Number(searchParams.get('task')) : null;
+  const selectTask = useCallback((id: number | null) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (id) next.set('task', String(id));
+      else next.delete('task');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
   const [showCreate, setShowCreate] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -229,7 +232,10 @@ export function BacklogPage() {
     return () => document.removeEventListener('shortcut-create-item', handler as EventListener);
   }, []);
 
-  const handleCreated = () => {
+  const handleCreated = (createdId?: number) => {
+    if (createdId) {
+      selectTask(createdId);
+    }
     setShowCreate(false);
     loadData();
   };
@@ -336,7 +342,7 @@ export function BacklogPage() {
     <DndContext sensors={canEdit ? sensors : []} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={(e) => { handleDragEnd(e).finally(() => setActiveTask(null)); }}>
     <div className="flex h-full">
       {/* Main backlog list */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className={`flex-1 flex flex-col overflow-hidden p-6 ${selectedTaskId || showCreate ? 'mr-[480px]' : ''}`}>
         {/* STEP 6: Page header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-baseline gap-4 flex-wrap">
@@ -368,15 +374,6 @@ export function BacklogPage() {
           </div>
         )}
 
-        {canEdit && showCreate && projectId && (
-          <CreateItemDialog
-            projectId={parseInt(projectId)}
-            defaultType="task"
-            onClose={() => setShowCreate(false)}
-            onCreated={handleCreated}
-          />
-        )}
-
         {error && <ErrorState message="Failed to load backlog" onRetry={loadData} />}
 
         {loading && tasks.length === 0 && !error && (
@@ -385,9 +382,10 @@ export function BacklogPage() {
           </div>
         )}
 
+        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
         {/* Editorial table header — widths mirror SortableTaskRow flex items */}
         {parentTasks.length > 0 && (
-          <div className="flex items-center gap-3 px-4 pb-1 mb-0 border-b-2 border-rule text-[10px] uppercase tracking-[0.16em] text-faint font-semibold">
+          <div className="sticky top-0 z-10 bg-paper flex items-center gap-3 px-4 pb-1 mb-0 border-b-2 border-rule text-[10px] uppercase tracking-[0.16em] text-faint font-semibold">
             {canEdit && <span className="w-3.5 flex-shrink-0" />}{/* checkbox */}
             {canEdit && <span className="w-3.5 flex-shrink-0" />}{/* drag handle */}
             <span className="w-3 flex-shrink-0" />{/* collapse toggle */}
@@ -412,8 +410,9 @@ export function BacklogPage() {
                   <SortableTaskRow
                     task={task}
                     selected={selectedIds.has(task.id)}
+                    highlighted={selectedTaskId === task.id}
                     onSelect={toggleSelect}
-                    onClick={() => { setSelectedTaskId(task.id); setDefaultSubtaskId(undefined); }}
+                    onClick={() => selectTask(task.id)}
                     subtaskCount={subtasks.length}
                     collapsed={isCollapsed}
                     onToggleCollapse={subtasks.length > 0 ? () => toggleParentCollapse(task.id) : undefined}
@@ -427,13 +426,13 @@ export function BacklogPage() {
                     // structure reads at a glance without extra chrome.
                     <div className="pl-10 border-l border-rule/70">
                       {subtasks.map((st) => {
-                        const stAvatar = st.assignee ? AVATAR_COLORS[st.assignee.id % 4] : null;
                         const stBadge = PRIORITY_BADGE_COLORS[st.priority];
                         return (
                           <div
                             key={st.id}
-                            onClick={() => { setSelectedTaskId(task.id); setDefaultSubtaskId(st.id); }}
-                            className="flex items-center gap-3 px-4 py-1.5 border-b border-rule/60 cursor-pointer hover:bg-paper/50 transition-colors"
+                            className={`flex items-center gap-3 px-4 py-1.5 border-b border-rule/60 transition-colors ${
+                              selectedTaskId === st.id ? 'bg-lilac-tint/60' : 'hover:bg-paper/50'
+                            }`}
                           >
                             {canEdit && (
                               <input
@@ -446,10 +445,10 @@ export function BacklogPage() {
                             )}
                             <span className="text-faint text-[12px]">└</span>
                             <TypeTag kind="subtask" size="sm" />
-                            <span className="text-[12px] font-mono text-faint w-[90px] flex-shrink-0">
+                            <span onClick={() => selectTask(st.id)} className="text-[12px] font-mono text-faint w-[90px] flex-shrink-0 cursor-pointer hover:text-lilac-dark">
                               {st.itemKey ?? `#${st.itemNumber}`}
                             </span>
-                            <span className="flex-1 min-w-0 text-[13px] text-text truncate">{st.title}</span>
+                            <span onClick={() => selectTask(st.id)} className="flex-1 min-w-0 text-[13px] text-text truncate cursor-pointer hover:text-lilac-dark">{st.title}</span>
                             {stBadge ? (
                               <div className="flex items-center gap-1.5 flex-shrink-0 w-[70px]">
                                 <span className="w-1.5 h-1.5 rounded-full" style={{ background: stBadge.color }} />
@@ -470,15 +469,9 @@ export function BacklogPage() {
                             <span className="text-[13px] tabular-nums text-text w-[40px] text-right flex-shrink-0">
                               {st.storyPoints != null && st.storyPoints > 0 ? st.storyPoints : '—'}
                             </span>
-                            <div className="flex-shrink-0 w-7 flex justify-end">
-                              {stAvatar && st.assignee ? (
-                                <div
-                                  className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold"
-                                  style={{ background: stAvatar.bg, color: stAvatar.color }}
-                                  title={st.assignee.displayName}
-                                >
-                                  {st.assignee.displayName?.charAt(0)?.toUpperCase() || '?'}
-                                </div>
+                            <div className="flex-shrink-0 w-7 flex justify-end" title={st.assignee?.displayName}>
+                              {st.assignee ? (
+                                <Avatar user={st.assignee} size="xs" />
                               ) : (
                                 <span className="text-faint text-[11px]">—</span>
                               )}
@@ -506,6 +499,7 @@ export function BacklogPage() {
             <p className="text-[14px] text-neutral-400">All tasks have been assigned to sprints. Nice work!</p>
           </div>
         )}
+        </div>
       </div>
 
     </div>
@@ -524,16 +518,30 @@ export function BacklogPage() {
     </DragOverlay>
     </DndContext>
 
-      {selectedTaskId && projectId && (
-        <TaskDetailPanel
-          projectId={parseInt(projectId)}
-          taskId={selectedTaskId}
-          projectPrefix=""
-          defaultSubtaskId={defaultSubtaskId}
-          onClose={() => { setSelectedTaskId(null); setDefaultSubtaskId(undefined); }}
-          onUpdated={loadData}
-        />
-      )}
+      <Drawer
+        open={!!(selectedTaskId || showCreate)}
+        onClose={() => { selectTask(null); setShowCreate(false); }}
+      >
+        {showCreate && projectId ? (
+          <CreateItemDialog
+            projectId={parseInt(projectId)}
+            defaultType="task"
+            onClose={() => setShowCreate(false)}
+            onCreated={handleCreated}
+            bare
+          />
+        ) : selectedTaskId && projectId ? (
+          <TaskDetailPanel
+            projectId={parseInt(projectId)}
+            taskId={selectedTaskId}
+            projectPrefix=""
+            onClose={() => selectTask(null)}
+            onUpdated={loadData}
+            onNavigateToTask={(id) => selectTask(id)}
+            bare
+          />
+        ) : null}
+      </Drawer>
 
       {showBulkDeleteConfirm && (
         <ConfirmDialog

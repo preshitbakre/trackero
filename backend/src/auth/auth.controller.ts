@@ -36,6 +36,13 @@ export class AuthController {
     return this.authService.getSetupStatus();
   }
 
+  @Get('preflight')
+  @Public()
+  @ResponseCode('PREFLIGHT_OK')
+  async preflight() {
+    return this.authService.getPreflight();
+  }
+
   @Get('invite-info')
   @Public()
   @Throttle({ default: { limit: parseInt(process.env.AUTH_THROTTLE_LIMIT || '5', 10), ttl: parseInt(process.env.AUTH_THROTTLE_TTL || '60000', 10) } })

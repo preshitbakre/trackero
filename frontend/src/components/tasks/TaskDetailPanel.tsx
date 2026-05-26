@@ -70,9 +70,9 @@ interface TaskDetailPanelProps {
   projectPrefix: string;
   onClose: () => void;
   onUpdated?: () => void;
-  isSubtask?: boolean;
-  parentTaskKey?: string;
-  defaultSubtaskId?: number;
+  onNavigateToTask?: (taskId: number) => void;
+  /** When true, renders content without its own Drawer wrapper (caller provides the Drawer). */
+  bare?: boolean;
 }
 
 interface CommentItem {
@@ -91,7 +91,7 @@ interface AttachmentItem {
   createdAt: string;
 }
 
-export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onUpdated, isSubtask, parentTaskKey, defaultSubtaskId }: TaskDetailPanelProps) {
+export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onUpdated, onNavigateToTask, bare = false }: TaskDetailPanelProps) {
   const navigate = useNavigate();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [editing, setEditing] = useState(false);
@@ -102,8 +102,6 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
   const [newComment, setNewComment] = useState('');
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [storyPoints, setStoryPoints] = useState<string>('');
-  const [openSubtaskId, setOpenSubtaskId] = useState<number | null>(defaultSubtaskId || null);
-  const [resolvedParentId, setResolvedParentId] = useState<number | null>(null);
   const [checklistItems, setChecklistItems] = useState<{ id: number; title: string; isCompleted: boolean }[]>([]);
   const [showAddChecklist, setShowAddChecklist] = useState(false);
   const [newChecklistTitle, setNewChecklistTitle] = useState('');
@@ -119,8 +117,12 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
   const [assocSearchQuery, setAssocSearchQuery] = useState('');
   const [assocSearchResults, setAssocSearchResults] = useState<any[]>([]);
   const [assocSearching, setAssocSearching] = useState(false);
+  const [assocHasMore, setAssocHasMore] = useState(false);
+  const [assocPage, setAssocPage] = useState(1);
+  const [assocLoadingMore, setAssocLoadingMore] = useState(false);
   const [projectMembers, setProjectMembers] = useState<{ id: number; displayName: string; avatarUrl: string | null }[]>([]);
   const assocSearchSeqRef = useRef(0);
+  const assocListRef = useRef<HTMLDivElement>(null);
   const { saveStatus, flushDebounce, debouncedFieldChange, handleFieldChange, saveAssignee } = useTaskAutoSave({ projectId, taskId, onUpdated });
 
   // Race-protected loader for the current taskId. Inlined ignore-aware wrappers
@@ -132,12 +134,12 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
       try {
         const { data } = await apiClient.get(`/projects/${projectId}/items/${taskId}`);
         if (ignored) return;
-        if (!isSubtask && data.data.itemType === 'subtask' && data.data.parentId) {
-          setResolvedParentId(data.data.parentId);
-          return;
+        const taskData = data.data;
+        if (taskData.children && !taskData.subtasks) {
+          taskData.subtasks = taskData.children;
         }
-        setTask(data.data);
-        setTitle(data.data.title);
+        setTask(taskData);
+        setTitle(taskData.title);
         setStoryPoints(data.data.storyPoints != null ? String(data.data.storyPoints) : '');
         setChecklistItems(data.data.checklistItems || []);
       } catch (err) { console.error(err); }
@@ -221,7 +223,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
 
     let ignored = false;
     // Subtask parents: tasks + stories + epics (Task 5.6 alignment)
-    apiClient.get(`/projects/${projectId}/items?itemType=task,story,epic&limit=100&sort=updatedAt&order=DESC`)
+    apiClient.get(`/projects/${projectId}/items?itemType=task,story,epic,bug&limit=100&sort=updatedAt&order=DESC`)
       .then((res) => {
         if (ignored) return;
         const list = res.data.data?.list || [];
@@ -261,6 +263,9 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
   const loadTask = async () => {
     try {
       const { data } = await apiClient.get(`/projects/${projectId}/items/${taskId}`);
+      if (data.data.children && !data.data.subtasks) {
+        data.data.subtasks = data.data.children;
+      }
       setTask(data.data);
       setTitle(data.data.title);
       setStoryPoints(data.data.storyPoints != null ? String(data.data.storyPoints) : '');
@@ -275,22 +280,55 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
     } catch (err) { console.error(err); }
   };
 
+  const ASSOC_PAGE_SIZE = 20;
+
+  const fetchAssocPage = async (q: string, page: number, seq: number) => {
+    const params = q.length >= 2
+      ? `search=${encodeURIComponent(q)}&limit=${ASSOC_PAGE_SIZE}&page=${page}`
+      : `limit=${ASSOC_PAGE_SIZE}&page=${page}&sort=updatedAt&order=DESC`;
+    const { data } = await apiClient.get(`/projects/${projectId}/items?${params}`);
+    if (seq !== assocSearchSeqRef.current) return null;
+    const list = (data.data.list || []).filter((t: any) => t.id !== taskId);
+    const total = data.data.total ?? 0;
+    return { list, hasMore: page * ASSOC_PAGE_SIZE < total };
+  };
+
   const handleAssocSearch = async (q: string) => {
     setAssocSearchQuery(q);
     setAssocSearching(true);
+    setAssocPage(1);
     const seq = ++assocSearchSeqRef.current;
     try {
-      const params = q.length >= 2 ? `search=${encodeURIComponent(q)}&limit=20` : 'limit=20&sort=updatedAt&order=DESC';
-      const { data } = await apiClient.get(`/projects/${projectId}/items?${params}`);
-      if (seq !== assocSearchSeqRef.current) return;
-      setAssocSearchResults((data.data.list || []).filter((t: any) => t.id !== taskId));
+      const result = await fetchAssocPage(q, 1, seq);
+      if (!result) return;
+      setAssocSearchResults(result.list);
+      setAssocHasMore(result.hasMore);
     } catch (err) { console.error(err); }
     if (seq === assocSearchSeqRef.current) setAssocSearching(false);
   };
 
+  const handleAssocLoadMore = async () => {
+    if (assocLoadingMore || !assocHasMore) return;
+    setAssocLoadingMore(true);
+    const nextPage = assocPage + 1;
+    const seq = assocSearchSeqRef.current;
+    try {
+      const result = await fetchAssocPage(assocSearchQuery, nextPage, seq);
+      if (!result) return;
+      setAssocSearchResults((prev) => [...prev, ...result.list]);
+      setAssocHasMore(result.hasMore);
+      setAssocPage(nextPage);
+    } catch (err) { console.error(err); }
+    setAssocLoadingMore(false);
+  };
+
   const handleAddAssociation = async (linkedItemId: number) => {
     try {
-      await apiClient.post(`/projects/${projectId}/items/${taskId}/associations`, { linkedItemId, linkType: addAssocLinkType });
+      if (addAssocLinkType === 'contains') {
+        await apiClient.post(`/projects/${projectId}/items/${linkedItemId}/associations`, { linkedItemId: taskId, linkType: 'belongs_to' });
+      } else {
+        await apiClient.post(`/projects/${projectId}/items/${taskId}/associations`, { linkedItemId, linkType: addAssocLinkType });
+      }
       setShowAddAssociation(false);
       setAssocSearchQuery('');
       setAssocSearchResults([]);
@@ -400,11 +438,9 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
   const handleCreateSubtaskAndOpen = async () => {
     if (!newSubtaskTitle.trim()) return;
     try {
-      const { data } = await apiClient.post(`/projects/${projectId}/items`, { itemType: 'subtask', parentId: taskId, title: newSubtaskTitle.trim() });
+      await apiClient.post(`/projects/${projectId}/items`, { itemType: 'subtask', parentId: taskId, title: newSubtaskTitle.trim() });
       setNewSubtaskTitle('');
       setShowAddSubtask(false);
-      const newId = data.data.item?.id;
-      if (newId) setOpenSubtaskId(newId);
       loadTask();
       onUpdated?.();
     } catch (err: any) {
@@ -412,32 +448,10 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
     }
   };
 
-  if (resolvedParentId) {
-    return (
-      <TaskDetailPanel
-        key={`parent-${resolvedParentId}-sub-${taskId}`}
-        projectId={projectId}
-        taskId={resolvedParentId}
-        projectPrefix={projectPrefix}
-        onClose={onClose}
-        onUpdated={onUpdated}
-        defaultSubtaskId={taskId}
-      />
-    );
-  }
-
   const taskKey = task ? (projectPrefix ? `${projectPrefix}-${task.itemNumber}` : `#${task.itemNumber}`) : '';
-  const level = isSubtask ? 1 : 0;
-  const parentKey = task ? (parentTaskKey || (task.parentInfo ? task.parentInfo.taskKey : null)) : null;
 
-  return (
+  const innerContent = (
     <>
-      <Drawer
-        open
-        onClose={() => { setOpenSubtaskId(null); onClose(); }}
-        level={level}
-        pushed={!!openSubtaskId}
-      >
         {!task ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-neutral-400">Loading...</div>
@@ -448,15 +462,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
           <div className="flex items-center justify-between px-4 py-2">
             <div className="flex items-center gap-3">
               <TypeTag kind={(task.itemType || 'task') as TypeTagKind} size="md" />
-              {isSubtask && parentKey ? (
-                <div className="flex items-center gap-1.5 text-[16px] font-mono">
-                  <button onClick={onClose} className="text-neutral-400 hover:text-lilac-dark">{parentKey}</button>
-                  <span className="text-neutral-300 dark:text-dneutral-400">→</span>
-                  <span className="text-neutral-700 dark:text-dneutral-700">{taskKey}</span>
-                </div>
-              ) : (
-                <span className="text-[16px] font-mono text-neutral-400">{taskKey}</span>
-              )}
+              <span className="text-[16px] font-mono text-neutral-400">{taskKey}</span>
               <SaveStatusIndicator status={saveStatus} />
             </div>
             <div className="flex items-center gap-1">
@@ -471,17 +477,15 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                   </svg>
                 </button>
               )}
-              {!isSubtask && (
-                <button
-                  onClick={() => { onClose(); navigate(`/projects/${projectId}/tasks/${taskId}`); }}
-                  className="p-1 hover:bg-neutral-100 dark:hover:bg-dneutral-200 rounded text-neutral-400"
-                  title="Open full screen"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
-                  </svg>
-                </button>
-              )}
+              <button
+                onClick={() => { onClose(); navigate(`/projects/${projectId}/tasks/${taskId}`); }}
+                className="p-1 hover:bg-neutral-100 dark:hover:bg-dneutral-200 rounded text-neutral-400"
+                title="Open full screen"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+                </svg>
+              </button>
               <button onClick={onClose} className="p-1 hover:bg-neutral-100 dark:hover:bg-dneutral-200 rounded text-neutral-400">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -702,7 +706,15 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                   <div>
                     <span className="text-[12px] text-faint uppercase">Part of</span>
                     {associations.belongsTo.map((a: any) => (
-                      <AssociationRow key={a.id} assoc={a} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} />
+                      <AssociationRow key={a.id} assoc={a} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} onClick={() => onNavigateToTask?.(a.item?.id)} />
+                    ))}
+                  </div>
+                )}
+                {associations.contains?.length > 0 && (
+                  <div>
+                    <span className="text-[12px] text-faint uppercase">Contains</span>
+                    {associations.contains.map((a: any) => (
+                      <AssociationRow key={a.id} assoc={a} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} onClick={() => onNavigateToTask?.(a.item?.id)} />
                     ))}
                   </div>
                 )}
@@ -710,7 +722,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                   <div>
                     <span className="text-[12px] text-faint uppercase">Blocks</span>
                     {associations.blocks.map((a: any) => (
-                      <AssociationRow key={a.id} assoc={a} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} />
+                      <AssociationRow key={a.id} assoc={a} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} onClick={() => onNavigateToTask?.(a.item?.id)} />
                     ))}
                   </div>
                 )}
@@ -718,7 +730,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                   <div>
                     <span className="text-[12px] text-faint uppercase">Blocked by</span>
                     {associations.blockedBy.map((a: any) => (
-                      <AssociationRow key={a.id} assoc={a} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} />
+                      <AssociationRow key={a.id} assoc={a} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} onClick={() => onNavigateToTask?.(a.item?.id)} />
                     ))}
                   </div>
                 )}
@@ -726,7 +738,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                   <div>
                     <span className="text-[12px] text-faint uppercase">Related</span>
                     {associations.relatesTo.map((a: any) => (
-                      <AssociationRow key={a.id} assoc={a} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} />
+                      <AssociationRow key={a.id} assoc={a} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} onClick={() => onNavigateToTask?.(a.item?.id)} />
                     ))}
                   </div>
                 )}
@@ -734,7 +746,15 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                   <div>
                     <span className="text-[12px] text-faint uppercase">Caused by</span>
                     {associations.causedBy.map((a: any) => (
-                      <AssociationRow key={a.id} assoc={a} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} />
+                      <AssociationRow key={a.id} assoc={a} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} onClick={() => onNavigateToTask?.(a.item?.id)} />
+                    ))}
+                  </div>
+                )}
+                {associations.causes?.length > 0 && (
+                  <div>
+                    <span className="text-[12px] text-faint uppercase">Causes</span>
+                    {associations.causes.map((a: any) => (
+                      <AssociationRow key={a.id} assoc={a} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} onClick={() => onNavigateToTask?.(a.item?.id)} />
                     ))}
                   </div>
                 )}
@@ -750,6 +770,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                 <div className="flex gap-2 flex-wrap">
                   {[
                     { value: 'belongs_to', label: 'Part of' },
+                    { value: 'contains', label: 'Contains' },
                     { value: 'relates_to', label: 'Related' },
                     { value: 'blocks', label: 'Blocks' },
                     { value: 'caused_by', label: 'Caused by' },
@@ -772,7 +793,14 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                   className="!text-[14px] !py-1.5 !h-[32px]"
                 />
                 {assocSearching && <p className="text-[12px] text-faint">Searching...</p>}
-                <div className="max-h-[240px] overflow-y-auto border border-rule rounded">
+                <div
+                  ref={assocListRef}
+                  className="max-h-[240px] overflow-y-auto border border-rule rounded"
+                  onScroll={(e) => {
+                    const el = e.currentTarget;
+                    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) handleAssocLoadMore();
+                  }}
+                >
                   {assocSearchResults.map((t: any) => (
                     <button key={t.id} onClick={() => handleAddAssociation(t.id)}
                       className="w-full text-left flex items-center gap-2 px-3 py-2 border-b border-rule/60 last:border-b-0 hover:bg-lilac-tint transition-colors">
@@ -781,7 +809,8 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                       <span className="text-[14px] text-text truncate">{t.title}</span>
                     </button>
                   ))}
-                  {!assocSearching && assocSearchResults.length === 0 && (
+                  {assocLoadingMore && <p className="text-[12px] text-faint px-3 py-2 text-center">Loading more...</p>}
+                  {!assocSearching && !assocLoadingMore && assocSearchResults.length === 0 && (
                     <p className="text-[12px] text-faint px-3 py-2">No items found</p>
                   )}
                 </div>
@@ -790,8 +819,8 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
             )}
           </div>
 
-          {/* Subtasks — only on parent tasks (never on subtasks) */}
-          {!isSubtask && task.itemType !== 'subtask' && (
+          {/* Subtasks — only on parent tasks */}
+          {task.itemType !== 'subtask' && (
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-[16px] font-medium text-neutral-400">
@@ -801,7 +830,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
               {task.subtasks && task.subtasks.length > 0 && (
                 <div className="space-y-1 mb-2">
                   {task.subtasks.map((st) => (
-                    <button key={st.id} onClick={() => setOpenSubtaskId(st.id)} className="flex items-center gap-2 text-[16px] py-1.5 px-2 rounded hover:bg-neutral-100 dark:hover:bg-dneutral-200 w-full text-left">
+                    <button key={st.id} onClick={() => onNavigateToTask?.(st.id)} className="flex items-center gap-2 text-[16px] py-1.5 px-2 rounded hover:bg-neutral-100 dark:hover:bg-dneutral-200 w-full text-left">
                       <span className={st.completedAt ? 'text-success' : 'text-neutral-400'}>
                         {st.completedAt ? '☑' : '☐'}
                       </span>
@@ -952,9 +981,17 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
         </DrawerBody>
           </>
         )}
-      </Drawer>
+    </>
+  );
 
-      {/* Stacked subtask drawer */}
+  return (
+    <>
+      {bare ? innerContent : (
+        <Drawer open onClose={onClose}>
+          {innerContent}
+        </Drawer>
+      )}
+
       {showDeleteConfirm && (
         <ConfirmDialog
           title="Delete item"
@@ -965,33 +1002,21 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
           onCancel={() => setShowDeleteConfirm(false)}
         />
       )}
-
-      {openSubtaskId && !isSubtask && (
-        <TaskDetailPanel
-          projectId={projectId}
-          taskId={openSubtaskId}
-          projectPrefix={projectPrefix}
-          isSubtask
-          parentTaskKey={taskKey}
-          onClose={() => setOpenSubtaskId(null)}
-          onUpdated={() => { loadTask(); onUpdated?.(); }}
-        />
-      )}
     </>
   );
 }
 
-function AssociationRow({ assoc, onRemove }: { assoc: any; onRemove?: () => void }) {
+function AssociationRow({ assoc, onRemove, onClick }: { assoc: any; onRemove?: () => void; onClick?: () => void }) {
   const item = assoc.item;
   if (!item) return null;
 
   return (
-    <div className="group flex items-center gap-2 text-[14px] py-1 px-2 rounded hover:bg-lilac-tint">
+    <div className="group flex items-center gap-2 text-[14px] py-1 px-2 rounded hover:bg-lilac-tint cursor-pointer" onClick={onClick}>
       <TypeTag kind={(item.itemType || 'task') as TypeTagKind} size="sm" />
       <span className="font-mono text-[12px] text-mute flex-shrink-0">{item.itemKey}</span>
       <span className="text-text truncate flex-1">{item.title}</span>
       {onRemove && (
-        <button onClick={onRemove} className="text-faint hover:text-danger opacity-0 group-hover:opacity-100 text-[14px]">x</button>
+        <button onClick={(e) => { e.stopPropagation(); onRemove(); }} className="text-faint hover:text-danger opacity-0 group-hover:opacity-100 text-[14px]">x</button>
       )}
     </div>
   );

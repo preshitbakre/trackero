@@ -52,7 +52,7 @@ export class WorkItem {
   @Column({ name: 'parent_id', type: 'int', nullable: true })
   parentId: number | null;
   // Canonical Trackero hierarchy model (Task 5.6 reconciliation):
-  //   - subtask: REQUIRED. Points at a task / story / epic.
+  //   - subtask: REQUIRED. Points at a task / story / epic / bug.
   //   - epic / story / task / bug: ALWAYS null. Cross-type linkage
   //     (epic→story, story→task, epic→task, epic→bug, …) lives in
   //     `work_item_associations` with link_type = 'belongs_to'.
@@ -130,13 +130,6 @@ export class WorkItem {
 
   @Column({ name: 'completed_at', type: 'timestamptz', nullable: true })
   completedAt: Date | null;
-
-  // =======================================
-  // EPIC-SPECIFIC
-  // =======================================
-
-  @Column({ length: 7, default: '#7C5CFC' })
-  color: string;
 
   // =======================================
   // SPRINT TRACKING

@@ -379,6 +379,7 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
           projectPrefix=""
           onClose={() => setSearchParams((prev) => { const p = new URLSearchParams(prev); p.delete('task'); return p; })}
           onUpdated={loadBoard}
+          onNavigateToTask={(id) => setSearchParams((prev) => { const p = new URLSearchParams(prev); p.set('task', String(id)); return p; })}
         />
       )}
 

@@ -357,6 +357,7 @@ export function StoryDetailPage() {
           projectPrefix={projectPrefix}
           onClose={() => setSelectedTaskId(null)}
           onUpdated={loadData}
+          onNavigateToTask={(id) => setSelectedTaskId(id)}
         />
       )}
 

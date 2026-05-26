@@ -47,7 +47,8 @@ export function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
-          <Route path="/setup" element={<SetupWizardPage />} />
+          <Route path="/setup" element={<Navigate to="/setup/1" replace />} />
+          <Route path="/setup/:step" element={<SetupWizardPage />} />
           <Route
             element={
               <ProtectedRoute>

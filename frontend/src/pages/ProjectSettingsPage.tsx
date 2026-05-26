@@ -109,7 +109,7 @@ export function ProjectSettingsPage() {
   const projectPrefix = project?.prefix ?? '';
 
   return (
-    <div className="px-6 pt-5 pb-6">
+    <div className="p-6">
       <div className="smallcaps text-faint mb-0.5">
         Project · {projectName}{projectPrefix ? ` · ${projectPrefix}` : ''}
       </div>

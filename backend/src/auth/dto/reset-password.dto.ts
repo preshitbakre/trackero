@@ -1,4 +1,5 @@
-import { IsString, MinLength, MaxLength } from 'class-validator';
+import { IsString, MaxLength } from 'class-validator';
+import { IsStrongPassword } from '../../common/decorators/is-strong-password.decorator';
 
 export class ResetPasswordDto {
   @IsString()
@@ -6,7 +7,6 @@ export class ResetPasswordDto {
   token: string;
 
   @IsString()
-  @MinLength(8)
-  @MaxLength(72)
+  @IsStrongPassword()
   newPassword: string;
 }

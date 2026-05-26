@@ -4,6 +4,7 @@ import { useAuthStore } from '../../store/auth.store';
 import { useRole } from '../../hooks/useRole';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { Avatar } from '../ui';
+import { Logo } from '../ui/Logo';
 
 interface Project {
   id: number;
@@ -55,26 +56,8 @@ export function TopBar({ currentProjectId, projects = [], onToggleSidebar, sideb
           (r=13, stroke 2), a 3.5px lilac quarter-arc from 12-o'clock
           clockwise to ~1:30, and a lilac dot capping the end of the arc.
           Plus the serif italic "trackero" wordmark with lilac period. */}
-      <Link to="/today" className="flex items-center gap-2 group flex-shrink-0">
-        <svg
-          className="w-5 h-5"
-          viewBox="0 0 32 32"
-          fill="none"
-          aria-hidden="true"
-        >
-          <circle cx="16" cy="16" r="13" stroke="var(--ink)" strokeWidth="2" />
-          <path
-            d="M16 3a13 13 0 0 1 11.26 6.5"
-            stroke="var(--accent)"
-            strokeWidth="3.5"
-            strokeLinecap="square"
-            fill="none"
-          />
-          <circle cx="27.26" cy="9.5" r="2.5" fill="var(--accent)" />
-        </svg>
-        <span className="serif-i text-[18px] leading-none text-ink tracking-tight hidden sm:inline">
-          trackero<span className="text-[var(--accent)]">.</span>
-        </span>
+      <Link to="/today" className="flex items-center group flex-shrink-0">
+        <Logo height={20} variant="dark" />
       </Link>
 
       {/* Breadcrumb. Design pattern: <Project ▾> · / · <Page>. The chevron

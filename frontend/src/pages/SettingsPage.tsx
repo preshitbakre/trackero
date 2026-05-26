@@ -164,9 +164,8 @@ export function SettingsPage() {
   const seatPct = activeUsers.length > 0 ? Math.min(100, Math.round((activeUsers.length / seatTarget) * 100)) : 0;
 
   return (
-    <div>
-      {/* Header — compact padding */}
-      <div className="px-6 pt-5 pb-3">
+    <div className="p-6">
+      <div>
         <div className="smallcaps text-faint mb-0.5">
           Instance · {typeof window !== 'undefined' ? window.location.hostname : 'trackero.local'} · admin only
         </div>

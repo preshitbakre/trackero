@@ -30,17 +30,15 @@ const PRIORITY_OPTIONS = [
   { value: 'none', label: 'None' },
 ];
 
-const DEFAULT_EPIC_COLORS = [
-  '#7C5CFC', '#88A9D6', '#D688D0', '#E05252',
-  '#E88A48', '#D6B588', '#4AADA8', '#88D68E',
-];
 
 interface CreateItemDialogProps {
   projectId: number;
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (createdId?: number) => void;
   defaultType?: ItemType;
   defaultParentId?: number;
+  /** When true, renders content without its own Drawer wrapper (caller provides the Drawer). */
+  bare?: boolean;
 }
 
 interface ParentOption {
@@ -56,6 +54,7 @@ export function CreateItemDialog({
   onCreated,
   defaultType = 'task',
   defaultParentId,
+  bare = false,
 }: CreateItemDialogProps) {
   const [itemType, setItemType] = useState<ItemType>(defaultType);
   const [title, setTitle] = useState('');
@@ -68,7 +67,6 @@ export function CreateItemDialog({
   const [storyPoints, setStoryPoints] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [color, setColor] = useState('#7C5CFC');
   const [labelIds, setLabelIds] = useState<number[]>([]);
   const [linkedItemId, setLinkedItemId] = useState('');
 
@@ -163,7 +161,6 @@ export function CreateItemDialog({
   const showParent = itemType === 'subtask';
   const showLinkTo = itemType === 'story' || itemType === 'task' || itemType === 'bug';
   const showSprint = itemType !== 'subtask';
-  const showColor = itemType === 'epic';
   const parentRequired = itemType === 'subtask';
 
   const parentComboOptions = [
@@ -196,10 +193,9 @@ export function CreateItemDialog({
       if (storyPoints) body.storyPoints = parseInt(storyPoints);
       if (startDate) body.startDate = startDate;
       if (endDate) body.endDate = endDate;
-      if (showColor) body.color = color;
       if (labelIds.length > 0) body.labelIds = labelIds;
 
-      await apiClient.post(`/projects/${projectId}/items`, body);
+      const res = await apiClient.post(`/projects/${projectId}/items`, body);
       queryClient.invalidateQueries({ queryKey: ['items'] });
       queryClient.invalidateQueries({ queryKey: ['epics'] });
       queryClient.invalidateQueries({ queryKey: ['stories'] });
@@ -208,7 +204,7 @@ export function CreateItemDialog({
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['sprints'] });
       toast(`${itemType.charAt(0).toUpperCase() + itemType.slice(1)} created`);
-      onCreated();
+      onCreated(res.data?.data?.item?.id);
     } catch (err: any) {
       setError(err.response?.data?.message || `Failed to create ${itemType}`);
     } finally { setLoading(false); }
@@ -216,8 +212,8 @@ export function CreateItemDialog({
 
   const labelClass = 'block text-[14px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1';
 
-  return (
-    <Drawer open onClose={onClose} width="w-[480px]">
+  const content = (
+    <>
       <DrawerHeader>
         <div className="flex items-center justify-between px-5 py-4">
           <h2 className="text-[20px] font-bold text-neutral-700 dark:text-dneutral-700">Create new item</h2>
@@ -294,19 +290,6 @@ export function CreateItemDialog({
             </div>
           )}
 
-          {/* Color picker (epic only) */}
-          {showColor && (
-            <div>
-              <label className={labelClass}>Color</label>
-              <div className="flex gap-2 items-center">
-                {DEFAULT_EPIC_COLORS.map((c) => (
-                  <button key={c} type="button" onClick={() => setColor(c)} className={`w-7 h-7 rounded-full transition-all ${color === c ? 'ring-2 ring-offset-2 scale-110' : 'hover:scale-105'}`} style={{ backgroundColor: c }} />
-                ))}
-                <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-7 h-7 rounded cursor-pointer border-0" title="Custom color" />
-              </div>
-            </div>
-          )}
-
           {/* Dates — start + end for all types */}
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -351,6 +334,14 @@ export function CreateItemDialog({
           </Button>
         </div>
       </DrawerFooter>
+    </>
+  );
+
+  if (bare) return content;
+
+  return (
+    <Drawer open onClose={onClose} width="w-[480px]">
+      {content}
     </Drawer>
   );
 }

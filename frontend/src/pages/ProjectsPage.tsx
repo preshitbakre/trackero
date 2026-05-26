@@ -114,7 +114,7 @@ export function ProjectsPage() {
   }, [projects]);
 
   return (
-    <div className="max-w-[1200px] mx-auto px-6 py-8">
+    <div className="p-6">
       {/* Header — instance eyebrow + italic-serif hero + right-side actions
           (Mine-only pill, search input, + New project button) per frame 3. */}
       <div className="flex items-end justify-between gap-6 mb-4 flex-wrap">
@@ -164,7 +164,7 @@ export function ProjectsPage() {
 
       {/* Filter tabs — counts embedded per frame 3
           (Active · 5 | Planning · 2 | Archived · 1 | All · 8). */}
-      <div className="flex items-center gap-1 mb-6 pb-2 border-b border-rule">
+      <div className="flex items-center gap-1 mb-6 pb-2">
         {FILTERS.map((f) => {
           const count = counts[f.countKey] ?? 0;
           const isActive = filter === f.key;
@@ -370,7 +370,7 @@ function ProjectCard({
         <div className="text-[12px] text-mute italic">No active sprint.</div>
       )}
 
-      <div className="flex items-center justify-between mt-auto pt-2 border-t border-rule text-[11px] uppercase tracking-[0.14em] text-faint">
+      <div className="flex items-center justify-between mt-auto pt-2 text-[11px] uppercase tracking-[0.14em] text-faint">
         <span>{project.role ? project.role.replace(/_/g, ' ') : '—'}</span>
         <span>{formatLastTouch(project.lastActivityAt)}</span>
       </div>

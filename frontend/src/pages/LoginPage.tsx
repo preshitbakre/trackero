@@ -4,6 +4,7 @@ import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/auth.store';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { Logo } from '../components/ui/Logo';
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
@@ -13,6 +14,21 @@ export function LoginPage() {
   const [isSetup, setIsSetup] = useState<boolean | null>(null);
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
+  const authStatus = useAuthStore((s) => s.authStatus);
+
+  useEffect(() => {
+    if (authStatus === 'authed') {
+      navigate('/dashboard', { replace: true });
+      return;
+    }
+    if (authStatus === 'loading') {
+      apiClient.get('/auth/me').then(() => {
+        navigate('/dashboard', { replace: true });
+      }).catch(() => {
+        useAuthStore.getState().setAuthStatus('anon');
+      });
+    }
+  }, [authStatus, navigate]);
 
   useEffect(() => {
     apiClient.get('/auth/setup-status').then((res) => {
@@ -53,12 +69,7 @@ export function LoginPage() {
     <div className="min-h-screen flex flex-col md:flex-row bg-paper">
       {/* Editorial hero — ink-black with serif italic statement */}
       <section className="relative bg-ink text-white px-8 py-12 md:w-1/2 md:px-16 md:py-20 flex flex-col justify-between overflow-hidden">
-        <div className="flex items-center gap-2">
-          <span className="w-5 h-5 rounded-full border-2 border-white inline-block" />
-          <span className="font-serif italic text-[20px] leading-none">
-            trackero<span className="text-lilac">.</span>
-          </span>
-        </div>
+        <Logo height={60} variant="light" />
 
         <div className="relative z-10">
           <div className="text-[11px] tracking-[0.2em] uppercase text-white/50 mb-4">
@@ -76,7 +87,7 @@ export function LoginPage() {
           <div className="mt-10 grid grid-cols-3 gap-6 max-w-md">
             <Stat n="100%" label="OPEN SOURCE · AGPL-3" />
             <Stat n="<12 ms" label="P50 BOARD RESPONSE" />
-            <Stat n="1 jar" label="TO SHIP TO PROD" />
+            <Stat n="1 cmd" label="DOCKER COMPOSE UP" />
           </div>
         </div>
 
@@ -166,35 +177,6 @@ export function LoginPage() {
             <Button type="submit" variant="primary" disabled={loading} className="w-full h-11 text-[15px]">
               {loading ? 'Signing in…' : 'Sign in  →'}
             </Button>
-
-            {/* SSO slot — visual stubs for the design's "OR VIA YOUR IDP"
-                section. Buttons are disabled until the auth provider
-                modules ship; they exist now so the layout matches frame 12. */}
-            <div className="pt-2">
-              <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.18em] text-faint font-semibold">
-                <span className="flex-1 h-px bg-rule" />
-                <span>Or via your IdP</span>
-                <span className="flex-1 h-px bg-rule" />
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  disabled
-                  className="h-9 rounded-md border border-rule bg-paper text-text text-[13px] font-medium opacity-70 cursor-not-allowed"
-                  title="Okta SAML — coming in v2"
-                >
-                  Okta SAML
-                </button>
-                <button
-                  type="button"
-                  disabled
-                  className="h-9 rounded-md border border-rule bg-paper text-text text-[13px] font-medium opacity-70 cursor-not-allowed"
-                  title="GitHub OAuth — coming in v2"
-                >
-                  GitHub OAuth
-                </button>
-              </div>
-            </div>
 
             <p className="text-center text-[13px] text-faint pt-3">
               No account?{' '}

@@ -1,17 +1,12 @@
-import { Type } from 'class-transformer';
 import {
   IsEmail,
   IsString,
-  MinLength,
   MaxLength,
-  IsOptional,
-  IsArray,
-  IsIn,
-  ValidateNested,
   IsNotEmpty,
 } from 'class-validator';
+import { IsStrongPassword } from '../../common/decorators/is-strong-password.decorator';
 
-export class SetupAdminDto {
+export class SetupDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
@@ -21,44 +16,6 @@ export class SetupAdminDto {
   email: string;
 
   @IsString()
-  @MinLength(14)
-  @MaxLength(72)
+  @IsStrongPassword()
   password: string;
-}
-
-export class SetupInstanceDto {
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(255)
-  name: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  url?: string;
-}
-
-export class SetupInviteDto {
-  @IsEmail()
-  email: string;
-
-  @IsString()
-  @IsIn(['admin', 'project_manager', 'member', 'viewer'])
-  role: 'admin' | 'project_manager' | 'member' | 'viewer';
-}
-
-export class SetupDto {
-  @ValidateNested()
-  @Type(() => SetupAdminDto)
-  admin: SetupAdminDto;
-
-  @ValidateNested()
-  @Type(() => SetupInstanceDto)
-  instance: SetupInstanceDto;
-
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => SetupInviteDto)
-  invites?: SetupInviteDto[];
 }

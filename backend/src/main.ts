@@ -7,7 +7,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { json, urlencoded } from 'express';
-import { DataSource } from 'typeorm';
+
 import { join } from 'path';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -90,16 +90,6 @@ async function bootstrap() {
         next();
       }
     });
-  }
-
-  // Auto-run migrations
-  if (process.env.NODE_ENV !== 'test') {
-    const dataSource = app.get(DataSource);
-    dataSource.setOptions({
-      migrations: [__dirname + '/../migrations/*{.ts,.js}'],
-    });
-    await dataSource.runMigrations();
-    logger.log('Migrations completed');
   }
 
   // Start

@@ -5,6 +5,8 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as os from 'os';
 import { User } from '../users/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { Invitation } from './entities/invitation.entity';
@@ -48,12 +50,145 @@ export class AuthService {
     };
   }
 
+  async getPreflight() {
+    const checks: Array<{
+      key: string;
+      label: string;
+      status: 'ok' | 'warn' | 'error';
+      sub: string;
+    }> = [];
+
+    // PostgreSQL
+    try {
+      const rows: Array<{ version: string }> = await this.dataSource.query('SELECT version()');
+      const full = rows[0]?.version ?? '';
+      const match = full.match(/PostgreSQL\s+([\d.]+)/);
+      checks.push({
+        key: 'postgres',
+        label: `PostgreSQL ${match ? match[1] : '??'}`,
+        status: 'ok',
+        sub: 'database reachable',
+      });
+    } catch {
+      checks.push({
+        key: 'postgres',
+        label: 'PostgreSQL',
+        status: 'error',
+        sub: 'database unreachable',
+      });
+    }
+
+    // MinIO (object storage)
+    const minioEndpoint = this.configService.get<string>('MINIO_ENDPOINT');
+    if (minioEndpoint) {
+      try {
+        const ssl = (this.configService.get<string>('MINIO_USE_SSL') ?? '').toLowerCase() === 'true';
+        const port = this.configService.get<string>('MINIO_PORT') ?? (ssl ? '443' : '9000');
+        const url = `${ssl ? 'https' : 'http'}://${minioEndpoint}:${port}/minio/health/live`;
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 2000);
+        const res = await fetch(url, { signal: ctrl.signal });
+        clearTimeout(t);
+        checks.push({
+          key: 'storage',
+          label: 'Object storage',
+          status: res.ok ? 'ok' : 'error',
+          sub: res.ok ? 'MinIO reachable' : 'MinIO unreachable',
+        });
+      } catch {
+        checks.push({
+          key: 'storage',
+          label: 'Object storage',
+          status: 'error',
+          sub: 'MinIO unreachable',
+        });
+      }
+    } else {
+      checks.push({
+        key: 'storage',
+        label: 'Object storage',
+        status: 'warn',
+        sub: 'not configured',
+      });
+    }
+
+    // Disk space
+    try {
+      const tmpDir = os.tmpdir();
+      const stats = fs.statfsSync(tmpDir);
+      const freeBytes = stats.bfree * stats.bsize;
+      const freeGb = Math.floor(freeBytes / (1024 * 1024 * 1024));
+      checks.push({
+        key: 'disk',
+        label: `Disk ${freeGb} GB free`,
+        status: freeGb >= 1 ? 'ok' : 'warn',
+        sub: 'writable',
+      });
+    } catch {
+      checks.push({
+        key: 'disk',
+        label: 'Disk',
+        status: 'warn',
+        sub: 'unable to check',
+      });
+    }
+
+    // SMTP — real EHLO handshake
+    const smtpHost = this.configService.get<string>('SMTP_HOST');
+    if (smtpHost) {
+      const smtpPort = this.configService.get<number>('SMTP_PORT', 587);
+      const smtpUser = this.configService.get<string>('SMTP_USER');
+      const smtpPass = this.configService.get<string>('SMTP_PASS');
+      try {
+        const nodemailer = await import('nodemailer');
+        const start = Date.now();
+        const transporter = nodemailer.createTransport({
+          host: smtpHost,
+          port: smtpPort,
+          secure: smtpPort === 465,
+          auth: smtpUser && smtpPass ? { user: smtpUser, pass: smtpPass } : undefined,
+          connectionTimeout: 3000,
+          greetingTimeout: 3000,
+        });
+        await transporter.verify();
+        const elapsed = Date.now() - start;
+        transporter.close();
+        checks.push({
+          key: 'smtp',
+          label: 'SMTP live',
+          status: 'ok',
+          sub: `${smtpHost} · ${elapsed}ms`,
+        });
+      } catch {
+        checks.push({
+          key: 'smtp',
+          label: 'SMTP error',
+          status: 'error',
+          sub: `${smtpHost} unreachable`,
+        });
+      }
+    } else {
+      checks.push({
+        key: 'smtp',
+        label: 'SMTP not set',
+        status: 'warn',
+        sub: 'configurable in step 3',
+      });
+    }
+
+    const allOk = checks.every((c) => c.status === 'ok');
+    const hasError = checks.some((c) => c.status === 'error');
+
+    return {
+      summary: hasError ? 'issues found' : allOk ? 'everything looks good' : 'minor warnings',
+      checks,
+    };
+  }
+
   async setup(dto: SetupDto) {
-    // Hash password outside transaction (CPU-intensive)
-    const passwordHash = await bcrypt.hash(dto.admin.password, 12);
+    const passwordHash = await bcrypt.hash(dto.password, 12);
 
     const saved = await this.dataSource.transaction(async (manager) => {
-      // Same advisory lock as register() to prevent race conditions
       await manager.query('SELECT pg_advisory_xact_lock($1)', [991001]);
 
       const userCount = await manager.count(User);
@@ -61,63 +196,14 @@ export class AuthService {
         throw new AppLogicException('ALREADY_SETUP', HttpStatus.CONFLICT);
       }
 
-      // Create admin user
       const admin = manager.create(User, {
-        email: dto.admin.email,
+        email: dto.email,
         passwordHash,
-        displayName: dto.admin.displayName,
+        displayName: dto.displayName,
         role: 'admin',
         isActive: true,
       });
-      const savedAdmin = await manager.save(admin);
-
-      // Save instance settings
-      await manager
-        .createQueryBuilder()
-        .insert()
-        .into(InstanceSetting)
-        .values({ key: 'instance_name', value: dto.instance.name })
-        .orUpdate(['value'], ['key'])
-        .execute();
-
-      if (dto.instance.url) {
-        await manager
-          .createQueryBuilder()
-          .insert()
-          .into(InstanceSetting)
-          .values({ key: 'instance_url', value: dto.instance.url })
-          .orUpdate(['value'], ['key'])
-          .execute();
-      }
-
-      // Create pending invitations
-      if (dto.invites?.length) {
-        for (const invite of dto.invites) {
-          const token = crypto.randomBytes(32).toString('hex');
-          const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-          const expiresAt = new Date();
-          expiresAt.setDate(expiresAt.getDate() + 7);
-
-          const invitation = manager.create(Invitation, {
-            email: invite.email,
-            token: hashedToken,
-            role: invite.role,
-            invitedBy: savedAdmin.id,
-            status: 'pending',
-            expiresAt,
-          });
-          await manager.save(invitation);
-
-          // Fire-and-forget: send invitation email outside transaction scope
-          this.emailService
-            .sendInvitation(invite.email, token, invite.role)
-            .catch(() => {
-              /* best-effort during setup */
-            });
-        }
-      }
-
-      return savedAdmin;
+      return manager.save(admin);
     });
 
     const tokens = await this.generateTokens(saved);
