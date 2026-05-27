@@ -62,6 +62,7 @@ export const ResponseCodes = {
   SPRINT_COMPLETED:       { code: 'S-0056', message: 'Sprint completed' },
   SPRINT_CANCELLED:       { code: 'S-0057', message: 'Sprint cancelled' },
   SPRINT_BURNDOWN:        { code: 'S-0058', message: 'Burndown data retrieved' },
+  SPRINT_SCOPE_CHANGES:   { code: 'S-0059', message: 'Scope changes retrieved' },
 
   // Tasks (S-0105, S-0106, S-0109, S-0110) — surviving task-era keys.
   // The legacy `TASKS_LISTED`/`TASK_CREATED`/`TASK_FETCHED`/`TASK_UPDATED`/

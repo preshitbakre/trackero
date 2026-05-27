@@ -447,6 +447,11 @@ export class SprintsService {
       }
 
       sprint.status = 'active';
+      // Record who clicked Start so the Scope Changes timeline can attribute
+      // the synthesized "commit" entry to a real user. Falls back to
+      // sprint.createdBy at read time if this is ever null (older sprints
+      // that started before this column was populated).
+      sprint.startedBy = userId;
       let savedSprint: Sprint;
       try {
         savedSprint = await manager.save(Sprint, sprint);
@@ -618,6 +623,202 @@ export class SprintsService {
     await this.sprintRepo.remove(sprint);
     const list = await this.listSprints(projectId);
     return PaginatedMutationResponse.forPaginated(null, list);
+  }
+
+  /**
+   * Scope-changes timeline for the Sprint Detail page (spec:
+   * docs/sprints/spec-sprint-detail-scope-changes.md).
+   *
+   * Returns `summary` (total points/items added & dropped post-commit) plus
+   * `entries[]` newest-first. A synthesized "commit" entry is appended last
+   * to mark the moment the sprint was started — its pointsDelta/totalItems
+   * reflect the items committed at start time.
+   *
+   * Important implementation note: `start()` writes an 'added'
+   * sprint_scope_changes row for EVERY item that was already in the sprint
+   * at start time (all in the same transaction). So the spec's "items NOT
+   * in scope_changes" approach would return zero. Instead, we treat the
+   * earliest batch of rows (created within a 5-second window of MIN(created_at))
+   * as the commit batch; rows after that window are real post-commit timeline
+   * entries.
+   *
+   * KNOWN IMPERFECTION: sprint_scope_changes has no actor_id column today.
+   * We use the work item's assignee as a proxy for the actor, with the
+   * sprint's createdBy as fallback when the item has no assignee. A future
+   * migration will add actor_id and resolve this properly.
+   */
+  async getScopeChanges(projectId: number, sprintId: number) {
+    const sprint = await this.findOneEntity(projectId, sprintId);
+
+    // Planning sprints have never been started → no commit, no entries.
+    if (sprint.status === 'planning') {
+      return {
+        summary: { ptsAdded: 0, ptsDropped: 0, itemsAdded: 0, itemsDropped: 0 },
+        entries: [],
+      };
+    }
+
+    // Find the commit-batch boundary. All start-time scope_changes rows are
+    // written in the same transaction so they cluster within milliseconds of
+    // each other; a generous 5-second window separates them from any later
+    // mid-sprint additions or completion-time removals.
+    const [boundaryRow] = await this.dataSource.query(
+      `SELECT MIN(created_at) AS first_at
+         FROM sprint_scope_changes
+        WHERE sprint_id = $1`,
+      [sprintId],
+    );
+    const firstAt: Date | null = boundaryRow?.first_at ?? null;
+
+    // Commit-batch totals: SUM/COUNT of the start-time 'added' rows.
+    let commitItems = 0;
+    let commitPoints = 0;
+    if (firstAt) {
+      const [commitRow] = await this.dataSource.query(
+        `SELECT COUNT(*)::int AS items,
+                COALESCE(SUM(story_points), 0)::int AS pts
+           FROM sprint_scope_changes
+          WHERE sprint_id = $1
+            AND action = 'added'
+            AND created_at < $2::timestamptz + INTERVAL '5 seconds'`,
+        [sprintId, firstAt],
+      );
+      commitItems = commitRow.items;
+      commitPoints = commitRow.pts;
+    }
+
+    // Post-commit scope changes (timeline entries). Join the work item for
+    // its key/title/type and the assignee user for the actor proxy. We also
+    // need projects.prefix to assemble itemKey.
+    const rows: Array<{
+      id: number;
+      action: 'added' | 'removed';
+      pointsDelta: number | null;
+      createdAt: string;
+      wiId: number;
+      itemNumber: number;
+      itemTitle: string;
+      itemType: 'task' | 'bug' | 'story' | 'epic' | 'subtask';
+      projectPrefix: string;
+      actorId: number | null;
+      actorName: string | null;
+      actorAvatar: string | null;
+    }> = firstAt
+      ? await this.dataSource.query(
+          `SELECT
+             sc.id,
+             sc.action,
+             sc.story_points AS "pointsDelta",
+             sc.created_at   AS "createdAt",
+             wi.id           AS "wiId",
+             wi.item_number  AS "itemNumber",
+             wi.title        AS "itemTitle",
+             wi.item_type    AS "itemType",
+             p.prefix        AS "projectPrefix",
+             actor.id        AS "actorId",
+             actor.display_name AS "actorName",
+             actor.avatar_url   AS "actorAvatar"
+           FROM sprint_scope_changes sc
+           JOIN work_items wi ON wi.id = sc.work_item_id
+           JOIN projects p ON p.id = wi.project_id
+           LEFT JOIN users actor ON actor.id = wi.assignee_id
+          WHERE sc.sprint_id = $1
+            AND sc.created_at >= $2::timestamptz + INTERVAL '5 seconds'
+          ORDER BY sc.created_at DESC, sc.id DESC`,
+          [sprintId, firstAt],
+        )
+      : [];
+
+    // Pre-resolve the fallback user (sprint.createdBy) once so we don't
+    // hit the DB per-row when several entries share missing assignees.
+    let fallbackUser: { id: number; displayName: string; avatarUrl: string | null } | null = null;
+    if (sprint.createdBy) {
+      const [row] = await this.dataSource.query(
+        `SELECT id, display_name AS "displayName", avatar_url AS "avatarUrl"
+           FROM users WHERE id = $1`,
+        [sprint.createdBy],
+      );
+      fallbackUser = row ?? null;
+    }
+
+    // Summary across post-commit rows only.
+    let ptsAdded = 0;
+    let ptsDropped = 0;
+    let itemsAdded = 0;
+    let itemsDropped = 0;
+    for (const r of rows) {
+      const pts = r.pointsDelta ?? 0;
+      if (r.action === 'added') {
+        ptsAdded += pts;
+        itemsAdded += 1;
+      } else if (r.action === 'removed') {
+        ptsDropped += pts;
+        itemsDropped += 1;
+      }
+    }
+
+    // Map DB rows into the spec response shape.
+    const entries = rows.map((r) => {
+      const actor =
+        r.actorId !== null
+          ? { id: r.actorId, displayName: r.actorName!, avatarUrl: r.actorAvatar }
+          : (fallbackUser ?? { id: 0, displayName: 'Unknown', avatarUrl: null });
+      return {
+        id: r.id,
+        action: r.action,
+        user: actor,
+        createdAt: r.createdAt,
+        pointsDelta: r.pointsDelta ?? 0,
+        workItem: {
+          id: r.wiId,
+          itemKey: `${r.projectPrefix}-${r.itemNumber}`,
+          title: r.itemTitle,
+          itemType: r.itemType,
+        },
+      };
+    });
+
+    // Synthesize the commit entry. Skip when status===planning (already
+    // returned above) and when there are no scope_changes rows at all
+    // (sprint was started but the scope_changes table is empty — shouldn't
+    // happen in practice because start() always writes the initial batch,
+    // but stay defensive).
+    if (firstAt) {
+      const commitUserId = sprint.startedBy ?? sprint.createdBy;
+      let commitUser: { id: number; displayName: string; avatarUrl: string | null };
+      if (commitUserId === sprint.createdBy && fallbackUser) {
+        commitUser = fallbackUser;
+      } else if (commitUserId) {
+        const [row] = await this.dataSource.query(
+          `SELECT id, display_name AS "displayName", avatar_url AS "avatarUrl"
+             FROM users WHERE id = $1`,
+          [commitUserId],
+        );
+        commitUser = row ?? { id: 0, displayName: 'Unknown', avatarUrl: null };
+      } else {
+        commitUser = { id: 0, displayName: 'Unknown', avatarUrl: null };
+      }
+
+      entries.push({
+        id: 0,
+        action: 'commit' as any,
+        user: commitUser,
+        createdAt:
+          sprint.updatedAt instanceof Date
+            ? sprint.updatedAt.toISOString()
+            : (sprint.updatedAt as unknown as string),
+        pointsDelta: commitPoints,
+        // workItem intentionally omitted on commit entries; cast via spread
+        // to avoid TS complaint about the discriminated union above.
+        ...({} as any),
+        totalItems: commitItems,
+      } as any);
+    }
+
+    return {
+      summary: { ptsAdded, ptsDropped, itemsAdded, itemsDropped },
+      entries,
+    };
   }
 
   async getBurndown(projectId: number, sprintId: number) {

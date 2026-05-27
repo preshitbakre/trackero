@@ -136,4 +136,14 @@ export class SprintsController {
     return this.sprintsService.getBurndown(projectId, sprintId);
   }
 
+  @Get(':sprintId/scope-changes')
+  @Roles('admin', 'project_manager', 'member', 'viewer')
+  @ResponseCode('SPRINT_SCOPE_CHANGES')
+  async scopeChanges(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('sprintId', ParseIntPipe) sprintId: number,
+  ) {
+    return this.sprintsService.getScopeChanges(projectId, sprintId);
+  }
+
 }

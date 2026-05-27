@@ -795,3 +795,345 @@ describe('Sprints findOne enrichment (statusCounts, typeCounts, assignees, autoC
     expect(item.autoCapacity).toBe(12);
   });
 });
+
+describe('Sprints getScopeChanges (e2e)', () => {
+  let app: INestApplication;
+  let adminToken: string;
+  let adminId: number;
+  let projectId: number;
+  let userBId: number;
+  let statusOpenId: number;
+  let statusInProgressId: number;
+
+  beforeAll(async () => {
+    app = await createTestApp();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await clearDatabase(app);
+
+    const admin = await registerStrongAdmin(app);
+    adminToken = admin.token;
+    adminId = admin.id;
+
+    // One extra user so we can test the assignee-as-actor proxy.
+    const invRes = await request(app.getHttpServer())
+      .post('/api/users/invite')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ email: 'bob@test.com', role: 'member' });
+    const inviteToken = invRes.body.data.item.token;
+    const regRes = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email: 'bob@test.com', password: 'Password1!', displayName: 'Bob', inviteToken });
+    userBId = regRes.body.data.user.id;
+
+    const projRes = await request(app.getHttpServer())
+      .post('/api/projects')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Scope Project', prefix: 'SCP' });
+    projectId = projRes.body.data.item.id;
+
+    await request(app.getHttpServer())
+      .post(`/api/projects/${projectId}/members`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ userId: userBId, role: 'member' })
+      .expect(201);
+
+    const ds = app.get(DataSource);
+    const statuses = await ds.query(
+      `SELECT id, category FROM project_statuses WHERE project_id = $1 ORDER BY sort_order`,
+      [projectId],
+    );
+    statusOpenId = statuses.find((s: any) => s.category === 'backlog').id;
+    statusInProgressId = statuses.find((s: any) => s.category === 'in_progress').id;
+  });
+
+  async function createPlanningSprint(name = 'Sprint S') {
+    const res = await request(app.getHttpServer())
+      .post(`/api/projects/${projectId}/sprints`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name,
+        goal: 'goal',
+        startDate: futureDate(1),
+        endDate: futureDate(15),
+      })
+      .expect(201);
+    return res.body.data.item.id as number;
+  }
+
+  async function createItem(opts: {
+    sprintId?: number | null;
+    title: string;
+    assigneeId?: number | null;
+    statusId: number;
+    storyPoints: number;
+    itemType?: 'task' | 'bug' | 'story';
+  }) {
+    const body: any = {
+      itemType: opts.itemType ?? 'task',
+      title: opts.title,
+      statusId: opts.statusId,
+      storyPoints: opts.storyPoints,
+    };
+    if (opts.sprintId !== undefined && opts.sprintId !== null) body.sprintId = opts.sprintId;
+    if (opts.assigneeId !== undefined && opts.assigneeId !== null) body.assigneeId = opts.assigneeId;
+    const res = await request(app.getHttpServer())
+      .post(`/api/projects/${projectId}/items`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send(body)
+      .expect(201);
+    return res.body.data.item.id as number;
+  }
+
+  it('returns 404 for a non-existent sprint', async () => {
+    await request(app.getHttpServer())
+      .get(`/api/projects/${projectId}/sprints/999999/scope-changes`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(404);
+  });
+
+  it('planning sprint (not started) returns no commit entry and no scope changes', async () => {
+    const sprintId = await createPlanningSprint('Planning S');
+    // Add a task so the sprint isn't empty, but DO NOT start it.
+    await createItem({
+      sprintId,
+      title: 'Planned task',
+      assigneeId: adminId,
+      statusId: statusOpenId,
+      storyPoints: 5,
+    });
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/projects/${projectId}/sprints/${sprintId}/scope-changes`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    const data = res.body.data;
+    expect(data.summary).toEqual({ ptsAdded: 0, ptsDropped: 0, itemsAdded: 0, itemsDropped: 0 });
+    expect(data.entries).toEqual([]);
+  });
+
+  it('freshly started sprint with no further changes returns only the commit entry', async () => {
+    const sprintId = await createPlanningSprint('Started S');
+    // 2 tasks: 5 + 3 = 8 pts, 2 items
+    await createItem({
+      sprintId,
+      title: 'Task A',
+      assigneeId: adminId,
+      statusId: statusOpenId,
+      storyPoints: 5,
+    });
+    await createItem({
+      sprintId,
+      title: 'Task B',
+      assigneeId: userBId,
+      statusId: statusOpenId,
+      storyPoints: 3,
+    });
+
+    // Start the sprint
+    await request(app.getHttpServer())
+      .post(`/api/projects/${projectId}/sprints/${sprintId}/start`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/projects/${projectId}/sprints/${sprintId}/scope-changes`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    const data = res.body.data;
+    // No post-commit additions or removals, so summary is all zeros.
+    expect(data.summary).toEqual({ ptsAdded: 0, ptsDropped: 0, itemsAdded: 0, itemsDropped: 0 });
+
+    // One entry: the commit.
+    expect(data.entries).toHaveLength(1);
+    const commit = data.entries[0];
+    expect(commit.id).toBe(0);
+    expect(commit.action).toBe('commit');
+    expect(commit.pointsDelta).toBe(8);
+    expect(commit.totalItems).toBe(2);
+    expect(commit.workItem).toBeUndefined();
+    expect(commit.user).toBeDefined();
+    expect(commit.user.id).toBe(adminId);
+    expect(commit.user.displayName).toBe('Admin');
+    expect(commit.user).toHaveProperty('avatarUrl');
+    expect(typeof commit.createdAt).toBe('string');
+  });
+
+  it('active sprint with multiple post-start scope changes returns commit + entries newest-first', async () => {
+    const sprintId = await createPlanningSprint('Active S');
+    // Initial commit batch: Task1 (5) + Task2 (3) = 8 pts, 2 items
+    const initialTask1 = await createItem({
+      sprintId,
+      title: 'Task 1',
+      assigneeId: adminId,
+      statusId: statusOpenId,
+      storyPoints: 5,
+    });
+    await createItem({
+      sprintId,
+      title: 'Task 2',
+      assigneeId: userBId,
+      statusId: statusOpenId,
+      storyPoints: 3,
+    });
+
+    await request(app.getHttpServer())
+      .post(`/api/projects/${projectId}/sprints/${sprintId}/start`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    // Now insert post-commit scope changes manually so we can control timing
+    // and ordering. We INSERT directly because scope changes are only written
+    // by start() and complete() today — no public mid-sprint API.
+    const ds = app.get(DataSource);
+    // Pick a real work item id to put on the manual rows so the join works.
+    const addedTaskRes = await request(app.getHttpServer())
+      .post(`/api/projects/${projectId}/items`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        itemType: 'bug',
+        title: 'Late bug',
+        statusId: statusOpenId,
+        sprintId,
+        storyPoints: 2,
+        assigneeId: userBId,
+      })
+      .expect(201);
+    const lateBugId = addedTaskRes.body.data.item.id;
+
+    // Insert scope-changes far enough after start that they fall outside the
+    // 5-second commit-batch window: an 'added' (+2) and a 'removed' (-5).
+    await ds.query(
+      `INSERT INTO sprint_scope_changes (sprint_id, work_item_id, action, story_points, created_at)
+       VALUES
+         ($1, $2, 'added',   2, NOW() + INTERVAL '60 seconds'),
+         ($1, $3, 'removed', 5, NOW() + INTERVAL '120 seconds')`,
+      [sprintId, lateBugId, initialTask1],
+    );
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/projects/${projectId}/sprints/${sprintId}/scope-changes`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    const data = res.body.data;
+
+    // Summary covers post-commit changes only.
+    expect(data.summary).toEqual({
+      ptsAdded: 2,
+      ptsDropped: 5,
+      itemsAdded: 1,
+      itemsDropped: 1,
+    });
+
+    // 3 entries: 2 scope changes + 1 commit. Scope changes newest-first
+    // (removed at +120s, then added at +60s), commit last.
+    expect(data.entries).toHaveLength(3);
+
+    const [first, second, third] = data.entries;
+
+    expect(first.action).toBe('removed');
+    expect(first.pointsDelta).toBe(5);
+    expect(first.workItem).toBeDefined();
+    expect(first.workItem.id).toBe(initialTask1);
+    expect(first.workItem.itemKey).toMatch(/^SCP-\d+$/);
+    expect(first.workItem.title).toBe('Task 1');
+    expect(first.workItem.itemType).toBe('task');
+    // Assignee-as-actor proxy: Task 1 was assigned to admin.
+    expect(first.user.id).toBe(adminId);
+
+    expect(second.action).toBe('added');
+    expect(second.pointsDelta).toBe(2);
+    expect(second.workItem.id).toBe(lateBugId);
+    expect(second.workItem.itemType).toBe('bug');
+    // Late bug was assigned to Bob → Bob is the actor proxy.
+    expect(second.user.id).toBe(userBId);
+
+    // Commit entry comes last (oldest).
+    expect(third.id).toBe(0);
+    expect(third.action).toBe('commit');
+    // 3 items existed at start time (the 3rd was added before start too —
+    // the late bug we created above came BEFORE the manual INSERT but AFTER
+    // start(). Actually, late bug was created AFTER start completes, so it
+    // generated NO start-time scope change. Only the 2 initial tasks did.)
+    expect(third.totalItems).toBe(2);
+    expect(third.pointsDelta).toBe(8);
+    expect(third.user.id).toBe(adminId); // startedBy
+  });
+
+  it('falls back to sprint.createdBy when work item has no assignee', async () => {
+    const sprintId = await createPlanningSprint('Fallback S');
+    await createItem({
+      sprintId,
+      title: 'Unassigned task',
+      assigneeId: null,
+      statusId: statusOpenId,
+      storyPoints: 4,
+    });
+
+    await request(app.getHttpServer())
+      .post(`/api/projects/${projectId}/sprints/${sprintId}/start`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    // Manually insert a post-commit 'added' for an unassigned item.
+    const ds = app.get(DataSource);
+    const unassignedRes = await request(app.getHttpServer())
+      .post(`/api/projects/${projectId}/items`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        itemType: 'task',
+        title: 'Another unassigned',
+        statusId: statusOpenId,
+        sprintId,
+        storyPoints: 1,
+      })
+      .expect(201);
+    const otherId = unassignedRes.body.data.item.id;
+    await ds.query(
+      `INSERT INTO sprint_scope_changes (sprint_id, work_item_id, action, story_points, created_at)
+       VALUES ($1, $2, 'added', 1, NOW() + INTERVAL '60 seconds')`,
+      [sprintId, otherId],
+    );
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/projects/${projectId}/sprints/${sprintId}/scope-changes`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    const data = res.body.data;
+    // Scope-change entry first, then commit.
+    expect(data.entries).toHaveLength(2);
+    const scopeEntry = data.entries[0];
+    expect(scopeEntry.action).toBe('added');
+    // No assignee → falls back to sprint.createdBy (admin in this test).
+    expect(scopeEntry.user.id).toBe(adminId);
+  });
+
+  it('returns 403 for non-member viewers via the ProjectAccessGuard', async () => {
+    // Register a second user who is NOT a member of this project.
+    const invRes2 = await request(app.getHttpServer())
+      .post('/api/users/invite')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ email: 'outsider@test.com', role: 'member' });
+    const inviteToken2 = invRes2.body.data.item.token;
+    const regRes2 = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email: 'outsider@test.com', password: 'Password1!', displayName: 'Outsider', inviteToken: inviteToken2 });
+    const outsiderToken = regRes2.body.data.accessToken;
+
+    const sprintId = await createPlanningSprint('Guarded S');
+
+    await request(app.getHttpServer())
+      .get(`/api/projects/${projectId}/sprints/${sprintId}/scope-changes`)
+      .set('Authorization', `Bearer ${outsiderToken}`)
+      .expect(403);
+  });
+});
