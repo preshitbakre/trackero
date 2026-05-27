@@ -11,7 +11,7 @@ import { useRole } from '../hooks/useRole';
 import { ReadOnlyBanner } from '../components/common/ReadOnlyBanner';
 import { Avatar } from '../components/ui/Avatar';
 import { Button } from '../components/ui/Button';
-import { Select } from '../components/ui/Select';
+import { Eyebrow } from '../components/ui/Eyebrow';
 import { TaskDetailPanel } from '../components/tasks/TaskDetailPanel';
 import { RowSkeleton } from '../components/common/Skeleton';
 import { ErrorState } from '../components/common/ErrorState';
@@ -49,10 +49,9 @@ interface SprintTarget {
   totalPoints: number;
 }
 
-function SortableTaskRow({ task, selected, highlighted, onSelect, onClick, subtaskCount, collapsed, onToggleCollapse, canEdit = true, sprints = [], onMoveSprint }: {
+function SortableTaskRow({ task, selected, highlighted, onSelect, onClick, subtaskCount, collapsed, onToggleCollapse, canEdit = true }: {
   task: BacklogTask; selected: boolean; highlighted?: boolean; onSelect: (id: number) => void; onClick: () => void;
   subtaskCount?: number; collapsed?: boolean; onToggleCollapse?: () => void; canEdit?: boolean;
-  sprints?: SprintTarget[]; onMoveSprint?: (taskId: number, sprintId: number) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   const style: React.CSSProperties = {
@@ -76,28 +75,41 @@ function SortableTaskRow({ task, selected, highlighted, onSelect, onClick, subta
         highlighted ? 'bg-lilac-tint/60' : selected ? 'bg-lilac-tint/40' : 'hover:bg-paper/50'
       }`}
     >
-      {canEdit && (
-        <input type="checkbox" checked={selected} onChange={() => onSelect(task.id)} className="w-3.5 h-3.5 accent-lilac" aria-label="Select" />
+      {canEdit ? (
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onSelect(task.id)}
+          className="w-3.5 h-3.5 accent-lilac flex-shrink-0"
+          style={{ width: 20 }}
+          aria-label={`Select ${task.itemKey ?? `#${task.itemNumber}`}`}
+        />
+      ) : (
+        <span className="w-[20px] flex-shrink-0" />
       )}
-      {canEdit && (
+      {canEdit ? (
         <span
           {...listeners}
           {...attributes}
-          className="cursor-grab text-faint hover:text-mute text-[14px] leading-none"
+          className="cursor-grab text-faint hover:text-mute text-[14px] leading-none w-[14px] flex-shrink-0 text-center"
           aria-label="Drag to reorder"
-        >{'\u2807'}</span>
+        >{'⠇'}</span>
+      ) : (
+        <span className="w-[14px] flex-shrink-0" />
       )}
       {onToggleCollapse ? (
         <button
           onClick={(e) => { e.stopPropagation(); onToggleCollapse(); }}
-          className="text-faint hover:text-text"
+          className="text-faint hover:text-text w-[12px] flex-shrink-0"
           aria-label={collapsed ? 'Expand subtasks' : 'Collapse subtasks'}
         >
           <ChevronDown size={12} className={`transition-transform duration-150 ${collapsed ? '-rotate-90' : ''}`} />
         </button>
-      ) : <span className="w-3" />}
+      ) : <span className="w-[12px] flex-shrink-0" />}
 
-      <TypeTag kind={typeKind} size="sm" />
+      <span className="w-[20px] flex-shrink-0 flex items-center">
+        <TypeTag kind={typeKind} size="sm" />
+      </span>
 
       <span onClick={onClick} className="text-[12px] font-mono text-faint flex-shrink-0 w-[90px] cursor-pointer hover:text-lilac-dark">
         {task.itemKey ?? `#${task.itemNumber}`}
@@ -110,7 +122,7 @@ function SortableTaskRow({ task, selected, highlighted, onSelect, onClick, subta
         {task.title}
       </span>
 
-      <div className="flex-shrink-0 w-[100px] min-w-0">
+      <div className="flex-shrink-0 w-[140px] min-w-0">
         <LabelList labels={task.labels || []} max={2} />
       </div>
 
@@ -125,38 +137,29 @@ function SortableTaskRow({ task, selected, highlighted, onSelect, onClick, subta
       )}
 
       {/* Status — soft inline pill */}
-      {task.status && (
+      {task.status ? (
         <span className="inline-flex items-center gap-1 text-[11px] text-mute w-[80px] flex-shrink-0">
           <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: task.status.color }} />
           <span className="truncate">{task.status.name}</span>
         </span>
+      ) : (
+        <span className="w-[80px] flex-shrink-0" />
       )}
 
       <span className="text-[13px] tabular-nums text-text w-[40px] text-right flex-shrink-0">
         {task.storyPoints != null && task.storyPoints > 0 ? task.storyPoints : '—'}
       </span>
 
-      <div className="flex-shrink-0 w-7 flex justify-end" title={task.assignee?.displayName}>
+      <div className="flex-shrink-0 w-[50px] flex justify-center" title={task.assignee?.displayName}>
         {task.assignee ? (
           <Avatar user={task.assignee} size="xs" />
         ) : (
-          <span className="text-faint text-[12px]">—</span>
+          <span className="text-faint text-[13px]">—</span>
         )}
       </div>
 
       {subtaskCount != null && subtaskCount > 0 && collapsed && (
         <span className="text-[11px] text-faint italic w-[60px] flex-shrink-0 text-right">{subtaskCount} sub</span>
-      )}
-
-      {canEdit && sprints.length > 0 && onMoveSprint && (
-        <div className="flex-shrink-0 w-[140px]">
-          <Select
-            value=""
-            onChange={(val) => { if (val) onMoveSprint(task.id, parseInt(val)); }}
-            placeholder="→ Sprint"
-            options={[{ value: '', label: '—' }, ...sprints.map((s) => ({ value: String(s.id), label: s.name }))]}
-          />
-        </div>
       )}
     </div>
   );
@@ -277,12 +280,6 @@ export function BacklogPage() {
     loadData();
   };
 
-  const handleMoveToSprint = async (taskId: number, sprintId: number) => {
-    if (!projectId) return;
-    await apiClient.put(`/projects/${projectId}/items/${taskId}/sprint`, { sprintId });
-    loadData();
-  };
-
   const handleBulkDelete = async () => {
     if (!projectId || selectedIds.size === 0) return;
     for (const taskId of selectedIds) {
@@ -330,10 +327,20 @@ export function BacklogPage() {
     }
   }
 
+  // Summary metrics. `inSprintCount` reflects items currently held in a sprint
+  // — useful context even on a "backlog" view that may include items that have
+  // been pulled into a sprint but not yet completed.
   const totalPoints = tasks.reduce((sum, t) => sum + (t.storyPoints || 0), 0);
-  const urgentCount = tasks.filter((t) => t.priority === 'urgent').length;
-  const highCount = tasks.filter((t) => t.priority === 'high').length;
-  const mediumCount = tasks.filter((t) => t.priority === 'medium').length;
+  const inSprintCount = tasks.filter((t) => t.sprintId != null).length;
+
+  // Points sum for the currently selected items — drives the bulk action bar.
+  const selectedPoints = parentTasks
+    .filter((t) => selectedIds.has(t.id))
+    .reduce((sum, t) => sum + (t.storyPoints || 0), 0);
+
+  // Preferred sprint target for the "Move to Sprint" bulk action. Prefer
+  // active over planning so the most-relevant sprint is suggested first.
+  const moveTargetSprint = sprints.find((s) => s.status === 'active') || sprints.find((s) => s.status === 'planning') || null;
 
   return (
     <>
@@ -342,34 +349,46 @@ export function BacklogPage() {
     <div className="flex h-full">
       {/* Main backlog list */}
       <div className={`flex-1 flex flex-col overflow-hidden p-6 ${selectedTaskId || showCreate ? 'mr-[480px]' : ''}`}>
-        {/* STEP 6: Page header */}
+        {/* Page header with summary eyebrow */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-baseline gap-4 flex-wrap">
             <h1 className="font-serif text-[36px] text-text">
               Backlog
             </h1>
-            <p className="text-[11px] tracking-[0.18em] uppercase font-serif font-semibold text-faint">
-              {tasks.length} items · {totalPoints} pts
-              {mediumCount > 0 && <> · <span style={{ color: '#D6B588' }}>{mediumCount} medium</span></>}
-              {highCount > 0 && <> · <span style={{ color: '#E88A48' }}>{highCount} high</span></>}
-              {urgentCount > 0 && <> · <span style={{ color: '#E05252' }}>{urgentCount} urgent</span></>}
-            </p>
+            <Eyebrow>
+              {tasks.length} items · {totalPoints} pts · {inSprintCount} in sprint
+            </Eyebrow>
           </div>
           {canEdit && (
             <Button onClick={() => setShowCreate(true)}>+ Create Task</Button>
           )}
         </div>
 
-        {/* Bulk actions */}
+        {/* Bulk action bar — appears only when items are selected */}
         {canEdit && selectedIds.size > 0 && (
-          <div className="mb-4 flex items-center gap-3 p-3 bg-lilac-tint rounded-lg">
-            <span className="text-[16px] font-medium text-lilac-dark">{selectedIds.size} selected</span>
-            <Button size="sm" onClick={handleBulkAssignToMe}>Assign to me</Button>
-            {sprints.map((s) => (
-              <Button key={s.id} size="sm" variant="secondary" onClick={() => handleBulkMoveToSprint(s.id)}>&rarr; {s.name}</Button>
-            ))}
+          <div
+            className="flex items-center gap-3 px-4 h-[40px] bg-paper-2 border-b border-rule"
+            aria-live="polite"
+          >
+            <span className="text-[13px] text-text font-medium">
+              {selectedIds.size} selected · {selectedPoints} pts
+            </span>
+            <Button size="sm" variant="ghost" onClick={handleBulkAssignToMe}>Assign</Button>
+            {/* "Estimate" is included per the spec but estimation editing
+                still happens inline on individual rows — this button is a
+                placeholder hook for the upcoming bulk estimate flow. */}
+            <Button size="sm" variant="ghost" disabled title="Bulk estimate coming soon">Estimate</Button>
+            {moveTargetSprint && (
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() => handleBulkMoveToSprint(moveTargetSprint.id)}
+              >
+                → Move to Sprint {moveTargetSprint.name}
+              </Button>
+            )}
             <Button size="sm" variant="danger" onClick={() => setShowBulkDeleteConfirm(true)}>Delete</Button>
-            <Button variant="ghost" onClick={() => setSelectedIds(new Set())} className="ml-auto">Clear</Button>
+            <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())} className="ml-auto">Clear</Button>
           </div>
         )}
 
@@ -382,23 +401,36 @@ export function BacklogPage() {
         )}
 
         <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
-        {/* Editorial table header — widths mirror SortableTaskRow flex items */}
+        {/* Editorial column header — widths mirror SortableTaskRow exactly */}
         {parentTasks.length > 0 && (
-          <div className="sticky top-0 z-10 bg-paper flex items-center gap-3 px-4 pb-1 mb-0 border-b-2 border-rule text-[10px] uppercase tracking-[0.16em] text-faint font-semibold">
-            {canEdit && <span className="w-3.5 flex-shrink-0" />}{/* checkbox */}
-            {canEdit && <span className="w-3.5 flex-shrink-0" />}{/* drag handle */}
-            <span className="w-3 flex-shrink-0" />{/* collapse toggle */}
-            <span className="w-4 flex-shrink-0" />{/* type tag */}
-            <span className="w-[90px] flex-shrink-0">ID</span>
-            <span className="flex-1 min-w-0">Title</span>
-            <span className="w-[100px] flex-shrink-0">Labels</span>
-            <span className="w-[70px] flex-shrink-0">Priority</span>
-            <span className="w-[80px] flex-shrink-0">Status</span>
-            <span className="w-[40px] flex-shrink-0 text-right">Pts</span>
-            <span className="w-7 flex-shrink-0 text-right">Owner</span>
-            {canEdit && sprints.length > 0 && <span className="w-[140px] flex-shrink-0 text-right">Move</span>}
+          <div
+            className="sticky top-0 z-10 bg-paper flex items-center gap-3 px-4 h-[26px] border-b border-rule-2 text-mute text-[10px] font-semibold tracking-[0.1em] uppercase"
+            role="row"
+          >
+            <span className="w-[20px] flex-shrink-0" role="columnheader" />{/* checkbox */}
+            <span className="w-[14px] flex-shrink-0" role="columnheader" />{/* drag handle */}
+            <span className="w-[12px] flex-shrink-0" role="columnheader" />{/* collapse toggle */}
+            <span className="w-[20px] flex-shrink-0" role="columnheader" />{/* type tag */}
+            <span className="w-[90px] flex-shrink-0" role="columnheader">ID</span>
+            <span className="flex-1 min-w-0" role="columnheader">Title</span>
+            <span className="w-[140px] flex-shrink-0" role="columnheader">Labels</span>
+            <span className="w-[70px] flex-shrink-0" role="columnheader">Priority</span>
+            <span className="w-[80px] flex-shrink-0" role="columnheader">Status</span>
+            <span className="w-[40px] flex-shrink-0 text-right" role="columnheader">Pts</span>
+            <span className="w-[50px] flex-shrink-0 text-center" role="columnheader">Owner</span>
           </div>
         )}
+
+        {/* "Unsorted" group header — wraps all ungrouped backlog items. Full
+            epic-grouping is a follow-up that needs association data joined
+            in on the backend; until then everything lives under Unsorted. */}
+        {parentTasks.length > 0 && (
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-rule">
+            <span className="font-serif italic text-[16px] text-text">Unsorted</span>
+            <span className="text-faint text-[13px]">· {parentTasks.length} items</span>
+          </div>
+        )}
+
         <SortableContext items={parentTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           <div>
             {parentTasks.map((task) => {
@@ -416,8 +448,6 @@ export function BacklogPage() {
                     collapsed={isCollapsed}
                     onToggleCollapse={subtasks.length > 0 ? () => toggleParentCollapse(task.id) : undefined}
                     canEdit={canEdit}
-                    sprints={sprints}
-                    onMoveSprint={handleMoveToSprint}
                   />
                   {subtasks.length > 0 && !isCollapsed && (
                     // Subtasks render as compact indented rows; the design
@@ -468,7 +498,7 @@ export function BacklogPage() {
                             <span className="text-[13px] tabular-nums text-text w-[40px] text-right flex-shrink-0">
                               {st.storyPoints != null && st.storyPoints > 0 ? st.storyPoints : '—'}
                             </span>
-                            <div className="flex-shrink-0 w-7 flex justify-end" title={st.assignee?.displayName}>
+                            <div className="flex-shrink-0 w-[50px] flex justify-center" title={st.assignee?.displayName}>
                               {st.assignee ? (
                                 <Avatar user={st.assignee} size="xs" />
                               ) : (
@@ -486,7 +516,7 @@ export function BacklogPage() {
           </div>
         </SortableContext>
 
-        {/* STEP 8: Empty state */}
+        {/* Empty state */}
         {tasks.length === 0 && !showCreate && !loading && (
           <div className="text-center py-16">
             <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: '#88D68E40' }}>
