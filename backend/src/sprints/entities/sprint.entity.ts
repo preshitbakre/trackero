@@ -50,6 +50,15 @@ export class Sprint {
   @Column({ name: 'completed_at', type: 'timestamptz', nullable: true })
   completedAt: Date | null;
 
+  @Column({ name: 'carry_over_policy', type: 'varchar', length: 16, default: 'ask' })
+  carryOverPolicy: 'roll' | 'backlog' | 'ask';
+
+  @Column({ name: 'capacity', type: 'int', nullable: true })
+  capacity: number | null;
+
+  @Column({ name: 'started_by', type: 'int', nullable: true })
+  startedBy: number | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 
