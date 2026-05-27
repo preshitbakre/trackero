@@ -1009,7 +1009,7 @@ describe('Sprints getScopeChanges (e2e)', () => {
     const lateBugId = addedTaskRes.body.data.item.id;
 
     // Insert scope-changes far enough after start that they fall outside the
-    // 5-second commit-batch window: an 'added' (+2) and a 'removed' (-5).
+    // 1-second commit-batch window: an 'added' (+2) and a 'removed' (-5).
     await ds.query(
       `INSERT INTO sprint_scope_changes (sprint_id, work_item_id, action, story_points, created_at)
        VALUES
@@ -1059,10 +1059,9 @@ describe('Sprints getScopeChanges (e2e)', () => {
     // Commit entry comes last (oldest).
     expect(third.id).toBe(0);
     expect(third.action).toBe('commit');
-    // 3 items existed at start time (the 3rd was added before start too —
-    // the late bug we created above came BEFORE the manual INSERT but AFTER
-    // start(). Actually, late bug was created AFTER start completes, so it
-    // generated NO start-time scope change. Only the 2 initial tasks did.)
+    // Only the 2 initial tasks were in the sprint when start() ran, so the
+    // commit batch is 2 items / 8 pts (5 + 3). The "late bug" was created
+    // AFTER start() returned, so it generated no start-time scope change.
     expect(third.totalItems).toBe(2);
     expect(third.pointsDelta).toBe(8);
     expect(third.user.id).toBe(adminId); // startedBy

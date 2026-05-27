@@ -13,6 +13,21 @@ import { clampLimit } from '../common/helpers/pagination.helper';
 import { rethrowAsDuplicate } from '../common/helpers/db-error.helper';
 import { SprintSnapshotsService } from './sprint-snapshots.service';
 
+interface ScopeTimelineEntry {
+  id: number;
+  action: 'added' | 'removed' | 'commit';
+  user: { id: number; displayName: string; avatarUrl: string | null };
+  createdAt: string;
+  pointsDelta: number;
+  workItem?: { id: number; itemKey: string; title: string; itemType: string };
+  totalItems?: number;
+}
+
+interface ScopeChangesResponse {
+  summary: { ptsAdded: number; ptsDropped: number; itemsAdded: number; itemsDropped: number };
+  entries: ScopeTimelineEntry[];
+}
+
 @Injectable()
 export class SprintsService {
   constructor(
@@ -638,16 +653,20 @@ export class SprintsService {
    * sprint_scope_changes row for EVERY item that was already in the sprint
    * at start time (all in the same transaction). So the spec's "items NOT
    * in scope_changes" approach would return zero. Instead, we treat the
-   * earliest batch of rows (created within a 5-second window of MIN(created_at))
+   * earliest batch of rows (created within a 1-second window of MIN(created_at))
    * as the commit batch; rows after that window are real post-commit timeline
    * entries.
+   *
+   * TODO: a proper fix would be an explicit `sprint.startedAt` column (or
+   * an `is_commit_batch` flag on sprint_scope_changes), removing the need
+   * for any time-based heuristic here.
    *
    * KNOWN IMPERFECTION: sprint_scope_changes has no actor_id column today.
    * We use the work item's assignee as a proxy for the actor, with the
    * sprint's createdBy as fallback when the item has no assignee. A future
    * migration will add actor_id and resolve this properly.
    */
-  async getScopeChanges(projectId: number, sprintId: number) {
+  async getScopeChanges(projectId: number, sprintId: number): Promise<ScopeChangesResponse> {
     const sprint = await this.findOneEntity(projectId, sprintId);
 
     // Planning sprints have never been started → no commit, no entries.
@@ -660,8 +679,11 @@ export class SprintsService {
 
     // Find the commit-batch boundary. All start-time scope_changes rows are
     // written in the same transaction so they cluster within milliseconds of
-    // each other; a generous 5-second window separates them from any later
-    // mid-sprint additions or completion-time removals.
+    // each other; a 1-second window separates them from any later mid-sprint
+    // additions or completion-time removals while leaving no room for a real
+    // mid-sprint change to be misclassified as part of the commit batch.
+    // TODO: replace this heuristic with an explicit sprint.startedAt column
+    // (or an is_commit_batch flag on sprint_scope_changes).
     const [boundaryRow] = await this.dataSource.query(
       `SELECT MIN(created_at) AS first_at
          FROM sprint_scope_changes
@@ -680,7 +702,7 @@ export class SprintsService {
            FROM sprint_scope_changes
           WHERE sprint_id = $1
             AND action = 'added'
-            AND created_at < $2::timestamptz + INTERVAL '5 seconds'`,
+            AND created_at < $2::timestamptz + INTERVAL '1 second'`,
         [sprintId, firstAt],
       );
       commitItems = commitRow.items;
@@ -723,7 +745,7 @@ export class SprintsService {
            JOIN projects p ON p.id = wi.project_id
            LEFT JOIN users actor ON actor.id = wi.assignee_id
           WHERE sc.sprint_id = $1
-            AND sc.created_at >= $2::timestamptz + INTERVAL '5 seconds'
+            AND sc.created_at >= $2::timestamptz + INTERVAL '1 second'
           ORDER BY sc.created_at DESC, sc.id DESC`,
           [sprintId, firstAt],
         )
@@ -758,7 +780,7 @@ export class SprintsService {
     }
 
     // Map DB rows into the spec response shape.
-    const entries = rows.map((r) => {
+    const entries: ScopeTimelineEntry[] = rows.map((r) => {
       const actor =
         r.actorId !== null
           ? { id: r.actorId, displayName: r.actorName!, avatarUrl: r.actorAvatar }
@@ -801,18 +823,15 @@ export class SprintsService {
 
       entries.push({
         id: 0,
-        action: 'commit' as any,
-        user: commitUser,
-        createdAt:
-          sprint.updatedAt instanceof Date
-            ? sprint.updatedAt.toISOString()
-            : (sprint.updatedAt as unknown as string),
+        action: 'commit',
+        user: { ...commitUser },
+        // Pin to the actual moment start() wrote its first scope_changes row.
+        // sprint.updatedAt drifts forward on every save (goal edit, complete,
+        // cancel, etc.) so it would silently change the timeline timestamp.
+        createdAt: firstAt instanceof Date ? firstAt.toISOString() : String(firstAt),
         pointsDelta: commitPoints,
-        // workItem intentionally omitted on commit entries; cast via spread
-        // to avoid TS complaint about the discriminated union above.
-        ...({} as any),
         totalItems: commitItems,
-      } as any);
+      });
     }
 
     return {
