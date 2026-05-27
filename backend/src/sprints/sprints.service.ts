@@ -87,6 +87,9 @@ export class SprintsService {
     // shape on each sprint.
     const sprintIds = sprints.map((s) => s.id);
     const statsBySprint = new Map<number, { task_count: number; total_points: number; completed_points: number }>();
+    const assigneesBySprint = new Map<number, Array<{ id: number; displayName: string; avatarUrl: string | null }>>();
+    const statusCountsBySprint = new Map<number, Record<string, number>>();
+    const scopeDeltasBySprint = new Map<number, { added: number; removed: number }>();
     if (sprintIds.length > 0) {
       const rows = await this.dataSource.query(`
         SELECT
@@ -105,15 +108,76 @@ export class SprintsService {
           completed_points: r.completed_points,
         });
       }
+
+      // Distinct assignees per sprint — one batched query, grouped client-side.
+      const assigneeRows = await this.dataSource.query(`
+        SELECT DISTINCT wi.sprint_id, u.id, u.display_name, u.avatar_url
+        FROM work_items wi
+        JOIN users u ON u.id = wi.assignee_id
+        WHERE wi.sprint_id = ANY($1) AND wi.assignee_id IS NOT NULL
+        ORDER BY wi.sprint_id, u.display_name
+      `, [sprintIds]);
+      for (const r of assigneeRows) {
+        const list = assigneesBySprint.get(r.sprint_id) ?? [];
+        list.push({ id: r.id, displayName: r.display_name, avatarUrl: r.avatar_url });
+        assigneesBySprint.set(r.sprint_id, list);
+      }
+
+      // Status counts per sprint, keyed by project_statuses.category.
+      const statusRows = await this.dataSource.query(`
+        SELECT wi.sprint_id, ps.category, COUNT(*)::int AS n
+        FROM work_items wi
+        JOIN project_statuses ps ON ps.id = wi.status_id
+        WHERE wi.sprint_id = ANY($1)
+        GROUP BY wi.sprint_id, ps.category
+      `, [sprintIds]);
+      for (const r of statusRows) {
+        const counts = statusCountsBySprint.get(r.sprint_id) ?? {};
+        counts[r.category] = r.n;
+        statusCountsBySprint.set(r.sprint_id, counts);
+      }
+
+      // Scope deltas — added / removed counts from sprint_scope_changes.
+      const scopeRows = await this.dataSource.query(`
+        SELECT sprint_id, action, COUNT(*)::int AS n
+        FROM sprint_scope_changes
+        WHERE sprint_id = ANY($1)
+        GROUP BY sprint_id, action
+      `, [sprintIds]);
+      for (const r of scopeRows) {
+        const deltas = scopeDeltasBySprint.get(r.sprint_id) ?? { added: 0, removed: 0 };
+        if (r.action === 'added') deltas.added = r.n;
+        else if (r.action === 'removed') deltas.removed = r.n;
+        scopeDeltasBySprint.set(r.sprint_id, deltas);
+      }
     }
 
+    // Default the six status-category buckets the SprintsPage spec expects.
+    // We pre-seed all six at 0 then merge whatever the DB actually returned —
+    // so frontend code can render every bucket without null-guards, and
+    // any extra DB categories (e.g. legacy 'backlog') still surface as-is.
+    const defaultStatusCounts = (): Record<string, number> => ({
+      open: 0,
+      in_progress: 0,
+      in_review: 0,
+      done: 0,
+      blocked: 0,
+      cancelled: 0,
+    });
+
     const data = sprints.map((sprint) => {
-      const s = statsBySprint.get(sprint.id);
+      const stats = statsBySprint.get(sprint.id);
+      const deltas = scopeDeltasBySprint.get(sprint.id);
+      const statusCounts = { ...defaultStatusCounts(), ...(statusCountsBySprint.get(sprint.id) ?? {}) };
       return {
         ...sprint,
-        taskCount: s?.task_count ?? 0,
-        totalPoints: s?.total_points ?? 0,
-        completedPoints: s?.completed_points ?? 0,
+        taskCount: stats?.task_count ?? 0,
+        totalPoints: stats?.total_points ?? 0,
+        completedPoints: stats?.completed_points ?? 0,
+        assignees: assigneesBySprint.get(sprint.id) ?? [],
+        statusCounts,
+        scopeAdded: deltas?.added ?? 0,
+        scopeDropped: deltas?.removed ?? 0,
       };
     });
 
