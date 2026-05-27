@@ -11,6 +11,7 @@ export { Eyebrow } from './Eyebrow';
 export { TypeTag } from './TypeTag';
 export type { TypeTagKind } from './TypeTag';
 export { Avatar } from './Avatar';
+export { AvatarStack } from './AvatarStack';
 export { StatusPill } from './StatusPill';
 export type { StatusKey } from './StatusPill';
 export { RoleBadge } from './RoleBadge';
