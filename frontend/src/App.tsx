@@ -10,6 +10,7 @@ import { TodayHome } from './pages/TodayHome';
 import { EpicsPage } from './pages/EpicsPage';
 import { EpicDetailPage } from './pages/EpicDetailPage';
 import { SprintsPage } from './pages/SprintsPage';
+import { SprintDetailPage } from './pages/SprintDetailPage';
 import { BoardPage } from './pages/BoardPage';
 import { ChartsPage } from './pages/ChartsPage';
 import { RetroPage } from './pages/RetroPage';
@@ -71,6 +72,7 @@ export function App() {
             <Route path="/projects/:id/tasks/:taskId" element={<TaskDetailPage />} />
             <Route path="/projects/:id/backlog" element={<BacklogPage />} />
             <Route path="/projects/:id/sprints" element={<SprintsPage />} />
+            <Route path="/projects/:id/sprints/:sprintId" element={<SprintDetailPage />} />
             <Route path="/projects/:id/epics" element={<EpicsPage />} />
             <Route path="/projects/:id/stories" element={<StoriesPage />} />
             <Route path="/projects/:id/stories/:storyId" element={<StoryDetailPage />} />
