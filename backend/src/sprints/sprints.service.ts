@@ -182,7 +182,86 @@ export class SprintsService {
     if (!sprint) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
-    return sprint;
+
+    // statusCounts via project_statuses.category — DB `backlog` → API `open`
+    // (matches the design specs in docs/sprints/spec-sprint-detail-overview.md).
+    const statusRows = await this.dataSource.query(`
+      SELECT ps.category, COUNT(*)::int AS n
+      FROM work_items wi
+      JOIN project_statuses ps ON ps.id = wi.status_id
+      WHERE wi.sprint_id = $1
+      GROUP BY ps.category
+    `, [sprintId]);
+    const statusCounts: Record<string, number> = { open: 0, in_progress: 0, done: 0 };
+    for (const r of statusRows) {
+      const apiKey = r.category === 'backlog' ? 'open' : r.category;
+      statusCounts[apiKey] = r.n;
+    }
+
+    // typeCounts — initialize with the 5 known item types so consumers can
+    // rely on a stable shape, then merge actual counts on top.
+    const typeRows = await this.dataSource.query(`
+      SELECT item_type, COUNT(*)::int AS n
+      FROM work_items
+      WHERE sprint_id = $1
+      GROUP BY item_type
+    `, [sprintId]);
+    const typeCounts: Record<string, number> = { task: 0, bug: 0, story: 0, subtask: 0, epic: 0 };
+    for (const r of typeRows) typeCounts[r.item_type] = r.n;
+
+    // totals — item count, total points, points completed (work_items.completed_at
+    // is only set on transition INTO a done-category status).
+    const [totals] = await this.dataSource.query(`
+      SELECT COUNT(*)::int AS items,
+             COALESCE(SUM(story_points), 0)::int AS total_pts,
+             COALESCE(SUM(story_points) FILTER (WHERE completed_at IS NOT NULL), 0)::int AS done_pts
+      FROM work_items
+      WHERE sprint_id = $1
+    `, [sprintId]);
+
+    // assignees with workload. project_members has no `capacity` column today
+    // (see project-member.entity.ts), so we return capacity as NULL — the
+    // frontend falls back to the sprint's own capacity or to autoCapacity.
+    // GROUP BY u.id deduplicates assignees with multiple items in this sprint.
+    const assignees = await this.dataSource.query(`
+      SELECT u.id,
+             u.display_name AS "displayName",
+             u.avatar_url AS "avatarUrl",
+             COALESCE(SUM(wi.story_points), 0)::int AS assigned,
+             NULL::int AS capacity
+      FROM work_items wi
+      JOIN users u ON u.id = wi.assignee_id
+      WHERE wi.sprint_id = $1 AND wi.assignee_id IS NOT NULL
+      GROUP BY u.id, u.display_name, u.avatar_url
+      ORDER BY u.display_name
+    `, [sprintId]);
+
+    // autoCapacity = average completedPoints of the last 3 completed sprints in
+    // this project, EXCLUDING the current sprint (so re-opening a completed
+    // sprint doesn't seed its own capacity recommendation from itself).
+    // Returns 0 when there are no prior completed sprints.
+    const [auto] = await this.dataSource.query(`
+      SELECT COALESCE(ROUND(AVG(t.done_pts))::int, 0) AS auto_capacity FROM (
+        SELECT COALESCE(SUM(wi.story_points) FILTER (WHERE wi.completed_at IS NOT NULL), 0)::int AS done_pts
+        FROM sprints s
+        LEFT JOIN work_items wi ON wi.sprint_id = s.id
+        WHERE s.project_id = $1 AND s.status = 'completed' AND s.id <> $2
+        GROUP BY s.id
+        ORDER BY MAX(s.completed_at) DESC
+        LIMIT 3
+      ) t
+    `, [projectId, sprintId]);
+
+    return {
+      ...sprint,
+      statusCounts,
+      typeCounts,
+      totalItems: totals.items,
+      totalPoints: totals.total_pts,
+      completedPoints: totals.done_pts,
+      assignees,
+      autoCapacity: auto.auto_capacity,
+    };
   }
 
   /**

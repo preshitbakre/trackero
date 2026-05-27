@@ -499,3 +499,299 @@ describe('Sprints listSprints enrichment (assignees, statusCounts, scope deltas)
     expect(listRes.body.data.list).toEqual([]);
   });
 });
+
+describe('Sprints findOne enrichment (statusCounts, typeCounts, assignees, autoCapacity) (e2e)', () => {
+  let app: INestApplication;
+  let adminToken: string;
+  let adminId: number;
+  let projectId: number;
+  let userBId: number;
+  let userCId: number;
+  let statusOpenId: number;
+  let statusInProgressId: number;
+  let statusDoneId: number;
+
+  beforeAll(async () => {
+    app = await createTestApp();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await clearDatabase(app);
+
+    const admin = await registerStrongAdmin(app);
+    adminToken = admin.token;
+    adminId = admin.id;
+
+    // Two extra users for assignee coverage.
+    async function inviteAndRegister(email: string, displayName: string) {
+      const invRes = await request(app.getHttpServer())
+        .post('/api/users/invite')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ email, role: 'member' });
+      const inviteToken = invRes.body.data.item.token;
+      const regRes = await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({ email, password: 'Password1!', displayName, inviteToken });
+      return regRes.body.data.user.id as number;
+    }
+    userBId = await inviteAndRegister('bob@test.com', 'Bob');
+    userCId = await inviteAndRegister('carol@test.com', 'Carol');
+
+    const projRes = await request(app.getHttpServer())
+      .post('/api/projects')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'FindOne Enrich Project', prefix: 'FOE' });
+    projectId = projRes.body.data.item.id;
+
+    for (const userId of [userBId, userCId]) {
+      await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/members`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ userId, role: 'member' })
+        .expect(201);
+    }
+
+    const ds = app.get(DataSource);
+    const statuses = await ds.query(
+      `SELECT id, category FROM project_statuses WHERE project_id = $1 ORDER BY sort_order`,
+      [projectId],
+    );
+    statusOpenId = statuses.find((s: any) => s.category === 'backlog').id;
+    statusInProgressId = statuses.find((s: any) => s.category === 'in_progress').id;
+    statusDoneId = statuses.find((s: any) => s.category === 'done').id;
+  });
+
+  async function createSprint(name: string, dayOffset: number) {
+    const res = await request(app.getHttpServer())
+      .post(`/api/projects/${projectId}/sprints`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name,
+        goal: `Goal for ${name}`,
+        startDate: futureDate(1 + dayOffset),
+        endDate: futureDate(15 + dayOffset),
+      })
+      .expect(201);
+    return res.body.data.item.id as number;
+  }
+
+  async function createItem(opts: {
+    sprintId: number;
+    itemType?: 'task' | 'bug' | 'story' | 'subtask' | 'epic';
+    title: string;
+    assigneeId?: number | null;
+    statusId: number;
+    storyPoints: number;
+    parentId?: number;
+  }) {
+    const body: any = {
+      itemType: opts.itemType ?? 'task',
+      title: opts.title,
+      statusId: opts.statusId,
+      sprintId: opts.sprintId,
+      storyPoints: opts.storyPoints,
+    };
+    if (opts.assigneeId !== undefined && opts.assigneeId !== null) {
+      body.assigneeId = opts.assigneeId;
+    }
+    if (opts.parentId !== undefined) body.parentId = opts.parentId;
+    const res = await request(app.getHttpServer())
+      .post(`/api/projects/${projectId}/items`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send(body)
+      .expect(201);
+    return res.body.data.item.id as number;
+  }
+
+  it('returns enriched detail with statusCounts, typeCounts, totals, assignees, and autoCapacity=0 when no completed sprints', async () => {
+    const sprintId = await createSprint('Enriched Sprint', 0);
+
+    // Mix of items: admin (2 open), bob (in_progress + done via transition), unassigned (open)
+    await createItem({ sprintId, title: 'Admin task 1', assigneeId: adminId, statusId: statusOpenId, storyPoints: 3 });
+    await createItem({ sprintId, title: 'Admin task 2', assigneeId: adminId, statusId: statusInProgressId, storyPoints: 5 });
+    const bobDoneId = await createItem({ sprintId, title: 'Bob task 1', assigneeId: userBId, statusId: statusInProgressId, storyPoints: 2 });
+    await request(app.getHttpServer())
+      .put(`/api/projects/${projectId}/items/${bobDoneId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ statusId: statusDoneId })
+      .expect(200);
+    await createItem({ sprintId, title: 'Bob task 2', assigneeId: userBId, statusId: statusInProgressId, storyPoints: 1 });
+    await createItem({ sprintId, title: 'Unassigned task', assigneeId: null, statusId: statusOpenId, storyPoints: 8 });
+
+    // A bug to cover typeCounts on a second item_type.
+    await createItem({ sprintId, itemType: 'bug', title: 'A bug', assigneeId: adminId, statusId: statusOpenId, storyPoints: 0 });
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/projects/${projectId}/sprints/${sprintId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    const item = res.body.data;
+    expect(item.id).toBe(sprintId);
+
+    // statusCounts: backlog → open. open=admin1 + unassigned + bug = 3; in_progress=admin2 + bob2 = 2; done=bob1 = 1.
+    expect(item.statusCounts).toEqual({ open: 3, in_progress: 2, done: 1 });
+
+    // typeCounts: 5 known keys; task=5, bug=1, others 0.
+    expect(item.typeCounts).toEqual({ task: 5, bug: 1, story: 0, subtask: 0, epic: 0 });
+
+    // Totals — 6 items, 3+5+2+1+8+0 = 19 points, 2 completed (Bob's done).
+    expect(item.totalItems).toBe(6);
+    expect(item.totalPoints).toBe(19);
+    expect(item.completedPoints).toBe(2);
+
+    // Assignees: admin and Bob only — Carol has no items.
+    expect(Array.isArray(item.assignees)).toBe(true);
+    expect(item.assignees).toHaveLength(2);
+    const byId = new Map<number, any>(item.assignees.map((a: any) => [a.id, a]));
+    expect(byId.has(adminId)).toBe(true);
+    expect(byId.has(userBId)).toBe(true);
+    expect(byId.has(userCId)).toBe(false);
+
+    // Admin assigned points: 3 + 5 + 0 = 8. Bob assigned points: 2 + 1 = 3.
+    expect(byId.get(adminId).assigned).toBe(8);
+    expect(byId.get(userBId).assigned).toBe(3);
+
+    // Shape: { id, displayName, avatarUrl, assigned, capacity }
+    for (const a of item.assignees) {
+      expect(typeof a.id).toBe('number');
+      expect(typeof a.displayName).toBe('string');
+      expect(a).toHaveProperty('avatarUrl');
+      expect(a).toHaveProperty('assigned');
+      expect(a).toHaveProperty('capacity');
+      // project_members has no capacity column, so capacity is always null.
+      expect(a.capacity).toBeNull();
+    }
+
+    // autoCapacity = 0 with no completed sprints in the project.
+    expect(item.autoCapacity).toBe(0);
+  });
+
+  it('returns zero counts and empty assignees for an empty sprint', async () => {
+    const sprintId = await createSprint('Empty Sprint', 0);
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/projects/${projectId}/sprints/${sprintId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    const item = res.body.data;
+    expect(item.id).toBe(sprintId);
+    expect(item.statusCounts).toEqual({ open: 0, in_progress: 0, done: 0 });
+    expect(item.typeCounts).toEqual({ task: 0, bug: 0, story: 0, subtask: 0, epic: 0 });
+    expect(item.totalItems).toBe(0);
+    expect(item.totalPoints).toBe(0);
+    expect(item.completedPoints).toBe(0);
+    expect(item.assignees).toEqual([]);
+    expect(item.autoCapacity).toBe(0);
+  });
+
+  it('autoCapacity averages the last 3 completed sprints (excluding current) when more exist', async () => {
+    // The "current" sprint we'll fetch findOne on.
+    const currentSprintId = await createSprint('Current', 0);
+
+    // Create 4 prior completed sprints with controlled donePoints: 10, 20, 30, 40.
+    // The cap of 3 means the average should come from the most recent 3 by completed_at desc — 40, 30, 20 → 30.
+    const ds = app.get(DataSource);
+
+    async function buildCompletedSprintWithDonePoints(name: string, dayOffset: number, donePoints: number, completedDaysAgo: number) {
+      const sId = await createSprint(name, dayOffset);
+      if (donePoints > 0) {
+        // Create a single done item with storyPoints = donePoints to control the sum precisely.
+        const wiId = await createItem({
+          sprintId: sId,
+          title: `${name} item`,
+          assigneeId: adminId,
+          statusId: statusInProgressId,
+          storyPoints: donePoints,
+        });
+        // Transition to done to set completed_at on the work_item.
+        await request(app.getHttpServer())
+          .put(`/api/projects/${projectId}/items/${wiId}`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ statusId: statusDoneId })
+          .expect(200);
+      }
+      // Force the sprint into 'completed' state with a known completed_at offset.
+      await ds.query(
+        `UPDATE sprints SET status = 'completed', completed_at = NOW() - ($1 || ' days')::interval WHERE id = $2`,
+        [String(completedDaysAgo), sId],
+      );
+      return sId;
+    }
+
+    // Older to newer (by completedDaysAgo desc → older first). Newest 3 = 20, 30, 40 → avg 30.
+    await buildCompletedSprintWithDonePoints('Old1', 20, 10, 40);
+    await buildCompletedSprintWithDonePoints('Old2', 40, 20, 30);
+    await buildCompletedSprintWithDonePoints('Old3', 60, 30, 20);
+    await buildCompletedSprintWithDonePoints('Old4', 80, 40, 10);
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/projects/${projectId}/sprints/${currentSprintId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    const item = res.body.data;
+    expect(item.id).toBe(currentSprintId);
+    // (20 + 30 + 40) / 3 = 30.
+    expect(item.autoCapacity).toBe(30);
+  });
+
+  it('autoCapacity excludes the current sprint even if it is completed', async () => {
+    // If we ask for findOne on a completed sprint, autoCapacity must come
+    // from OTHER completed sprints, not include itself.
+    const ds = app.get(DataSource);
+    const currentSprintId = await createSprint('Current Done', 0);
+
+    // Give current sprint a huge done-points footprint we should NOT see in autoCapacity.
+    const wiId = await createItem({
+      sprintId: currentSprintId,
+      title: 'Current done item',
+      assigneeId: adminId,
+      statusId: statusInProgressId,
+      storyPoints: 999,
+    });
+    await request(app.getHttpServer())
+      .put(`/api/projects/${projectId}/items/${wiId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ statusId: statusDoneId })
+      .expect(200);
+    await ds.query(
+      `UPDATE sprints SET status = 'completed', completed_at = NOW() WHERE id = $1`,
+      [currentSprintId],
+    );
+
+    // One other completed sprint with donePoints = 12.
+    const otherId = await createSprint('Other', 20);
+    const otherWiId = await createItem({
+      sprintId: otherId,
+      title: 'Other item',
+      assigneeId: adminId,
+      statusId: statusInProgressId,
+      storyPoints: 12,
+    });
+    await request(app.getHttpServer())
+      .put(`/api/projects/${projectId}/items/${otherWiId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ statusId: statusDoneId })
+      .expect(200);
+    await ds.query(
+      `UPDATE sprints SET status = 'completed', completed_at = NOW() - INTERVAL '5 days' WHERE id = $1`,
+      [otherId],
+    );
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/projects/${projectId}/sprints/${currentSprintId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    const item = res.body.data;
+    expect(item.id).toBe(currentSprintId);
+    // Should equal the other sprint's donePoints (12), NOT include this sprint's 999.
+    expect(item.autoCapacity).toBe(12);
+  });
+});
