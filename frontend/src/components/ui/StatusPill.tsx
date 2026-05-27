@@ -19,6 +19,8 @@ export type StatusKey =
   | 'idle'
   | 'no_sprint'
   | 'archived'
+  | 'active'
+  | 'shipped'
   | 'ends_in_days';
 
 interface StatusPillProps {
@@ -35,6 +37,8 @@ const PROJECT_STATUS_PALETTE: Record<string, { bg: string; color: string }> = {
   idle: { bg: '#E8E3F0', color: '#6B6377' },
   no_sprint: { bg: '#E8E3F0', color: '#A8A1B5' },
   archived: { bg: '#E8E3F0', color: '#A8A1B5' },
+  active: { bg: '#7C3AED15', color: '#6326D6' },
+  shipped: { bg: '#88D68E20', color: '#3E8E44' },
   ends_in_days: { bg: '#7C3AED15', color: '#6326D6' },
 };
 
@@ -52,6 +56,8 @@ const LABELS: Record<StatusKey, string> = {
   idle: 'idle',
   no_sprint: 'no sprint',
   archived: 'archived',
+  active: 'active',
+  shipped: 'shipped',
   ends_in_days: 'ends in',
 };
 
