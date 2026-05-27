@@ -107,3 +107,170 @@ describe('Sprints entity columns (e2e)', () => {
     }
   });
 });
+
+describe('Sprints UpdateSprintDto carryOverPolicy + capacity (e2e)', () => {
+  let app: INestApplication;
+  let adminToken: string;
+  let projectId: number;
+
+  beforeAll(async () => {
+    app = await createTestApp();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await clearDatabase(app);
+
+    const admin = await registerStrongAdmin(app);
+    adminToken = admin.token;
+
+    const projRes = await request(app.getHttpServer())
+      .post('/api/projects')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Sprint Update Project', prefix: 'SUP' });
+    projectId = projRes.body.data.item.id;
+  });
+
+  async function createPlanningSprint() {
+    const res = await request(app.getHttpServer())
+      .post(`/api/projects/${projectId}/sprints`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Sprint 1',
+        goal: 'Initial sprint',
+        startDate: futureDate(1),
+        endDate: futureDate(15),
+      })
+      .expect(201);
+    return res.body.data.item.id as number;
+  }
+
+  it('PUT accepts carryOverPolicy and capacity and persists them', async () => {
+    const sprintId = await createPlanningSprint();
+
+    const updateRes = await request(app.getHttpServer())
+      .put(`/api/projects/${projectId}/sprints/${sprintId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ carryOverPolicy: 'roll', capacity: 40 })
+      .expect(200);
+
+    expect(updateRes.body.data.item.carryOverPolicy).toBe('roll');
+    expect(updateRes.body.data.item.capacity).toBe(40);
+
+    const ds = app.get(DataSource);
+    const row = await ds.query(
+      `SELECT carry_over_policy, capacity FROM sprints WHERE id = $1`,
+      [sprintId],
+    );
+    expect(row[0].carry_over_policy).toBe('roll');
+    expect(row[0].capacity).toBe(40);
+  });
+
+  it('PUT accepts capacity: null to clear the override', async () => {
+    const sprintId = await createPlanningSprint();
+
+    // First set a value...
+    await request(app.getHttpServer())
+      .put(`/api/projects/${projectId}/sprints/${sprintId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ capacity: 25 })
+      .expect(200);
+
+    // ...then clear it with null.
+    const clearRes = await request(app.getHttpServer())
+      .put(`/api/projects/${projectId}/sprints/${sprintId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ capacity: null })
+      .expect(200);
+
+    expect(clearRes.body.data.item.capacity).toBeNull();
+
+    const ds = app.get(DataSource);
+    const row = await ds.query(
+      `SELECT capacity FROM sprints WHERE id = $1`,
+      [sprintId],
+    );
+    expect(row[0].capacity).toBeNull();
+  });
+
+  it('PUT rejects carryOverPolicy: "bogus" with 400', async () => {
+    const sprintId = await createPlanningSprint();
+
+    await request(app.getHttpServer())
+      .put(`/api/projects/${projectId}/sprints/${sprintId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ carryOverPolicy: 'bogus' })
+      .expect(400);
+  });
+
+  it('PUT rejects capacity: 0 with 400 (Min(1))', async () => {
+    const sprintId = await createPlanningSprint();
+
+    await request(app.getHttpServer())
+      .put(`/api/projects/${projectId}/sprints/${sprintId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ capacity: 0 })
+      .expect(400);
+  });
+
+  it('PUT rejects carryOverPolicy/capacity changes on a completed sprint with 400', async () => {
+    const sprintId = await createPlanningSprint();
+
+    // Force the sprint into 'completed' state via raw SQL — the test only
+    // needs the status guard to trip; we don't need a real complete flow here.
+    const ds = app.get(DataSource);
+    await ds.query(`UPDATE sprints SET status = 'completed' WHERE id = $1`, [sprintId]);
+
+    await request(app.getHttpServer())
+      .put(`/api/projects/${projectId}/sprints/${sprintId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ carryOverPolicy: 'roll' })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .put(`/api/projects/${projectId}/sprints/${sprintId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ capacity: 30 })
+      .expect(400);
+  });
+
+  it('PUT rejects carryOverPolicy/capacity changes on a cancelled sprint with 400', async () => {
+    const sprintId = await createPlanningSprint();
+
+    const ds = app.get(DataSource);
+    await ds.query(`UPDATE sprints SET status = 'cancelled' WHERE id = $1`, [sprintId]);
+
+    await request(app.getHttpServer())
+      .put(`/api/projects/${projectId}/sprints/${sprintId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ carryOverPolicy: 'backlog' })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .put(`/api/projects/${projectId}/sprints/${sprintId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ capacity: 10 })
+      .expect(400);
+  });
+
+  it('PUT allows carryOverPolicy and capacity changes on an active sprint', async () => {
+    const sprintId = await createPlanningSprint();
+
+    // Flip the sprint to 'active' directly — start() requires tasks and we
+    // don't need that wiring just to test the editable-on-active rule.
+    const ds = app.get(DataSource);
+    await ds.query(`UPDATE sprints SET status = 'active' WHERE id = $1`, [sprintId]);
+
+    const res = await request(app.getHttpServer())
+      .put(`/api/projects/${projectId}/sprints/${sprintId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ carryOverPolicy: 'roll', capacity: 50 })
+      .expect(200);
+
+    expect(res.body.data.item.carryOverPolicy).toBe('roll');
+    expect(res.body.data.item.capacity).toBe(50);
+  });
+});

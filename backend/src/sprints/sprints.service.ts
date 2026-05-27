@@ -164,6 +164,17 @@ export class SprintsService {
       throw new AppLogicException('FORBIDDEN', HttpStatus.BAD_REQUEST);
     }
 
+    // carryOverPolicy and capacity are editable on planning + active sprints
+    // only — completed/cancelled sprints are immutable for these fields.
+    // (See docs/sprints/spec-sprint-detail-settings.md "Disabled states".)
+    if (
+      (dto.carryOverPolicy !== undefined || dto.capacity !== undefined) &&
+      sprint.status !== 'planning' &&
+      sprint.status !== 'active'
+    ) {
+      throw new AppLogicException('FORBIDDEN', HttpStatus.BAD_REQUEST);
+    }
+
     // Date validation
     if (dto.startDate !== undefined || dto.endDate !== undefined) {
       const newStart = dto.startDate ?? sprint.startDate;
@@ -188,6 +199,8 @@ export class SprintsService {
     if (dto.goal !== undefined) sprint.goal = dto.goal;
     if (dto.startDate !== undefined) sprint.startDate = dto.startDate;
     if (dto.endDate !== undefined) sprint.endDate = dto.endDate;
+    if (dto.carryOverPolicy !== undefined) sprint.carryOverPolicy = dto.carryOverPolicy;
+    if (dto.capacity !== undefined) sprint.capacity = dto.capacity;
 
     const saved = await this.sprintRepo.save(sprint);
     const list = await this.listSprints(projectId);
