@@ -1,15 +1,25 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { RefreshCw } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { apiClient } from '../api/client';
 import { toast } from '../components/common/Toast';
 import { useRole } from '../hooks/useRole';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
-import { createPortal } from 'react-dom';
 import { Button } from '../components/ui/Button';
 import { Textarea } from '../components/ui/Textarea';
 import { CardSkeleton } from '../components/common/Skeleton';
 import { ErrorState } from '../components/common/ErrorState';
+import { Eyebrow } from '../components/ui/Eyebrow';
+import { MetricNumber } from '../components/ui/MetricNumber';
+import { StatusPill } from '../components/ui/StatusPill';
+import { AvatarStack } from '../components/ui/AvatarStack';
+import { VelocityChart } from '../components/sprints/VelocityChart';
+
+interface SprintAssignee {
+  id: number;
+  displayName: string;
+  avatarUrl?: string | null;
+}
 
 interface Sprint {
   id: number;
@@ -19,14 +29,42 @@ interface Sprint {
   sprintNumber: number;
   startDate: string | null;
   endDate: string | null;
+  taskCount?: number;
+  totalPoints?: number;
+  completedPoints?: number;
+  assignees?: SprintAssignee[];
+  statusCounts?: { open?: number; in_progress?: number; done?: number };
+  scopeAdded?: number;
+  scopeDropped?: number;
 }
 
-function formatDate(d: string): string {
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+function formatDate(d: string | null): string {
+  if (!d) return '';
+  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function formatRange(start: string | null, end: string | null): string {
+  if (!start || !end) return '';
+  return `${formatDate(start)} → ${formatDate(end)}`;
 }
 
 function daysBetween(start: string, end: string): number {
   return Math.ceil((new Date(end).getTime() - new Date(start).getTime()) / 86400000);
+}
+
+function totalDays(s: Sprint): number {
+  if (!s.startDate || !s.endDate) return 1;
+  return Math.max(1, Math.ceil((Date.parse(s.endDate) - Date.parse(s.startDate)) / 86400000));
+}
+
+function dayOfSprint(s: Sprint): number {
+  if (!s.startDate) return 1;
+  return Math.max(1, Math.ceil((Date.now() - Date.parse(s.startDate + 'T00:00:00')) / 86400000));
+}
+
+function daysUntil(end: string | null): number {
+  if (!end) return 0;
+  return Math.max(0, Math.ceil((new Date(end + 'T00:00:00').getTime() - Date.now()) / 86400000));
 }
 
 function todayStr(): string {
@@ -41,11 +79,14 @@ function addDays(date: string, days: number): string {
 
 export function SprintsPage() {
   const { id: projectId } = useParams();
+  const navigate = useNavigate();
   const [sprints, setSprints] = useState<Sprint[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [defaultDuration, setDefaultDuration] = useState(14);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [showVelocity, setShowVelocity] = useState(true);
+  const [showAllSprints, setShowAllSprints] = useState(false);
   const { canManageProject } = useRole();
   const [cancellingSprintId, setCancellingSprintId] = useState<number | null>(null);
 
@@ -101,140 +142,298 @@ export function SprintsPage() {
     }
   };
 
-  const hasActiveSprint = sprints.some((s) => s.status === 'active');
   const cancellingName = sprints.find((s) => s.id === cancellingSprintId)?.name || '';
 
+  // Derived data
+  const activeSprint = sprints.find((s) => s.status === 'active');
+  const planningSprint = sprints.find((s) => s.status === 'planning');
+  const archivedSprints = sprints.filter((s) => s.status === 'completed' || s.status === 'cancelled');
+  const completedSprints = archivedSprints.filter((s) => s.status === 'completed');
+  const recentArchive = showAllSprints
+    ? archivedSprints
+    : archivedSprints.slice(0, 12);
 
-  const STATUS_ACCENT: Record<string, { border: string; bg: string; badge: string; badgeText: string; label: string }> = {
-    planning: { border: '#88A9D6', bg: '#FFFFFF', badge: '#88A9D630', badgeText: '#3F5E8E', label: 'Planning' },
-    active: { border: '#88D68E', bg: '#FFFFFF', badge: '#88D68E35', badgeText: '#3E8E44', label: 'Active' },
-    completed: { border: '#D1CCC7', bg: '#FFFFFF', badge: '#D1CCC725', badgeText: '#7E7770', label: 'Completed' },
-    cancelled: { border: '#E05252', bg: '#FFFFFF', badge: '#E0525220', badgeText: '#E05252', label: 'Cancelled' },
-  };
+  const recentCompleted = completedSprints.slice(0, 6);
+  const avgVelocity = Math.round(
+    recentCompleted.reduce((sum, s) => sum + (s.completedPoints || 0), 0) /
+      Math.max(1, recentCompleted.length),
+  );
 
-  return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-baseline gap-4 flex-wrap">
-          <h1 className="font-serif text-[36px] text-text">Sprints</h1>
-          <p className="text-[11px] tracking-[0.18em] uppercase font-serif font-semibold text-faint">
-            {sprints.length} sprint{sprints.length !== 1 ? 's' : ''} · {sprints.filter(s => s.status === 'active').length} active
-          </p>
-        </div>
-        {canManageProject && (
-          <Button onClick={() => setShowCreate(true)} className="shadow-[0_2px_8px_rgba(136,169,214,0.3)]">+ Create Sprint</Button>
-        )}
-      </div>
-
-      {loading ? (
+  // Loading / error states
+  if (loading) {
+    return (
+      <div className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {[1, 2, 3].map((i) => <CardSkeleton key={i} />)}
         </div>
-      ) : error ? (
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
         <ErrorState message="Failed to load sprints" onRetry={loadSprints} />
-      ) : sprints.length === 0 ? (
-        <div className="text-center py-16">
-          <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: '#88A9D620' }}>
-            <RefreshCw size={32} style={{ color: '#3F5E8E' }} strokeWidth={1.5} />
-          </div>
-          <h3 className="text-[16px] font-medium text-neutral-500 mb-1">No sprints yet</h3>
-          <p className="text-[14px] text-neutral-400 mb-4">Create a sprint to start planning your work</p>
-          {canManageProject && <Button onClick={() => setShowCreate(true)}>+ Create Sprint</Button>}
+      </div>
+    );
+  }
+
+  // EMPTY STATE
+  if (sprints.length === 0) {
+    return (
+      <div className="p-6">
+        <div className="mb-8">
+          <Eyebrow>Project · Backstage · 0 sprints</Eyebrow>
+          <h1 className="font-serif text-[36px] text-text mt-1">Sprints</h1>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {sprints.map((sprint) => {
-            const accent = STATUS_ACCENT[sprint.status] || STATUS_ACCENT.planning;
-            const daysLeft = sprint.status === 'active' && sprint.endDate
-              ? Math.max(0, Math.ceil((new Date(sprint.endDate).getTime() - Date.now()) / 86400000))
-              : null;
-            return (
-              <div
-                key={sprint.id}
-                className="flex flex-col rounded-xl bg-white dark:bg-dneutral-100 shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.3)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.12)] transition-all duration-150 overflow-hidden"
-              >
-                {/* Colored top bar */}
-                <div className="h-1.5" style={{ background: accent.border }} />
 
-                <div className="p-5 flex flex-col flex-1">
-                  {/* Header */}
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[14px] font-semibold px-2.5 py-0.5 rounded-full uppercase tracking-wide" style={{ background: accent.badge, color: accent.badgeText }}>
-                      {accent.label}
-                    </span>
-                    {daysLeft !== null && (
-                      <span className="text-[14px] font-medium ml-auto" style={{ color: daysLeft <= 3 ? '#E05252' : '#D6B588' }}>
-                        {daysLeft === 0 ? 'Ends today' : `${daysLeft}d left`}
-                      </span>
-                    )}
-                  </div>
+        <div className="flex flex-col lg:flex-row gap-12 items-start">
+          {/* LEFT */}
+          <div className="flex-1 max-w-[520px]">
+            <div className="font-serif text-[48px] leading-[1.05] text-text">No sprints</div>
+            <div className="font-serif italic text-[48px] leading-[1.05] text-mute mb-6">— yet. —</div>
 
-                  {/* Name */}
-                  <h3 className="text-[18px] font-semibold text-neutral-700 dark:text-dneutral-700 mb-1">{sprint.name}</h3>
+            <p className="text-[14px] text-mute mb-8 max-w-[480px]">
+              A sprint is a time-boxed plan: a goal, a start, an end, and the items you intend to ship.
+              Set one up in three steps and Trackero will keep score.
+            </p>
 
-                  {/* Goal */}
-                  {sprint.goal && (
-                    <p className="text-[14px] text-neutral-500 dark:text-dneutral-500 mb-2 line-clamp-2">{sprint.goal}</p>
-                  )}
-
-                  {/* Dates */}
-                  {sprint.startDate && sprint.endDate && (
-                    <p className="text-[14px] text-neutral-400 dark:text-dneutral-500 mb-4">
-                      {formatDate(sprint.startDate)} – {formatDate(sprint.endDate)} · {daysBetween(sprint.startDate, sprint.endDate)} days
-                    </p>
-                  )}
-
-                  {/* Spacer */}
-                  <div className="flex-1" />
-
-                  {/* Actions */}
-                  {canManageProject && (
-                    <div className="flex items-center gap-2 flex-wrap pt-3 border-t border-neutral-100 dark:border-dneutral-200">
-                      {sprint.status === 'planning' && (
-                        <>
-                          <Link
-                            to={`/projects/${projectId}/sprints/${sprint.id}/planning`}
-                            className="inline-flex items-center h-[30px] px-4 text-[14px] font-medium rounded-md"
-                            style={{ background: '#88A9D620', color: '#3F5E8E' }}
-                          >
-                            Plan
-                          </Link>
-                          <Button size="sm" variant="success" onClick={() => handleStart(sprint.id)} disabled={hasActiveSprint} title={hasActiveSprint ? 'Another sprint is already active' : 'Start sprint'}>
-                            Start
-                          </Button>
-                          <Button size="sm" variant="danger" onClick={() => setCancellingSprintId(sprint.id)}>
-                            Cancel
-                          </Button>
-                        </>
-                      )}
-                      {sprint.status === 'active' && (
-                        <>
-                          <Button size="sm" variant="success" onClick={() => handleComplete(sprint.id)}>
-                            Complete
-                          </Button>
-                          <Button size="sm" variant="danger" onClick={() => setCancellingSprintId(sprint.id)}>
-                            Cancel
-                          </Button>
-                        </>
-                      )}
-                      {(sprint.status === 'completed' || sprint.status === 'active') && (
-                        <Link
-                          to={`/projects/${projectId}/sprints/${sprint.id}/retro`}
-                          className="inline-flex items-center h-[30px] px-4 text-[14px] font-medium rounded-md"
-                          style={{ background: '#D688D020', color: '#8E3E88' }}
-                        >
-                          Retro
-                        </Link>
-                      )}
-                    </div>
-                  )}
+            <div className="space-y-5 mb-8">
+              <div className="flex gap-5">
+                <span className="font-serif text-[28px] text-faint leading-none w-[40px]">01</span>
+                <div>
+                  <div className="text-[15px] font-semibold text-text">Set the goal</div>
+                  <div className="text-[13px] text-mute mt-0.5">One sentence. What does shipping this sprint mean?</div>
                 </div>
               </div>
-            );
-          })}
+              <div className="flex gap-5">
+                <span className="font-serif text-[28px] text-faint leading-none w-[40px]">02</span>
+                <div>
+                  <div className="text-[15px] font-semibold text-text">Pull in items</div>
+                  <div className="text-[13px] text-mute mt-0.5">Drag from the backlog. The capacity meter tells you when you're full.</div>
+                </div>
+              </div>
+              <div className="flex gap-5">
+                <span className="font-serif text-[28px] text-faint leading-none w-[40px]">03</span>
+                <div>
+                  <div className="text-[15px] font-semibold text-text">Start it</div>
+                  <div className="text-[13px] text-mute mt-0.5">Trackero starts the clock and the board lights up.</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {canManageProject && (
+                <button
+                  type="button"
+                  onClick={() => setShowCreate(true)}
+                  className="btn-accent"
+                >
+                  Plan your first sprint →
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => window.open('https://www.atlassian.com/agile/scrum/sprints', '_blank', 'noopener')}
+                className="btn-ghost"
+              >
+                Read the sprint guide
+              </button>
+            </div>
+          </div>
+
+          {/* RIGHT preview card */}
+          <div className="w-full lg:w-[380px] bg-card border border-rule p-6">
+            <div className="smallcaps mb-4">What it'll look like</div>
+            <div className="flex items-baseline gap-3 mb-3">
+              <span className="font-serif text-[28px] text-faint leading-none">01</span>
+              <span className="font-serif italic text-[20px] text-mute">Your first goal…</span>
+            </div>
+            <div className="smallcaps">0 / 0 pts · Awaiting plan</div>
+          </div>
+        </div>
+
+        {showCreate && (
+          <CreateSprintDialog
+            projectId={projectId!}
+            defaultDuration={defaultDuration}
+            nextSprintNumber={1}
+            onClose={() => setShowCreate(false)}
+            onCreated={() => { setShowCreate(false); loadSprints(); toast('Sprint created'); }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // POPULATED STATE
+  const activeCount = sprints.filter((s) => s.status === 'active').length;
+  const planningCount = sprints.filter((s) => s.status === 'planning').length;
+  const subtitleParts: string[] = [];
+  if (activeCount > 0) subtitleParts.push(`${activeCount} shipping`);
+  if (planningCount > 0) subtitleParts.push(`${planningCount} queued`);
+  if (archivedSprints.length > 0) subtitleParts.push(`${archivedSprints.length} in the archive`);
+
+  return (
+    <div className="p-6">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-6 gap-6 flex-wrap">
+        <div>
+          <Eyebrow>Project · Backstage · {sprints.length} sprints</Eyebrow>
+          <h1 className="font-serif text-[36px] text-text mt-1">
+            Sprints
+            {subtitleParts.length > 0 && (
+              <span className="font-serif italic text-[20px] text-mute ml-3">— {subtitleParts.join(', ')}.</span>
+            )}
+          </h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowVelocity((v) => !v)}
+            className={`btn-ghost ${showVelocity ? 'bg-shade' : ''}`}
+          >
+            Velocity
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowAllSprints((v) => !v)}
+            className={`btn-ghost ${showAllSprints ? 'bg-shade' : ''}`}
+          >
+            All sprints
+          </button>
+          {canManageProject && (
+            <Button onClick={() => setShowCreate(true)}>+ Plan a sprint</Button>
+          )}
+        </div>
+      </div>
+
+      {/* Velocity panel */}
+      {showVelocity && completedSprints.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 py-5 border-b border-rule mb-8">
+          <div>
+            <div className="smallcaps mb-2">Avg velocity · last 6</div>
+            <div className="flex items-baseline gap-2">
+              <MetricNumber size="xl">{avgVelocity}</MetricNumber>
+              <span className="text-[14px] text-mute">pts</span>
+            </div>
+            <div className="text-[12px] text-mute mt-1">across last {recentCompleted.length} completed sprint{recentCompleted.length !== 1 ? 's' : ''}</div>
+          </div>
+          <div className="md:col-span-1">
+            <div className="smallcaps mb-2">Velocity by sprint</div>
+            <VelocityChart
+              sprints={[...completedSprints].reverse().slice(-8).map((s) => ({
+                sprintNumber: s.sprintNumber,
+                completedPoints: s.completedPoints || 0,
+                status: s.status,
+              }))}
+              currentSprintNumber={activeSprint?.sprintNumber}
+            />
+          </div>
+          {activeSprint && (
+            <div>
+              <div className="smallcaps mb-2">This sprint · S-{activeSprint.sprintNumber}</div>
+              <div className="flex items-baseline gap-2">
+                <MetricNumber size="lg">{activeSprint.completedPoints || 0}</MetricNumber>
+                <span className="font-serif italic text-[18px] text-mute">of</span>
+                <MetricNumber size="lg">{activeSprint.totalPoints || 0}</MetricNumber>
+                <span className="text-[12px] text-mute">pts</span>
+              </div>
+              <div className="text-[12px] text-mute mt-1">day {dayOfSprint(activeSprint)} of {totalDays(activeSprint)}</div>
+            </div>
+          )}
         </div>
       )}
 
+      {/* CURRENT */}
+      {activeSprint && (
+        <div className="mb-8">
+          <Eyebrow className="mb-3">Current</Eyebrow>
+          <SprintCard
+            sprint={activeSprint}
+            variant="active"
+            projectId={projectId!}
+            canManage={canManageProject}
+            onComplete={() => handleComplete(activeSprint.id)}
+            onCancel={() => setCancellingSprintId(activeSprint.id)}
+            onNavigate={() => navigate(`/projects/${projectId}/sprints/${activeSprint.id}`)}
+          />
+        </div>
+      )}
+
+      {/* NEXT UP · PLANNING */}
+      {planningSprint && (
+        <div className="mb-8">
+          <Eyebrow className="mb-3">Next up · Planning</Eyebrow>
+          <SprintCard
+            sprint={planningSprint}
+            variant="planning"
+            projectId={projectId!}
+            canManage={canManageProject}
+            hasActiveSprint={!!activeSprint}
+            onStart={() => handleStart(planningSprint.id)}
+            onCancel={() => setCancellingSprintId(planningSprint.id)}
+            onNavigate={() => navigate(`/projects/${projectId}/sprints/${planningSprint.id}`)}
+          />
+        </div>
+      )}
+
+      {/* ARCHIVE */}
+      {archivedSprints.length > 0 && (
+        <div>
+          <Eyebrow className="mb-3">
+            Archive · {showAllSprints ? `all ${archivedSprints.length}` : 'last 12 weeks'}
+          </Eyebrow>
+          <div className="bg-card border border-rule">
+            {/* Table header */}
+            <div className="row-head flex items-center px-4">
+              <div className="w-[40px]">#</div>
+              <div className="flex-1">Goal</div>
+              <div className="w-[160px]">Dates</div>
+              <div className="w-[80px]">Velocity</div>
+              <div className="w-[90px]">Status</div>
+              <div className="w-[140px]">Team</div>
+              <div className="w-[60px] text-right">Retro</div>
+            </div>
+            {recentArchive.map((s) => (
+              <button
+                type="button"
+                key={s.id}
+                onClick={() => navigate(`/projects/${projectId}/sprints/${s.id}`)}
+                className="w-full flex items-center h-[44px] border-b border-rule px-4 text-[13px] hover:bg-paper transition-colors text-left last:border-b-0"
+              >
+                <div className="w-[40px] font-serif text-[18px] text-text">{s.sprintNumber}</div>
+                <div className="flex-1 truncate text-text pr-3">{s.goal || s.name}</div>
+                <div className="w-[160px] text-mute text-[12px]">{formatRange(s.startDate, s.endDate)}</div>
+                <div className="w-[80px] font-mono text-[12px] text-text">{s.completedPoints || 0} pts</div>
+                <div className="w-[90px]">
+                  <StatusPill status={s.status === 'completed' ? 'shipped' : 'cancelled'} />
+                </div>
+                <div className="w-[140px]">
+                  <AvatarStack users={s.assignees || []} max={5} size="xs" />
+                </div>
+                <div className="w-[60px] text-right">
+                  {s.status === 'completed' ? (
+                    <span
+                      className="text-text underline decoration-rule underline-offset-2 text-[12px]"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/projects/${projectId}/sprints/${s.id}/retro`);
+                      }}
+                    >
+                      open →
+                    </span>
+                  ) : (
+                    <span className="text-faint">—</span>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Dialogs */}
       {showCreate && (
         <CreateSprintDialog
           projectId={projectId!}
@@ -254,6 +453,203 @@ export function SprintsPage() {
           onConfirm={() => handleCancel(cancellingSprintId)}
           onCancel={() => setCancellingSprintId(null)}
         />
+      )}
+    </div>
+  );
+}
+
+interface SprintCardProps {
+  sprint: Sprint;
+  variant: 'active' | 'planning';
+  projectId: string;
+  canManage: boolean;
+  hasActiveSprint?: boolean;
+  onStart?: () => void;
+  onComplete?: () => void;
+  onCancel?: () => void;
+  onNavigate?: () => void;
+}
+
+function SprintCard({
+  sprint,
+  variant,
+  projectId,
+  canManage,
+  hasActiveSprint,
+  onStart,
+  onComplete,
+  onCancel,
+  onNavigate,
+}: SprintCardProps) {
+  const navigate = useNavigate();
+  const total = totalDays(sprint);
+  const day = Math.min(dayOfSprint(sprint), total);
+  const totalPoints = sprint.totalPoints || 0;
+  const completedPoints = sprint.completedPoints || 0;
+  const completedPct = totalPoints > 0 ? Math.min(100, Math.round((completedPoints / totalPoints) * 100)) : 0;
+  const remaining = daysUntil(sprint.endDate);
+
+  const counts = sprint.statusCounts || {};
+  const openCount = counts.open ?? 0;
+  const inProgressCount = counts.in_progress ?? 0;
+  const doneCount = counts.done ?? 0;
+  const totalItems = sprint.taskCount ?? (openCount + inProgressCount + doneCount);
+  const added = sprint.scopeAdded ?? 0;
+  const dropped = sprint.scopeDropped ?? 0;
+
+  // Capacity for planning: target ~ defaultDuration * avg per day; we just show committed
+  // We don't have a true capacity number; show committed pts and use a meter sized to itself.
+  const capacityTarget = Math.max(totalPoints, 1);
+  const meterSegments = 10;
+  const meterFilled = Math.min(meterSegments, Math.round((totalPoints / capacityTarget) * meterSegments));
+
+  const summaryParts: string[] = [];
+  summaryParts.push(`${totalItems} on deck`);
+  if (added > 0 || dropped > 0) {
+    const scope: string[] = [];
+    if (added > 0) scope.push(`+${added} added`);
+    if (dropped > 0) scope.push(`−${dropped} dropped`);
+    summaryParts.push(scope.join(', '));
+  }
+
+  return (
+    <div
+      className="bg-card border border-rule p-5 hover:border-text/30 transition-colors cursor-pointer"
+      onClick={onNavigate}
+    >
+      <div className="flex items-start justify-between gap-4 mb-3">
+        <div className="flex items-baseline gap-3">
+          <MetricNumber size="lg" className="text-text">{sprint.sprintNumber}</MetricNumber>
+          <span className="text-[11px] text-mute tracking-[0.08em] uppercase">sprint</span>
+          <StatusPill status={variant === 'active' ? 'active' : 'planning'} />
+          <span className="font-mono text-[11px] text-faint">S-{sprint.sprintNumber}</span>
+          <span className="text-[12px] text-mute">{formatRange(sprint.startDate, sprint.endDate)}</span>
+          {variant === 'active' && (
+            <span className="text-[12px] text-mute">· day {day}/{total}</span>
+          )}
+        </div>
+      </div>
+
+      {sprint.goal && (
+        <div className="font-serif italic text-[15px] text-text mb-4">
+          “{sprint.goal}”
+        </div>
+      )}
+
+      <div className="flex items-center gap-4 mb-4 flex-wrap">
+        {sprint.assignees && sprint.assignees.length > 0 && (
+          <AvatarStack users={sprint.assignees} max={6} size="sm" />
+        )}
+        <div className="text-[12px] text-mute">
+          {summaryParts.join(' · ')}
+        </div>
+      </div>
+
+      {variant === 'active' && (
+        <>
+          <div className="pbar accent w-full mb-2">
+            <i style={{ width: `${completedPct}%` }} />
+          </div>
+          <div className="flex items-center gap-6 text-[12px] text-mute mb-4 flex-wrap">
+            <div>
+              <span className="text-faint">Work</span>{' '}
+              <span className="font-semibold text-text">{completedPct}%</span>
+            </div>
+            <div>
+              <span className="text-faint">Time</span>{' '}
+              <span className="font-semibold text-text">day {day}/{total}</span>
+            </div>
+            <div>
+              <span className="font-semibold text-text">{doneCount}</span> done
+            </div>
+            <div>
+              <span className="font-semibold text-text">{inProgressCount}</span> WIP
+            </div>
+            <div>
+              <span className="font-semibold text-text">{openCount}</span> open
+            </div>
+            <div className="ml-auto text-[12px] text-mute">
+              {completedPoints} of {totalPoints} pts
+            </div>
+          </div>
+        </>
+      )}
+
+      {variant === 'planning' && (
+        <>
+          <div className="meter w-full mb-2">
+            {Array.from({ length: meterSegments }).map((_, i) => (
+              <i key={i} className={i < meterFilled ? 'on' : ''} />
+            ))}
+          </div>
+          <div className="flex items-center gap-6 text-[12px] text-mute mb-4 flex-wrap">
+            <div>
+              <span className="text-faint">Capacity</span>{' '}
+              <span className="font-semibold text-text">{totalPoints} pts</span> committed
+            </div>
+            <div>
+              <span className="font-semibold text-text">{totalItems}</span> items queued
+            </div>
+          </div>
+        </>
+      )}
+
+      {canManage && (
+        <div
+          className="flex items-center gap-2 pt-3 border-t border-rule flex-wrap"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {variant === 'active' && (
+            <>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => navigate(`/projects/${projectId}/board`)}
+              >
+                Open board
+              </button>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => navigate(`/projects/${projectId}/sprints/${sprint.id}`)}
+              >
+                Burndown
+              </button>
+              <Button size="sm" variant="success" onClick={onComplete}>
+                Complete
+              </Button>
+              <Button size="sm" variant="ghost" onClick={onCancel}>
+                Cancel sprint
+              </Button>
+              <span className="ml-auto text-[12px] text-mute">
+                {remaining === 0 ? 'ends today' : `ends in ${remaining}d`}
+              </span>
+            </>
+          )}
+          {variant === 'planning' && (
+            <>
+              <button
+                type="button"
+                className="btn-accent"
+                onClick={() => navigate(`/projects/${projectId}/sprints/${sprint.id}/planning`)}
+              >
+                Continue planning
+              </button>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={onStart}
+                disabled={hasActiveSprint}
+                title={hasActiveSprint ? 'Another sprint is already active' : 'Start sprint'}
+              >
+                {sprint.startDate ? `Start now: ${formatDate(sprint.startDate)}` : 'Start now'}
+              </button>
+              <Button size="sm" variant="ghost" onClick={onCancel} className="ml-auto">
+                Cancel
+              </Button>
+            </>
+          )}
+        </div>
       )}
     </div>
   );
