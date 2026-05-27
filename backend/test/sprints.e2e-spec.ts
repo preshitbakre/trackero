@@ -384,8 +384,17 @@ describe('Sprints listSprints enrichment (assignees, statusCounts, scope deltas)
     // Two tasks for admin (one Open, one In Progress).
     await createTask({ title: 'Admin task 1', assigneeId: adminId, statusId: statusOpenId, storyPoints: 3 });
     await createTask({ title: 'Admin task 2', assigneeId: adminId, statusId: statusInProgressId, storyPoints: 5 });
-    // Two tasks for bob (one Done, one In Progress).
-    await createTask({ title: 'Bob task 1', assigneeId: userBId, statusId: statusDoneId, storyPoints: 2 });
+    // Two tasks for bob (one Done, one In Progress). The work_items.completed_at
+    // column is only populated on a status transition INTO 'done' (see
+    // WorkItemsService.update), not on direct creation. So we create Bob's
+    // done task as in_progress, then PUT it to Done, which sets completed_at
+    // and makes it count toward completedPoints.
+    const bobDoneId = await createTask({ title: 'Bob task 1', assigneeId: userBId, statusId: statusInProgressId, storyPoints: 2 });
+    await request(app.getHttpServer())
+      .put(`/api/projects/${projectId}/items/${bobDoneId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ statusId: statusDoneId })
+      .expect(200);
     await createTask({ title: 'Bob task 2', assigneeId: userBId, statusId: statusInProgressId, storyPoints: 1 });
     // One task with no assignee, Open category.
     await createTask({ title: 'Unassigned task', assigneeId: null, statusId: statusOpenId, storyPoints: 8 });
@@ -418,6 +427,8 @@ describe('Sprints listSprints enrichment (assignees, statusCounts, scope deltas)
     expect(s.id).toBe(sprintId);
     expect(s.taskCount).toBe(5);
     expect(s.totalPoints).toBe(19);
+    // One Done task (Bob's, 2 points) — completedPoints reflects it.
+    expect(s.completedPoints).toBe(2);
 
     // assignees — admin + Bob, no Carol (no items), no null.
     expect(Array.isArray(s.assignees)).toBe(true);
@@ -433,17 +444,13 @@ describe('Sprints listSprints enrichment (assignees, statusCounts, scope deltas)
       expect(a.avatarUrl === null || typeof a.avatarUrl === 'string').toBe(true);
     }
 
-    // statusCounts — all 6 defaults present, non-zero entries match.
+    // statusCounts — 3 user-facing buckets (open / in_progress / done).
+    // The DB `backlog` category is translated to `open` at the API boundary
+    // per the design specs, so Admin task 1 + Unassigned task land in `open`.
     expect(s.statusCounts).toEqual({
-      open: 0,
+      open: 2,
       in_progress: 2,
-      in_review: 0,
       done: 1,
-      blocked: 0,
-      cancelled: 0,
-      // 'backlog' category (2 admin/unassigned open tasks) is mapped from the
-      // 'backlog' DB category — see below for our policy.
-      backlog: 2,
     });
 
     // Scope deltas — 3 added, 1 removed.
@@ -478,10 +485,7 @@ describe('Sprints listSprints enrichment (assignees, statusCounts, scope deltas)
     expect(s.statusCounts).toEqual({
       open: 0,
       in_progress: 0,
-      in_review: 0,
       done: 0,
-      blocked: 0,
-      cancelled: 0,
     });
     expect(s.scopeAdded).toBe(0);
     expect(s.scopeDropped).toBe(0);

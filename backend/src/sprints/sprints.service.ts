@@ -124,6 +124,10 @@ export class SprintsService {
       }
 
       // Status counts per sprint, keyed by project_statuses.category.
+      // DB enum is `backlog | in_progress | done`; we translate the DB
+      // `backlog` category to the user-facing key `open` at the API
+      // boundary (per docs/sprints/spec-sprints-list.md and
+      // spec-sprint-detail-overview.md).
       const statusRows = await this.dataSource.query(`
         SELECT wi.sprint_id, ps.category, COUNT(*)::int AS n
         FROM work_items wi
@@ -132,9 +136,12 @@ export class SprintsService {
         GROUP BY wi.sprint_id, ps.category
       `, [sprintIds]);
       for (const r of statusRows) {
-        const counts = statusCountsBySprint.get(r.sprint_id) ?? {};
-        counts[r.category] = r.n;
-        statusCountsBySprint.set(r.sprint_id, counts);
+        if (!statusCountsBySprint.has(r.sprint_id)) {
+          statusCountsBySprint.set(r.sprint_id, { open: 0, in_progress: 0, done: 0 });
+        }
+        // DB `backlog` → API `open` (user-facing term per design specs)
+        const apiKey = r.category === 'backlog' ? 'open' : r.category;
+        statusCountsBySprint.get(r.sprint_id)![apiKey] = r.n;
       }
 
       // Scope deltas — added / removed counts from sprint_scope_changes.
@@ -152,30 +159,16 @@ export class SprintsService {
       }
     }
 
-    // Default the six status-category buckets the SprintsPage spec expects.
-    // We pre-seed all six at 0 then merge whatever the DB actually returned —
-    // so frontend code can render every bucket without null-guards, and
-    // any extra DB categories (e.g. legacy 'backlog') still surface as-is.
-    const defaultStatusCounts = (): Record<string, number> => ({
-      open: 0,
-      in_progress: 0,
-      in_review: 0,
-      done: 0,
-      blocked: 0,
-      cancelled: 0,
-    });
-
     const data = sprints.map((sprint) => {
       const stats = statsBySprint.get(sprint.id);
       const deltas = scopeDeltasBySprint.get(sprint.id);
-      const statusCounts = { ...defaultStatusCounts(), ...(statusCountsBySprint.get(sprint.id) ?? {}) };
       return {
         ...sprint,
         taskCount: stats?.task_count ?? 0,
         totalPoints: stats?.total_points ?? 0,
         completedPoints: stats?.completed_points ?? 0,
         assignees: assigneesBySprint.get(sprint.id) ?? [],
-        statusCounts,
+        statusCounts: statusCountsBySprint.get(sprint.id) ?? { open: 0, in_progress: 0, done: 0 },
         scopeAdded: deltas?.added ?? 0,
         scopeDropped: deltas?.removed ?? 0,
       };
