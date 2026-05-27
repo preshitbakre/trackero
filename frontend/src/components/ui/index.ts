@@ -20,3 +20,4 @@ export { MetricNumber } from './MetricNumber';
 export { LabelBadge, LabelList } from './LabelBadge';
 export { LabelPicker } from './LabelPicker';
 export { StoryPointsInput, StoryPointsLabel } from './StoryPointsInput';
+export { Tabs, type TabItem } from './Tabs';
