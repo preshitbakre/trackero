@@ -177,15 +177,26 @@ export class SprintsService {
     return new PaginatedResponse(data, total, page, limit);
   }
 
-  async findOne(projectId: number, sprintId: number) {
+  /**
+   * Entity finder for internal mutation callers (update, remove, etc.).
+   * Returns the live `Sprint` entity so `sprintRepo.save`/`remove` see the
+   * entity prototype and metadata. Throws NOT_FOUND when the sprint is
+   * missing or scoped to another project.
+   */
+  private async findOneEntity(projectId: number, sprintId: number): Promise<Sprint> {
     const sprint = await this.sprintRepo.findOne({ where: { id: sprintId, projectId } });
     if (!sprint) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
+    return sprint;
+  }
 
-    // statusCounts via project_statuses.category — DB `backlog` → API `open`
-    // (matches the design specs in docs/sprints/spec-sprint-detail-overview.md).
-    const statusRows = await this.dataSource.query(`
+  /**
+   * statusCounts via project_statuses.category — DB `backlog` → API `open`
+   * (matches the design specs in docs/sprints/spec-sprint-detail-overview.md).
+   */
+  private async loadStatusCounts(sprintId: number): Promise<Record<string, number>> {
+    const rows = await this.dataSource.query(`
       SELECT ps.category, COUNT(*)::int AS n
       FROM work_items wi
       JOIN project_statuses ps ON ps.id = wi.status_id
@@ -193,24 +204,35 @@ export class SprintsService {
       GROUP BY ps.category
     `, [sprintId]);
     const statusCounts: Record<string, number> = { open: 0, in_progress: 0, done: 0 };
-    for (const r of statusRows) {
+    for (const r of rows) {
       const apiKey = r.category === 'backlog' ? 'open' : r.category;
       statusCounts[apiKey] = r.n;
     }
+    return statusCounts;
+  }
 
-    // typeCounts — initialize with the 5 known item types so consumers can
-    // rely on a stable shape, then merge actual counts on top.
-    const typeRows = await this.dataSource.query(`
+  /**
+   * typeCounts — initialize with the 5 known item types so consumers can
+   * rely on a stable shape, then merge actual counts on top.
+   */
+  private async loadTypeCounts(sprintId: number): Promise<Record<string, number>> {
+    const rows = await this.dataSource.query(`
       SELECT item_type, COUNT(*)::int AS n
       FROM work_items
       WHERE sprint_id = $1
       GROUP BY item_type
     `, [sprintId]);
     const typeCounts: Record<string, number> = { task: 0, bug: 0, story: 0, subtask: 0, epic: 0 };
-    for (const r of typeRows) typeCounts[r.item_type] = r.n;
+    for (const r of rows) typeCounts[r.item_type] = r.n;
+    return typeCounts;
+  }
 
-    // totals — item count, total points, points completed (work_items.completed_at
-    // is only set on transition INTO a done-category status).
+  /**
+   * totals — item count, total points, points completed
+   * (work_items.completed_at is only set on transition INTO a done-category
+   * status).
+   */
+  private async loadTotals(sprintId: number): Promise<{ items: number; total_pts: number; done_pts: number }> {
     const [totals] = await this.dataSource.query(`
       SELECT COUNT(*)::int AS items,
              COALESCE(SUM(story_points), 0)::int AS total_pts,
@@ -218,12 +240,21 @@ export class SprintsService {
       FROM work_items
       WHERE sprint_id = $1
     `, [sprintId]);
+    return totals;
+  }
 
-    // assignees with workload. project_members has no `capacity` column today
-    // (see project-member.entity.ts), so we return capacity as NULL — the
-    // frontend falls back to the sprint's own capacity or to autoCapacity.
-    // GROUP BY u.id deduplicates assignees with multiple items in this sprint.
-    const assignees = await this.dataSource.query(`
+  /**
+   * Assignees with workload. project_members has no `capacity` column today
+   * (see project-member.entity.ts), so we return capacity as NULL — the
+   * frontend falls back to the sprint's own capacity or to autoCapacity.
+   * GROUP BY u.id deduplicates assignees with multiple items in this sprint.
+   *
+   * NOTE: projectId is currently unused at the SQL level (work_items.sprint_id
+   * is unique across projects), but kept in the signature for symmetry and
+   * future scoping (e.g., filtering to active project members only).
+   */
+  private async loadAssignees(_projectId: number, sprintId: number) {
+    return this.dataSource.query(`
       SELECT u.id,
              u.display_name AS "displayName",
              u.avatar_url AS "avatarUrl",
@@ -235,11 +266,15 @@ export class SprintsService {
       GROUP BY u.id, u.display_name, u.avatar_url
       ORDER BY u.display_name
     `, [sprintId]);
+  }
 
-    // autoCapacity = average completedPoints of the last 3 completed sprints in
-    // this project, EXCLUDING the current sprint (so re-opening a completed
-    // sprint doesn't seed its own capacity recommendation from itself).
-    // Returns 0 when there are no prior completed sprints.
+  /**
+   * autoCapacity = average completedPoints of the last 3 completed sprints in
+   * this project, EXCLUDING the current sprint (so re-opening a completed
+   * sprint doesn't seed its own capacity recommendation from itself).
+   * Returns 0 when there are no prior completed sprints.
+   */
+  private async computeAutoCapacity(projectId: number, sprintId: number): Promise<number> {
     const [auto] = await this.dataSource.query(`
       SELECT COALESCE(ROUND(AVG(t.done_pts))::int, 0) AS auto_capacity FROM (
         SELECT COALESCE(SUM(wi.story_points) FILTER (WHERE wi.completed_at IS NOT NULL), 0)::int AS done_pts
@@ -251,7 +286,23 @@ export class SprintsService {
         LIMIT 3
       ) t
     `, [projectId, sprintId]);
+    return auto.auto_capacity;
+  }
 
+  /**
+   * Enriched single-sprint view for the detail page. Returns a plain object —
+   * do NOT use this for entity mutations; use `findOneEntity` for that.
+   * Runs the 5 enrichment queries in parallel.
+   */
+  async findOne(projectId: number, sprintId: number) {
+    const sprint = await this.findOneEntity(projectId, sprintId);
+    const [statusCounts, typeCounts, totals, assignees, autoCapacity] = await Promise.all([
+      this.loadStatusCounts(sprintId),
+      this.loadTypeCounts(sprintId),
+      this.loadTotals(sprintId),
+      this.loadAssignees(projectId, sprintId),
+      this.computeAutoCapacity(projectId, sprintId),
+    ]);
     return {
       ...sprint,
       statusCounts,
@@ -260,7 +311,7 @@ export class SprintsService {
       totalPoints: totals.total_pts,
       completedPoints: totals.done_pts,
       assignees,
-      autoCapacity: auto.auto_capacity,
+      autoCapacity,
     };
   }
 
@@ -293,7 +344,7 @@ export class SprintsService {
   }
 
   async update(projectId: number, sprintId: number, dto: UpdateSprintDto) {
-    const sprint = await this.findOne(projectId, sprintId);
+    const sprint = await this.findOneEntity(projectId, sprintId);
 
     // Only allow date changes on planning sprints
     if (sprint.status !== 'planning' && (dto.startDate !== undefined || dto.endDate !== undefined)) {
@@ -558,7 +609,7 @@ export class SprintsService {
   }
 
   async remove(projectId: number, sprintId: number) {
-    const sprint = await this.findOne(projectId, sprintId);
+    const sprint = await this.findOneEntity(projectId, sprintId);
     // Move tasks to backlog before deleting
     await this.dataSource.query(
       `UPDATE work_items SET sprint_id = NULL WHERE sprint_id = $1`,
@@ -577,7 +628,7 @@ export class SprintsService {
     // On-read fallback: SprintSnapshotsService.readSnapshots materializes
     // today's row inline if the cron hasn't run yet, so the chart's last
     // point is always current and we never serve a gap.
-    const sprint = await this.findOne(projectId, sprintId);
+    const sprint = await this.findOneEntity(projectId, sprintId);
 
     if (!sprint.startDate || !sprint.endDate) {
       return { sprintName: sprint.name, startDate: null, endDate: null, totalPoints: 0, dataPoints: [] };
