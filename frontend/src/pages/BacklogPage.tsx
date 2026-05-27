@@ -15,7 +15,7 @@ import { Eyebrow } from '../components/ui/Eyebrow';
 import { TaskDetailPanel } from '../components/tasks/TaskDetailPanel';
 import { RowSkeleton } from '../components/common/Skeleton';
 import { ErrorState } from '../components/common/ErrorState';
-import { PRIORITY_BORDER_COLORS, PRIORITY_BADGE_COLORS, STATUS_BADGE_COLORS } from '../lib/colors';
+import { PRIORITY_BORDER_COLORS, PRIORITY_BADGE_COLORS } from '../lib/colors';
 import { CreateItemDialog } from '../components/common/CreateItemDialog';
 import { LabelList } from '../components/ui/LabelBadge';
 import { TypeTag } from '../components/ui';
@@ -134,16 +134,6 @@ function SortableTaskRow({ task, selected, highlighted, onSelect, onClick, subta
         </div>
       ) : (
         <span className="w-[70px] flex-shrink-0 text-[12px] text-faint">—</span>
-      )}
-
-      {/* Status — soft inline pill */}
-      {task.status ? (
-        <span className="inline-flex items-center gap-1 text-[11px] text-mute w-[80px] flex-shrink-0">
-          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: task.status.color }} />
-          <span className="truncate">{task.status.name}</span>
-        </span>
-      ) : (
-        <span className="w-[80px] flex-shrink-0" />
       )}
 
       <span className="text-[13px] tabular-nums text-text w-[40px] text-right flex-shrink-0">
@@ -415,7 +405,6 @@ export function BacklogPage() {
             <span className="flex-1 min-w-0" role="columnheader">Title</span>
             <span className="w-[140px] flex-shrink-0" role="columnheader">Labels</span>
             <span className="w-[70px] flex-shrink-0" role="columnheader">Priority</span>
-            <span className="w-[80px] flex-shrink-0" role="columnheader">Status</span>
             <span className="w-[40px] flex-shrink-0 text-right" role="columnheader">Pts</span>
             <span className="w-[50px] flex-shrink-0 text-center" role="columnheader">Owner</span>
           </div>
@@ -486,15 +475,6 @@ export function BacklogPage() {
                             ) : (
                               <span className="w-[70px] flex-shrink-0 text-[11px] text-faint">—</span>
                             )}
-                            {st.status && (() => {
-                              const stStatus = STATUS_BADGE_COLORS[st.status.category || 'backlog'] || STATUS_BADGE_COLORS.backlog;
-                              return (
-                                <span className="inline-flex items-center gap-1 text-[11px] w-[80px] flex-shrink-0" style={{ color: stStatus.color }}>
-                                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: stStatus.dot }} />
-                                  <span className="truncate">{st.status.name}</span>
-                                </span>
-                              );
-                            })()}
                             <span className="text-[13px] tabular-nums text-text w-[40px] text-right flex-shrink-0">
                               {st.storyPoints != null && st.storyPoints > 0 ? st.storyPoints : '—'}
                             </span>

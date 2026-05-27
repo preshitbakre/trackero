@@ -182,9 +182,20 @@ export function SprintsPage() {
   if (sprints.length === 0) {
     return (
       <div className="p-6">
-        <div className="mb-8">
-          <Eyebrow>Project · Backstage · 0 sprints</Eyebrow>
-          <h1 className="font-serif text-[36px] text-text mt-1">Sprints</h1>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <Eyebrow>Project · Backstage · 0 sprints</Eyebrow>
+            <h1 className="font-serif text-[36px] text-text mt-1">Sprints</h1>
+          </div>
+          {canManageProject && (
+            <button
+              type="button"
+              onClick={() => setShowCreate(true)}
+              className="btn btn-accent"
+            >
+              + Plan a sprint
+            </button>
+          )}
         </div>
 
         <div className="flex flex-col lg:flex-row gap-12 items-start">
@@ -227,7 +238,7 @@ export function SprintsPage() {
                 <button
                   type="button"
                   onClick={() => setShowCreate(true)}
-                  className="btn-accent"
+                  className="btn btn-accent"
                 >
                   Plan your first sprint →
                 </button>
@@ -630,7 +641,7 @@ function SprintCard({
             <>
               <button
                 type="button"
-                className="btn-accent"
+                className="btn btn-accent"
                 onClick={() => navigate(`/projects/${projectId}/sprints/${sprint.id}/planning`)}
               >
                 Continue planning
