@@ -543,6 +543,13 @@ export class WorkItemsService {
     const bugCount = stats?.childBreakdown.bugs ?? 0;
     const childStatusBreakdown = stats?.childStatusBreakdown ?? { done: 0, wip: 0, open: 0 };
 
+    // Epics/stories aggregate descendants via belongs_to — the gated inline
+    // CTE above only fires for direct parentId children, so prefer the batch
+    // stats (matches the list endpoint and the children breakdown).
+    if ((item.itemType === 'epic' || item.itemType === 'story') && stats) {
+      progress = stats.progress;
+    }
+
     // Parent epic (the belongs_to association whose linked item is an epic).
     const [epicRow] = await this.dataSource.query(
       `SELECT e.id, e.item_number, e.title

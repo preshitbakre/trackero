@@ -271,6 +271,10 @@ describe('Stories Extended — criteria, stats, workflow, release notes (e2e)', 
     expect(d.acceptanceCriteria.total).toBe(1);
     expect(d.bugCount).toBe(1);
     expect(d.childStatusBreakdown).toMatchObject({ done: 1, wip: 1, open: 0 });
+    // progress must reflect belongs_to descendants (task + bug), not just parentId children
+    expect(d.progress).not.toBeNull();
+    expect(d.progress.totalItems).toBe(2);
+    expect(d.progress.completedItems).toBe(1);
     expect(d.epic).toMatchObject({ id: epicId });
     expect(d.reporter.handle).toBe('admin');
   });
