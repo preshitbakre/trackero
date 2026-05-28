@@ -85,9 +85,9 @@ export function SettingsTab({ sprint, onSaved }: SettingsTabProps) {
 
   const onLengthChange = (days: number) => {
     if (!startDate) return;
-    const newEnd = new Date(Date.parse(startDate + 'T00:00:00') + days * 86_400_000)
-      .toISOString()
-      .split('T')[0];
+    const d = new Date(startDate + 'T00:00:00');
+    d.setDate(d.getDate() + days);
+    const newEnd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     setEndDate(newEnd);
     save({ endDate: newEnd });
   };
@@ -171,7 +171,10 @@ export function SettingsTab({ sprint, onSaved }: SettingsTabProps) {
               <Select
                 value={lengthDays > 0 ? String(lengthDays) : ''}
                 onChange={(v) => onLengthChange(Number(v))}
-                options={LENGTH_OPTIONS.map((d) => ({ value: String(d), label: `${d} days` }))}
+                options={(lengthDays > 0 && !LENGTH_OPTIONS.includes(lengthDays)
+                  ? [...LENGTH_OPTIONS, lengthDays].sort((a, b) => a - b)
+                  : LENGTH_OPTIONS
+                ).map((d) => ({ value: String(d), label: `${d} days` }))}
                 placeholder="—"
                 className={`w-[120px] ${
                   readOnly || sprint.status !== 'planning'

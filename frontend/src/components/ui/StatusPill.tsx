@@ -21,12 +21,18 @@ export type StatusKey =
   | 'archived'
   | 'active'
   | 'shipped'
-  | 'ends_in_days';
+  | 'ends_in_days'
+  | 'in_flight'
+  | 'blocked'
+  | 'draft'
+  | 'epic_at_risk';
 
 interface StatusPillProps {
   status: StatusKey;
   hint?: string;
   className?: string;
+  /** Opt-in leading dot (used on dense story/table rows to match the design). */
+  dot?: boolean;
 }
 
 const PROJECT_STATUS_PALETTE: Record<string, { bg: string; color: string }> = {
@@ -40,6 +46,12 @@ const PROJECT_STATUS_PALETTE: Record<string, { bg: string; color: string }> = {
   active: { bg: '#7C3AED15', color: '#6326D6' },
   shipped: { bg: '#88D68E20', color: '#3E8E44' },
   ends_in_days: { bg: '#7C3AED15', color: '#6326D6' },
+  // Epic lifecycle states (Epics rebuild). `epic_at_risk` is an epic-only amber
+  // treatment so the shared red `at_risk` stays unchanged for Today/directory.
+  in_flight: { bg: '#7C3AED15', color: '#6326D6' },
+  blocked: { bg: '#E0525215', color: '#E05252' },
+  draft: { bg: '#E8E3F0', color: '#A8A1B5' },
+  epic_at_risk: { bg: '#E88A4818', color: '#B5631F' },
 };
 
 const LABELS: Record<StatusKey, string> = {
@@ -59,6 +71,10 @@ const LABELS: Record<StatusKey, string> = {
   active: 'active',
   shipped: 'shipped',
   ends_in_days: 'ends in',
+  in_flight: 'in flight',
+  blocked: 'blocked',
+  draft: 'draft',
+  epic_at_risk: 'at risk',
 };
 
 /**
@@ -67,15 +83,17 @@ const LABELS: Record<StatusKey, string> = {
  * stays a single source of truth; project-status keys (on_track,
  * planning, …) pull from the local map below.
  */
-export function StatusPill({ status, hint, className = '' }: StatusPillProps) {
+export function StatusPill({ status, hint, className = '', dot = false }: StatusPillProps) {
   const workPalette = (STATUS_BADGE_COLORS as Record<string, { bg: string; color: string }>)[status];
   const palette = workPalette ?? PROJECT_STATUS_PALETTE[status] ?? PROJECT_STATUS_PALETTE.idle;
   const label = LABELS[status];
+  const dotColor = (STATUS_BADGE_COLORS as Record<string, { dot?: string }>)[status]?.dot ?? palette.color;
   return (
     <span
-      className={`inline-flex items-center text-[11px] px-2 py-0.5 rounded-full ${className}`}
+      className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full ${className}`}
       style={{ backgroundColor: palette.bg, color: palette.color }}
     >
+      {dot && <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: dotColor }} />}
       {label}
       {hint ? <span className="ml-1 text-[10px] opacity-80">· {hint}</span> : null}
     </span>

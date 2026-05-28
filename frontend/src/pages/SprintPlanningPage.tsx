@@ -7,6 +7,7 @@ import { useRole } from '../hooks/useRole';
 import { LabelList } from '../components/ui/LabelBadge';
 import { toast } from '../components/common/Toast';
 import { TypeTag } from '../components/ui/TypeTag';
+import { PageHeader } from '../components/ui/PageHeader';
 import type { TypeTagKind } from '../components/ui/TypeTag';
 
 interface PlanTask {
@@ -94,7 +95,7 @@ export function SprintPlanningPage() {
     try {
       const [sprintRes, itemsRes] = await Promise.all([
         apiClient.get(`/projects/${projectId}/sprints/${sprintId}`),
-        apiClient.get(`/projects/${projectId}/items?itemType=epic,story,task&limit=200`),
+        apiClient.get(`/projects/${projectId}/items?itemType=epic,story,task,bug&limit=200`),
       ]);
       setSprint(sprintRes.data.data);
       const allItems: PlanTask[] = (itemsRes.data.data.list || []).map((i: any) => ({
@@ -177,11 +178,12 @@ export function SprintPlanningPage() {
   })();
 
   return (
-    <div className="p-6 h-full flex flex-col">
+    <div className="h-full flex flex-col">
+      <PageHeader>
       <Link to={`/projects/${projectId}/sprints`} className="text-[12px] text-mute hover:text-text inline-block mb-3">← Sprints</Link>
 
       {/* Editorial header */}
-      <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-faint mb-1">
             PLANNING
@@ -235,7 +237,9 @@ export function SprintPlanningPage() {
           </button>
         </div>
       </div>
+      </PageHeader>
 
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-[28px] py-6">
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={(e) => { handleDragEnd(e).finally(() => setActiveTask(null)); }}>
         <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 min-h-0 overflow-hidden">
           <div className="flex flex-col min-h-0">
@@ -289,6 +293,7 @@ export function SprintPlanningPage() {
           )}
         </DragOverlay>
       </DndContext>
+      </div>
     </div>
   );
 }

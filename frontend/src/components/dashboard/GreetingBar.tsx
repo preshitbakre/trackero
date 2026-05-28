@@ -1,4 +1,4 @@
-import { Eyebrow } from '../ui';
+import { Eyebrow, PageHeader } from '../ui';
 
 interface GreetingBarProps {
   userName: string;
@@ -15,7 +15,7 @@ function getGreeting(): string {
 
 export function GreetingBar({ userName, date, summaryText }: GreetingBarProps) {
   return (
-    <div className="mb-8">
+    <PageHeader>
       {/* T1.5 — date goes above the hero as the editorial eyebrow per frame-01. */}
       <Eyebrow className="mb-2">{date}</Eyebrow>
       <h1 className="font-serif text-[36px] leading-tight text-text dark:text-dneutral-700">
@@ -24,6 +24,6 @@ export function GreetingBar({ userName, date, summaryText }: GreetingBarProps) {
       {summaryText && (
         <p className="mt-2 text-[14px] text-mute dark:text-dneutral-500">{summaryText}</p>
       )}
-    </div>
+    </PageHeader>
   );
 }

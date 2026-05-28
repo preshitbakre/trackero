@@ -64,6 +64,18 @@ export const ResponseCodes = {
   SPRINT_BURNDOWN:        { code: 'S-0058', message: 'Burndown data retrieved' },
   SPRINT_SCOPE_CHANGES:   { code: 'S-0059', message: 'Scope changes retrieved' },
 
+  // Stories — extended (S-0060 – S-0069)
+  STORY_STATS:            { code: 'S-0060', message: 'Story stats retrieved' },
+  CRITERIA_LISTED:        { code: 'S-0061', message: 'Acceptance criteria retrieved' },
+  CRITERION_CREATED:      { code: 'S-0062', message: 'Acceptance criterion created' },
+  CRITERION_UPDATED:      { code: 'S-0063', message: 'Acceptance criterion updated' },
+  CRITERION_DELETED:      { code: 'S-0064', message: 'Acceptance criterion deleted' },
+  CRITERIA_REORDERED:     { code: 'S-0065', message: 'Acceptance criteria reordered' },
+  STORY_APPROVED:         { code: 'S-0066', message: 'Story approved' },
+  STORY_REOPENED:         { code: 'S-0067', message: 'Story reopened' },
+  RELEASE_NOTE_SAVED:     { code: 'S-0068', message: 'Release note saved' },
+  RELEASE_NOTE_FETCHED:   { code: 'S-0069', message: 'Release note retrieved' },
+
   // Tasks (S-0105, S-0106, S-0109, S-0110) — surviving task-era keys.
   // The legacy `TASKS_LISTED`/`TASK_CREATED`/`TASK_FETCHED`/`TASK_UPDATED`/
   // `TASK_DELETED`/`TASK_MOVED`/`TASKS_REORDERED` aliases were removed because
@@ -185,6 +197,21 @@ export const ResponseCodes = {
   VISIT_RECORDED:         { code: 'S-0084', message: 'Project visit recorded' },
   RECENT_LISTED:          { code: 'S-0085', message: 'Recent projects retrieved' },
 
+  // Epics rebuild (S-0600 – S-0619)
+  EPICS_SUMMARY:          { code: 'S-0600', message: 'Epics summary retrieved' },
+  EPIC_DETAIL:            { code: 'S-0601', message: 'Epic detail retrieved' },
+  EPIC_CHILDREN:          { code: 'S-0602', message: 'Epic children retrieved' },
+  EPIC_MILESTONES_LISTED: { code: 'S-0603', message: 'Epic milestones retrieved' },
+  EPIC_MILESTONE_CREATED: { code: 'S-0604', message: 'Epic milestone created' },
+  EPIC_MILESTONE_UPDATED: { code: 'S-0605', message: 'Epic milestone updated' },
+  EPIC_MILESTONE_DELETED: { code: 'S-0606', message: 'Epic milestone deleted' },
+  EPIC_SHIPPED:           { code: 'S-0607', message: 'Epic marked as shipped' },
+  EPIC_REOPENED:          { code: 'S-0608', message: 'Epic reopened' },
+  EPIC_ARCHIVED:          { code: 'S-0609', message: 'Epic archived' },
+  EPIC_UNARCHIVED:        { code: 'S-0610', message: 'Epic unarchived' },
+  EPIC_CHILDREN_DETACHED: { code: 'S-0611', message: 'Epic children detached' },
+  EPIC_HAS_OPEN_CHILDREN: { code: 'F-L-0160', message: 'Epic has children that are not done' },
+
   // ---- FAILURE CODES ----
 
   // Validation (F-V)
@@ -251,6 +278,8 @@ export const ResponseCodes = {
   CANNOT_REPARENT_WITH_CHILDREN: { code: 'F-L-0098', message: 'Cannot move task with subtasks under another task' },
   CROSS_PROJECT_NOT_ALLOWED:     { code: 'F-L-0099', message: 'Items must be in the same project' },
   ITEM_BLOCKED:                  { code: 'F-L-0101', message: 'This item is blocked. Resolve the blocker first.' },
+  INVALID_CRITERION:             { code: 'F-L-0102', message: 'A structured criterion requires both When and Then' },
+  NO_STATUS_FOR_CATEGORY:        { code: 'F-L-0103', message: 'No matching status configured for this project' },
 
   // Database failures (F-DB)
   DB_ERROR:               { code: 'F-DB-0001', message: 'Something went wrong. Please try again.' },

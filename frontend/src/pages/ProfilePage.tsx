@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/auth.store';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { PasswordInput } from '../components/ui/PasswordInput';
-import { Eyebrow } from '../components/ui';
+import { Eyebrow, PageHeader } from '../components/ui';
 
 export function ProfilePage() {
   const user = useAuthStore((s) => s.user);
@@ -64,12 +64,15 @@ export function ProfilePage() {
       : 'text-mute';
 
   return (
-    <div className="p-6">
-      <Eyebrow className="mb-2">Account · {user?.email ?? '—'}</Eyebrow>
-      <h1 className="font-serif text-[36px] text-text mb-6">
-        Profile
-      </h1>
+    <>
+      <PageHeader>
+        <Eyebrow className="mb-2">Account · {user?.email ?? '—'}</Eyebrow>
+        <h1 className="font-serif text-[36px] text-text">
+          Profile
+        </h1>
+      </PageHeader>
 
+      <div className="px-[28px] py-6">
       <form onSubmit={handleUpdateProfile} className="space-y-4 mb-10">
         <div>
           <label className="block text-[14px] font-medium text-mute dark:text-dneutral-600 mb-1">Email</label>
@@ -108,6 +111,7 @@ export function ProfilePage() {
           )}
         </div>
       </form>
-    </div>
+      </div>
+    </>
   );
 }

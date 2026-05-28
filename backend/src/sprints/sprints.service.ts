@@ -23,7 +23,7 @@ interface ScopeTimelineEntry {
   totalItems?: number;
 }
 
-interface ScopeChangesResponse {
+export interface ScopeChangesResponse {
   summary: { ptsAdded: number; ptsDropped: number; itemsAdded: number; itemsDropped: number };
   entries: ScopeTimelineEntry[];
 }

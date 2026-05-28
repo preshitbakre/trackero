@@ -47,8 +47,10 @@ export function MemberDashboard({ data }: { data: any }) {
   const hasOverdueDueSoon = dueSoon.some((d: any) => (d?.daysUntilEnd ?? 0) < 0);
 
   return (
-    <div className="p-6">
+    <>
       <GreetingBar userName={greeting?.userName ?? ''} date={greeting?.date ?? ''} summaryText={summaryText} />
+
+      <div className="px-[28px] py-6">
 
       <StatCardGrid>
         <StatCard icon="&#x2611;" iconColor="text-lilac-dark" iconBg="bg-lilac-tint" label="My open tasks" value={myOpenTasks} />
@@ -185,6 +187,7 @@ export function MemberDashboard({ data }: { data: any }) {
           )}
         </DashboardSection>
       </TwoColumnLayout>
-    </div>
+      </div>
+    </>
   );
 }

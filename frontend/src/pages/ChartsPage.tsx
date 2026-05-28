@@ -4,6 +4,7 @@ import { apiClient } from '../api/client';
 import { ResponsiveLine } from '@nivo/line';
 import { ResponsiveBar } from '@nivo/bar';
 import { Select } from '../components/ui/Select';
+import { PageHeader } from '../components/ui/PageHeader';
 
 export function ChartsPage() {
   const { id: projectId } = useParams();
@@ -44,12 +45,15 @@ export function ChartsPage() {
   ] as const;
 
   return (
-    <div className="p-6">
-      <p className="text-[11px] tracking-[0.18em] uppercase font-serif font-semibold text-faint mb-1">
-        Project · Charts
-      </p>
-      <h1 className="font-serif text-[36px] text-text mb-6">Charts</h1>
+    <>
+      <PageHeader>
+        <p className="text-[11px] tracking-[0.18em] uppercase font-serif font-semibold text-faint mb-1">
+          Project · Charts
+        </p>
+        <h1 className="font-serif text-[36px] text-text">Charts</h1>
+      </PageHeader>
 
+      <div className="px-[28px] py-6">
       <div className="flex gap-1 mb-6 border-b border-neutral-200 dark:border-dneutral-200">
         {tabs.map((t) => (
           <button
@@ -203,6 +207,7 @@ export function ChartsPage() {
           )}
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

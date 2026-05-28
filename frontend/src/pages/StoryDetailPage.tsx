@@ -1,387 +1,354 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
+import { FileText, ListChecks, Settings2 } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { useRole } from '../hooks/useRole';
-import { Button } from '../components/ui/Button';
+import { toast } from '../components/common/Toast';
+import { PageHeader } from '../components/ui/PageHeader';
+import { Tabs } from '../components/ui/Tabs';
+import { TypeTag } from '../components/ui/TypeTag';
+import { StatusPill } from '../components/ui/StatusPill';
+import type { StatusKey } from '../components/ui/StatusPill';
+import { ErrorState } from '../components/common/ErrorState';
 import { TaskDetailPanel } from '../components/tasks/TaskDetailPanel';
 import { CreateItemDialog } from '../components/common/CreateItemDialog';
-import { ConfirmDialog } from '../components/common/ConfirmDialog';
-import { AVATAR_COLORS, PRIORITY_BADGE_COLORS, STATUS_BADGE_COLORS } from '../lib/colors';
-import { toast } from '../components/common/Toast';
-import { LabelList } from '../components/ui/LabelBadge';
-import { ErrorState } from '../components/common/ErrorState';
-import { TypeTag } from '../components/ui/TypeTag';
-import type { TypeTagKind } from '../components/ui/TypeTag';
+import { OverviewTab } from './story-detail/OverviewTab';
+import { TasksTab } from './story-detail/TasksTab';
+import { SettingsTab } from './story-detail/SettingsTab';
+import { StoryRightRail } from './story-detail/StoryRightRail';
+import type { RailPatch } from './story-detail/StoryRightRail';
+import { StoryHeaderActions } from './story-detail/StoryHeaderActions';
+import { ReleaseNotesDrawer } from './story-detail/ReleaseNotesDrawer';
+import type { StoryDetail, DetailUser, TaskRow } from './story-detail/types';
 
-interface ChildItem {
-  id: number;
-  itemKey: string;
-  itemNumber: number;
-  itemType: string;
-  title: string;
-  priority: string;
-  storyPoints: number | null;
-  status: { id: number; name: string; category: string; color: string } | null;
-  assignee: { id: number; displayName: string } | null;
-  completedAt: string | null;
-  sprintId?: number | null;
-  labels?: { id: number; name: string; color: string }[];
-}
-
-interface StoryDetail {
-  id: number;
-  itemKey: string;
-  itemType: string;
-  title: string;
-  description: string | null;
-  priority: string;
-  status: { id: number; name: string; category: string; color: string } | null;
-  assignee: { id: number; displayName: string } | null;
-  sprint: { id: number; name: string } | null;
-  storyPoints: number | null;
-  startDate: string | null;
-  endDate: string | null;
-  labels: { id: number; name: string; color: string }[];
-  progress: {
-    totalItems: number;
-    completedItems: number;
-    totalPoints: number;
-    completedPoints: number;
-    progressPercent: number;
-  } | null;
-  breadcrumb: { id: number; itemKey: string; itemType: string; title: string; color: string }[];
-  children: ChildItem[];
-  commentCount: number;
-  attachmentCount: number;
-}
-
-interface Sprint {
-  id: number;
-  name: string;
-  status: string;
-}
-
-const SPRINT_STATUS_ORDER: Record<string, number> = { active: 0, planning: 1, completed: 2 };
+interface StatusOption { id: number; name: string; category: string }
+type TabKey = 'overview' | 'tasks' | 'settings';
 
 export function StoryDetailPage() {
   const { id: projectId, storyId } = useParams();
-  const navigate = useNavigate();
+  const { canEdit } = useRole();
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const [story, setStory] = useState<StoryDetail | null>(null);
-  const [allItems, setAllItems] = useState<ChildItem[]>([]);
-  const [sprints, setSprints] = useState<Sprint[]>([]);
+  const [statuses, setStatuses] = useState<StatusOption[]>([]);
+  const [sprints, setSprints] = useState<{ id: number; name: string }[]>([]);
+  const [members, setMembers] = useState<DetailUser[]>([]);
+  const [epics, setEpics] = useState<{ id: number; itemKey: string; title: string }[]>([]);
+  const [watchers, setWatchers] = useState<DetailUser[]>([]);
+  const [isWatching, setIsWatching] = useState(false);
   const [projectPrefix, setProjectPrefix] = useState('');
-  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [showCreate, setShowCreate] = useState<'task' | 'subtask' | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const { canEdit } = useRole();
 
-  const loadData = useCallback(async () => {
+  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
+  const [showReleaseNotes, setShowReleaseNotes] = useState(false);
+  const [createType, setCreateType] = useState<'task' | 'bug' | null>(null);
+  const [topLevel, setTopLevel] = useState<TaskRow[]>([]);
+  const [subtasksByParent, setSubtasksByParent] = useState<Map<number, TaskRow[]>>(new Map());
+
+  const tab = (searchParams.get('tab') as TabKey) || 'overview';
+  const setTab = (t: TabKey) => { searchParams.set('tab', t); setSearchParams(searchParams, { replace: true }); };
+
+  const loadStory = useCallback(async () => {
+    if (!projectId || !storyId) return;
+    try {
+      const { data } = await apiClient.get(`/projects/${projectId}/items/${storyId}`);
+      setStory(data.data);
+    } catch (err: any) {
+      console.error(err);
+      if (err?.response?.status !== 404) setError(true);
+      setStory(null);
+    }
+  }, [projectId, storyId]);
+
+  const loadWatchers = useCallback(async () => {
+    if (!projectId || !storyId) return;
+    try {
+      const { data } = await apiClient.get(`/projects/${projectId}/items/${storyId}/watchers`);
+      setWatchers(data.data.watchers || []);
+      setIsWatching(!!data.data.byMe);
+    } catch { /* non-fatal */ }
+  }, [projectId, storyId]);
+
+  const loadAll = useCallback(async () => {
     if (!projectId || !storyId) return;
     setLoading(true);
     setError(false);
     try {
-      const [storyRes, sprintsRes, projectRes] = await Promise.all([
-        apiClient.get(`/projects/${projectId}/items/${storyId}`),
+      const [, , statusesRes, sprintsRes, membersRes, epicsRes, projectRes] = await Promise.all([
+        loadStory(),
+        loadWatchers(),
+        apiClient.get(`/projects/${projectId}/statuses`),
         apiClient.get(`/projects/${projectId}/sprints?limit=100`),
+        apiClient.get(`/projects/${projectId}/members`),
+        apiClient.get(`/projects/${projectId}/epics?limit=200`),
         apiClient.get(`/projects/${projectId}`),
       ]);
-
-      const storyData = storyRes.data.data;
-      setStory(storyData);
+      setStatuses((statusesRes.data.data.list || statusesRes.data.data || []).map((s: any) => ({ id: s.id, name: s.name, category: s.category })));
       setSprints(sprintsRes.data.data.list || []);
+      setMembers((membersRes.data.data.list || []).map((m: any) => ({
+        id: m.userId ?? m.user?.id ?? m.id,
+        displayName: m.user?.displayName ?? m.displayName ?? '',
+        avatarUrl: m.user?.avatarUrl ?? m.avatarUrl ?? null,
+      })));
+      setEpics((epicsRes.data.data.list || []).map((e: any) => ({ id: e.id, itemKey: e.itemKey, title: e.title })));
       setProjectPrefix(projectRes.data.data.prefix || '');
-
-      // Fetch associations — "members" = items that belong_to this story
-      const assocRes = await apiClient.get(`/projects/${projectId}/items/${storyId}/associations`);
-      const members: ChildItem[] = (assocRes.data.data?.members || []).map((a: any) => ({
-        ...a.item,
-        sprintId: a.item.sprintId ?? null,
-      }));
-
-      // Also include direct children via parentId (subtasks of the story itself)
-      const directSubtasks: ChildItem[] = ((storyData.children || []) as any[])
-        .filter((c: any) => c.itemType === 'subtask')
-        .map((c: any) => ({ ...c, sprintId: c.sprintId ?? null }));
-
-      // Merge — deduplicate by id
-      const seenIds = new Set(members.map(m => m.id));
-      for (const sub of directSubtasks) {
-        if (!seenIds.has(sub.id)) {
-          members.push(sub);
-          seenIds.add(sub.id);
-        }
-      }
-
-      // For tasks, fetch their subtasks
-      const tasks = members.filter(c => c.itemType === 'task');
-      const subtaskArrays = await Promise.all(
-        tasks.map(async (task) => {
-          try {
-            const res = await apiClient.get(`/projects/${projectId}/items/${task.id}/children?limit=100`);
-            return (res.data.data.list || []).map((st: any) => ({
-              ...st,
-              sprintId: null,
-            }));
-          } catch { return []; }
-        }),
-      );
-
-      // Build flat list with tasks followed by their subtasks
-      const flat: ChildItem[] = [];
-      for (const child of members) {
-        flat.push(child);
-        if (child.itemType === 'task') {
-          const idx = tasks.indexOf(child);
-          if (idx !== -1) {
-            for (const st of subtaskArrays[idx]) {
-              if (!seenIds.has(st.id)) {
-                flat.push(st);
-                seenIds.add(st.id);
-              }
-            }
-          }
-        }
-      }
-      setAllItems(flat);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      if (err?.response?.status !== 404) setError(true);
+      setError(true);
     }
     setLoading(false);
-  }, [projectId, storyId]);
+  }, [projectId, storyId, loadStory, loadWatchers]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { loadAll(); }, [loadAll]);
 
-  const handleDelete = async () => {
+  // Build the Tasks-tab rows: top-level tasks/bugs (via belongs_to) + the
+  // story's direct subtasks, then fetch each task's own subtasks to nest.
+  useEffect(() => {
+    if (!story || !projectId) { setTopLevel([]); setSubtasksByParent(new Map()); return; }
+    let cancelled = false;
+    (async () => {
+      const tl: TaskRow[] = [
+        ...story.associations.contains.map((a) => ({
+          id: a.item.id,
+          itemKey: a.item.itemKey,
+          itemType: a.item.itemType,
+          title: a.item.title,
+          status: a.item.status ? { id: a.item.status.id, name: a.item.status.name, category: a.item.status.category } : null,
+          storyPoints: a.item.storyPoints,
+          assignee: a.item.assignee,
+          isSubtask: false,
+        })),
+        ...story.children.map((c) => ({
+          id: c.id,
+          itemKey: c.itemKey,
+          itemType: c.itemType,
+          title: c.title,
+          status: c.status ? { id: c.status.id, name: c.status.name, category: c.status.category } : null,
+          storyPoints: c.storyPoints,
+          assignee: c.assignee,
+          isSubtask: true,
+        })),
+      ];
+      const byParent = new Map<number, TaskRow[]>();
+      const tasks = tl.filter((r) => r.itemType === 'task');
+      await Promise.all(tasks.map(async (t) => {
+        try {
+          const { data } = await apiClient.get(`/projects/${projectId}/items/${t.id}/children?limit=100`);
+          const subs: TaskRow[] = (data.data.list || []).map((st: any) => ({
+            id: st.id,
+            itemKey: st.itemKey,
+            itemType: st.itemType,
+            title: st.title,
+            status: st.status ? { id: st.status.id, name: st.status.name, category: st.status.category } : null,
+            storyPoints: st.storyPoints ?? null,
+            assignee: st.assignee ?? null,
+            isSubtask: true,
+          }));
+          if (subs.length > 0) byParent.set(t.id, subs);
+        } catch { /* ignore */ }
+      }));
+      if (!cancelled) { setTopLevel(tl); setSubtasksByParent(byParent); }
+    })();
+    return () => { cancelled = true; };
+  }, [story, projectId]);
+
+  const patch = async (p: RailPatch) => {
     if (!projectId || !storyId) return;
     try {
-      await apiClient.delete(`/projects/${projectId}/items/${storyId}`);
-      toast('Story deleted');
-      navigate(`/projects/${projectId}/stories`);
+      await apiClient.put(`/projects/${projectId}/items/${storyId}`, p);
+      await loadStory();
     } catch (err: any) {
-      toast(err.response?.data?.message || 'Failed to delete', 'error');
-      setShowDeleteConfirm(false);
+      toast(err.response?.data?.message || 'Failed to save', 'error');
     }
   };
 
-  // Group by sprint
-  const sprintMap = new Map(sprints.map((s) => [s.id, s]));
-  const groups = new Map<number | null, ChildItem[]>();
-  for (const item of allItems) {
-    const key = item.itemType === 'subtask' ? null : (item.sprintId ?? null);
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(item);
-  }
-  const sortedGroupKeys = Array.from(groups.keys()).sort((a, b) => {
-    if (a === null && b === null) return 0;
-    if (a === null) return 1;
-    if (b === null) return -1;
-    const sa = sprintMap.get(a);
-    const sb = sprintMap.get(b);
-    return (SPRINT_STATUS_ORDER[sa?.status || ''] ?? 3) - (SPRINT_STATUS_ORDER[sb?.status || ''] ?? 3);
-  });
+  const approve = async () => {
+    try {
+      await apiClient.post(`/projects/${projectId}/items/${storyId}/approve`);
+      toast('Story approved');
+      await loadStory();
+    } catch (err: any) { toast(err.response?.data?.message || 'Failed to approve', 'error'); }
+  };
+  const reopen = async () => {
+    try {
+      await apiClient.post(`/projects/${projectId}/items/${storyId}/reopen`);
+      toast('Story reopened');
+      await loadStory();
+    } catch (err: any) { toast(err.response?.data?.message || 'Failed to reopen', 'error'); }
+  };
+  const toggleWatch = async () => {
+    try {
+      if (isWatching) await apiClient.delete(`/projects/${projectId}/items/${storyId}/watchers/me`);
+      else await apiClient.post(`/projects/${projectId}/items/${storyId}/watchers/me`);
+      await loadWatchers();
+    } catch { toast('Failed to update watch state', 'error'); }
+  };
+
+  const onCreated = async (createdId?: number) => {
+    setCreateType(null);
+    // Link the new task/bug to this story via belongs_to.
+    if (createdId && projectId && storyId) {
+      try {
+        await apiClient.post(`/projects/${projectId}/items/${createdId}/associations`, {
+          linkedItemId: parseInt(storyId),
+          linkType: 'belongs_to',
+        });
+      } catch { /* item still created; link failed */ }
+    }
+    await loadStory();
+  };
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-6 bg-neutral-200 dark:bg-dneutral-200 rounded w-48" />
-          <div className="h-4 bg-neutral-200 dark:bg-dneutral-200 rounded w-72" />
-        </div>
+      <div className="p-6 animate-pulse space-y-4">
+        <div className="h-6 bg-paper-2 rounded w-48" />
+        <div className="h-4 bg-paper-2 rounded w-72" />
       </div>
     );
   }
-
   if (error) {
-    return (
-      <div className="p-6">
-        <ErrorState message="Failed to load story" onRetry={loadData} />
-      </div>
-    );
+    return <div className="p-6"><ErrorState message="Failed to load story" onRetry={loadAll} /></div>;
   }
-
   if (!story) {
     return (
-      <div className="p-6 text-center py-12 text-neutral-400 dark:text-dneutral-500">
+      <div className="p-6 text-center py-12 text-mute">
         <p>Story not found.</p>
-        <Link to={`/projects/${projectId}/stories`} className="text-lilac-dark hover:underline mt-2 inline-block text-[16px]">Back to Stories</Link>
+        <Link to={`/projects/${projectId}/stories`} className="text-lilac-dark hover:underline mt-2 inline-block text-[14px]">Back to Stories</Link>
       </div>
     );
   }
+
+  const pid = parseInt(projectId!);
+  const blockedBy = story.associations.blockedBy[0];
+  const taskCount = topLevel.length + Array.from(subtasksByParent.values()).reduce((s, a) => s + a.length, 0);
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-6 flex flex-col flex-1 min-h-0 overflow-y-auto custom-scrollbar">
-        {/* Header */}
-        <div className="mb-6">
-          <Link to={`/projects/${projectId}/stories`} className="text-[14px] text-neutral-400 hover:text-neutral-500 mb-3 inline-block">&larr; Back to Stories</Link>
-
-          {/* Breadcrumb */}
-          {story.breadcrumb && story.breadcrumb.length > 1 && (
-            <div className="flex items-center gap-1.5 text-[13px] text-neutral-400 mb-2">
-              {story.breadcrumb.map((bc, i) => (
-                <span key={bc.id} className="flex items-center gap-1">
-                  {i > 0 && <span className="text-neutral-300">›</span>}
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: bc.color }} />
-                  <span>{bc.title}</span>
-                </span>
-              ))}
-            </div>
+      <PageHeader>
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-1.5 text-[12px] text-mute mb-3 flex-wrap">
+          <Link to={`/projects/${projectId}/stories`} className="hover:text-text">Stories</Link>
+          {story.epic && (
+            <>
+              <span className="text-faint">›</span>
+              <span className="w-2 h-2 rotate-45 inline-block" style={{ backgroundColor: '#7C3AED' }} />
+              <Link to={`/projects/${projectId}/epics/${story.epic.id}`} className="hover:text-text font-mono">{story.epic.itemKey}</Link>
+              <span className="hover:text-text">{story.epic.title}</span>
+            </>
           )}
-
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#88A9D6' }} />
-                <span className="text-[14px] text-neutral-400">{story.itemKey}</span>
-              </div>
-              <h1 className="text-[20px] font-semibold text-text">{story.title}</h1>
-            </div>
-            {canEdit && (
-              <div className="flex gap-2 flex-shrink-0">
-                <Button size="sm" variant="secondary" onClick={() => setShowCreate('task')}>+ Add task</Button>
-                <Button size="sm" variant="secondary" onClick={() => setShowCreate('subtask')}>+ Add subtask</Button>
-                <Button size="sm" variant="danger" onClick={() => setShowDeleteConfirm(true)}>Delete</Button>
-              </div>
-            )}
-          </div>
-
-          {story.description && (
-            <p className="text-[16px] text-neutral-500 mb-3 whitespace-pre-wrap">{story.description}</p>
-          )}
-
-          {/* Progress */}
-          {story.progress && (
-            <div className="mb-4">
-              <p className="text-[14px] text-neutral-500 mb-1">
-                Progress: {story.progress.completedItems}/{story.progress.totalItems} items
-                &middot; {story.progress.completedPoints}/{story.progress.totalPoints} pts
-                &middot; {story.progress.progressPercent}%
-              </p>
-              <div className="w-full max-w-md h-2 rounded-full bg-neutral-100 dark:bg-dneutral-200 overflow-hidden">
-                <div className="h-full rounded-full transition-all" style={{ width: `${story.progress.progressPercent}%`, backgroundColor: '#88A9D6' }} />
-              </div>
-            </div>
-          )}
-
-          {/* Properties */}
-          <div className="flex flex-wrap gap-3 text-[14px] text-neutral-500">
-            {story.status && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: `${story.status.color}20`, color: story.status.color }}>
-                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: story.status.color }} />
-                {story.status.name}
-              </span>
-            )}
-            {story.assignee && <span>Assigned: {story.assignee.displayName}</span>}
-            {story.sprint && <span>Sprint: {story.sprint.name}</span>}
-            {story.storyPoints != null && <span>{story.storyPoints} pts</span>}
-          </div>
-
-          {/* Labels */}
-          {story.labels && story.labels.length > 0 && (
-            <div className="mt-2"><LabelList labels={story.labels} max={6} size="md" /></div>
-          )}
+          <span className="text-faint">›</span>
+          <span className="font-mono text-faint">{story.itemKey}</span>
         </div>
 
-        {/* Children grouped by sprint */}
-        {allItems.length === 0 ? (
-          <div className="text-center py-12 text-neutral-400">No items in this story yet.</div>
-        ) : (
-          <div className="space-y-5">
-            {sortedGroupKeys.map((sprintId) => {
-              const sprint = sprintId !== null ? sprintMap.get(sprintId) : null;
-              const groupItems = groups.get(sprintId) || [];
-              const groupName = sprint ? sprint.name : 'Backlog';
-              const sprintStatus = sprint?.status || '';
-
-              return (
-                <div key={sprintId ?? 'backlog'} className="bg-white dark:bg-dneutral-100 rounded-xl shadow-sm dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)] overflow-hidden">
-                  <div className="flex items-center gap-2 px-4 py-3 bg-neutral-50 dark:bg-dneutral-50">
-                    <h2 className="text-[16px] font-semibold text-neutral-700 dark:text-dneutral-700">{groupName}</h2>
-                    {sprintStatus && (
-                      <span className={`text-[12px] px-2 py-0.5 rounded-full ${
-                        sprintStatus === 'active' ? 'bg-tan-light text-neutral-600' : sprintStatus === 'planning' ? 'bg-lilac-tint text-lilac-dark' : 'bg-neutral-100 text-neutral-500'
-                      }`}>{sprintStatus}</span>
-                    )}
-                    <span className="text-[14px] text-neutral-400 ml-auto">{groupItems.length} items</span>
-                  </div>
-
-                  {groupItems.map((item) => {
-                    const statusBadge = STATUS_BADGE_COLORS[item.status?.category || 'backlog'] || STATUS_BADGE_COLORS.backlog;
-                    const priorityBadge = PRIORITY_BADGE_COLORS[item.priority];
-                    const avatarColor = item.assignee ? AVATAR_COLORS[item.assignee.id % AVATAR_COLORS.length] : null;
-                    const isSubtask = item.itemType === 'subtask';
-
-                    return (
-                      <div
-                        key={item.id}
-                        onClick={() => setSelectedTaskId(item.id)}
-                        className="flex items-center gap-3 px-4 py-2.5 border-b border-rule/60 last:border-b-0 hover:bg-lilac-tint/50 cursor-pointer transition-colors"
-                        style={{ paddingLeft: isSubtask ? '40px' : '16px' }}
-                      >
-                        <TypeTag kind={(item.itemType || 'task') as TypeTagKind} size="sm" />
-                        <span className="font-mono text-[14px] text-mute shrink-0 w-20">{item.itemKey}</span>
-                        <span className="text-[14px] text-text truncate flex-1 min-w-0">{item.title}</span>
-                        <LabelList labels={item.labels || []} max={2} />
-                        <span className="inline-flex items-center gap-1 text-[12px] px-2 py-0.5 rounded-full shrink-0" style={{ background: statusBadge?.bg, color: statusBadge?.color }}>
-                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: statusBadge?.dot }} />
-                          {item.status?.name || '--'}
-                        </span>
-                        {priorityBadge && item.priority !== 'none' && (
-                          <span className="text-[12px] px-1.5 py-0.5 rounded font-medium shrink-0" style={{ background: priorityBadge.bg, color: priorityBadge.color }}>
-                            {item.priority.charAt(0).toUpperCase() + item.priority.slice(1)}
-                          </span>
-                        )}
-                        {item.assignee && avatarColor && (
-                          <div className="w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-medium shrink-0" style={{ background: avatarColor.bg, color: avatarColor.color }}>
-                            {item.assignee.displayName?.charAt(0)?.toUpperCase() || '?'}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <TypeTag kind="story" size="md" />
+            <h1 className="font-serif text-[26px] text-text truncate">{story.title}</h1>
+            {story.status && <StatusPill status={(story.status.category as StatusKey) || 'backlog'} />}
+            {blockedBy && (
+              <button
+                type="button"
+                onClick={() => setSelectedTaskId(blockedBy.item.id)}
+                className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: '#E0525215', color: '#E05252' }}
+              >
+                ⊘ blocked by {blockedBy.item.itemKey}
+              </button>
+            )}
           </div>
+          <div className="flex-shrink-0">
+            <StoryHeaderActions
+              story={story}
+              projectId={pid}
+              canEdit={canEdit}
+              statuses={statuses}
+              sprints={sprints}
+              isWatching={isWatching}
+              onPatch={patch}
+              onApprove={approve}
+              onReopen={reopen}
+              onToggleWatch={toggleWatch}
+              onOpenReleaseNotes={() => setShowReleaseNotes(true)}
+              onChanged={loadStory}
+            />
+          </div>
+        </div>
+
+        <div className="mt-3 -mb-[16px]">
+          <Tabs
+            active={tab}
+            onChange={(k) => setTab(k as TabKey)}
+            tabs={[
+              { key: 'overview', label: 'Overview', icon: <FileText size={14} /> },
+              { key: 'tasks', label: 'Tasks', icon: <ListChecks size={14} />, badge: taskCount },
+              { key: 'settings', label: 'Settings', icon: <Settings2 size={14} /> },
+            ]}
+            className="border-b-0"
+          />
+        </div>
+      </PageHeader>
+
+      <div className="flex flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+        {tab === 'overview' && (
+          <>
+            <OverviewTab story={story} projectId={pid} canEdit={canEdit} onChanged={loadStory} onOpenItem={setSelectedTaskId} />
+            <StoryRightRail
+              story={story} canEdit={canEdit} members={members} sprints={sprints} statuses={statuses}
+              watchers={watchers} isWatching={isWatching} onPatch={patch} onToggleWatch={toggleWatch}
+            />
+          </>
+        )}
+        {tab === 'tasks' && (
+          <>
+            <TasksTab
+              topLevel={topLevel} subtasksByParent={subtasksByParent} statuses={statuses} canEdit={canEdit}
+              onOpenItem={setSelectedTaskId}
+              onAddTask={() => setCreateType('task')}
+              onReportBug={() => setCreateType('bug')}
+            />
+            <StoryRightRail
+              story={story} canEdit={canEdit} members={members} sprints={sprints} statuses={statuses}
+              watchers={watchers} isWatching={isWatching} onPatch={patch} onToggleWatch={toggleWatch}
+            />
+          </>
+        )}
+        {tab === 'settings' && (
+          <SettingsTab
+            story={story} projectId={pid} canEdit={canEdit} epics={epics}
+            onChanged={loadStory} onOpenItem={setSelectedTaskId}
+          />
         )}
       </div>
 
-      {/* Task detail panel */}
-      {selectedTaskId && projectId && (
+      {selectedTaskId && (
         <TaskDetailPanel
-          projectId={parseInt(projectId)}
+          projectId={pid}
           taskId={selectedTaskId}
           projectPrefix={projectPrefix}
           onClose={() => setSelectedTaskId(null)}
-          onUpdated={loadData}
+          onUpdated={loadStory}
           onNavigateToTask={(id) => setSelectedTaskId(id)}
         />
       )}
 
-      {/* Create dialog */}
-      {showCreate && projectId && storyId && (
+      {createType && (
         <CreateItemDialog
-          projectId={parseInt(projectId)}
-          defaultType={showCreate}
-          defaultParentId={parseInt(storyId)}
-          onClose={() => setShowCreate(null)}
-          onCreated={() => { setShowCreate(null); loadData(); }}
+          projectId={pid}
+          defaultType={createType}
+          onClose={() => setCreateType(null)}
+          onCreated={onCreated}
         />
       )}
 
-      {showDeleteConfirm && (
-        <ConfirmDialog
-          title="Delete story"
-          message={`Delete "${story.title}"? Tasks will become standalone.`}
-          confirmLabel="Delete"
-          danger
-          onConfirm={handleDelete}
-          onCancel={() => setShowDeleteConfirm(false)}
-        />
-      )}
+      <ReleaseNotesDrawer
+        projectId={pid}
+        storyId={story.id}
+        storyKey={story.itemKey}
+        canEdit={canEdit}
+        open={showReleaseNotes}
+        onClose={() => setShowReleaseNotes(false)}
+      />
     </div>
   );
 }

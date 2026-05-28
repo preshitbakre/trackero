@@ -1,193 +1,193 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
+import { User } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { useRole } from '../hooks/useRole';
-import { Button } from '../components/ui/Button';
-import { Select } from '../components/ui/Select';
+import { useAuthStore } from '../store/auth.store';
+import { PageHeader } from '../components/ui/PageHeader';
+import { Eyebrow } from '../components/ui/Eyebrow';
+import { KbdKey } from '../components/ui/KbdKey';
 import { CreateItemDialog } from '../components/common/CreateItemDialog';
-import { LabelList } from '../components/ui/LabelBadge';
 import { CardSkeleton } from '../components/common/Skeleton';
 import { ErrorState } from '../components/common/ErrorState';
+import { StoriesStatsStrip } from './stories/StoriesStatsStrip';
+import { StoriesViewToggle } from './stories/StoriesViewToggle';
+import { StoriesTable } from './stories/StoriesTable';
+import { StoriesEmptyState } from './stories/StoriesEmptyState';
+import { StoriesFilterPopover } from './stories/StoriesFilterPopover';
+import { groupStories, filterStories } from './stories/helpers';
+import type { StoryFilters } from './stories/helpers';
+import type { StoryListItem, StoryStats, EpicListItem, StoryView } from './stories/types';
 
-interface Story {
-  id: number;
-  itemType: string;
-  title: string;
-  priority: string;
-  status: { id: number; name: string; category: string; color: string } | null;
-  parent: { id: number; itemKey: string; itemType: string; title: string } | null;
-  assignee: { id: number; displayName: string } | null;
-  sprint: { id: number; name: string } | null;
-  storyPoints: number | null;
-  progress: {
-    totalItems: number;
-    completedItems: number;
-    totalPoints: number;
-    completedPoints: number;
-    progressPercent: number;
-  };
-  childBreakdown: {
-    tasks: number;
-    subtasks: number;
-  };
-  labels?: { id: number; name: string; color: string }[];
-  createdAt: string;
-}
+const EMPTY_STATS: StoryStats = { total: 0, open: 0, inFlight: 0, done: 0, totalPoints: 0, completedPoints: 0 };
 
-interface EpicOption {
-  id: number;
-  title: string;
+/** Fetch every story across pages (grouping/stats-by-group need the full set). */
+async function fetchAllStories(projectId: string): Promise<StoryListItem[]> {
+  const out: StoryListItem[] = [];
+  let page = 1;
+  const limit = 200;
+  // Cap at 20 pages (4000 stories) as a safety bound.
+  for (; page <= 20; page++) {
+    const { data } = await apiClient.get(`/projects/${projectId}/stories?page=${page}&limit=${limit}`);
+    const list: StoryListItem[] = data.data.list || [];
+    out.push(...list);
+    if (!data.data.hasNext || list.length === 0) break;
+  }
+  return out;
 }
 
 export function StoriesPage() {
   const { id: projectId } = useParams();
-  const [stories, setStories] = useState<Story[]>([]);
-  const [epics, setEpics] = useState<EpicOption[]>([]);
-  const [filterEpicId, setFilterEpicId] = useState('');
-  const [showCreate, setShowCreate] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentUser = useAuthStore((s) => s.user);
   const { canEdit } = useRole();
 
-  const loadStories = useCallback(async () => {
+  const [stories, setStories] = useState<StoryListItem[]>([]);
+  const [stats, setStats] = useState<StoryStats>(EMPTY_STATS);
+  const [epicsById, setEpicsById] = useState<Map<number, EpicListItem>>(new Map());
+  const [projectName, setProjectName] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+
+  const view = (searchParams.get('view') as StoryView) || 'epic';
+  const setView = (v: StoryView) => {
+    searchParams.set('view', v);
+    setSearchParams(searchParams, { replace: true });
+  };
+
+  const [search, setSearch] = useState('');
+  const [mine, setMine] = useState(false);
+  const [facets, setFacets] = useState<Omit<StoryFilters, 'search' | 'mineUserId'>>({
+    assigneeIds: [],
+    labelIds: [],
+    priorities: [],
+    sprintIds: [],
+  });
+
+  const load = useCallback(async () => {
     if (!projectId) return;
     setLoading(true);
     setError(false);
     try {
-      let url = `/projects/${projectId}/stories`;
-      if (filterEpicId) url += `?epicId=${filterEpicId}`;
-      const { data } = await apiClient.get(url);
-      setStories(data.data.list || []);
+      const [allStories, statsRes, epicsRes, projectRes] = await Promise.all([
+        fetchAllStories(projectId),
+        apiClient.get(`/projects/${projectId}/stories/stats`),
+        apiClient.get(`/projects/${projectId}/epics?limit=200`),
+        apiClient.get(`/projects/${projectId}`),
+      ]);
+      setStories(allStories);
+      setStats(statsRes.data.data || EMPTY_STATS);
+      const epicMap = new Map<number, EpicListItem>();
+      for (const e of epicsRes.data.data.list || []) epicMap.set(e.id, e);
+      setEpicsById(epicMap);
+      setProjectName(projectRes.data.data.name || '');
     } catch (err) {
       console.error(err);
       setError(true);
     }
     setLoading(false);
-  }, [projectId, filterEpicId]);
+  }, [projectId]);
 
+  useEffect(() => { load(); }, [load]);
+
+  // Keyboard shortcut: C opens the create dialog.
   useEffect(() => {
-    loadStories();
-    loadEpics();
-  }, [loadStories]);
+    if (!canEdit) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'c' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      e.preventDefault();
+      setShowCreate(true);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [canEdit]);
 
-  const loadEpics = async () => {
-    if (!projectId) return;
-    try {
-      const { data } = await apiClient.get(`/projects/${projectId}/epics?limit=100`);
-      setEpics((data.data.list || []).map((e: any) => ({ id: e.id, title: e.title })));
-    } catch (err) { console.error(err); }
-  };
+  const filters: StoryFilters = useMemo(
+    () => ({ search, mineUserId: mine ? currentUser?.id ?? null : null, ...facets }),
+    [search, mine, currentUser?.id, facets],
+  );
+
+  const filtered = useMemo(() => filterStories(stories, filters), [stories, filters]);
+  const groups = useMemo(() => groupStories(filtered, view, epicsById), [filtered, view, epicsById]);
+
+  if (loading) {
+    return (
+      <div className="p-6 space-y-3">
+        {[1, 2, 3].map((i) => <CardSkeleton key={i} />)}
+      </div>
+    );
+  }
+
+  if (error) {
+    return <div className="p-6"><ErrorState message="Failed to load stories" onRetry={load} /></div>;
+  }
+
+  const isEmpty = stories.length === 0;
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-baseline gap-4 flex-wrap">
-          <h1 className="font-serif text-[36px] text-text">Stories</h1>
-          <p className="text-[11px] tracking-[0.18em] uppercase font-serif font-semibold text-faint">
-            {stories.length} stor{stories.length === 1 ? 'y' : 'ies'}
-          </p>
+    <>
+      <PageHeader className="flex items-start justify-between gap-6 flex-wrap">
+        <div>
+          <Eyebrow>Project · {projectName || '—'} · {stats.total} stor{stats.total === 1 ? 'y' : 'ies'}</Eyebrow>
+          <h1 className="font-serif text-[36px] text-text mt-1">
+            Stories
+            <span className="font-serif italic text-[20px] text-faint ml-3">— what we're shipping for our users.</span>
+          </h1>
         </div>
-        <div className="flex items-center gap-3">
-          <Select
-            value={filterEpicId}
-            onChange={setFilterEpicId}
-            options={[
-              { value: '', label: 'All epics' },
-              ...epics.map((e) => ({ value: String(e.id), label: e.title })),
-            ]}
-            className="min-w-[180px]"
-          />
-          {canEdit && (
-            <Button onClick={() => setShowCreate(true)}>+ Create Story</Button>
-          )}
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => <CardSkeleton key={i} />)}
-        </div>
-      ) : error ? (
-        <ErrorState message="Failed to load stories" onRetry={loadStories} />
-      ) : stories.length === 0 ? (
-        <div className="text-center py-12 text-neutral-400 dark:text-dneutral-500">
-          <p>Stories break down epics into deliverable features. Create one to get started.</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {stories.map((story) => (
-            <div
-              key={story.id}
-              className="p-4 rounded-lg bg-white dark:bg-dneutral-100 shadow-[0_2px_8px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.35)]"
+        {!isEmpty && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <StoriesViewToggle view={view} onChange={setView} />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="filter stories…"
+              className="input h-[30px] w-[160px] text-[13px]"
+            />
+            <button
+              type="button"
+              onClick={() => setMine((v) => !v)}
+              className={`btn-ghost inline-flex items-center gap-1.5 ${mine ? 'bg-shade' : ''}`}
             >
-              <div className="flex items-center gap-3">
-                <span
-                  className="w-3 h-3 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: '#88A9D6' }}
-                />
-                <h3 className="flex-1 min-w-0 text-[16px] font-medium text-neutral-700 dark:text-dneutral-700 truncate">
-                  {story.title}
-                </h3>
-                {story.status && (
-                  <span
-                    className="text-[14px] px-2 py-0.5 rounded"
-                    style={{ backgroundColor: `${story.status.color}20`, color: story.status.color }}
-                  >
-                    {story.status.name}
-                  </span>
-                )}
-              </div>
+              <User size={14} /> Mine
+            </button>
+            <StoriesFilterPopover
+              stories={stories}
+              filters={filters}
+              onChange={(f) => setFacets({ assigneeIds: f.assigneeIds, labelIds: f.labelIds, priorities: f.priorities, sprintIds: f.sprintIds })}
+            />
+            {canEdit && (
+              <button type="button" onClick={() => setShowCreate(true)} className="btn btn-accent inline-flex items-center gap-2">
+                + New story
+                <KbdKey tone="on-accent">C</KbdKey>
+              </button>
+            )}
+          </div>
+        )}
+        {isEmpty && canEdit && (
+          <button type="button" onClick={() => setShowCreate(true)} className="btn btn-accent inline-flex items-center gap-2">
+            + New story
+            <KbdKey tone="on-accent">C</KbdKey>
+          </button>
+        )}
+      </PageHeader>
 
-              {story.parent && (
-                <div className="mt-1 text-[14px] text-neutral-400 dark:text-dneutral-500">
-                  Epic:{' '}
-                  <span className="inline-flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#7C5CFC' }} />
-                    {story.parent.title}
-                  </span>
-                </div>
-              )}
-
-              {story.progress && (
-                <>
-                  <div className="mt-2 text-[14px] text-neutral-400 dark:text-dneutral-500">
-                    {story.progress.completedItems} of {story.progress.totalItems} items complete
-                    &middot; {story.progress.completedPoints} of {story.progress.totalPoints} pts
-                  </div>
-                  <div className="mt-2 h-1.5 rounded-full bg-neutral-100 dark:bg-dneutral-200">
-                    <div
-                      className="h-1.5 rounded-full transition-all"
-                      style={{ width: `${story.progress.progressPercent}%`, backgroundColor: '#88A9D6' }}
-                    />
-                  </div>
-                </>
-              )}
-
-              {story.childBreakdown && (
-                <div className="mt-2 text-[14px] text-neutral-400 dark:text-dneutral-500">
-                  Contains: {story.childBreakdown.tasks} tasks &middot; {story.childBreakdown.subtasks} subtasks
-                </div>
-              )}
-
-              {story.labels && story.labels.length > 0 && (
-                <div className="mt-2">
-                  <LabelList labels={story.labels} max={4} />
-                </div>
-              )}
-
-              {story.assignee && (
-                <div className="mt-1 text-[14px] text-neutral-400 dark:text-dneutral-500">
-                  Assigned: {story.assignee.displayName}
-                </div>
-              )}
-              <div className="mt-3">
-                <Link to={`/projects/${projectId}/stories/${story.id}`} className="text-[14px] text-lilac-dark hover:underline">
-                  View details &rarr;
-                </Link>
-              </div>
-            </div>
-          ))}
-        </div>
+      {isEmpty ? (
+        <StoriesEmptyState canEdit={canEdit} onCreate={() => setShowCreate(true)} />
+      ) : (
+        <>
+          <StoriesStatsStrip stats={stats} />
+          <div className="px-[28px] py-6">
+            {groups.length === 0 ? (
+              <div className="text-center py-12 text-mute text-[14px]">No stories match your filters.</div>
+            ) : (
+              <StoriesTable groups={groups} />
+            )}
+          </div>
+        </>
       )}
 
       {showCreate && projectId && (
@@ -195,12 +195,9 @@ export function StoriesPage() {
           projectId={parseInt(projectId)}
           defaultType="story"
           onClose={() => setShowCreate(false)}
-          onCreated={() => {
-            setShowCreate(false);
-            loadStories();
-          }}
+          onCreated={() => { setShowCreate(false); load(); }}
         />
       )}
-    </div>
+    </>
   );
 }

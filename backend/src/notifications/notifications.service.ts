@@ -154,6 +154,41 @@ export class NotificationsService {
     }
   }
 
+  @OnEvent('story.approved')
+  async onStoryApproved(payload: { id: number; projectId: number; userId: number }) {
+    try {
+      const [item] = await this.dataSource.query(
+        'SELECT item_number, title, reporter_id FROM work_items WHERE id = $1', [payload.id],
+      );
+      if (!item) return;
+      const [project] = await this.dataSource.query(
+        'SELECT prefix FROM projects WHERE id = $1', [payload.projectId],
+      );
+      const itemKey = `${project?.prefix || ''}-${item.item_number}`;
+
+      const watchers = await this.dataSource.query(
+        'SELECT user_id FROM work_item_watchers WHERE work_item_id = $1', [payload.id],
+      );
+      const recipients = new Set<number>(watchers.map((w: any) => w.user_id));
+      if (item.reporter_id) recipients.add(item.reporter_id);
+
+      for (const userId of recipients) {
+        await this.createNotification(
+          userId,
+          payload.userId,
+          'story_approved',
+          'work_item',
+          payload.id,
+          `${itemKey} was approved`,
+          item.title || null,
+          payload.projectId,
+        );
+      }
+    } catch (err) {
+      this.logger.error(`onStoryApproved failed: ${err}`, (err as Error)?.stack);
+    }
+  }
+
   @OnEvent(COMMENT_ADDED)
   async onCommentAdded(payload: CommentAddedPayload) {
     try {

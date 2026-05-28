@@ -35,8 +35,10 @@ export function ViewerDashboard({ data }: { data: any }) {
     : 'No projects assigned yet';
 
   return (
-    <div className="p-6">
+    <>
       <GreetingBar userName={greeting?.userName ?? ''} date={greeting?.date ?? ''} summaryText={summaryText} />
+
+      <div className="px-[28px] py-6">
 
       <StatCardGrid>
         <StatCard icon="&#x1F4C1;" iconColor="text-lilac-dark" iconBg="bg-lilac-tint" label="Projects" value={projectsCount} />
@@ -163,6 +165,7 @@ export function ViewerDashboard({ data }: { data: any }) {
           </DashboardSection>
         </>
       )}
-    </div>
+      </div>
+    </>
   );
 }

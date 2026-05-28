@@ -26,6 +26,7 @@ import { SearchModule } from './search/search.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { FiltersModule } from './filters/filters.module';
 import { WorkItemsModule } from './work-items/work-items.module';
+import { EpicsModule } from './epics/epics.module';
 import { PresenceModule } from './presence/presence.module';
 import { TodayModule } from './today/today.module';
 import { DirectoryModule } from './directory/directory.module';
@@ -76,6 +77,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     DashboardModule,
     FiltersModule,
     WorkItemsModule,
+    EpicsModule,
     PresenceModule,
     TodayModule,
     DirectoryModule,
@@ -130,5 +132,12 @@ export class AppModule implements OnModuleInit {
       ON notifications (user_id, type, reference_id, ((created_at AT TIME ZONE 'UTC')::date))
       WHERE type IN ('sprint_ending', 'task_due_soon', 'task_overdue')
     `);
+
+    // Epics rebuild — backfill epic_state for any epics that predate the column
+    // (synchronize/test paths get the column default automatically; this covers
+    // the prod/migration path where existing rows may be NULL). Idempotent.
+    await this.dataSource.query(
+      `UPDATE work_items SET epic_state = 'draft' WHERE item_type = 'epic' AND epic_state IS NULL`,
+    );
   }
 }

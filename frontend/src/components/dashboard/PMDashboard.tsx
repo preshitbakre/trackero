@@ -41,8 +41,10 @@ export function PMDashboard({ data }: { data: any }) {
     : `Managing ${totalProjects} project${totalProjects !== 1 ? 's' : ''}`;
 
   return (
-    <div className="p-6">
+    <>
       <GreetingBar userName={greeting?.userName ?? ''} date={greeting?.date ?? ''} summaryText={summaryText} />
+
+      <div className="px-[28px] py-6">
 
       <StatCardGrid>
         <StatCard icon="&#x1F4C1;" iconColor="text-lilac-dark" iconBg="bg-lilac-tint" label="My projects" value={totalProjects} />
@@ -221,6 +223,7 @@ export function PMDashboard({ data }: { data: any }) {
           )}
         </DashboardSection>
       </TwoColumnLayout>
-    </div>
+      </div>
+    </>
   );
 }

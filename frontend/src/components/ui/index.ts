@@ -8,6 +8,7 @@ export { Combobox } from './Combobox';
 export type { ComboboxOption } from './Combobox';
 export { KbdKey } from './KbdKey';
 export { Eyebrow } from './Eyebrow';
+export { PageHeader } from './PageHeader';
 export { TypeTag } from './TypeTag';
 export type { TypeTagKind } from './TypeTag';
 export { Avatar } from './Avatar';

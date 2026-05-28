@@ -14,16 +14,17 @@ import { Roles } from '../common/decorators/roles.decorator';
 export class HierarchyViewsController {
   constructor(private readonly workItemsService: WorkItemsService) {}
 
-  @Get('epics')
+  // NB: `GET projects/:projectId/epics` moved to EpicsController (Epics rebuild
+  // 2026-05-28) — it now returns the enriched epic shape. Removed here to avoid
+  // a duplicate route registration.
+
+  @Get('stories/stats')
   @Roles('admin', 'project_manager', 'member', 'viewer')
-  @ResponseCode('EPICS_LISTED')
-  async listEpics(
+  @ResponseCode('STORY_STATS')
+  async storyStats(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
-    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
-    @Query('status') status?: string,
   ) {
-    return this.workItemsService.listEpics(projectId, { page, limit, status });
+    return this.workItemsService.getStoryStats(projectId);
   }
 
   @Get('stories')

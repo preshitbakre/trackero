@@ -2,6 +2,7 @@ import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom'
 import { useEffect, useState, useCallback } from 'react';
 import { apiClient } from '../api/client';
 import { Tabs } from '../components/ui/Tabs';
+import { PageHeader } from '../components/ui/PageHeader';
 import { StatusPill, type StatusKey } from '../components/ui/StatusPill';
 import { Button } from '../components/ui/Button';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
@@ -140,7 +141,8 @@ export function SprintDetailPage() {
   }
 
   return (
-    <div className="px-6 py-6">
+    <>
+      <PageHeader>
       <nav className="text-[12px] text-mute mb-2">
         <Link to={`/projects/${projectId}/sprints`} className="hover:text-text">
           Sprints
@@ -149,7 +151,7 @@ export function SprintDetailPage() {
         <span>S-{sprint.sprintNumber}</span>
       </nav>
 
-      <header className="flex items-start justify-between mb-4">
+      <header className="flex items-start justify-between">
         <div>
           <span className="font-serif text-[36px] text-text">Sprint</span>
           <span className="font-serif text-[28px] text-text ml-3">{sprint.sprintNumber}</span>
@@ -173,7 +175,9 @@ export function SprintDetailPage() {
           onReopenAsNew={() => navigate(`/projects/${projectId}/sprints`)}
         />
       </header>
+      </PageHeader>
 
+      <div className="px-[28px] py-6">
       <Tabs
         tabs={[
           { key: 'overview', label: 'Overview' },
@@ -215,7 +219,8 @@ export function SprintDetailPage() {
           onCancel={() => setShowCancelConfirm(false)}
         />
       )}
-    </div>
+      </div>
+    </>
   );
 }
 

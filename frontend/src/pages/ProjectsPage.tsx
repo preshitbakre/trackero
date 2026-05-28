@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
-import { Eyebrow } from '../components/ui';
+import { Eyebrow, PageHeader } from '../components/ui';
 import { PROJECT_DOT_COLORS } from '../lib/colors';
 import { useRole } from '../hooks/useRole';
 import { CreateProjectDialog } from '../components/common/CreateProjectDialog';
@@ -114,10 +114,10 @@ export function ProjectsPage() {
   }, [projects]);
 
   return (
-    <div className="p-6">
+    <>
       {/* Header — instance eyebrow + italic-serif hero + right-side actions
           (Mine-only pill, search input, + New project button) per frame 3. */}
-      <div className="flex items-end justify-between gap-6 mb-4 flex-wrap">
+      <PageHeader className="flex items-end justify-between gap-6 flex-wrap">
         <div className="min-w-0 flex-1">
           <Eyebrow>Workspace</Eyebrow>
           <h1 className="font-serif text-[36px] text-text mt-1">
@@ -160,8 +160,9 @@ export function ProjectsPage() {
             </button>
           )}
         </div>
-      </div>
+      </PageHeader>
 
+      <div className="px-[28px] py-6">
       {/* Filter tabs — counts embedded per frame 3
           (Active · 5 | Planning · 2 | Archived · 1 | All · 8). */}
       <div className="flex items-center gap-1 mb-6 pb-2">
@@ -257,7 +258,8 @@ export function ProjectsPage() {
           }}
         />
       )}
-    </div>
+      </div>
+    </>
   );
 }
 

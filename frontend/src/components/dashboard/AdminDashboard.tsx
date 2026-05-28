@@ -32,13 +32,14 @@ export function AdminDashboard({ data }: { data: any }) {
   const pendingInvitations = userStats.pendingInvitations ?? 0;
 
   return (
-    <div className="p-6">
+    <>
       <GreetingBar
         userName={greeting?.userName ?? ''}
         date={greeting?.date ?? ''}
         summaryText={`${activeUsers} users across ${activeProjects} projects`}
       />
 
+      <div className="px-[28px] py-6">
       <StatCardGrid>
         <StatCard icon="&#x1F465;" iconColor="text-lilac-dark" iconBg="bg-lilac-tint" label="Total users" value={totalUsers} subtext={`${activeUsers} active`} />
         <StatCard icon="&#x1F4C1;" iconColor="text-mint" iconBg="bg-mint-light" label="Active projects" value={activeProjects} subtext={`${Math.max(0, totalProjects - activeProjects)} archived`} />
@@ -156,6 +157,7 @@ export function AdminDashboard({ data }: { data: any }) {
           }}
         />
       )}
-    </div>
+      </div>
+    </>
   );
 }

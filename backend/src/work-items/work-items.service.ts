@@ -4,6 +4,13 @@ import { Repository, DataSource, EntityManager, IsNull } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { WorkItem } from './entities/work-item.entity';
 import { WorkItemAssociation } from './entities/work-item-association.entity';
+import { AcceptanceCriterion } from './entities/acceptance-criterion.entity';
+import { ReleaseNote } from './entities/release-note.entity';
+import {
+  CreateAcceptanceCriterionDto,
+  UpdateAcceptanceCriterionDto,
+} from './dto/acceptance-criterion.dto';
+import { UpsertReleaseNoteDto } from './dto/release-note.dto';
 import { AppLogicException } from '../common/exceptions/app-exceptions';
 import { PaginatedResponse } from '../common/dto/paginated-response.dto';
 import { PaginatedMutationResponse } from '../common/dto/paginated-mutation-response.dto';
@@ -22,9 +29,60 @@ export class WorkItemsService {
     private readonly workItemRepo: Repository<WorkItem>,
     @InjectRepository(WorkItemAssociation)
     private readonly assocRepo: Repository<WorkItemAssociation>,
+    @InjectRepository(AcceptanceCriterion)
+    private readonly criterionRepo: Repository<AcceptanceCriterion>,
+    @InjectRepository(ReleaseNote)
+    private readonly releaseNoteRepo: Repository<ReleaseNote>,
     private readonly dataSource: DataSource,
     private readonly eventEmitter: EventEmitter2,
   ) {}
+
+  // =========================================================================
+  // SERIALIZATION HELPERS
+  // =========================================================================
+
+  /**
+   * Serialize a user with a derived `@handle` (email local-part). Users have
+   * no handle column; this keeps the derivation identical everywhere a user
+   * is exposed in story responses (assignee/reporter/verifier/watchers).
+   */
+  private formatUser(u: any | null | undefined) {
+    if (!u) return null;
+    const email: string | undefined = u.email;
+    return {
+      id: u.id,
+      displayName: u.displayName,
+      avatarUrl: u.avatarUrl ?? null,
+      handle: email ? email.split('@')[0] : null,
+    };
+  }
+
+  private formatCriterion(c: AcceptanceCriterion, projectPrefix?: string) {
+    const structured = c.whenText != null && c.thenText != null;
+    return {
+      id: c.id,
+      givenText: c.givenText,
+      whenText: c.whenText,
+      thenText: c.thenText,
+      structured,
+      isMet: c.isMet,
+      verifiedAt: c.verifiedAt,
+      verifier: c.verifier ? this.formatUser(c.verifier) : null,
+      linkedItem: c.linkedItem
+        ? {
+            id: c.linkedItem.id,
+            itemKey: projectPrefix ? `${projectPrefix}-${c.linkedItem.itemNumber}` : `${c.linkedItem.itemNumber}`,
+            itemType: c.linkedItem.itemType,
+            title: c.linkedItem.title,
+            statusName: (c.linkedItem as any).status?.name ?? null,
+            statusCategory: (c.linkedItem as any).status?.category ?? null,
+          }
+        : null,
+      sortOrder: c.sortOrder,
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+    };
+  }
 
   // =========================================================================
   // PUBLIC API METHODS (implemented in Steps 2C–2F)
@@ -125,10 +183,12 @@ export class WorkItemsService {
         itemNumber,
         title: dto.title,
         description: dto.description ?? null,
+        userStory: dto.userStory ?? null,
         statusId,
         priority: (dto.priority as WorkItem['priority']) || 'medium',
         sprintId,
         storyPoints: dto.storyPoints ?? null,
+        estimatedAt: dto.storyPoints != null ? new Date() : null,
         assigneeId: dto.assigneeId ?? null,
         reporterId: userId,
         sortOrder: 'n',
@@ -477,19 +537,61 @@ export class WorkItemsService {
       [id],
     );
 
+    // Descendant breakdown (bugs + done/wip/open) via belongs_to tree.
+    const statsMap = await this.computeDescendantStatsBatch([id]);
+    const stats = statsMap.get(id);
+    const bugCount = stats?.childBreakdown.bugs ?? 0;
+    const childStatusBreakdown = stats?.childStatusBreakdown ?? { done: 0, wip: 0, open: 0 };
+
+    // Parent epic (the belongs_to association whose linked item is an epic).
+    const [epicRow] = await this.dataSource.query(
+      `SELECT e.id, e.item_number, e.title
+       FROM work_item_associations a
+       JOIN work_items e ON e.id = a.linked_item_id
+       WHERE a.item_id = $1 AND a.link_type = 'belongs_to' AND e.item_type = 'epic' AND e.deleted_at IS NULL
+       LIMIT 1`,
+      [id],
+    );
+    const epic = epicRow
+      ? {
+          id: epicRow.id,
+          itemKey: projectPrefix ? `${projectPrefix}-${epicRow.item_number}` : `${epicRow.item_number}`,
+          title: epicRow.title,
+        }
+      : null;
+
+    // Approver (if approved).
+    let approver: ReturnType<WorkItemsService['formatUser']> = null;
+    if (item.approvedBy) {
+      const [approverUser] = await this.dataSource.query(
+        `SELECT id, display_name AS "displayName", avatar_url AS "avatarUrl", email FROM users WHERE id = $1`,
+        [item.approvedBy],
+      );
+      approver = this.formatUser(approverUser);
+    }
+
+    // Acceptance criteria (full list + met/total summary).
+    const acceptanceCriteria = await this.listAcceptanceCriteria(projectId, id);
+
     const baseResponse = this.formatItemResponse(item, children.length, projectPrefix);
     return {
       ...baseResponse,
       description: item.description,
-      reporter: item.reporter ? {
-        id: item.reporter.id,
-        displayName: (item.reporter as any).displayName,
-        avatarUrl: (item.reporter as any).avatarUrl ?? null,
-      } : null,
+      userStory: item.userStory,
+      assignee: this.formatUser(item.assignee),
+      reporter: this.formatUser(item.reporter),
       children: childrenFormatted,
       breadcrumb,
       associations,
       progress,
+      bugCount,
+      childStatusBreakdown,
+      epic,
+      acceptanceCriteria,
+      estimatedAt: item.estimatedAt,
+      approvedBy: item.approvedBy,
+      approvedAt: item.approvedAt,
+      approver,
       commentCount: parseInt(commentRow.cnt),
       attachmentCount: parseInt(attachmentRow.cnt),
     };
@@ -595,22 +697,7 @@ export class WorkItemsService {
 
       // If changing to 'done' category, check association blockers
       if (newStatus.category === 'done') {
-        const blockers = await this.dataSource.query(
-          `SELECT a.id, wi.item_number, wi.title, ps.category
-           FROM work_item_associations a
-           JOIN work_items wi ON wi.id = a.linked_item_id
-           JOIN project_statuses ps ON ps.id = wi.status_id
-           WHERE a.item_id = $1 AND a.link_type = 'blocks'`,
-          [id],
-        );
-        const unresolvedBlockers = blockers.filter((b: any) => b.category !== 'done');
-        if (unresolvedBlockers.length > 0) {
-          throw new AppLogicException(
-            'ITEM_BLOCKED',
-            HttpStatus.BAD_REQUEST,
-            `Blocked by ${unresolvedBlockers[0].title}. Resolve the blocker first.`,
-          );
-        }
+        await this.assertNoOpenBlockers(id);
       }
 
       // Set or clear completedAt
@@ -631,8 +718,15 @@ export class WorkItemsService {
     // Apply simple field updates
     if (dto.title !== undefined) item.title = dto.title;
     if (dto.description !== undefined) item.description = dto.description;
+    if (dto.userStory !== undefined) item.userStory = dto.userStory;
     if (dto.priority !== undefined) item.priority = dto.priority as WorkItem['priority'];
-    if (dto.storyPoints !== undefined) item.storyPoints = dto.storyPoints;
+    if (dto.storyPoints !== undefined) {
+      // Stamp estimatedAt the first time points go from unset → set.
+      if (item.storyPoints == null && dto.storyPoints != null && item.estimatedAt == null) {
+        item.estimatedAt = new Date();
+      }
+      item.storyPoints = dto.storyPoints;
+    }
     if (dto.assigneeId !== undefined) item.assigneeId = dto.assigneeId;
     if ((dto as any).reviewerId !== undefined) item.reviewerId = (dto as any).reviewerId;
     if (dto.endDate !== undefined) item.endDate = dto.endDate;
@@ -1265,14 +1359,39 @@ export class WorkItemsService {
       .getManyAndCount();
 
     // Batch compute progress + childBreakdown using a single multi-root recursive CTE
-    const statsMap = await this.computeDescendantStatsBatch(stories.map((s) => s.id));
+    const storyIds = stories.map((s) => s.id);
+    const statsMap = await this.computeDescendantStatsBatch(storyIds);
     const emptyStats = {
       progress: { totalItems: 0, completedItems: 0, totalPoints: 0, completedPoints: 0, progressPercent: 0 },
       childBreakdown: { stories: 0, tasks: 0, subtasks: 0, bugs: 0 },
+      childStatusBreakdown: { done: 0, wip: 0, open: 0 },
     };
+
+    // Batch-resolve each story's parent epic (belongs_to → epic).
+    const epicByStory = new Map<number, { id: number; itemKey: string; title: string }>();
+    if (storyIds.length > 0) {
+      const epicRows = await this.dataSource.query(
+        `SELECT a.item_id AS "storyId", e.id, e.item_number AS "itemNumber", e.title
+         FROM work_item_associations a
+         JOIN work_items e ON e.id = a.linked_item_id
+         WHERE a.item_id = ANY($1) AND a.link_type = 'belongs_to'
+           AND e.item_type = 'epic' AND e.deleted_at IS NULL`,
+        [storyIds],
+      );
+      for (const r of epicRows) {
+        if (!epicByStory.has(r.storyId)) {
+          epicByStory.set(r.storyId, {
+            id: r.id,
+            itemKey: `${projectPrefix}-${r.itemNumber}`,
+            title: r.title,
+          });
+        }
+      }
+    }
 
     const list = stories.map((story) => {
       const { progress, childBreakdown } = statsMap.get(story.id) ?? emptyStats;
+      const epic = epicByStory.get(story.id) ?? null;
 
       return {
         id: story.id,
@@ -1303,6 +1422,10 @@ export class WorkItemsService {
         storyPoints: story.storyPoints,
         progress,
         childBreakdown,
+        bugCount: childBreakdown.bugs,
+        epicId: epic?.id ?? null,
+        epicKey: epic?.itemKey ?? null,
+        epicTitle: epic?.title ?? null,
         labels: (story.labels || []).map((l) => ({ id: l.id, name: l.name, color: (l as any).color })),
         createdAt: story.createdAt,
       };
@@ -1507,6 +1630,7 @@ export class WorkItemsService {
           progressPercent: number;
         };
         childBreakdown: { stories: number; tasks: number; subtasks: number; bugs: number };
+        childStatusBreakdown: { done: number; wip: number; open: number };
       }
     >
   > {
@@ -1521,6 +1645,7 @@ export class WorkItemsService {
           progressPercent: number;
         };
         childBreakdown: { stories: number; tasks: number; subtasks: number; bugs: number };
+        childStatusBreakdown: { done: number; wip: number; open: number };
       }
     >();
 
@@ -1549,7 +1674,9 @@ export class WorkItemsService {
         COUNT(*) FILTER (WHERE d.item_type = 'story')::int AS story_count,
         COUNT(*) FILTER (WHERE d.item_type = 'task')::int AS task_count,
         COUNT(*) FILTER (WHERE d.item_type = 'subtask')::int AS subtask_count,
-        COUNT(*) FILTER (WHERE d.item_type = 'bug')::int AS bug_count
+        COUNT(*) FILTER (WHERE d.item_type = 'bug')::int AS bug_count,
+        COUNT(*) FILTER (WHERE ps.category IN ('in_progress', 'in_review'))::int AS wip_count,
+        COUNT(*) FILTER (WHERE ps.category = 'backlog')::int AS open_count
       FROM descendants d
       JOIN project_statuses ps ON ps.id = d.status_id
       GROUP BY d.root_id
@@ -1575,10 +1702,302 @@ export class WorkItemsService {
           subtasks: Number(row.subtask_count),
           bugs: Number(row.bug_count),
         },
+        childStatusBreakdown: {
+          done: completedItems,
+          wip: Number(row.wip_count),
+          open: Number(row.open_count),
+        },
       });
     }
 
     return map;
+  }
+
+  // =========================================================================
+  // STORY STATS
+  // =========================================================================
+
+  async getStoryStats(projectId: number) {
+    const [row] = await this.dataSource.query(
+      `
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE ps.category = 'backlog')::int AS open,
+        COUNT(*) FILTER (WHERE ps.category IN ('in_progress', 'in_review'))::int AS in_flight,
+        COUNT(*) FILTER (WHERE ps.category = 'done')::int AS done,
+        COALESCE(SUM(wi.story_points), 0)::int AS total_points,
+        COALESCE(SUM(wi.story_points) FILTER (WHERE ps.category = 'done'), 0)::int AS completed_points
+      FROM work_items wi
+      JOIN project_statuses ps ON ps.id = wi.status_id
+      WHERE wi.project_id = $1 AND wi.item_type = 'story' AND wi.deleted_at IS NULL
+    `,
+      [projectId],
+    );
+    return {
+      total: Number(row.total),
+      open: Number(row.open),
+      inFlight: Number(row.in_flight),
+      done: Number(row.done),
+      totalPoints: Number(row.total_points),
+      completedPoints: Number(row.completed_points),
+    };
+  }
+
+  // =========================================================================
+  // ACCEPTANCE CRITERIA
+  // =========================================================================
+
+  /** Throws NOT_FOUND when the item doesn't exist (or is soft-deleted) in this project. */
+  private async assertItemInProject(projectId: number, itemId: number): Promise<WorkItem> {
+    const item = await this.workItemRepo.findOne({ where: { id: itemId, projectId } });
+    if (!item || item.deletedAt) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    return item;
+  }
+
+  private async projectPrefix(projectId: number): Promise<string> {
+    const [row] = await this.dataSource.query(`SELECT prefix FROM projects WHERE id = $1`, [projectId]);
+    return row?.prefix ?? '';
+  }
+
+  async listAcceptanceCriteria(projectId: number, itemId: number) {
+    await this.assertItemInProject(projectId, itemId);
+    const prefix = await this.projectPrefix(projectId);
+    const criteria = await this.criterionRepo.find({
+      where: { workItemId: itemId },
+      relations: ['verifier', 'linkedItem', 'linkedItem.status'],
+      order: { sortOrder: 'ASC', id: 'ASC' },
+    });
+    const list = criteria.map((c) => this.formatCriterion(c, prefix));
+    return {
+      list,
+      total: list.length,
+      met: list.filter((c) => c.isMet).length,
+    };
+  }
+
+  /** when/then must be supplied together (both structured) or both omitted (plain). */
+  private assertStructuredPairing(whenText: unknown, thenText: unknown) {
+    const hasWhen = whenText != null;
+    const hasThen = thenText != null;
+    if (hasWhen !== hasThen) {
+      throw new AppLogicException(
+        'INVALID_CRITERION',
+        HttpStatus.BAD_REQUEST,
+        'A structured criterion requires both When and Then.',
+      );
+    }
+  }
+
+  /** Validate linkedItemId (if provided) belongs to this project. */
+  private async validateLinkedItem(linkedItemId: number | null | undefined, projectId: number) {
+    if (linkedItemId == null) return;
+    const linked = await this.workItemRepo.findOne({ where: { id: linkedItemId, projectId } });
+    if (!linked || linked.deletedAt) {
+      throw new AppLogicException(
+        'CROSS_PROJECT_NOT_ALLOWED',
+        HttpStatus.BAD_REQUEST,
+        'Linked item not found in this project.',
+      );
+    }
+  }
+
+  async createAcceptanceCriterion(projectId: number, itemId: number, dto: CreateAcceptanceCriterionDto) {
+    await this.assertItemInProject(projectId, itemId);
+    this.assertStructuredPairing(dto.whenText, dto.thenText);
+    await this.validateLinkedItem(dto.linkedItemId, projectId);
+
+    // Append to the end — deterministic ordering without a manual reorder.
+    const count = await this.criterionRepo.count({ where: { workItemId: itemId } });
+    const criterion = this.criterionRepo.create({
+      workItemId: itemId,
+      givenText: dto.givenText,
+      whenText: dto.whenText ?? null,
+      thenText: dto.thenText ?? null,
+      linkedItemId: dto.linkedItemId ?? null,
+      sortOrder: `n${String(count).padStart(6, '0')}`,
+      isMet: false,
+    });
+    const saved = await this.criterionRepo.save(criterion);
+    return this.loadCriterion(projectId, itemId, saved.id);
+  }
+
+  async updateAcceptanceCriterion(
+    projectId: number,
+    itemId: number,
+    criterionId: number,
+    dto: UpdateAcceptanceCriterionDto,
+    userId: number,
+  ) {
+    await this.assertItemInProject(projectId, itemId);
+    const criterion = await this.criterionRepo.findOne({ where: { id: criterionId, workItemId: itemId } });
+    if (!criterion) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    if (dto.linkedItemId !== undefined) {
+      await this.validateLinkedItem(dto.linkedItemId, projectId);
+      criterion.linkedItemId = dto.linkedItemId;
+    }
+    if (dto.givenText !== undefined) criterion.givenText = dto.givenText;
+    if (dto.whenText !== undefined) criterion.whenText = dto.whenText;
+    if (dto.thenText !== undefined) criterion.thenText = dto.thenText;
+    // After applying text edits, the structured pairing must still hold.
+    this.assertStructuredPairing(criterion.whenText, criterion.thenText);
+
+    if (dto.isMet !== undefined && dto.isMet !== criterion.isMet) {
+      criterion.isMet = dto.isMet;
+      if (dto.isMet) {
+        criterion.verifiedBy = userId;
+        criterion.verifiedAt = new Date();
+      } else {
+        criterion.verifiedBy = null;
+        criterion.verifiedAt = null;
+      }
+    }
+
+    await this.criterionRepo.save(criterion);
+    return this.loadCriterion(projectId, itemId, criterion.id);
+  }
+
+  async deleteAcceptanceCriterion(projectId: number, itemId: number, criterionId: number) {
+    await this.assertItemInProject(projectId, itemId);
+    const criterion = await this.criterionRepo.findOne({ where: { id: criterionId, workItemId: itemId } });
+    if (!criterion) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    await this.criterionRepo.remove(criterion);
+    return { id: criterionId };
+  }
+
+  async reorderAcceptanceCriteria(projectId: number, itemId: number, orderedIds: number[]) {
+    await this.assertItemInProject(projectId, itemId);
+    const criteria = await this.criterionRepo.find({ where: { workItemId: itemId } });
+    const byId = new Map(criteria.map((c) => [c.id, c]));
+    let i = 0;
+    for (const id of orderedIds) {
+      const c = byId.get(id);
+      if (c) {
+        c.sortOrder = `n${String(i).padStart(6, '0')}`;
+        await this.criterionRepo.save(c);
+        i++;
+      }
+    }
+    return this.listAcceptanceCriteria(projectId, itemId);
+  }
+
+  private async loadCriterion(projectId: number, itemId: number, criterionId: number) {
+    const prefix = await this.projectPrefix(projectId);
+    const c = await this.criterionRepo.findOne({
+      where: { id: criterionId, workItemId: itemId },
+      relations: ['verifier', 'linkedItem', 'linkedItem.status'],
+    });
+    return this.formatCriterion(c!, prefix);
+  }
+
+  // =========================================================================
+  // STORY WORKFLOW (approve / reopen)
+  // =========================================================================
+
+  /** First project status of a category, in board order. Throws if none exists. */
+  private async firstStatusOfCategory(projectId: number, category: string): Promise<{ id: number; category: string }> {
+    const [status] = await this.dataSource.query(
+      `SELECT id, category FROM project_statuses
+       WHERE project_id = $1 AND category = $2
+       ORDER BY sort_order ASC LIMIT 1`,
+      [projectId, category],
+    );
+    if (!status) {
+      throw new AppLogicException(
+        'NO_STATUS_FOR_CATEGORY',
+        HttpStatus.BAD_REQUEST,
+        `No '${category}' status configured for this project.`,
+      );
+    }
+    return status;
+  }
+
+  /** Rejects with ITEM_BLOCKED when the item has any unresolved `blocks` association. */
+  private async assertNoOpenBlockers(id: number) {
+    const blockers = await this.dataSource.query(
+      `SELECT a.id, wi.title, ps.category
+       FROM work_item_associations a
+       JOIN work_items wi ON wi.id = a.linked_item_id
+       JOIN project_statuses ps ON ps.id = wi.status_id
+       WHERE a.item_id = $1 AND a.link_type = 'blocks'`,
+      [id],
+    );
+    const unresolved = blockers.filter((b: any) => b.category !== 'done');
+    if (unresolved.length > 0) {
+      throw new AppLogicException(
+        'ITEM_BLOCKED',
+        HttpStatus.BAD_REQUEST,
+        `Blocked by ${unresolved[0].title}. Resolve the blocker first.`,
+      );
+    }
+  }
+
+  async approveStory(projectId: number, id: number, userId: number) {
+    const item = await this.workItemRepo.findOne({ where: { id, projectId } });
+    if (!item || item.deletedAt) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    await this.assertNoOpenBlockers(id);
+    const doneStatus = await this.firstStatusOfCategory(projectId, 'done');
+    item.statusId = doneStatus.id;
+    item.completedAt = new Date();
+    item.approvedBy = userId;
+    item.approvedAt = new Date();
+    await this.workItemRepo.save(item);
+    this.eventEmitter.emit('work_item.updated', { id, projectId, userId });
+    this.eventEmitter.emit('story.approved', { id, projectId, userId });
+    return this.findOne(projectId, id);
+  }
+
+  async reopenStory(projectId: number, id: number, userId: number) {
+    const item = await this.workItemRepo.findOne({ where: { id, projectId } });
+    if (!item || item.deletedAt) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    const inProgress = await this.firstStatusOfCategory(projectId, 'in_progress');
+    item.statusId = inProgress.id;
+    item.completedAt = null;
+    item.approvedBy = null;
+    item.approvedAt = null;
+    await this.workItemRepo.save(item);
+    this.eventEmitter.emit('work_item.updated', { id, projectId, userId });
+    this.eventEmitter.emit('story.reopened', { id, projectId, userId });
+    return this.findOne(projectId, id);
+  }
+
+  // =========================================================================
+  // RELEASE NOTES
+  // =========================================================================
+
+  async getReleaseNote(projectId: number, itemId: number) {
+    await this.assertItemInProject(projectId, itemId);
+    const note = await this.releaseNoteRepo.findOne({ where: { workItemId: itemId } });
+    return {
+      body: note?.body ?? '',
+      publishedAt: note?.publishedAt ?? null,
+      updatedAt: note?.updatedAt ?? null,
+    };
+  }
+
+  async upsertReleaseNote(projectId: number, itemId: number, dto: UpsertReleaseNoteDto) {
+    await this.assertItemInProject(projectId, itemId);
+    let note = await this.releaseNoteRepo.findOne({ where: { workItemId: itemId } });
+    if (!note) {
+      note = this.releaseNoteRepo.create({ workItemId: itemId, body: dto.body });
+    } else {
+      note.body = dto.body;
+    }
+    if (dto.publish) {
+      note.publishedAt = new Date();
+    }
+    await this.releaseNoteRepo.save(note);
+    return { body: note.body, publishedAt: note.publishedAt, updatedAt: note.updatedAt };
   }
 
   // =========================================================================

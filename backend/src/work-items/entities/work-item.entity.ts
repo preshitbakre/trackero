@@ -71,6 +71,11 @@ export class WorkItem {
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
+  // Editorial user-story sentence (light markdown — `*…*` for emphasis).
+  // Distinct from `description`; rendered as the detail-page statement.
+  @Column({ name: 'user_story', type: 'text', nullable: true })
+  userStory: string | null;
+
   // =======================================
   // STATUS & PRIORITY
   // =======================================
@@ -94,6 +99,18 @@ export class WorkItem {
 
   @Column({ name: 'story_points', type: 'int', nullable: true })
   storyPoints: number | null;
+
+  // Stamped the first time storyPoints goes null→value — drives the
+  // Settings-tab "Estimated" audit line.
+  @Column({ name: 'estimated_at', type: 'timestamptz', nullable: true })
+  estimatedAt: Date | null;
+
+  // Story approval workflow — set by POST /items/:id/approve, cleared by reopen.
+  @Column({ name: 'approved_by', type: 'int', nullable: true })
+  approvedBy: number | null;
+
+  @Column({ name: 'approved_at', type: 'timestamptz', nullable: true })
+  approvedAt: Date | null;
 
   @Column({ name: 'assignee_id', type: 'int', nullable: true })
   assigneeId: number | null;
@@ -130,6 +147,26 @@ export class WorkItem {
 
   @Column({ name: 'completed_at', type: 'timestamptz', nullable: true })
   completedAt: Date | null;
+
+  // =======================================
+  // EPIC-ONLY FIELDS (meaningful only when item_type = 'epic')
+  // =======================================
+
+  // Lifecycle state shown as the epic's pill + edited in Settings.
+  // `shipped` is reached only via the ship operation, never a raw update.
+  // BLOCKED / AT RISK are DERIVED at read time (see EpicsService), not stored.
+  @Column({ name: 'epic_state', type: 'varchar', length: 16, default: 'draft' })
+  epicState: 'draft' | 'planning' | 'in_flight' | 'shipped';
+
+  // User-chosen epic hex color (e.g. '#7C3AED'). When null the API resolves a
+  // palette color by id. Children render this color visually.
+  @Column({ name: 'color', type: 'varchar', length: 9, nullable: true })
+  color: string | null;
+
+  // Set when archived. Archived epics are excluded from default lists/filters
+  // but kept in history (NOT a soft-delete — `deleted_at` is separate).
+  @Column({ name: 'archived_at', type: 'timestamptz', nullable: true })
+  archivedAt: Date | null;
 
   // =======================================
   // SPRINT TRACKING

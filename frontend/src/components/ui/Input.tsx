@@ -13,11 +13,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
 
     if (type === 'password') {
       return (
-        <div className="relative">
+        <div className={`relative ${className || ''}`}>
           <input
             ref={ref}
             type={visible ? 'text' : 'password'}
-            className={`${baseClass} pr-9 ${className || ''}`}
+            className={`${baseClass} pr-9`}
             {...props}
           />
           <button

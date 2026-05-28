@@ -12,6 +12,7 @@ import { ReadOnlyBanner } from '../components/common/ReadOnlyBanner';
 import { Avatar } from '../components/ui/Avatar';
 import { Button } from '../components/ui/Button';
 import { Eyebrow } from '../components/ui/Eyebrow';
+import { PageHeader } from '../components/ui/PageHeader';
 import { TaskDetailPanel } from '../components/tasks/TaskDetailPanel';
 import { RowSkeleton } from '../components/common/Skeleton';
 import { ErrorState } from '../components/common/ErrorState';
@@ -338,9 +339,9 @@ export function BacklogPage() {
     <DndContext sensors={canEdit ? sensors : []} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={(e) => { handleDragEnd(e).finally(() => setActiveTask(null)); }}>
     <div className="flex h-full">
       {/* Main backlog list */}
-      <div className={`flex-1 flex flex-col overflow-hidden p-6 ${selectedTaskId || showCreate ? 'mr-[480px]' : ''}`}>
+      <div className={`flex-1 flex flex-col overflow-hidden ${selectedTaskId || showCreate ? 'mr-[480px]' : ''}`}>
         {/* Page header with summary eyebrow */}
-        <div className="flex items-center justify-between mb-4">
+        <PageHeader className="flex items-center justify-between">
           <div className="flex items-baseline gap-4 flex-wrap">
             <h1 className="font-serif text-[36px] text-text">
               Backlog
@@ -352,8 +353,9 @@ export function BacklogPage() {
           {canEdit && (
             <Button onClick={() => setShowCreate(true)}>+ Create Task</Button>
           )}
-        </div>
+        </PageHeader>
 
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0 px-[28px] pt-4">
         {/* Bulk action bar — appears only when items are selected */}
         {canEdit && selectedIds.size > 0 && (
           <div
@@ -506,6 +508,7 @@ export function BacklogPage() {
             <p className="text-[14px] text-neutral-400">All tasks have been assigned to sprints. Nice work!</p>
           </div>
         )}
+        </div>
         </div>
       </div>
 

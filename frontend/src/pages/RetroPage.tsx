@@ -4,6 +4,7 @@ import { ThumbsUp, Pencil, Trash2, Plus } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { useRole } from '../hooks/useRole';
 import { Button } from '../components/ui/Button';
+import { PageHeader } from '../components/ui/PageHeader';
 import { toast } from '../components/common/Toast';
 
 // Phase 6 — UI vocabulary is the new four-column set. Storage may still
@@ -224,7 +225,8 @@ export function RetroPage() {
   })();
 
   return (
-    <div className="p-6">
+    <>
+      <PageHeader>
       <Link
         to={`/projects/${projectId}/sprints`}
         className="text-[12px] text-mute hover:text-text mb-3 inline-block"
@@ -233,7 +235,7 @@ export function RetroPage() {
       </Link>
 
       {/* Editorial header */}
-      <div className="mb-6 flex items-end justify-between gap-4 flex-wrap">
+      <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           {/* Eyebrow line */}
           <div
@@ -335,7 +337,9 @@ export function RetroPage() {
           )}
         </div>
       </div>
+      </PageHeader>
 
+      <div className="px-[28px] py-6">
       {/* Four-column grid */}
       <div
         className="grid grid-cols-4 rounded"
@@ -665,6 +669,7 @@ export function RetroPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

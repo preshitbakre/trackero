@@ -9,6 +9,7 @@ import { useTaskAutoSave } from '../hooks/useTaskAutoSave';
 import { SaveStatusIndicator } from '../components/common/SaveStatusIndicator';
 import { ReadOnlyBanner } from '../components/common/ReadOnlyBanner';
 import { Button } from '../components/ui/Button';
+import { PageHeader } from '../components/ui/PageHeader';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { toast } from '../components/common/Toast';
 import { LabelPicker } from '../components/ui/LabelPicker';
@@ -442,17 +443,11 @@ export function TaskDetailPage() {
     <div className="flex flex-col h-full">
       <ReadOnlyBanner />
 
-      {/* Two-column layout */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* ── Left column — main content ── */}
-        <div
-          className="flex flex-col flex-1 overflow-y-auto"
-          style={{ padding: '24px 36px' }}
-        >
+      <PageHeader className="flex items-center gap-3 flex-wrap">
           {/* Breadcrumb */}
           <div
             className="flex items-center gap-1.5"
-            style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 14, lineHeight: '16.8px' }}
+            style={{ fontSize: 12, color: 'var(--ink-3)', lineHeight: '16.8px' }}
           >
             {task.parentInfo ? (
               <>
@@ -463,7 +458,6 @@ export function TaskDetailPage() {
                 </span>
                 <span>{task.parentInfo.title}</span>
                 <ChevronRight size={12} />
-                <span className="mono" style={{ fontWeight: 500 }}>{taskKey}</span>
               </>
             ) : (
               <button
@@ -479,8 +473,8 @@ export function TaskDetailPage() {
 
           {/* Meta row — type chip + key + status + blockers + watcher + actions */}
           <div
-            className="flex items-center gap-2"
-            style={{ fontSize: '13.5px', marginBottom: 10, height: 26 }}
+            className="flex items-center gap-2 flex-1"
+            style={{ fontSize: '13.5px', height: 26 }}
           >
             {task.itemType && (
               <TypeTag kind={task.itemType as TypeTagKind} size="sm" />
@@ -529,7 +523,15 @@ export function TaskDetailPage() {
               </button>
             )}
           </div>
+      </PageHeader>
 
+      {/* Two-column layout */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* ── Left column — main content ── */}
+        <div
+          className="flex flex-col flex-1 overflow-y-auto"
+          style={{ padding: '24px 28px' }}
+        >
           {/* Title */}
           {editing ? (
             <input

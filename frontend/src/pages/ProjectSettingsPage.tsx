@@ -9,6 +9,7 @@ import { LabelsTab } from '../components/settings/LabelsTab';
 import { DangerZoneTab } from '../components/settings/DangerZoneTab';
 import { NotificationsTab } from '../components/settings/NotificationsTab';
 import { IntegrationsTab } from '../components/settings/IntegrationsTab';
+import { PageHeader } from '../components/ui/PageHeader';
 
 const TABS = [
   { key: 'general', label: 'General' },
@@ -109,12 +110,15 @@ export function ProjectSettingsPage() {
   const projectPrefix = project?.prefix ?? '';
 
   return (
-    <div className="p-6">
-      <div className="smallcaps text-faint mb-0.5">
-        Project · {projectName}{projectPrefix ? ` · ${projectPrefix}` : ''}
-      </div>
-      <h1 className="font-serif text-[36px] text-text mb-5">Settings</h1>
+    <>
+      <PageHeader>
+        <div className="smallcaps text-faint mb-0.5">
+          Project · {projectName}{projectPrefix ? ` · ${projectPrefix}` : ''}
+        </div>
+        <h1 className="font-serif text-[36px] text-text">Settings</h1>
+      </PageHeader>
 
+      <div className="px-[28px] py-6">
       <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr] gap-6">
         {/* Left vertical nav */}
         <nav className="lg:sticky lg:top-4 self-start flex lg:flex-col gap-0.5 overflow-x-auto lg:overflow-visible scrollbar-none">
@@ -154,6 +158,7 @@ export function ProjectSettingsPage() {
           {activeTab === 'danger' && canEdit && <DangerZoneTab />}
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

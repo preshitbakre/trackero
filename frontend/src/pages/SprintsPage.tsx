@@ -10,6 +10,8 @@ import { Textarea } from '../components/ui/Textarea';
 import { CardSkeleton } from '../components/common/Skeleton';
 import { ErrorState } from '../components/common/ErrorState';
 import { Eyebrow } from '../components/ui/Eyebrow';
+import { PageHeader } from '../components/ui/PageHeader';
+import { KbdKey } from '../components/ui/KbdKey';
 import { MetricNumber } from '../components/ui/MetricNumber';
 import { StatusPill } from '../components/ui/StatusPill';
 import { AvatarStack } from '../components/ui/AvatarStack';
@@ -111,6 +113,19 @@ export function SprintsPage() {
     }).catch((err) => { console.error(err); });
   }, [projectId, loadSprints]);
 
+  useEffect(() => {
+    if (!canManageProject) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 's' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      e.preventDefault();
+      setShowCreate(true);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [canManageProject]);
+
   const handleStart = async (sprintId: number) => {
     try {
       await apiClient.post(`/projects/${projectId}/sprints/${sprintId}/start`);
@@ -181,8 +196,8 @@ export function SprintsPage() {
   // EMPTY STATE
   if (sprints.length === 0) {
     return (
-      <div className="p-6">
-        <div className="mb-8 flex items-start justify-between">
+      <>
+        <PageHeader className="flex items-start justify-between">
           <div>
             <Eyebrow>Project · Backstage · 0 sprints</Eyebrow>
             <h1 className="font-serif text-[36px] text-text mt-1">Sprints</h1>
@@ -191,40 +206,41 @@ export function SprintsPage() {
             <button
               type="button"
               onClick={() => setShowCreate(true)}
-              className="btn btn-accent"
+              className="btn btn-accent inline-flex items-center gap-2"
             >
               + Plan a sprint
+              <KbdKey tone="on-accent">S</KbdKey>
             </button>
           )}
-        </div>
+        </PageHeader>
 
-        <div className="flex flex-col lg:flex-row gap-12 items-start">
+        <div className="px-[28px] py-6 flex flex-col lg:flex-row gap-12 items-start">
           {/* LEFT */}
           <div className="flex-1 max-w-[520px]">
             <div className="font-serif text-[48px] leading-[1.05] text-text">No sprints</div>
-            <div className="font-serif italic text-[48px] leading-[1.05] text-mute mb-6">— yet. —</div>
+            <div className="font-serif italic text-[48px] leading-[1.05] text-text mb-6">— yet. <span className="text-lilac not-italic">—</span></div>
 
             <p className="text-[14px] text-mute mb-8 max-w-[480px]">
-              A sprint is a time-boxed plan: a goal, a start, an end, and the items you intend to ship.
-              Set one up in three steps and Trackero will keep score.
+              A sprint is a time-boxed plan: a goal, a start, an end, and the work you'll ship in between.
+              Most teams run them weekly or biweekly.
             </p>
 
-            <div className="space-y-5 mb-8">
-              <div className="flex gap-5">
+            <div className="mb-8">
+              <div className="flex gap-5 border-t border-rule pt-5">
                 <span className="font-serif text-[28px] text-faint leading-none w-[40px]">01</span>
                 <div>
                   <div className="text-[15px] font-semibold text-text">Set the goal</div>
                   <div className="text-[13px] text-mute mt-0.5">One sentence. What does shipping this sprint mean?</div>
                 </div>
               </div>
-              <div className="flex gap-5">
+              <div className="flex gap-5 border-t border-rule pt-5 mt-5">
                 <span className="font-serif text-[28px] text-faint leading-none w-[40px]">02</span>
                 <div>
                   <div className="text-[15px] font-semibold text-text">Pull in items</div>
-                  <div className="text-[13px] text-mute mt-0.5">Drag from the backlog. The capacity meter tells you when you're full.</div>
+                  <div className="text-[13px] text-mute mt-0.5">Drag from the backlog. The capacity meter tells you when to stop.</div>
                 </div>
               </div>
-              <div className="flex gap-5">
+              <div className="flex gap-5 border-t border-rule pt-5 mt-5">
                 <span className="font-serif text-[28px] text-faint leading-none w-[40px]">03</span>
                 <div>
                   <div className="text-[15px] font-semibold text-text">Start it</div>
@@ -254,12 +270,13 @@ export function SprintsPage() {
           </div>
 
           {/* RIGHT preview card */}
-          <div className="w-full lg:w-[380px] bg-card border border-rule p-6">
+          <div className="w-full lg:flex-1 bg-card border border-rule p-6">
             <div className="smallcaps mb-4">What it'll look like</div>
             <div className="flex items-baseline gap-3 mb-3">
               <span className="font-serif text-[28px] text-faint leading-none">01</span>
               <span className="font-serif italic text-[20px] text-mute">Your first goal…</span>
             </div>
+            <div className="pbar w-full mb-3" />
             <div className="smallcaps">0 / 0 pts · Awaiting plan</div>
           </div>
         </div>
@@ -273,7 +290,7 @@ export function SprintsPage() {
             onCreated={() => { setShowCreate(false); loadSprints(); toast('Sprint created'); }}
           />
         )}
-      </div>
+      </>
     );
   }
 
@@ -286,9 +303,8 @@ export function SprintsPage() {
   if (archivedSprints.length > 0) subtitleParts.push(`${archivedSprints.length} in the archive`);
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6 gap-6 flex-wrap">
+    <>
+      <PageHeader className="flex items-start justify-between gap-6 flex-wrap">
         <div>
           <Eyebrow>Project · Backstage · {sprints.length} sprints</Eyebrow>
           <h1 className="font-serif text-[36px] text-text mt-1">
@@ -314,11 +330,15 @@ export function SprintsPage() {
             All sprints
           </button>
           {canManageProject && (
-            <Button onClick={() => setShowCreate(true)}>+ Plan a sprint</Button>
+            <Button onClick={() => setShowCreate(true)} className="gap-2">
+              + Plan a sprint
+              <KbdKey tone="on-accent">S</KbdKey>
+            </Button>
           )}
         </div>
-      </div>
+      </PageHeader>
 
+      <div className="px-[28px] py-6">
       {/* Velocity panel */}
       {showVelocity && completedSprints.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 py-5 border-b border-rule mb-8">
@@ -443,6 +463,7 @@ export function SprintsPage() {
           </div>
         </div>
       )}
+      </div>
 
       {/* Dialogs */}
       {showCreate && (
@@ -465,7 +486,7 @@ export function SprintsPage() {
           onCancel={() => setCancellingSprintId(null)}
         />
       )}
-    </div>
+    </>
   );
 }
 

@@ -20,6 +20,12 @@ export class CreateWorkItemDto {
   @MaxLength(50000)
   description?: string;
 
+  // Editorial user-story sentence (light markdown). Rendered on the detail page.
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  userStory?: string;
+
   @IsOptional()
   @IsString()
   @IsIn(['urgent', 'high', 'medium', 'low', 'none'])

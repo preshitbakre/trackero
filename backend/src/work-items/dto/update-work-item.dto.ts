@@ -13,6 +13,12 @@ export class UpdateWorkItemDto {
   @MaxLength(50000)
   description?: string;
 
+  // Editorial user-story sentence (light markdown). Edited in the Settings tab.
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  userStory?: string;
+
   @IsOptional()
   @IsString()
   @IsIn(['urgent', 'high', 'medium', 'low', 'none'])

@@ -291,7 +291,8 @@ export class WorkItemsController {
     @CurrentUser() user: JwtPayload,
   ) {
     const rows = await this.dataSource.query(
-      `SELECT u.id, u.display_name AS "displayName", u.avatar_url AS "avatarUrl"
+      `SELECT u.id, u.display_name AS "displayName", u.avatar_url AS "avatarUrl",
+              split_part(u.email, '@', 1) AS "handle"
        FROM work_item_watchers w
        JOIN users u ON u.id = w.user_id
        WHERE w.work_item_id = $1

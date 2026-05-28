@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/auth.store';
 import { Select } from '../components/ui/Select';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
+import { PageHeader } from '../components/ui/PageHeader';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { toast } from '../components/common/Toast';
 import { AVATAR_COLORS } from '../lib/colors';
@@ -166,8 +167,8 @@ export function SettingsPage() {
   const seatPct = activeUsers.length > 0 ? Math.min(100, Math.round((activeUsers.length / seatTarget) * 100)) : 0;
 
   return (
-    <div className="p-6">
-      <div>
+    <div className="h-full flex flex-col">
+      <PageHeader>
         <div className="smallcaps text-faint mb-0.5">
           Instance · {typeof window !== 'undefined' ? window.location.hostname : 'trackero.local'} · admin only
         </div>
@@ -180,8 +181,9 @@ export function SettingsPage() {
             Invite people
           </Button>
         </div>
-      </div>
+      </PageHeader>
 
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
       {/* Stat strip — full-bleed borders (no horizontal padding on the border) */}
       <div className="flex border-t border-b border-rule">
         <StatCell n={activeUsers.length} label="active users" />
@@ -192,7 +194,7 @@ export function SettingsPage() {
       </div>
 
       {/* Two-column: members left, invitations right — fills remaining viewport */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-0 h-[calc(100vh-218px)] overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-0 flex-1 min-h-0 overflow-hidden">
 
         {/* ── Members ── */}
         <section className="flex flex-col border-r border-rule min-h-0">
@@ -392,6 +394,7 @@ export function SettingsPage() {
             )}
           </div>
         </aside>
+      </div>
       </div>
 
       {confirmRoleChange && (
