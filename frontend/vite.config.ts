@@ -13,6 +13,7 @@ export default defineConfig({
     },
   },
   server: {
+    host: true, // bind 0.0.0.0 so other devices on the LAN can reach the dev server
     port: 5173,
     proxy: {
       '/api': {
