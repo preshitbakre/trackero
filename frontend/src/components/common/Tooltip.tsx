@@ -33,7 +33,7 @@ export function Tooltip({ label, children }: TooltipProps) {
       </span>
       {visible && createPortal(
         <div
-          className="fixed z-[200] px-2.5 py-1.5 rounded-md text-[16px] font-medium text-white bg-neutral-700 dark:bg-dneutral-50 dark:text-dneutral-700 whitespace-nowrap pointer-events-none shadow-lg"
+          className="fixed z-[200] px-2.5 py-1.5 rounded-md text-[16px] font-medium text-white bg-neutral-700 whitespace-nowrap pointer-events-none shadow-lg"
           style={{
             top: pos.top,
             left: pos.left,

@@ -735,31 +735,31 @@ function CreateSprintDialog({ projectId, defaultDuration, nextSprintNumber, onCl
     setLoading(false);
   };
 
-  const inputClass = "w-full rounded-md border border-neutral-200 dark:border-dneutral-300 bg-neutral-50 dark:bg-dneutral-200 px-3 py-2 text-[16px] text-neutral-700 dark:text-dneutral-700";
+  const inputClass = "w-full rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-[16px] text-neutral-700";
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-700/50" onClick={onClose}>
-      <div className="bg-white dark:bg-dneutral-100 rounded-lg p-6 w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-[22px] font-bold mb-4 text-neutral-700 dark:text-dneutral-700">Create Sprint {nextSprintNumber}</h2>
+      <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-[22px] font-bold mb-4 text-neutral-700">Create Sprint {nextSprintNumber}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && <div className="text-[16px] text-danger">{error}</div>}
 
           <div>
-            <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Goal</label>
+            <label className="block text-[16px] font-medium text-neutral-500 mb-1">Goal</label>
             <Textarea value={goal} onChange={(e) => setGoal(e.target.value)} rows={2} placeholder="What should this sprint achieve?" required autoFocus />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Start date</label>
+              <label className="block text-[16px] font-medium text-neutral-500 mb-1">Start date</label>
               <input type="date" value={startDate} onChange={(e) => handleStartDateChange(e.target.value)} min={today} required className={inputClass} />
             </div>
             <div>
-              <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">End date</label>
+              <label className="block text-[16px] font-medium text-neutral-500 mb-1">End date</label>
               <input type="date" value={endDate} onChange={(e) => handleEndDateChange(e.target.value)} min={minEndDate} required className={inputClass} />
             </div>
           </div>
-          <p className="text-[16px] text-neutral-400 dark:text-dneutral-500">
+          <p className="text-[16px] text-neutral-400">
             {duration} day{duration !== 1 ? 's' : ''} · Default: {defaultDuration} days
           </p>
 

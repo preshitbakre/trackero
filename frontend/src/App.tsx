@@ -27,22 +27,10 @@ import { SetupWizardPage } from './pages/SetupWizardPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AdminRoute } from './components/AdminRoute';
 import { AppShell } from './components/layout/AppShell';
-import { useEffect } from 'react';
-
-function InitTheme() {
-  useEffect(() => {
-    const saved = localStorage.getItem('theme');
-    if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      document.documentElement.classList.add('dark');
-    }
-  }, []);
-  return null;
-}
 
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <InitTheme />
       <ToastProvider />
       <BrowserRouter>
         <Routes>

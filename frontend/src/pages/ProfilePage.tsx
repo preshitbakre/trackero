@@ -75,11 +75,11 @@ export function ProfilePage() {
       <div className="px-[28px] py-6">
       <form onSubmit={handleUpdateProfile} className="space-y-4 mb-10">
         <div>
-          <label className="block text-[14px] font-medium text-mute dark:text-dneutral-600 mb-1">Email</label>
+          <label className="block text-[14px] font-medium text-mute mb-1">Email</label>
           <Input type="email" value={user?.email || ''} disabled />
         </div>
         <div>
-          <label className="block text-[14px] font-medium text-mute dark:text-dneutral-600 mb-1">Display Name</label>
+          <label className="block text-[14px] font-medium text-mute mb-1">Display Name</label>
           <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
         </div>
         <div className="flex items-center gap-3">
@@ -90,18 +90,18 @@ export function ProfilePage() {
         </div>
       </form>
 
-      <hr className="border-rule dark:border-dneutral-200 mb-8" />
+      <hr className="border-rule mb-8" />
 
       <h2 className="font-serif text-[22px] text-text mb-4">
         Change password
       </h2>
       <form onSubmit={handleChangePassword} className="space-y-4">
         <div>
-          <label className="block text-[14px] font-medium text-mute dark:text-dneutral-600 mb-1">Current Password</label>
+          <label className="block text-[14px] font-medium text-mute mb-1">Current Password</label>
           <PasswordInput value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
         </div>
         <div>
-          <label className="block text-[14px] font-medium text-mute dark:text-dneutral-600 mb-1">New Password</label>
+          <label className="block text-[14px] font-medium text-mute mb-1">New Password</label>
           <PasswordInput value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
         </div>
         <div className="flex items-center gap-3">

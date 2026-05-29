@@ -478,17 +478,17 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
               )}
               <button
                 onClick={() => { onClose(); navigate(`/projects/${projectId}/tasks/${taskId}`); }}
-                className="p-1 hover:bg-neutral-100 dark:hover:bg-dneutral-200 rounded text-neutral-400"
+                className="p-1 hover:bg-neutral-100 rounded text-neutral-400"
                 title="Open full screen"
               >
                 <Maximize2 size={20} />
               </button>
-              <button onClick={onClose} className="p-1 hover:bg-neutral-100 dark:hover:bg-dneutral-200 rounded text-neutral-400">
+              <button onClick={onClose} className="p-1 hover:bg-neutral-100 rounded text-neutral-400">
                 <X size={20} />
               </button>
             </div>
           </div>
-          <div className="flex items-center gap-3 px-4 pb-2 text-[16px] text-neutral-400 dark:text-dneutral-500">
+          <div className="flex items-center gap-3 px-4 pb-2 text-[16px] text-neutral-400">
             <span>Created {new Date(task.createdAt).toLocaleDateString()}</span>
             {task.status && (
               <span className="flex items-center gap-1.5">
@@ -496,7 +496,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: task.status.color }} />
                 <span style={{ color: task.status.color }}>{task.status.name}</span>
                 {task.statusChangedAt && (
-                  <span className="text-neutral-400 dark:text-dneutral-500">since {new Date(task.statusChangedAt).toLocaleDateString()}</span>
+                  <span className="text-neutral-400">since {new Date(task.statusChangedAt).toLocaleDateString()}</span>
                 )}
               </span>
             )}
@@ -567,7 +567,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                 }}
                 onBlur={() => flushDebounce()}
                 onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                className="w-full rounded-md border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 px-3 py-1 text-[16px] text-neutral-700 dark:text-dneutral-700 focus:border-lilac focus:outline-none focus:ring-2 focus:ring-lilac/30 h-[30px]"
+                className="w-full rounded-md border border-neutral-200 bg-white px-3 py-1 text-[16px] text-neutral-700 focus:border-lilac focus:outline-none focus:ring-2 focus:ring-lilac/30 h-[30px]"
                 placeholder="-"
               />
             </div>
@@ -630,7 +630,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
             <div>
               <span className="smallcaps block mb-1.5">Sprint</span>
               {task.itemType === 'subtask' ? (
-                <div className="h-[30px] flex items-center px-3 rounded-md border border-neutral-200 dark:border-dneutral-200 bg-neutral-100 dark:bg-dneutral-200 text-[16px] text-neutral-500 dark:text-dneutral-500 cursor-not-allowed">
+                <div className="h-[30px] flex items-center px-3 rounded-md border border-neutral-200 bg-neutral-100 text-[16px] text-neutral-500 cursor-not-allowed">
                   {parentSprintName || 'Inherited'}
                 </div>
               ) : (
@@ -825,11 +825,11 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
               {task.subtasks && task.subtasks.length > 0 && (
                 <div className="space-y-1 mb-2">
                   {task.subtasks.map((st) => (
-                    <button key={st.id} onClick={() => onNavigateToTask?.(st.id)} className="flex items-center gap-2 text-[16px] py-1.5 px-2 rounded hover:bg-neutral-100 dark:hover:bg-dneutral-200 w-full text-left">
+                    <button key={st.id} onClick={() => onNavigateToTask?.(st.id)} className="flex items-center gap-2 text-[16px] py-1.5 px-2 rounded hover:bg-neutral-100 w-full text-left">
                       <span className={st.completedAt ? 'text-success' : 'text-neutral-400'}>
                         {st.completedAt ? '☑' : '☐'}
                       </span>
-                      <span className={`flex-1 ${st.completedAt ? 'line-through text-neutral-400' : 'text-neutral-700 dark:text-dneutral-700'}`}>
+                      <span className={`flex-1 ${st.completedAt ? 'line-through text-neutral-400' : 'text-neutral-700'}`}>
                         {st.title}
                       </span>
                       <span className="text-neutral-400 text-[16px]">→</span>
@@ -870,14 +870,14 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
             {checklistItems.length > 0 && (
               <div className="space-y-1 mb-2">
                 {checklistItems.map((item) => (
-                  <div key={item.id} className="flex items-center gap-2 text-[16px] py-1 px-2 rounded hover:bg-neutral-100 dark:hover:bg-dneutral-200">
+                  <div key={item.id} className="flex items-center gap-2 text-[16px] py-1 px-2 rounded hover:bg-neutral-100">
                     <input
                       type="checkbox"
                       checked={item.isCompleted}
                       onChange={() => canEdit && handleToggleChecklist(item.id, item.isCompleted)}
                       className="w-4 h-4 rounded border-neutral-200"
                     />
-                    <span className={`flex-1 ${item.isCompleted ? 'line-through text-neutral-400' : 'text-neutral-700 dark:text-dneutral-700'}`}>
+                    <span className={`flex-1 ${item.isCompleted ? 'line-through text-neutral-400' : 'text-neutral-700'}`}>
                       {item.title}
                     </span>
                     {canEdit && (
@@ -946,7 +946,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                 {comments.map((c) => (
                   <div key={c.id} className="text-[16px]">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="font-medium text-neutral-700 dark:text-dneutral-700">
+                      <span className="font-medium text-neutral-700">
                         {c.author?.displayName || 'Unknown'}
                       </span>
                       <span className="text-[16px] text-neutral-400">
@@ -967,7 +967,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                   onSubmit={() => { if (newComment.trim()) handleAddComment({ preventDefault: () => {} } as any); }}
                   members={projectMembers}
                   placeholder="Add a comment..."
-                  className="text-[16px] px-2 py-1.5 rounded border border-neutral-200 dark:border-dneutral-300 bg-transparent text-neutral-700 dark:text-dneutral-700"
+                  className="text-[16px] px-2 py-1.5 rounded border border-neutral-200 bg-transparent text-neutral-700"
                 />
                 <Button type="submit" variant="primary" size="sm">Post</Button>
               </form>
@@ -1089,9 +1089,9 @@ function DependencySection({ projectId, taskId, blockedBy, blocks, canEdit, onCh
             Blocked by ({unresolvedCount > 0 ? `${unresolvedCount} unresolved` : blockedBy.length})
           </span>
           {blockedBy.map((dep) => (
-            <div key={dep.id} className="group flex items-center gap-2 text-[16px] py-1 px-2 rounded hover:bg-neutral-100 dark:hover:bg-dneutral-200">
+            <div key={dep.id} className="group flex items-center gap-2 text-[16px] py-1 px-2 rounded hover:bg-neutral-100">
               <span className="text-danger text-[14px]">🔒</span>
-              <span className="text-neutral-600 dark:text-dneutral-600 truncate flex-1">
+              <span className="text-neutral-600 truncate flex-1">
                 #{dep.dependsOnItem?.itemKey} {dep.dependsOnItem?.title}
               </span>
               {canEdit && (
@@ -1106,9 +1106,9 @@ function DependencySection({ projectId, taskId, blockedBy, blocks, canEdit, onCh
         <div className="mb-2">
           <span className="text-[14px] font-medium uppercase text-neutral-400">Blocks ({blocks.length})</span>
           {blocks.map((dep) => (
-            <div key={dep.id} className="group flex items-center gap-2 text-[16px] py-1 px-2 rounded hover:bg-neutral-100 dark:hover:bg-dneutral-200">
+            <div key={dep.id} className="group flex items-center gap-2 text-[16px] py-1 px-2 rounded hover:bg-neutral-100">
               <span className="text-tan text-[14px]">⏳</span>
-              <span className="text-neutral-600 dark:text-dneutral-600 truncate flex-1">
+              <span className="text-neutral-600 truncate flex-1">
                 #{dep.item?.itemKey} {dep.item?.title}
               </span>
               {canEdit && (
@@ -1122,10 +1122,10 @@ function DependencySection({ projectId, taskId, blockedBy, blocks, canEdit, onCh
       {!hasDeps && !showAdd && <p className="text-[16px] text-neutral-400">No dependencies</p>}
 
       {showAdd && (
-        <div className="mt-2 p-3 rounded-lg bg-neutral-50 dark:bg-dneutral-100 shadow-sm dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)] space-y-2">
+        <div className="mt-2 p-3 rounded-lg bg-neutral-50 shadow-sm space-y-2">
           <div className="flex gap-2">
-            <button onClick={() => setAddType('blocked_by')} className={`text-[14px] px-2 py-1 rounded ${addType === 'blocked_by' ? 'bg-lilac text-white' : 'text-neutral-400 hover:bg-neutral-100 dark:hover:bg-dneutral-200'}`}>Blocked by</button>
-            <button onClick={() => setAddType('blocks')} className={`text-[14px] px-2 py-1 rounded ${addType === 'blocks' ? 'bg-lilac text-white' : 'text-neutral-400 hover:bg-neutral-100 dark:hover:bg-dneutral-200'}`}>Blocks</button>
+            <button onClick={() => setAddType('blocked_by')} className={`text-[14px] px-2 py-1 rounded ${addType === 'blocked_by' ? 'bg-lilac text-white' : 'text-neutral-400 hover:bg-neutral-100'}`}>Blocked by</button>
+            <button onClick={() => setAddType('blocks')} className={`text-[14px] px-2 py-1 rounded ${addType === 'blocks' ? 'bg-lilac text-white' : 'text-neutral-400 hover:bg-neutral-100'}`}>Blocks</button>
           </div>
           <input
             type="text"
@@ -1133,15 +1133,15 @@ function DependencySection({ projectId, taskId, blockedBy, blocks, canEdit, onCh
             onChange={(e) => handleSearch(e.target.value)}
             placeholder="Search tasks..."
             autoFocus
-            className="w-full text-[16px] px-2 py-1.5 rounded border border-neutral-200 dark:border-dneutral-200 bg-white dark:bg-dneutral-100 text-neutral-700 dark:text-dneutral-700 placeholder-neutral-300 dark:placeholder-dneutral-300 focus:border-lilac focus:outline-none"
+            className="w-full text-[16px] px-2 py-1.5 rounded border border-neutral-200 bg-white text-neutral-700 placeholder-neutral-300 focus:border-lilac focus:outline-none"
           />
           {searching && <p className="text-[14px] text-neutral-400">Searching...</p>}
           {searchResults.length > 0 && (
             <div className="max-h-[160px] overflow-y-auto space-y-1">
               {searchResults.map((t) => (
-                <button key={t.id} onClick={() => handleAdd(t.id)} className="w-full text-left flex items-center gap-2 px-2 py-1.5 rounded hover:bg-neutral-100 dark:hover:bg-dneutral-200 text-[16px]">
+                <button key={t.id} onClick={() => handleAdd(t.id)} className="w-full text-left flex items-center gap-2 px-2 py-1.5 rounded hover:bg-neutral-100 text-[16px]">
                   <span className="font-mono text-[14px] text-neutral-400">{t.itemKey}</span>
-                  <span className="text-neutral-700 dark:text-dneutral-700 truncate">{t.title}</span>
+                  <span className="text-neutral-700 truncate">{t.title}</span>
                 </button>
               ))}
             </div>
@@ -1180,16 +1180,16 @@ function AttachmentRow({ attachment, projectId, taskId, onDownload }: {
   return (
     <button
       onClick={() => onDownload(attachment.id)}
-      className="flex items-start gap-2 w-full text-left text-[16px] p-2 rounded hover:bg-neutral-100 dark:hover:bg-dneutral-200"
+      className="flex items-start gap-2 w-full text-left text-[16px] p-2 rounded hover:bg-neutral-100"
     >
       {isImage && previewUrl ? (
-        <img src={previewUrl} alt={attachment.originalFilename} className="w-12 h-12 rounded object-cover flex-shrink-0 border border-neutral-200 dark:border-dneutral-300" />
+        <img src={previewUrl} alt={attachment.originalFilename} className="w-12 h-12 rounded object-cover flex-shrink-0 border border-neutral-200" />
       ) : (
         <span className="text-neutral-400 flex-shrink-0 mt-0.5">&#x1F4CE;</span>
       )}
       <div className="flex-1 min-w-0">
-        <p className="text-[16px] text-neutral-700 dark:text-dneutral-700 truncate">{attachment.originalFilename}</p>
-        <p className="text-[16px] text-neutral-400 dark:text-dneutral-500">{(attachment.sizeBytes / 1024).toFixed(0)} KB</p>
+        <p className="text-[16px] text-neutral-700 truncate">{attachment.originalFilename}</p>
+        <p className="text-[16px] text-neutral-400">{(attachment.sizeBytes / 1024).toFixed(0)} KB</p>
       </div>
     </button>
   );

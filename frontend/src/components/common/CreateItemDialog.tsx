@@ -210,14 +210,14 @@ export function CreateItemDialog({
     } finally { setLoading(false); }
   };
 
-  const labelClass = 'block text-[14px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1';
+  const labelClass = 'block text-[14px] font-medium text-neutral-500 mb-1';
 
   const content = (
     <>
       <DrawerHeader>
         <div className="flex items-center justify-between px-5 py-4">
-          <h2 className="text-[20px] font-bold text-neutral-700 dark:text-dneutral-700">Create new item</h2>
-          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-600 dark:text-dneutral-400 dark:hover:text-dneutral-600 text-[20px]">&times;</button>
+          <h2 className="text-[20px] font-bold text-neutral-700">Create new item</h2>
+          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-600 text-[20px]">&times;</button>
         </div>
       </DrawerHeader>
 

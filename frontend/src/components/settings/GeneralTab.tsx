@@ -114,7 +114,7 @@ export function GeneralTab({ canEdit }: { canEdit: boolean }) {
     return (
       <div className="space-y-6 animate-pulse">
         {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="h-12 bg-neutral-200 dark:bg-dneutral-200 rounded" />
+          <div key={i} className="h-12 bg-neutral-200 rounded" />
         ))}
       </div>
     );
@@ -131,33 +131,33 @@ export function GeneralTab({ canEdit }: { canEdit: boolean }) {
     <div className="space-y-8 max-w-2xl">
       {/* Project Details */}
       <section>
-        <h2 className="font-serif text-[22px] text-text dark:text-dneutral-700 mb-4">Project details</h2>
+        <h2 className="font-serif text-[22px] text-text mb-4">Project details</h2>
         <div className="space-y-4">
           <div>
-            <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Project name</label>
+            <label className="block text-[16px] font-medium text-neutral-500 mb-1">Project name</label>
             <Input value={name} onChange={(e) => setName(e.target.value)} disabled={!canEdit} required maxLength={255} />
           </div>
           <div>
-            <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Description</label>
+            <label className="block text-[16px] font-medium text-neutral-500 mb-1">Description</label>
             <Textarea value={description} onChange={(e) => setDescription(e.target.value)} disabled={!canEdit} rows={4} maxLength={2000} placeholder="What is this project about?" />
           </div>
           <div>
-            <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">
+            <label className="block text-[16px] font-medium text-neutral-500 mb-1">
               Project prefix
-              <span className="ml-2 text-neutral-400 dark:text-dneutral-500 font-normal">Cannot be changed after creation</span>
+              <span className="ml-2 text-neutral-400 font-normal">Cannot be changed after creation</span>
             </label>
             <div className="relative">
-              <Input value={project.prefix} disabled className="!bg-neutral-100 dark:!bg-dneutral-300 !cursor-not-allowed pr-8" />
+              <Input value={project.prefix} disabled className="!bg-neutral-100 !cursor-not-allowed pr-8" />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 text-[16px]">&#x1F512;</span>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Project lead</label>
+              <label className="block text-[16px] font-medium text-neutral-500 mb-1">Project lead</label>
               <Combobox value={leadId} onChange={setLeadId} options={memberOptions} placeholder="Search members..." emptyLabel="None" className="w-full" />
             </div>
             <div>
-              <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Default assignee</label>
+              <label className="block text-[16px] font-medium text-neutral-500 mb-1">Default assignee</label>
               <Combobox value={defaultAssigneeId} onChange={setDefaultAssigneeId} options={memberOptions} placeholder="Search members..." emptyLabel="None" className="w-full" />
             </div>
           </div>
@@ -166,9 +166,9 @@ export function GeneralTab({ canEdit }: { canEdit: boolean }) {
 
       {/* Sprint Defaults */}
       <section>
-        <h2 className="font-serif text-[22px] text-text dark:text-dneutral-700 mb-4">Sprint defaults</h2>
+        <h2 className="font-serif text-[22px] text-text mb-4">Sprint defaults</h2>
         <div>
-          <label className="block text-[16px] font-medium text-neutral-500 dark:text-dneutral-500 mb-1">Default sprint duration (days)</label>
+          <label className="block text-[16px] font-medium text-neutral-500 mb-1">Default sprint duration (days)</label>
           <Input
             inputMode="numeric"
             value={sprintDuration}
@@ -183,25 +183,25 @@ export function GeneralTab({ canEdit }: { canEdit: boolean }) {
             disabled={!canEdit}
             className="!w-24"
           />
-          <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 mt-1">New sprints will use this duration (1-90 days)</p>
+          <p className="text-[16px] text-neutral-400 mt-1">New sprints will use this duration (1-90 days)</p>
         </div>
       </section>
 
       {/* Estimation Settings */}
       <section>
-        <h2 className="font-serif text-[22px] text-text dark:text-dneutral-700 mb-4">Estimation scale</h2>
+        <h2 className="font-serif text-[22px] text-text mb-4">Estimation scale</h2>
         <div className="space-y-4">
           {/* Free integer */}
           <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-            estimationScale === 'free' ? 'border-lilac bg-lilac-tint dark:bg-peri-dm/30' : 'border-neutral-200 dark:border-dneutral-200'
+            estimationScale === 'free' ? 'border-lilac bg-lilac-tint' : 'border-neutral-200'
           }`}>
             <input type="radio" name="estimation" value="free" checked={estimationScale === 'free'} onChange={() => canEdit && setEstimationScale('free')} disabled={!canEdit} className="mt-0.5" />
             <div className="flex-1">
-              <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700">Free integer</span>
-              <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 mt-0.5">Any whole number. Team chooses their own scale.</p>
+              <span className="text-[16px] font-medium text-neutral-700">Free integer</span>
+              <p className="text-[16px] text-neutral-400 mt-0.5">Any whole number. Team chooses their own scale.</p>
               {estimationScale === 'free' && (
                 <div className="mt-2">
-                  <input type="text" value="5" disabled className="w-16 rounded border border-neutral-200 dark:border-dneutral-300 bg-neutral-100 dark:bg-dneutral-200 px-2 py-1 text-[16px] text-center text-neutral-700 dark:text-dneutral-700" />
+                  <input type="text" value="5" disabled className="w-16 rounded border border-neutral-200 bg-neutral-100 px-2 py-1 text-[16px] text-center text-neutral-700" />
                 </div>
               )}
             </div>
@@ -209,16 +209,16 @@ export function GeneralTab({ canEdit }: { canEdit: boolean }) {
 
           {/* Fibonacci */}
           <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-            estimationScale === 'fibonacci' ? 'border-lilac bg-lilac-tint dark:bg-peri-dm/30' : 'border-neutral-200 dark:border-dneutral-200'
+            estimationScale === 'fibonacci' ? 'border-lilac bg-lilac-tint' : 'border-neutral-200'
           }`}>
             <input type="radio" name="estimation" value="fibonacci" checked={estimationScale === 'fibonacci'} onChange={() => canEdit && setEstimationScale('fibonacci')} disabled={!canEdit} className="mt-0.5" />
             <div className="flex-1">
-              <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700">Fibonacci sequence</span>
-              <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 mt-0.5">1, 2, 3, 5, 8, 13, 21. Industry standard for relative sizing.</p>
+              <span className="text-[16px] font-medium text-neutral-700">Fibonacci sequence</span>
+              <p className="text-[16px] text-neutral-400 mt-0.5">1, 2, 3, 5, 8, 13, 21. Industry standard for relative sizing.</p>
               {estimationScale === 'fibonacci' && (
                 <div className="flex gap-1 mt-2">
                   {FIBONACCI.map((n) => (
-                    <span key={n} className="px-2.5 py-1 text-[16px] rounded border border-neutral-200 dark:border-dneutral-300 bg-neutral-100 dark:bg-dneutral-200 text-neutral-700 dark:text-dneutral-700">{n}</span>
+                    <span key={n} className="px-2.5 py-1 text-[16px] rounded border border-neutral-200 bg-neutral-100 text-neutral-700">{n}</span>
                   ))}
                 </div>
               )}
@@ -227,16 +227,16 @@ export function GeneralTab({ canEdit }: { canEdit: boolean }) {
 
           {/* T-shirt */}
           <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-            estimationScale === 'tshirt' ? 'border-lilac bg-lilac-tint dark:bg-peri-dm/30' : 'border-neutral-200 dark:border-dneutral-200'
+            estimationScale === 'tshirt' ? 'border-lilac bg-lilac-tint' : 'border-neutral-200'
           }`}>
             <input type="radio" name="estimation" value="tshirt" checked={estimationScale === 'tshirt'} onChange={() => canEdit && setEstimationScale('tshirt')} disabled={!canEdit} className="mt-0.5" />
             <div className="flex-1">
-              <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700">T-shirt sizes</span>
-              <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 mt-0.5">XS=1, S=2, M=3, L=5, XL=8. Friendly for non-technical teams.</p>
+              <span className="text-[16px] font-medium text-neutral-700">T-shirt sizes</span>
+              <p className="text-[16px] text-neutral-400 mt-0.5">XS=1, S=2, M=3, L=5, XL=8. Friendly for non-technical teams.</p>
               {estimationScale === 'tshirt' && (
                 <div className="flex gap-1 mt-2">
                   {TSHIRT.map((t) => (
-                    <span key={t.label} className="px-2.5 py-1 text-[16px] rounded border border-neutral-200 dark:border-dneutral-300 bg-neutral-100 dark:bg-dneutral-200 text-neutral-700 dark:text-dneutral-700">{t.label}</span>
+                    <span key={t.label} className="px-2.5 py-1 text-[16px] rounded border border-neutral-200 bg-neutral-100 text-neutral-700">{t.label}</span>
                   ))}
                 </div>
               )}

@@ -59,7 +59,7 @@ export function TaskCard({ task, isDragging, onClick }: TaskCardProps) {
         isDragging
           ? 'shadow-xl opacity-90 scale-105 rotate-1'
           : ''
-      } bg-white dark:bg-dneutral-100`}
+      } bg-white`}
     >
       {/* Row 1: type badge + key (+ parent ref) */}
       <div className="flex items-center gap-1.5">

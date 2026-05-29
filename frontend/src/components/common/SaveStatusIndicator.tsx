@@ -7,7 +7,7 @@ interface SaveStatusIndicatorProps {
 
 export function SaveStatusIndicator({ status }: SaveStatusIndicatorProps) {
   return (
-    <span className="flex items-center gap-1.5 text-neutral-400 dark:text-dneutral-500">
+    <span className="flex items-center gap-1.5 text-neutral-400">
       {status === 'saving' ? (
         <>
           <Loader2 size={16} className="animate-spin" />

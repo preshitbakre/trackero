@@ -1,10 +1,6 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where(.dark, .dark *));
-
-.dark {
-  color-scheme: dark;
-}
+/* Dark mode is not supported — the design system is light-only. */
 
 /*
  * Design-system tokens — ported verbatim from the design HTML's `.trk`
@@ -105,11 +101,6 @@ button, [role="button"], a, select, label[for], input[type="checkbox"], input[ty
 [class*="rounded-lg"][class*="bg-white"] {
   box-shadow: 0 1px 3px rgba(26, 20, 36, 0.04), 0 8px 24px rgba(26, 20, 36, 0.06);
 }
-.dark [class*="rounded"][class*="bg-white"],
-.dark [class*="rounded"][class*="bg-dneutral"] {
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
-}
-
 /* Global button micro-interactions */
 button:not(:disabled) {
   transition: color 100ms, background-color 100ms, border-color 100ms, box-shadow 150ms, transform 100ms;
@@ -133,12 +124,6 @@ button:not(:disabled):active {
 ::-webkit-scrollbar-thumb:hover {
   background: #A8A1B5;
 }
-.dark ::-webkit-scrollbar-thumb {
-  background: #2C3E4E;
-}
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: #3D5165;
-}
 
 .scrollbar-none::-webkit-scrollbar { display: none; }
 .scrollbar-none { scrollbar-width: none; }
@@ -152,9 +137,6 @@ button:not(:disabled):active {
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #C9C2D6;
   border-radius: 2px;
-}
-.dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #2C3E4E;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #A8A1B5;
@@ -173,9 +155,6 @@ button:not(:disabled):active {
 * {
   scrollbar-width: thin;
   scrollbar-color: #C9C2D6 transparent;
-}
-.dark * {
-  scrollbar-color: #2C3E4E transparent;
 }
 
 input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
@@ -247,11 +226,6 @@ textarea {
   --color-peri-dark:    #3F5E8E;
   --color-orchid-dark:  #8E3E88;
 
-  --color-tan-dm:       #E0C4A0;
-  --color-mint-dm:      #A0E8A6;
-  --color-peri-dm:      #A0BDE4;
-  --color-orchid-dm:    #E0A0DA;
-
   /* ═══════════════════════════════════════ */
   /* NEUTRAL (cool gray with lilac undertone) */
   /* ═══════════════════════════════════════ */
@@ -263,15 +237,6 @@ textarea {
   --color-neutral-500: #5C5670;
   --color-neutral-600: #423E50;
   --color-neutral-700: #1A1424;
-
-  --color-dneutral-50:  #0E0C12;
-  --color-dneutral-100: #18141C;
-  --color-dneutral-200: #242028;
-  --color-dneutral-300: #342F3C;
-  --color-dneutral-400: #484453;
-  --color-dneutral-500: #7E7790;
-  --color-dneutral-600: #A8A1B5;
-  --color-dneutral-700: #D2CCDD;
 
   --color-danger:  #E05252;
   --color-warning: #E88A48;

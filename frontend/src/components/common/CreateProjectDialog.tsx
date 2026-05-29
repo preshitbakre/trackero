@@ -59,20 +59,20 @@ export function CreateProjectDialog({ onClose, onCreated }: { onClose: () => voi
       open
       onClose={onClose}
       titleId={titleId}
-      contentClassName="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white dark:bg-dneutral-200 rounded-lg p-6 shadow-xl dark:shadow-[0_12px_36px_rgba(0,0,0,0.6)] focus:outline-none"
+      contentClassName="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-lg p-6 shadow-xl focus:outline-none"
     >
-      <h2 id={titleId} className="text-[22px] font-bold mb-4 text-neutral-700 dark:text-dneutral-700">Create Project</h2>
+      <h2 id={titleId} className="text-[22px] font-bold mb-4 text-neutral-700">Create Project</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <div className="text-[16px] text-danger">{error}</div>}
         <div>
-          <label className="block text-[16px] font-medium text-neutral-600 dark:text-dneutral-600 mb-1">Name</label>
+          <label className="block text-[16px] font-medium text-neutral-600 mb-1">Name</label>
           <Input
             type="text" value={name} onChange={(e) => handleNameChange(e.target.value)} required
             placeholder="e.g. Cubitraq"
           />
         </div>
         <div>
-          <label className="block text-[16px] font-medium text-neutral-600 dark:text-dneutral-600 mb-1">Prefix</label>
+          <label className="block text-[16px] font-medium text-neutral-600 mb-1">Prefix</label>
           <Input
             type="text" value={prefix}
             onChange={(e) => { setPrefixTouched(true); setPrefix(e.target.value.toUpperCase()); }}
@@ -82,7 +82,7 @@ export function CreateProjectDialog({ onClose, onCreated }: { onClose: () => voi
           <p className="text-[16px] text-neutral-400 mt-1">Auto-generated from name. Edit if needed.</p>
         </div>
         <div>
-          <label className="block text-[16px] font-medium text-neutral-600 dark:text-dneutral-600 mb-1">Description (optional)</label>
+          <label className="block text-[16px] font-medium text-neutral-600 mb-1">Description (optional)</label>
           <Textarea
             value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
             placeholder="What is this project about?"

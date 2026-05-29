@@ -12,16 +12,16 @@ import { ErrorState } from '../components/common/ErrorState';
 function DashboardSkeleton() {
   return (
     <div className="p-6 animate-pulse">
-      <div className="h-8 w-64 bg-neutral-200 dark:bg-dneutral-200 rounded mb-2" />
-      <div className="h-4 w-48 bg-neutral-200 dark:bg-dneutral-200 rounded mb-6" />
+      <div className="h-8 w-64 bg-neutral-200 rounded mb-2" />
+      <div className="h-4 w-48 bg-neutral-200 rounded mb-6" />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-24 rounded-lg bg-neutral-200 dark:bg-dneutral-200" />
+          <div key={i} className="h-24 rounded-lg bg-neutral-200" />
         ))}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {[1, 2, 3, 4, 5, 6].map((i) => (
-          <div key={i} className="h-32 rounded-lg bg-neutral-200 dark:bg-dneutral-200" />
+          <div key={i} className="h-32 rounded-lg bg-neutral-200" />
         ))}
       </div>
     </div>

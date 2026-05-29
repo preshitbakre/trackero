@@ -36,7 +36,7 @@ export function Drawer({
           aria-label={ariaLabel}
           onInteractOutside={(e) => e.preventDefault()}
           onPointerDownOutside={(e) => e.preventDefault()}
-          className={`fixed bottom-0 shadow-[-8px_0_24px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_24px_rgba(0,0,0,0.4)] flex flex-col overflow-hidden focus:outline-none ${pushed ? 'w-[530px]' : width}`}
+          className={`fixed bottom-0 shadow-[-8px_0_24px_rgba(0,0,0,0.08)] flex flex-col overflow-hidden focus:outline-none ${pushed ? 'w-[530px]' : width}`}
           style={{ zIndex: panelZ, top: '49px', right: 0, backgroundColor: 'var(--paper-2)' }}
         >
           <DialogPrimitive.Title className="sr-only">{ariaLabel}</DialogPrimitive.Title>
@@ -53,7 +53,7 @@ interface DrawerHeaderProps {
 
 export function DrawerHeader({ children }: DrawerHeaderProps) {
   return (
-    <div className="flex-shrink-0 border-b border-neutral-200 dark:border-dneutral-200">
+    <div className="flex-shrink-0 border-b border-neutral-200">
       {children}
     </div>
   );
@@ -78,7 +78,7 @@ interface DrawerFooterProps {
 
 export function DrawerFooter({ children }: DrawerFooterProps) {
   return (
-    <div className="flex-shrink-0 border-t border-neutral-200 dark:border-dneutral-200">
+    <div className="flex-shrink-0 border-t border-neutral-200">
       {children}
     </div>
   );

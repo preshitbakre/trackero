@@ -326,7 +326,7 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
           <div className="flex gap-4">
             {[1, 2, 3].map((i) => (
               <div key={i} className="w-[228px] space-y-2 p-2">
-                <div className="h-6 w-24 bg-neutral-200 dark:bg-dneutral-200 rounded animate-pulse mb-3" />
+                <div className="h-6 w-24 bg-neutral-200 rounded animate-pulse mb-3" />
                 <CardSkeleton />
                 <CardSkeleton />
                 <CardSkeleton />

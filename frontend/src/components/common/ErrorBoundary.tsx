@@ -32,13 +32,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   render(): ReactNode {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-paper dark:bg-dneutral-50 p-6">
-          <div className="rounded-lg shadow-sm dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)] bg-white dark:bg-dneutral-100 p-8 max-w-md w-full text-center">
+        <div className="min-h-screen flex items-center justify-center bg-paper p-6">
+          <div className="rounded-lg shadow-sm bg-white p-8 max-w-md w-full text-center">
             <div className="text-[32px] mb-3">&#x26A0;</div>
-            <h1 className="text-[20px] font-medium text-neutral-700 dark:text-dneutral-700 mb-2">
+            <h1 className="text-[20px] font-medium text-neutral-700 mb-2">
               Something went wrong
             </h1>
-            <p className="text-[16px] text-neutral-500 dark:text-dneutral-500 mb-6">
+            <p className="text-[16px] text-neutral-500 mb-6">
               An unexpected error occurred. Please refresh the page to try again.
             </p>
             <div className="flex justify-center">

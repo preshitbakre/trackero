@@ -8,7 +8,7 @@ function getDueLabel(daysUntilDue: number): { text: string; className: string } 
   if (daysUntilDue < 0) return { text: `Overdue ${Math.abs(daysUntilDue)}d`, className: 'text-danger bg-danger/10' };
   if (daysUntilDue === 0) return { text: 'Due today', className: 'text-warning bg-warning/10' };
   if (daysUntilDue === 1) return { text: 'Due tomorrow', className: 'text-warning bg-warning/10' };
-  return { text: `Due in ${daysUntilDue}d`, className: 'text-neutral-500 bg-neutral-100 dark:bg-dneutral-200 dark:text-dneutral-500' };
+  return { text: `Due in ${daysUntilDue}d`, className: 'text-neutral-500 bg-neutral-100' };
 }
 
 function timeAgo(iso: string): string {
@@ -66,20 +66,20 @@ export function MemberDashboard({ data }: { data: any }) {
             <div className="space-y-0.5">
               {myTasks.map((t: any) => (
                 <div key={t.id} className="flex items-center gap-2">
-                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${t.status?.category === 'in_progress' ? 'bg-lilac' : 'bg-neutral-300 dark:bg-dneutral-400'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${t.status?.category === 'in_progress' ? 'bg-lilac' : 'bg-neutral-300'}`} />
                   <div className="flex-1 min-w-0">
                     <TaskRow taskKey={t.taskKey} title={t.title} priority={t.priority} status={t.status} endDate={t.endDate} hasBlockers={t.hasBlockers} />
                   </div>
                 </div>
               ))}
-              <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 mt-2 px-3">
+              <p className="text-[16px] text-neutral-400 mt-2 px-3">
                 ● = in progress &nbsp; ○ = backlog
               </p>
             </div>
           ) : (
             <div className="text-center py-8">
-              <p className="text-neutral-400 dark:text-dneutral-500">No tasks assigned</p>
-              <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 mt-1">Check with your project manager</p>
+              <p className="text-neutral-400">No tasks assigned</p>
+              <p className="text-[16px] text-neutral-400 mt-1">Check with your project manager</p>
             </div>
           )}
         </DashboardSection>
@@ -90,23 +90,23 @@ export function MemberDashboard({ data }: { data: any }) {
               {activeSprintSummary.map((sp: any, i: number) => (
                 <div key={`${sp.projectPrefix ?? ''}-${sp.sprintName ?? ''}-${i}`}>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[16px] font-mono text-neutral-400 dark:text-dneutral-500">{sp.projectPrefix ?? ''}</span>
-                    <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700">{sp.sprintName ?? ''}</span>
+                    <span className="text-[16px] font-mono text-neutral-400">{sp.projectPrefix ?? ''}</span>
+                    <span className="text-[16px] font-medium text-neutral-700">{sp.sprintName ?? ''}</span>
                   </div>
-                  <div className="flex items-center justify-between text-[16px] text-neutral-400 dark:text-dneutral-500 mb-1">
+                  <div className="flex items-center justify-between text-[16px] text-neutral-400 mb-1">
                     <span>{sp.progressPercent ?? 0}% · {sp.daysRemaining ?? 0} days left</span>
                   </div>
-                  <div className="h-1.5 rounded-full bg-neutral-200 dark:bg-dneutral-300 mb-1.5">
+                  <div className="h-1.5 rounded-full bg-neutral-200 mb-1.5">
                     <div className="h-full rounded-full bg-lilac transition-all" style={{ width: `${sp.progressPercent ?? 0}%` }} />
                   </div>
-                  <p className="text-[16px] text-neutral-400 dark:text-dneutral-500">
+                  <p className="text-[16px] text-neutral-400">
                     My tasks: {sp.myCompletedInSprint ?? 0}/{sp.myTasksInSprint ?? 0} done
                   </p>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 py-4 text-center">No active sprints</p>
+            <p className="text-[16px] text-neutral-400 py-4 text-center">No active sprints</p>
           )}
         </DashboardSection>
       </TwoColumnLayout>
@@ -120,15 +120,15 @@ export function MemberDashboard({ data }: { data: any }) {
                 const label = getDueLabel(d.daysUntilEnd ?? 0);
                 return (
                   <div key={d.id} className="flex items-center gap-2 text-[16px]">
-                    <span className="font-mono text-neutral-400 dark:text-dneutral-500 text-[16px]">{d.taskKey}</span>
-                    <span className="text-neutral-700 dark:text-dneutral-700 truncate flex-1">{d.title}</span>
+                    <span className="font-mono text-neutral-400 text-[16px]">{d.taskKey}</span>
+                    <span className="text-neutral-700 truncate flex-1">{d.title}</span>
                     <span className={`text-[16px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${label.className}`}>{label.text}</span>
                   </div>
                 );
               })}
             </div>
           ) : (
-            <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 py-4 text-center">Nothing due soon</p>
+            <p className="text-[16px] text-neutral-400 py-4 text-center">Nothing due soon</p>
           )}
         </DashboardSection>
 
@@ -139,10 +139,10 @@ export function MemberDashboard({ data }: { data: any }) {
                 <div key={bt.id} className="text-[16px]">
                   <div className="flex items-center gap-2">
                     <span className="text-danger">&#x1F512;</span>
-                    <span className="font-mono font-medium text-neutral-700 dark:text-dneutral-700">{bt.taskKey}</span>
-                    <span className="text-neutral-500 dark:text-dneutral-500 truncate">{bt.title}</span>
+                    <span className="font-mono font-medium text-neutral-700">{bt.taskKey}</span>
+                    <span className="text-neutral-500 truncate">{bt.title}</span>
                   </div>
-                  <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 ml-6 mt-0.5">
+                  <p className="text-[16px] text-neutral-400 ml-6 mt-0.5">
                     Blocked by <span className="font-mono font-medium">{bt.blockedBy?.taskKey ?? ''}</span>
                     {bt.blockedBy?.assignee && <span> ({bt.blockedBy.assignee.displayName ?? ''})</span>}
                     <br />"{bt.blockedBy?.title ?? ''}"
@@ -151,7 +151,7 @@ export function MemberDashboard({ data }: { data: any }) {
               ))}
             </div>
           ) : (
-            <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 py-4 text-center">Nothing blocked</p>
+            <p className="text-[16px] text-neutral-400 py-4 text-center">Nothing blocked</p>
           )}
         </DashboardSection>
       </TwoColumnLayout>
@@ -160,13 +160,13 @@ export function MemberDashboard({ data }: { data: any }) {
       <TwoColumnLayout>
         <DashboardSection title="Activity on my tasks">
           {activityOnMyTasks.length > 0 ? (
-            <div className="divide-y divide-neutral-100 dark:divide-dneutral-200">
+            <div className="divide-y divide-neutral-100">
               {activityOnMyTasks.map((a: any, i: number) => (
                 <ActivityItem key={`${a.timestamp}-${a.target?.taskKey ?? ''}-${a.actor?.displayName ?? ''}-${i}`} {...a} />
               ))}
             </div>
           ) : (
-            <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 py-4 text-center">No recent activity on your tasks</p>
+            <p className="text-[16px] text-neutral-400 py-4 text-center">No recent activity on your tasks</p>
           )}
         </DashboardSection>
 
@@ -176,14 +176,14 @@ export function MemberDashboard({ data }: { data: any }) {
               {recentlyCompleted.map((c: any) => (
                 <div key={c.id} className="flex items-center gap-2 text-[16px]">
                   <span className="text-success flex-shrink-0">&#x2713;</span>
-                  <span className="font-mono text-neutral-400 dark:text-dneutral-500 text-[16px]">{c.taskKey ?? ''}</span>
-                  <span className="text-neutral-700 dark:text-dneutral-700 truncate flex-1">{c.title ?? ''}</span>
-                  <span className="text-[16px] text-neutral-400 dark:text-dneutral-500 flex-shrink-0">{c.completedAt ? timeAgo(c.completedAt) : ''}</span>
+                  <span className="font-mono text-neutral-400 text-[16px]">{c.taskKey ?? ''}</span>
+                  <span className="text-neutral-700 truncate flex-1">{c.title ?? ''}</span>
+                  <span className="text-[16px] text-neutral-400 flex-shrink-0">{c.completedAt ? timeAgo(c.completedAt) : ''}</span>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 py-4 text-center">No completions this week</p>
+            <p className="text-[16px] text-neutral-400 py-4 text-center">No completions this week</p>
           )}
         </DashboardSection>
       </TwoColumnLayout>

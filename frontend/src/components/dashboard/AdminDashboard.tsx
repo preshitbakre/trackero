@@ -57,7 +57,7 @@ export function AdminDashboard({ data }: { data: any }) {
             </div>
           ) : (
             <div className="text-center py-8">
-              <p className="text-neutral-400 dark:text-dneutral-500 mb-3">No projects yet</p>
+              <p className="text-neutral-400 mb-3">No projects yet</p>
               <Button variant="primary" onClick={() => setShowCreate(true)}>
                 Create your first project
               </Button>
@@ -68,11 +68,11 @@ export function AdminDashboard({ data }: { data: any }) {
         <DashboardSection
           title="Team workload"
           footer={
-            <div className="flex items-center gap-4 text-[14px] text-neutral-400 dark:text-dneutral-500 flex-wrap">
-              <span>Admins <strong className="text-neutral-700 dark:text-dneutral-700">{rolesBreakdown.admin ?? 0}</strong></span>
-              <span>PMs <strong className="text-neutral-700 dark:text-dneutral-700">{rolesBreakdown.project_manager ?? 0}</strong></span>
-              <span>Members <strong className="text-neutral-700 dark:text-dneutral-700">{rolesBreakdown.member ?? 0}</strong></span>
-              <span>Viewers <strong className="text-neutral-700 dark:text-dneutral-700">{rolesBreakdown.viewer ?? 0}</strong></span>
+            <div className="flex items-center gap-4 text-[14px] text-neutral-400 flex-wrap">
+              <span>Admins <strong className="text-neutral-700">{rolesBreakdown.admin ?? 0}</strong></span>
+              <span>PMs <strong className="text-neutral-700">{rolesBreakdown.project_manager ?? 0}</strong></span>
+              <span>Members <strong className="text-neutral-700">{rolesBreakdown.member ?? 0}</strong></span>
+              <span>Viewers <strong className="text-neutral-700">{rolesBreakdown.viewer ?? 0}</strong></span>
               {pendingInvitations > 0 && (
                 <span className="text-warning">{pendingInvitations} pending</span>
               )}
@@ -83,7 +83,7 @@ export function AdminDashboard({ data }: { data: any }) {
             <div className="flex flex-col h-full min-h-0 overflow-hidden">
               <table className="w-full text-[14px]">
                 <thead className="sticky top-0 z-10">
-                  <tr className="bg-neutral-200 dark:bg-dneutral-300 text-[12px] text-neutral-700 dark:text-dneutral-600 uppercase tracking-wider">
+                  <tr className="bg-neutral-200 text-[12px] text-neutral-700 uppercase tracking-wider">
                     <th className="text-left font-medium px-2 py-1">Name</th>
                     <th className="w-14 text-center font-medium px-2 py-1">Open</th>
                     <th className="w-14 text-center font-medium px-2 py-1">Active</th>
@@ -95,11 +95,11 @@ export function AdminDashboard({ data }: { data: any }) {
                 <table className="w-full text-[14px]">
                   <tbody>
                     {teamWorkload.map((u: any) => (
-                      <tr key={u.userId} className="border-b border-neutral-100 dark:border-dneutral-200/50">
-                        <td className="px-2 py-1.5 text-neutral-700 dark:text-dneutral-700 truncate">{u.displayName}</td>
-                        <td className="w-14 px-2 py-1.5 text-center text-neutral-700 dark:text-dneutral-700">{u.openTaskCount}</td>
-                        <td className="w-14 px-2 py-1.5 text-center text-lilac-dark dark:text-peri-dm">{u.inProgressCount}</td>
-                        <td className={`w-16 px-2 py-1.5 text-center ${u.overdueCount > 0 ? 'text-danger font-medium' : 'text-neutral-400 dark:text-dneutral-500'}`}>{u.overdueCount}</td>
+                      <tr key={u.userId} className="border-b border-neutral-100">
+                        <td className="px-2 py-1.5 text-neutral-700 truncate">{u.displayName}</td>
+                        <td className="w-14 px-2 py-1.5 text-center text-neutral-700">{u.openTaskCount}</td>
+                        <td className="w-14 px-2 py-1.5 text-center text-lilac-dark">{u.inProgressCount}</td>
+                        <td className={`w-16 px-2 py-1.5 text-center ${u.overdueCount > 0 ? 'text-danger font-medium' : 'text-neutral-400'}`}>{u.overdueCount}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -107,7 +107,7 @@ export function AdminDashboard({ data }: { data: any }) {
               </div>
             </div>
           ) : (
-            <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 py-4 text-center">No team members</p>
+            <p className="text-[16px] text-neutral-400 py-4 text-center">No team members</p>
           )}
         </DashboardSection>
       </TwoColumnLayout>
@@ -115,15 +115,15 @@ export function AdminDashboard({ data }: { data: any }) {
       <TwoColumnLayout>
         <DashboardSection title="Blocked tasks">
           {blockedTasks.length > 0 ? (
-            <div className="divide-y divide-neutral-100 dark:divide-dneutral-200">
+            <div className="divide-y divide-neutral-100">
               {blockedTasks.map((bt: any) => (
                 <div key={bt.id} className="py-2 text-[16px]">
                   <div className="flex items-center gap-1.5">
                     <span className="text-danger text-[16px]">&#x1F512;</span>
-                    <span className="font-mono font-medium text-neutral-700 dark:text-dneutral-700">{bt.taskKey}</span>
-                    <span className="text-neutral-500 dark:text-dneutral-500 truncate">{bt.title}</span>
+                    <span className="font-mono font-medium text-neutral-700">{bt.taskKey}</span>
+                    <span className="text-neutral-500 truncate">{bt.title}</span>
                   </div>
-                  <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 ml-5 mt-0.5 truncate">
+                  <p className="text-[16px] text-neutral-400 ml-5 mt-0.5 truncate">
                     &larr; {bt.blockedBy?.taskKey ?? ''} {bt.blockedBy?.title ?? ''}
                     {bt.blockedBy?.assignee && ` (${bt.blockedBy.assignee.displayName ?? ''})`}
                   </p>
@@ -131,19 +131,19 @@ export function AdminDashboard({ data }: { data: any }) {
               ))}
             </div>
           ) : (
-            <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 py-4 text-center">No blocked tasks</p>
+            <p className="text-[16px] text-neutral-400 py-4 text-center">No blocked tasks</p>
           )}
         </DashboardSection>
 
         <DashboardSection title="Recent activity">
           {recentActivity.length > 0 ? (
-            <div className="divide-y divide-neutral-100 dark:divide-dneutral-200">
+            <div className="divide-y divide-neutral-100">
               {recentActivity.map((a: any, i: number) => (
                 <ActivityItem key={`${a.timestamp}-${a.target?.taskKey ?? ''}-${a.actor?.displayName ?? ''}-${i}`} {...a} />
               ))}
             </div>
           ) : (
-            <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 py-4 text-center">No recent activity</p>
+            <p className="text-[16px] text-neutral-400 py-4 text-center">No recent activity</p>
           )}
         </DashboardSection>
       </TwoColumnLayout>

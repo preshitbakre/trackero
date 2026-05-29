@@ -1,10 +1,10 @@
 export function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse bg-neutral-200 dark:bg-dneutral-200 rounded ${className}`} />;
+  return <div className={`animate-pulse bg-neutral-200 rounded ${className}`} />;
 }
 
 export function CardSkeleton() {
   return (
-    <div className="p-3 rounded-lg shadow-sm dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)] space-y-2">
+    <div className="p-3 rounded-lg shadow-sm space-y-2">
       <Skeleton className="h-3 w-16" />
       <Skeleton className="h-4 w-full" />
       <Skeleton className="h-4 w-3/4" />

@@ -94,9 +94,9 @@ export function ProjectSettingsPage() {
   if (loading || !projectRole) {
     return (
       <div className="p-6 animate-pulse">
-        <div className="h-8 w-48 bg-neutral-200 dark:bg-dneutral-200 rounded mb-6" />
-        <div className="h-10 w-full bg-neutral-200 dark:bg-dneutral-200 rounded mb-6" />
-        <div className="h-64 bg-neutral-200 dark:bg-dneutral-200 rounded" />
+        <div className="h-8 w-48 bg-neutral-200 rounded mb-6" />
+        <div className="h-10 w-full bg-neutral-200 rounded mb-6" />
+        <div className="h-64 bg-neutral-200 rounded" />
       </div>
     );
   }

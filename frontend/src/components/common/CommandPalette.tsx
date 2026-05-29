@@ -320,7 +320,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
   return (
     <>
       <div className="fixed inset-0 z-50 bg-ink/40 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="fixed top-[12%] left-1/2 -translate-x-1/2 z-50 w-full max-w-2xl bg-card dark:bg-dneutral-100 rounded-xl shadow-2xl overflow-hidden">
+      <div className="fixed top-[12%] left-1/2 -translate-x-1/2 z-50 w-full max-w-2xl bg-card rounded-xl shadow-2xl overflow-hidden">
         {/* Search bar */}
         <div className="flex items-center px-4 border-b border-rule">
           <Search size={16} className="text-faint mr-3" />

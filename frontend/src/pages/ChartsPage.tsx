@@ -54,7 +54,7 @@ export function ChartsPage() {
       </PageHeader>
 
       <div className="px-[28px] py-6">
-      <div className="flex gap-1 mb-6 border-b border-neutral-200 dark:border-dneutral-200">
+      <div className="flex gap-1 mb-6 border-b border-neutral-200">
         {tabs.map((t) => (
           <button
             key={t.key}
@@ -112,7 +112,7 @@ export function ChartsPage() {
       {tab === 'burndown' && (
         <div>
           <div className="mb-4 max-w-xs">
-            <label className="block text-[16px] font-medium text-neutral-600 dark:text-dneutral-600 mb-1">Sprint</label>
+            <label className="block text-[16px] font-medium text-neutral-600 mb-1">Sprint</label>
             <Select
               value={selectedSprintId}
               onChange={setSelectedSprintId}

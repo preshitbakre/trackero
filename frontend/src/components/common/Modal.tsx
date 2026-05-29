@@ -52,8 +52,8 @@ const DEFAULT_OVERLAY =
 
 const DEFAULT_CONTENT =
   'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-full max-w-md ' +
-  'bg-white dark:bg-dneutral-200 rounded-lg p-6 shadow-xl ' +
-  'dark:shadow-[0_12px_36px_rgba(0,0,0,0.6)] focus:outline-none';
+  'bg-white rounded-lg p-6 shadow-xl ' +
+  'focus:outline-none';
 
 export function Modal({
   open,

@@ -48,9 +48,9 @@ export function ViewerDashboard({ data }: { data: any }) {
       </StatCardGrid>
 
       {projects.length === 0 ? (
-        <div className="rounded-lg shadow-sm dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)] bg-white dark:bg-dneutral-100 p-8 text-center">
-          <p className="text-neutral-400 dark:text-dneutral-500">You haven't been added to any projects yet.</p>
-          <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 mt-1">Ask your admin to add you.</p>
+        <div className="rounded-lg shadow-sm bg-white p-8 text-center">
+          <p className="text-neutral-400">You haven't been added to any projects yet.</p>
+          <p className="text-[16px] text-neutral-400 mt-1">Ask your admin to add you.</p>
         </div>
       ) : (
         <>
@@ -70,17 +70,17 @@ export function ViewerDashboard({ data }: { data: any }) {
                   {sprintProgress.map((sp: any, i: number) => (
                     <div key={`${sp.projectName ?? ''}-${sp.sprintName ?? ''}-${i}`}>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700">{sp.projectName ?? ''}</span>
-                        <span className="text-[16px] text-neutral-400 dark:text-dneutral-500">— {sp.sprintName ?? ''}</span>
+                        <span className="text-[16px] font-medium text-neutral-700">{sp.projectName ?? ''}</span>
+                        <span className="text-[16px] text-neutral-400">— {sp.sprintName ?? ''}</span>
                       </div>
-                      <div className="flex items-center justify-between text-[16px] text-neutral-400 dark:text-dneutral-500 mb-1">
+                      <div className="flex items-center justify-between text-[16px] text-neutral-400 mb-1">
                         <span>{sp.daysRemaining ?? 0} days left</span>
                         <span>{sp.progressPercent ?? 0}%</span>
                       </div>
-                      <div className="h-1.5 rounded-full bg-neutral-200 dark:bg-dneutral-300 mb-2">
+                      <div className="h-1.5 rounded-full bg-neutral-200 mb-2">
                         <div className="h-full rounded-full bg-lilac transition-all" style={{ width: `${sp.progressPercent ?? 0}%` }} />
                       </div>
-                      <div className="flex gap-2 text-[16px] text-neutral-400 dark:text-dneutral-500 flex-wrap">
+                      <div className="flex gap-2 text-[16px] text-neutral-400 flex-wrap">
                         <span>Backlog:{sp.tasksByStatus?.backlog ?? 0}</span>
                         <span>In Progress:{sp.tasksByStatus?.in_progress ?? 0}</span>
                         <span>Done:{sp.tasksByStatus?.done ?? 0}</span>
@@ -89,7 +89,7 @@ export function ViewerDashboard({ data }: { data: any }) {
                   ))}
                 </div>
               ) : (
-                <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 py-4 text-center">No active sprints</p>
+                <p className="text-[16px] text-neutral-400 py-4 text-center">No active sprints</p>
               )}
             </DashboardSection>
           </TwoColumnLayout>
@@ -103,17 +103,17 @@ export function ViewerDashboard({ data }: { data: any }) {
                     <div key={`${e.title ?? ''}-${e.projectName ?? ''}-${i}`}>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: e.color }} />
-                        <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700 truncate">{e.title ?? ''}</span>
-                        <span className="text-[16px] text-neutral-400 dark:text-dneutral-500 ml-auto">{e.progressPercent ?? 0}% ({e.completedTasks ?? 0}/{e.totalTasks ?? 0})</span>
+                        <span className="text-[16px] font-medium text-neutral-700 truncate">{e.title ?? ''}</span>
+                        <span className="text-[16px] text-neutral-400 ml-auto">{e.progressPercent ?? 0}% ({e.completedTasks ?? 0}/{e.totalTasks ?? 0})</span>
                       </div>
-                      <div className="h-1.5 rounded-full bg-neutral-200 dark:bg-dneutral-300">
+                      <div className="h-1.5 rounded-full bg-neutral-200">
                         <div className="h-full rounded-full transition-all" style={{ width: `${e.progressPercent ?? 0}%`, backgroundColor: e.color }} />
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 py-4 text-center">No active epics</p>
+                <p className="text-[16px] text-neutral-400 py-4 text-center">No active epics</p>
               )}
             </DashboardSection>
 
@@ -123,15 +123,15 @@ export function ViewerDashboard({ data }: { data: any }) {
                   {recentCompletions.map((c: any, i: number) => (
                     <div key={`${c.taskKey ?? ''}-${c.completedAt ?? ''}-${i}`} className="flex items-center gap-2 text-[16px]">
                       <span className="text-success flex-shrink-0">&#x2713;</span>
-                      <span className="font-mono text-neutral-400 dark:text-dneutral-500 text-[16px]">{c.taskKey ?? ''}</span>
-                      <span className="text-neutral-700 dark:text-dneutral-700 truncate flex-1">{c.title ?? ''}</span>
-                      <span className="text-[16px] text-neutral-400 dark:text-dneutral-500 flex-shrink-0">{c.completedBy?.displayName ?? ''}</span>
-                      <span className="text-[16px] text-neutral-400 dark:text-dneutral-500 flex-shrink-0">{c.completedAt ? timeAgo(c.completedAt) : ''}</span>
+                      <span className="font-mono text-neutral-400 text-[16px]">{c.taskKey ?? ''}</span>
+                      <span className="text-neutral-700 truncate flex-1">{c.title ?? ''}</span>
+                      <span className="text-[16px] text-neutral-400 flex-shrink-0">{c.completedBy?.displayName ?? ''}</span>
+                      <span className="text-[16px] text-neutral-400 flex-shrink-0">{c.completedAt ? timeAgo(c.completedAt) : ''}</span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-[16px] text-neutral-400 dark:text-dneutral-500 py-4 text-center">No recent completions</p>
+                <p className="text-[16px] text-neutral-400 py-4 text-center">No recent completions</p>
               )}
             </DashboardSection>
           </TwoColumnLayout>
@@ -143,21 +143,21 @@ export function ViewerDashboard({ data }: { data: any }) {
                 const memberKey = `${m.displayName ?? ''}-${m.role ?? ''}-${i}`;
                 const initial = m.displayName?.charAt(0)?.toUpperCase() || '?';
                 const roleBadge: Record<string, string> = {
-                  admin: 'bg-lilac-tint dark:bg-peri-dm/30 text-neutral-700 dark:text-peri-dm',
-                  project_manager: 'bg-tan-light dark:bg-tan-dm/30 text-neutral-600 dark:text-tan-dm',
-                  member: 'bg-mint-light dark:bg-mint-dm/30 text-neutral-700 dark:text-mint-dm',
-                  viewer: 'bg-neutral-100 dark:bg-dneutral-200 text-neutral-500 dark:text-dneutral-500',
+                  admin: 'bg-lilac-tint text-neutral-700',
+                  project_manager: 'bg-tan-light text-neutral-600',
+                  member: 'bg-mint-light text-neutral-700',
+                  viewer: 'bg-neutral-100 text-neutral-500',
                 };
                 return (
                   <div key={memberKey} className="flex items-center gap-3 py-1.5">
-                    <div className="w-8 h-8 rounded-full bg-lilac-tint dark:bg-peri-dm/30 flex items-center justify-center text-[16px] font-medium text-lilac-dark dark:text-peri-dm flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-lilac-tint flex items-center justify-center text-[16px] font-medium text-lilac-dark flex-shrink-0">
                       {initial}
                     </div>
-                    <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700 flex-1">{m.displayName ?? ''}</span>
+                    <span className="text-[16px] font-medium text-neutral-700 flex-1">{m.displayName ?? ''}</span>
                     <span className={`text-[16px] px-1.5 py-0.5 rounded font-medium ${roleBadge[m.role] || roleBadge.member}`}>
                       {m.role === 'project_manager' ? 'PM' : (m.role ?? '')}
                     </span>
-                    <span className="text-[16px] text-neutral-400 dark:text-dneutral-500">{m.openTaskCount ?? 0} open</span>
+                    <span className="text-[16px] text-neutral-400">{m.openTaskCount ?? 0} open</span>
                   </div>
                 );
               })}

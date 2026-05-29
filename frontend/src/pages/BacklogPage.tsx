@@ -516,10 +516,10 @@ export function BacklogPage() {
 
     <DragOverlay dropAnimation={null}>
       {activeTask && (
-        <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-white dark:bg-dneutral-100 shadow-xl opacity-90"
+        <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-white shadow-xl opacity-90"
              style={{ borderLeft: `3px solid ${PRIORITY_BORDER_COLORS[activeTask.priority] || PRIORITY_BORDER_COLORS.none}` }}>
           <span className="text-[14px] font-mono text-neutral-400">#{activeTask.itemNumber}</span>
-          <span className="text-[16px] text-neutral-700 dark:text-dneutral-700 truncate">{activeTask.title}</span>
+          <span className="text-[16px] text-neutral-700 truncate">{activeTask.title}</span>
           {activeTask.storyPoints != null && activeTask.storyPoints > 0 && (
             <span className="text-[14px] px-1.5 py-0.5 rounded" style={{ background: '#88A9D630', color: '#3F5E8E' }}>{activeTask.storyPoints} pts</span>
           )}

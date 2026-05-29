@@ -155,7 +155,7 @@ export function AppShell() {
   // sidebar is the first flex item and the topbar+content stack is the
   // second.
   return (
-    <div className="flex h-screen bg-paper dark:bg-dneutral-50 overflow-hidden">
+    <div className="flex h-screen bg-paper overflow-hidden">
       {/* Full-height Sidebar */}
       <div
         className={`flex-shrink-0 fixed inset-y-0 left-0 z-20 transform transition-transform duration-200 lg:static lg:translate-x-0 ${

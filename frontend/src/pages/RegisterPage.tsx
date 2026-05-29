@@ -74,7 +74,7 @@ export function RegisterPage() {
 
   if (isSetup === null) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-paper dark:bg-dneutral-50">
+      <div className="flex min-h-screen items-center justify-center bg-paper">
         <div className="text-neutral-400">Loading...</div>
       </div>
     );
@@ -82,12 +82,12 @@ export function RegisterPage() {
 
   if (!canRegister) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-paper dark:bg-dneutral-50 px-4">
+      <div className="flex min-h-screen items-center justify-center bg-paper px-4">
         <div className="w-full max-w-sm space-y-6 text-center">
           <Logo height={28} variant="dark" />
-          <div className="rounded-md bg-tan-light dark:bg-tan-dm/30 p-4 mt-6">
-            <p className="text-[16px] text-neutral-600 dark:text-tan-dm font-medium">Registration is invite-only</p>
-            <p className="mt-1 text-[16px] text-tan dark:text-tan-dm">
+          <div className="rounded-md bg-tan-light p-4 mt-6">
+            <p className="text-[16px] text-neutral-600 font-medium">Registration is invite-only</p>
+            <p className="mt-1 text-[16px] text-tan">
               Ask your admin to send you an invitation link.
             </p>
           </div>
@@ -100,29 +100,29 @@ export function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-paper dark:bg-dneutral-50 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-paper px-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <Logo height={28} variant="dark" />
           {isFirstRun ? (
             <>
-              <p className="mt-2 text-[16px] text-neutral-500 dark:text-neutral-400">Set up your instance</p>
+              <p className="mt-2 text-[16px] text-neutral-500">Set up your instance</p>
               <p className="mt-1 text-[16px] text-lilac-dark">Your account will be the admin.</p>
             </>
           ) : (
-            <p className="mt-2 text-[16px] text-neutral-500 dark:text-neutral-400">Create your account</p>
+            <p className="mt-2 text-[16px] text-neutral-500">Create your account</p>
           )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="rounded-md bg-danger/10 dark:bg-danger/10 p-3 text-[16px] text-danger dark:text-danger">
+            <div className="rounded-md bg-danger/10 p-3 text-[16px] text-danger">
               {error}
             </div>
           )}
 
           <div>
-            <label htmlFor="displayName" className="block text-[16px] font-medium text-neutral-600 dark:text-dneutral-600">
+            <label htmlFor="displayName" className="block text-[16px] font-medium text-neutral-600">
               Display name
             </label>
             <Input
@@ -132,16 +132,16 @@ export function RegisterPage() {
           </div>
 
           <div>
-            <label htmlFor="email" className="block text-[16px] font-medium text-neutral-600 dark:text-dneutral-600">Email</label>
+            <label htmlFor="email" className="block text-[16px] font-medium text-neutral-600">Email</label>
             <Input
               id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
               readOnly={!!inviteToken && email !== ''}
-              className={`mt-1 ${inviteToken && email ? 'bg-neutral-100 dark:bg-dneutral-200 cursor-not-allowed' : ''}`}
+              className={`mt-1 ${inviteToken && email ? 'bg-neutral-100 cursor-not-allowed' : ''}`}
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-[16px] font-medium text-neutral-600 dark:text-dneutral-600">Password</label>
+            <label htmlFor="password" className="block text-[16px] font-medium text-neutral-600">Password</label>
             <Input
               id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8}
               className="mt-1"
@@ -149,7 +149,7 @@ export function RegisterPage() {
           </div>
 
           <div>
-            <label htmlFor="confirmPassword" className="block text-[16px] font-medium text-neutral-600 dark:text-dneutral-600">Confirm password</label>
+            <label htmlFor="confirmPassword" className="block text-[16px] font-medium text-neutral-600">Confirm password</label>
             <Input
               id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required
               className="mt-1"
@@ -162,7 +162,7 @@ export function RegisterPage() {
         </form>
 
         {!isFirstRun && (
-          <p className="text-center text-[16px] text-neutral-400 dark:text-neutral-400">
+          <p className="text-center text-[16px] text-neutral-400">
             <Link to="/login" className="text-lilac-dark hover:underline">Back to login</Link>
           </p>
         )}

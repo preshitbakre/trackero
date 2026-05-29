@@ -54,17 +54,19 @@ export function useTaskAutoSave({ projectId, taskId, onUpdated }: UseTaskAutoSav
     }
   }, [projectId, taskId, onUpdated, showSaved]);
 
-  /** Save a field quietly (no reload, no parent notify) */
+  /** Save a field quietly (no self-reload — keeps the input intact) but still
+   *  notify the parent so cards/board/list reflect the change. */
   const saveFieldQuiet = useCallback(async (field: string, value: unknown, reloadTask?: () => Promise<void>) => {
     setSaveStatus('saving');
     try {
       await apiClient.put(`/projects/${projectId}/items/${taskId}`, { [field]: value });
+      onUpdated?.();
       showSaved();
     } catch {
       setSaveStatus('error');
       await reloadTask?.();
     }
-  }, [projectId, taskId, showSaved]);
+  }, [projectId, taskId, onUpdated, showSaved]);
 
   /** Debounced save for text fields (1.5s) */
   const debouncedFieldChange = useCallback((field: string, value: unknown, reloadTask?: () => Promise<void>) => {

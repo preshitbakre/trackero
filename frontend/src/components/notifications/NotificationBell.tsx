@@ -117,7 +117,7 @@ export function NotificationBell() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setShowDropdown(!showDropdown)}
-        className="relative p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-dneutral-200 text-neutral-400 dark:text-dneutral-400"
+        className="relative p-1.5 rounded hover:bg-neutral-100 text-neutral-400"
       >
         <Bell size={20} />
         {unreadCount > 0 && (
@@ -128,9 +128,9 @@ export function NotificationBell() {
       </button>
 
       {showDropdown && (
-        <div className="dropdown-panel absolute right-0 mt-2 w-80 bg-white dark:bg-dneutral-200 z-50 max-h-96 overflow-hidden flex flex-col">
-          <div className="flex items-center justify-between px-4 py-2 border-b border-neutral-200 dark:border-dneutral-300">
-            <span className="text-[16px] font-medium text-neutral-700 dark:text-dneutral-700">Notifications</span>
+        <div className="dropdown-panel absolute right-0 mt-2 w-80 bg-white z-50 max-h-96 overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between px-4 py-2 border-b border-neutral-200">
+            <span className="text-[16px] font-medium text-neutral-700">Notifications</span>
             {unreadCount > 0 && (
               <button onClick={markAllRead} className="text-[16px] text-lilac-dark hover:underline">
                 Mark all read
@@ -145,16 +145,16 @@ export function NotificationBell() {
                 <button
                   key={notif.id}
                   onClick={() => handleClick(notif)}
-                  className={`w-full text-left px-4 py-3 border-b border-neutral-100 dark:border-dneutral-200 hover:bg-neutral-100 dark:hover:bg-dneutral-200 ${
-                    !notif.isRead ? 'bg-lilac-tint dark:bg-peri-dm/20' : ''
+                  className={`w-full text-left px-4 py-3 border-b border-neutral-100 hover:bg-neutral-100 ${
+                    !notif.isRead ? 'bg-lilac-tint' : ''
                   }`}
                 >
                   <div className="flex items-start gap-2">
                     {!notif.isRead && <span className="w-2 h-2 mt-1.5 rounded-full bg-lilac flex-shrink-0" />}
                     <div className="flex-1 min-w-0">
-                      <p className="text-[16px] text-neutral-700 dark:text-dneutral-700 truncate">{notif.title}</p>
+                      <p className="text-[16px] text-neutral-700 truncate">{notif.title}</p>
                       {notif.body && <p className="text-[16px] text-neutral-400 truncate">{notif.body}</p>}
-                      <p className="text-[16px] text-neutral-300 dark:text-dneutral-300 mt-0.5">{timeAgo(notif.createdAt)}</p>
+                      <p className="text-[16px] text-neutral-300 mt-0.5">{timeAgo(notif.createdAt)}</p>
                     </div>
                   </div>
                 </button>

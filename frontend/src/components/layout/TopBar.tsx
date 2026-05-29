@@ -178,10 +178,10 @@ function AvatarMenu() {
       </button>
 
       {open && (
-        <div className="dropdown-panel absolute right-0 mt-2 w-48 bg-card dark:bg-dneutral-200 z-50 overflow-hidden">
-          <div className="px-4 py-3 border-b border-rule dark:border-dneutral-200">
-            <p className="text-[14px] font-medium text-text dark:text-dneutral-700 truncate">{user?.displayName}</p>
-            <p className="text-[13px] text-faint dark:text-dneutral-400 truncate">{user?.email}</p>
+        <div className="dropdown-panel absolute right-0 mt-2 w-48 bg-card z-50 overflow-hidden">
+          <div className="px-4 py-3 border-b border-rule">
+            <p className="text-[14px] font-medium text-text truncate">{user?.displayName}</p>
+            <p className="text-[13px] text-faint truncate">{user?.email}</p>
           </div>
           <button
             onClick={() => { setOpen(false); navigate('/profile'); }}

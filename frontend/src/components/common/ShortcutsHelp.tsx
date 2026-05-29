@@ -23,9 +23,9 @@ export function ShortcutsHelp({ onClose }: ShortcutsHelpProps) {
   return (
     <>
       <div className="fixed inset-0 z-50 bg-ink/40" onClick={onClose} />
-      <div className="fixed top-[14%] left-1/2 -translate-x-1/2 z-50 w-full max-w-lg bg-card dark:bg-dneutral-100 rounded-xl shadow-xl dark:shadow-[0_12px_36px_rgba(0,0,0,0.6)] p-6">
+      <div className="fixed top-[14%] left-1/2 -translate-x-1/2 z-50 w-full max-w-lg bg-card rounded-xl shadow-xl p-6">
         <div className="flex items-baseline justify-between mb-4">
-          <h2 className="text-[24px] font-serif italic text-text dark:text-dneutral-700">
+          <h2 className="text-[24px] font-serif italic text-text">
             Keyboard shortcuts.
           </h2>
           <button
@@ -45,10 +45,10 @@ export function ShortcutsHelp({ onClose }: ShortcutsHelpProps) {
               <ul className="space-y-1.5">
                 {section.entries.map((s) => (
                   <li key={s.key} className="flex items-center justify-between">
-                    <span className="text-[14px] text-mute dark:text-dneutral-600">
+                    <span className="text-[14px] text-mute">
                       {s.label}
                     </span>
-                    <kbd className="text-[11px] bg-paper dark:bg-dneutral-200 border border-rule dark:border-dneutral-300 px-2 py-0.5 rounded font-mono text-mute dark:text-dneutral-600">
+                    <kbd className="text-[11px] bg-paper border border-rule px-2 py-0.5 rounded font-mono text-mute">
                       {s.key}
                     </kbd>
                   </li>

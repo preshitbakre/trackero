@@ -5,7 +5,7 @@ export function ReadOnlyBanner() {
   if (!isReadOnly) return null;
 
   return (
-    <div className="bg-tan-light dark:bg-tan-dm/30 border-b border-tan dark:border-tan-dm px-4 py-1.5 text-[14px] text-neutral-600 dark:text-tan-dm text-center">
+    <div className="bg-tan-light border-b border-tan px-4 py-1.5 text-[14px] text-neutral-600 text-center">
       You have view-only access to this project
     </div>
   );
