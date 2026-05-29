@@ -1,6 +1,6 @@
 import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useEffect, useState, useCallback } from 'react';
-import { BarChart3 } from 'lucide-react';
+import BurndownIcon from '@/assets/icons/charts.svg?react';
 import OverviewIcon from '@/assets/icons/today.svg?react';
 import ScopeChangesIcon from '@/assets/icons/scope-changes.svg?react';
 import SettingsIcon from '@/assets/icons/settings.svg?react';
@@ -168,18 +168,19 @@ export function SprintDetailPage() {
         <span>S-{sprint.sprintNumber}</span>
       </nav>
 
-      <header className="flex items-start justify-between">
+      <header className="flex items-end justify-between gap-4">
         <div>
-          <span className="font-serif text-[36px] text-text">Sprint</span>
-          <span className="font-serif text-[28px] text-text ml-3">{sprint.sprintNumber}</span>
-          <StatusPill status={STATUS_PILL_MAP[sprint.status]} solid dot className="ml-3" />
-          {sprint.status === 'active' && (
-            <span className="font-mono text-[12px] font-semibold bg-lilac-tint text-lilac px-2 py-0.5 ml-3 align-middle">
-              day {dayOf(sprint)} of {totalDays(sprint)} · ends in {daysRemaining(sprint)}d
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            <h1 className="font-serif text-[36px] leading-none text-text">Sprint {sprint.sprintNumber}</h1>
+            <StatusPill status={STATUS_PILL_MAP[sprint.status]} solid dot />
+            {sprint.status === 'active' && (
+              <span className="font-mono text-[12px] font-semibold bg-lilac-tint text-lilac px-2 py-0.5">
+                day {dayOf(sprint)} of {totalDays(sprint)} · ends in {daysRemaining(sprint)}d
+              </span>
+            )}
+          </div>
           {sprint.goal && (
-            <p className="font-serif italic text-[15px] text-ink-2 mt-2">"{sprint.goal}"</p>
+            <p className="font-serif italic text-[20px] leading-[28px] tracking-[-0.3px] text-ink-2 mt-2">"{sprint.goal}"</p>
           )}
         </div>
         <HeaderActions
@@ -283,7 +284,7 @@ function HeaderActions({
     return (
       <div className="flex gap-2">
         <Button variant="secondary" className="inline-flex items-center gap-1.5">
-          <BarChart3 size={14} /> Burndown
+          <BurndownIcon width={14} height={14} aria-hidden /> Burndown
         </Button>
         <Button variant="secondary" onClick={onOpenBoard}>
           Open board →

@@ -439,20 +439,22 @@ export class SprintsService {
    * a per-user progress bar instead of team-wide stats. Without userId
    * it stays the plain entity.
    */
-  async findActive(projectId: number, userId?: number): Promise<(Sprint & { donePoints?: number; totalPoints?: number }) | null> {
+  async findActive(projectId: number, _userId?: number): Promise<(Sprint & { donePoints?: number; totalPoints?: number }) | null> {
     const sprint = await this.sprintRepo.findOne({
       where: { projectId, status: 'active' },
     });
-    if (!sprint || userId === undefined) return sprint;
+    if (!sprint) return null;
 
+    // Sprint-wide points (whole team) so the sidebar footer reflects overall
+    // sprint progress, not the current user's personal slice.
     const [pts] = await this.dataSource.query(
       `SELECT
          COALESCE(SUM(wi.story_points), 0)::int AS total,
-         COALESCE(SUM(CASE WHEN ps.category = 'done' THEN wi.story_points ELSE 0 END), 0)::int AS done
+         COALESCE(SUM(wi.story_points) FILTER (WHERE ps.category = 'done'), 0)::int AS done
          FROM work_items wi
          JOIN project_statuses ps ON ps.id = wi.status_id
-        WHERE wi.sprint_id = $1 AND wi.assignee_id = $2`,
-      [sprint.id, userId],
+        WHERE wi.sprint_id = $1 AND wi.deleted_at IS NULL`,
+      [sprint.id],
     );
     return Object.assign(sprint, {
       donePoints: pts.done,
