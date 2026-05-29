@@ -21,16 +21,16 @@ const NODE_COLOR: Record<ScopeEntry['action'], string> = {
 };
 
 const BADGE: Record<ScopeEntry['action'], string> = {
-  added: 'bg-mint-light text-mint-dark',
-  removed: 'bg-lilac-tint text-lilac',
-  commit: 'bg-ink text-white',
-  goal: 'bg-lilac-tint text-lilac-dark',
+  added: 'bg-[#1F52361A] text-c-forest',
+  removed: 'bg-lilac-tint text-lilac-dark',
+  commit: 'bg-ink text-paper',
+  goal: 'bg-paper-2 text-ink-2',
 };
 
 const PILL: Record<ScopeEntry['action'], string> = {
-  added: 'bg-mint-light text-mint-dark',
+  added: 'bg-[#1F523614] text-c-forest',
   removed: 'bg-lilac-tint text-lilac',
-  commit: 'bg-shade text-mute',
+  commit: 'bg-[#1F523614] text-c-forest',
   goal: '',
 };
 
@@ -58,11 +58,11 @@ export function ScopeTimeline({ entries }: { entries: ScopeEntry[] }) {
                 <Avatar user={e.user} size="xs" />
                 <span className="text-[13px] font-medium text-text">{e.user.displayName || 'Unknown'}</span>
                 <span className="text-[11px] text-faint">{relativeTime(e.createdAt)}</span>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${BADGE[e.action]}`}>
+                <span className={`text-[10px] px-1.5 rounded-[2px] font-medium ${BADGE[e.action]}`}>
                   {e.action}
                 </span>
                 {showPts && (
-                  <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ml-auto ${PILL[e.action]}`}>
+                  <span className={`text-[12px] font-medium px-[7px] py-0.5 ml-auto ${PILL[e.action]}`}>
                     {e.action === 'removed' ? '−' : '+'}{Math.abs(e.pointsDelta)} pts
                   </span>
                 )}
