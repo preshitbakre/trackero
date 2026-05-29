@@ -27,13 +27,13 @@ export function ScopeChangesTab({ sprint }: { sprint: SprintDetail }) {
 
   const { summary, entries } = data;
   return (
-    <div className="flex gap-6">
-      <main className="flex-1">
-        <div className="flex gap-6 py-4 border-b border-rule">
-          <StatBox value={summary.ptsAdded}     label="Pts added"     mode="positive" />
-          <StatBox value={summary.ptsDropped}   label="Pts dropped"   mode="negative" />
-          <StatBox value={summary.itemsAdded}   label="Items added"   mode="positive" />
-          <StatBox value={summary.itemsDropped} label="Items dropped" mode="negative" />
+    <div className="flex h-full min-h-0">
+      <main className="flex-1 min-w-0 overflow-y-auto px-[28px] py-6">
+        <div className="grid grid-cols-4 border border-rule">
+          <StatBox value={summary.ptsAdded}     sign="+" label="Pts added"     color="text-c-forest" px={44} />
+          <StatBox value={summary.ptsDropped}   sign="−" label="Pts dropped"   color="text-lilac"    px={30} />
+          <StatBox value={summary.itemsAdded}   sign="+" label="Items added"   color="text-c-sky"    px={30} />
+          <StatBox value={summary.itemsDropped} sign="−" label="Items dropped" color="text-lilac"    px={30} last />
         </div>
 
         <h2 className="font-serif text-[16px] text-text mt-6 mb-3">Timeline</h2>
@@ -50,13 +50,18 @@ export function ScopeChangesTab({ sprint }: { sprint: SprintDetail }) {
   );
 }
 
-function StatBox({ value, label, mode }: { value: number; label: string; mode: 'positive' | 'negative' }) {
-  const color = mode === 'positive' ? 'text-mint-dark' : 'text-danger';
-  const sign  = mode === 'positive' ? '+' : '−';
+function StatBox({ value, sign, label, color, px, last }: {
+  value: number;
+  sign: '+' | '−';
+  label: string;
+  color: string;
+  px: number;
+  last?: boolean;
+}) {
   return (
-    <div className={`flex-1 text-center ${color}`}>
-      <MetricNumber size="lg">{sign}{Math.abs(value)}</MetricNumber>
-      <p className="text-[10px] tracking-[0.12em] uppercase text-mute mt-1">{label}</p>
+    <div className={`px-[18px] py-4 ${last ? '' : 'border-r border-rule'}`}>
+      <MetricNumber size={px} className={color}>{sign}{Math.abs(value)}</MetricNumber>
+      <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-mute mt-1">{label}</p>
     </div>
   );
 }

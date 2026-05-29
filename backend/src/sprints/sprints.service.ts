@@ -1,7 +1,7 @@
-import { Injectable, HttpStatus } from '@nestjs/common';
+import { Injectable, HttpStatus, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { Sprint } from './entities/sprint.entity';
 import { SprintScopeChange } from './entities/sprint-scope-change.entity';
 import { AppLogicException } from '../common/exceptions/app-exceptions';
@@ -15,12 +15,13 @@ import { SprintSnapshotsService } from './sprint-snapshots.service';
 
 interface ScopeTimelineEntry {
   id: number;
-  action: 'added' | 'removed' | 'commit';
+  action: 'added' | 'removed' | 'commit' | 'goal';
   user: { id: number; displayName: string; avatarUrl: string | null };
   createdAt: string;
   pointsDelta: number;
   workItem?: { id: number; itemKey: string; title: string; itemType: string };
   totalItems?: number;
+  note?: string | null;
 }
 
 export interface ScopeChangesResponse {
@@ -39,6 +40,79 @@ export class SprintsService {
     private readonly eventEmitter: EventEmitter2,
     private readonly snapshots: SprintSnapshotsService,
   ) {}
+
+  private readonly logger = new Logger(SprintsService.name);
+
+  // --- Mid-sprint scope auditing -------------------------------------------
+  // Items joining/leaving an ACTIVE sprint after it started are recorded as
+  // scope_changes so the Scope Changes timeline reflects them (the start-time
+  // commit batch is written by start()). Both the dedicated sprint-assign
+  // endpoint and the generic work-item update flow through here.
+
+  @OnEvent('work_item.sprint_assigned')
+  async onWorkItemSprintAssigned(payload: {
+    item: { id?: number; storyPoints?: number | null };
+    sprintId: number | null;
+    previousSprintId?: number | null;
+    userId?: number;
+  }) {
+    await this.recordMidSprintScopeChange(payload.previousSprintId ?? null, payload.sprintId ?? null, payload.item, payload.userId ?? null);
+  }
+
+  @OnEvent('work_item.updated')
+  async onWorkItemUpdatedScope(payload: {
+    item: { id?: number; storyPoints?: number | null };
+    previous?: Record<string, { old: any; new: any }>;
+    userId?: number;
+  }) {
+    const change = payload.previous?.sprintId;
+    if (!change) return;
+    await this.recordMidSprintScopeChange(change.old ?? null, change.new ?? null, payload.item, payload.userId ?? null);
+  }
+
+  @OnEvent('work_item.created')
+  async onWorkItemCreatedScope(payload: { item: { id?: number; sprintId?: number | null; storyPoints?: number | null }; userId?: number }) {
+    const sid = payload.item?.sprintId ?? null;
+    if (!sid) return;
+    await this.recordMidSprintScopeChange(null, sid, payload.item, payload.userId ?? null);
+  }
+
+  /**
+   * Write 'added'/'removed' scope-change rows when an item joins or leaves an
+   * ACTIVE sprint. Planning-sprint assignments are the pre-start commit and
+   * are skipped (recorded by start()). Failure-isolated.
+   */
+  private async recordMidSprintScopeChange(
+    oldSprintId: number | null,
+    newSprintId: number | null,
+    item: { id?: number; storyPoints?: number | null } | null,
+    actorId: number | null,
+  ) {
+    try {
+      if (oldSprintId === newSprintId) return;
+      const workItemId = item?.id;
+      if (!workItemId) return;
+      const storyPoints = item?.storyPoints ?? null;
+
+      const isActive = async (sprintId: number): Promise<boolean> => {
+        const [s] = await this.dataSource.query(`SELECT status FROM sprints WHERE id = $1`, [sprintId]);
+        return s?.status === 'active';
+      };
+
+      if (oldSprintId && (await isActive(oldSprintId))) {
+        await this.scopeChangeRepo.save(
+          this.scopeChangeRepo.create({ sprintId: oldSprintId, workItemId, action: 'removed', storyPoints, actorId }),
+        );
+      }
+      if (newSprintId && (await isActive(newSprintId))) {
+        await this.scopeChangeRepo.save(
+          this.scopeChangeRepo.create({ sprintId: newSprintId, workItemId, action: 'added', storyPoints, actorId }),
+        );
+      }
+    } catch (err) {
+      this.logger.error(`recordMidSprintScopeChange failed: ${err}`, (err as Error)?.stack);
+    }
+  }
 
   async create(projectId: number, dto: CreateSprintDto, userId: number) {
     // Date validation — compare against server-side CURRENT_DATE so the
@@ -259,28 +333,32 @@ export class SprintsService {
   }
 
   /**
-   * Assignees with workload. project_members has no `capacity` column today
-   * (see project-member.entity.ts), so we return capacity as NULL — the
-   * frontend falls back to the sprint's own capacity or to autoCapacity.
-   * GROUP BY u.id deduplicates assignees with multiple items in this sprint.
-   *
-   * NOTE: projectId is currently unused at the SQL level (work_items.sprint_id
-   * is unique across projects), but kept in the signature for symmetry and
-   * future scoping (e.g., filtering to active project members only).
+   * Workload per member. Lists EVERY project member (not just those with
+   * assigned items) so the sidebar shows the whole team — members with no
+   * work simply read 0/cap. `assigned` is split into `done` / `inProgress`
+   * point sums via project_statuses.category so the bar can stack.
+   * project_members has no `capacity` column today (see
+   * project-member.entity.ts), so capacity is NULL — the frontend falls back
+   * to a sane default.
    */
-  private async loadAssignees(_projectId: number, sprintId: number) {
+  private async loadAssignees(projectId: number, sprintId: number) {
     return this.dataSource.query(`
       SELECT u.id,
              u.display_name AS "displayName",
              u.avatar_url AS "avatarUrl",
              COALESCE(SUM(wi.story_points), 0)::int AS assigned,
+             COALESCE(SUM(wi.story_points) FILTER (WHERE ps.category = 'done'), 0)::int AS done,
+             COALESCE(SUM(wi.story_points) FILTER (WHERE ps.category = 'in_progress'), 0)::int AS "inProgress",
              NULL::int AS capacity
-      FROM work_items wi
-      JOIN users u ON u.id = wi.assignee_id
-      WHERE wi.sprint_id = $1 AND wi.assignee_id IS NOT NULL
+      FROM project_members pm
+      JOIN users u ON u.id = pm.user_id
+      LEFT JOIN work_items wi
+        ON wi.assignee_id = u.id AND wi.sprint_id = $2 AND wi.deleted_at IS NULL
+      LEFT JOIN project_statuses ps ON ps.id = wi.status_id
+      WHERE pm.project_id = $1
       GROUP BY u.id, u.display_name, u.avatar_url
       ORDER BY u.display_name
-    `, [sprintId]);
+    `, [projectId, sprintId]);
   }
 
   /**
@@ -318,6 +396,9 @@ export class SprintsService {
       this.loadAssignees(projectId, sprintId),
       this.computeAutoCapacity(projectId, sprintId),
     ]);
+    // Resolve audit actors to display name + derived @handle (email local-part).
+    const actorIds = [sprint.createdBy, sprint.startedBy].filter((v): v is number => v != null);
+    const actors = await this.loadActors(actorIds);
     return {
       ...sprint,
       statusCounts,
@@ -327,7 +408,28 @@ export class SprintsService {
       completedPoints: totals.done_pts,
       assignees,
       autoCapacity,
+      createdByUser: sprint.createdBy != null ? actors.get(sprint.createdBy) ?? null : null,
+      startedByUser: sprint.startedBy != null ? actors.get(sprint.startedBy) ?? null : null,
     };
+  }
+
+  /** Batch-resolve user audit actors to { id, displayName, handle }. */
+  private async loadActors(ids: number[]): Promise<Map<number, { id: number; displayName: string; handle: string | null }>> {
+    const map = new Map<number, { id: number; displayName: string; handle: string | null }>();
+    const unique = Array.from(new Set(ids));
+    if (unique.length === 0) return map;
+    const rows = await this.dataSource.query(
+      `SELECT id, display_name AS "displayName", email FROM users WHERE id = ANY($1)`,
+      [unique],
+    );
+    for (const r of rows) {
+      map.set(r.id, {
+        id: r.id,
+        displayName: r.displayName,
+        handle: r.email ? r.email.split('@')[0] : null,
+      });
+    }
+    return map;
   }
 
   /**
@@ -358,8 +460,12 @@ export class SprintsService {
     });
   }
 
-  async update(projectId: number, sprintId: number, dto: UpdateSprintDto) {
+  async update(projectId: number, sprintId: number, dto: UpdateSprintDto, userId?: number) {
     const sprint = await this.findOneEntity(projectId, sprintId);
+    // Capture goal change before mutation so an active-sprint goal edit can be
+    // recorded on the scope-changes timeline.
+    const goalChangedWhileActive =
+      sprint.status === 'active' && dto.goal !== undefined && dto.goal !== sprint.goal;
 
     // Only allow date changes on planning sprints
     if (sprint.status !== 'planning' && (dto.startDate !== undefined || dto.endDate !== undefined)) {
@@ -405,6 +511,24 @@ export class SprintsService {
     if (dto.capacity !== undefined) sprint.capacity = dto.capacity;
 
     const saved = await this.sprintRepo.save(sprint);
+
+    if (goalChangedWhileActive) {
+      try {
+        await this.scopeChangeRepo.save(
+          this.scopeChangeRepo.create({
+            sprintId,
+            workItemId: null,
+            action: 'goal',
+            storyPoints: null,
+            actorId: userId ?? null,
+            note: saved.goal ?? null,
+          }),
+        );
+      } catch (err) {
+        this.logger.error(`record goal scope change failed: ${err}`, (err as Error)?.stack);
+      }
+    }
+
     const list = await this.listSprints(projectId);
     return PaginatedMutationResponse.forPaginated(saved, list);
   }
@@ -467,6 +591,7 @@ export class SprintsService {
       // sprint.createdBy at read time if this is ever null (older sprints
       // that started before this column was populated).
       sprint.startedBy = userId;
+      sprint.startedAt = new Date();
       let savedSprint: Sprint;
       try {
         savedSprint = await manager.save(Sprint, sprint);
@@ -500,6 +625,7 @@ export class SprintsService {
             workItemId: task.id,
             action: 'added',
             storyPoints: task.story_points,
+            actorId: userId,
           }),
         );
       }
@@ -557,6 +683,7 @@ export class SprintsService {
             workItemId: task.id,
             action: 'removed',
             storyPoints: taskData?.story_points ?? null,
+            actorId: userId,
           }),
         );
       }
@@ -714,10 +841,11 @@ export class SprintsService {
     // need projects.prefix to assemble itemKey.
     const rows: Array<{
       id: number;
-      action: 'added' | 'removed';
+      action: 'added' | 'removed' | 'goal';
       pointsDelta: number | null;
       createdAt: string;
-      wiId: number;
+      note: string | null;
+      wiId: number | null;
       itemNumber: number;
       itemTitle: string;
       itemType: 'task' | 'bug' | 'story' | 'epic' | 'subtask';
@@ -732,6 +860,7 @@ export class SprintsService {
              sc.action,
              sc.story_points AS "pointsDelta",
              sc.created_at   AS "createdAt",
+             sc.note         AS "note",
              wi.id           AS "wiId",
              wi.item_number  AS "itemNumber",
              wi.title        AS "itemTitle",
@@ -741,9 +870,10 @@ export class SprintsService {
              actor.display_name AS "actorName",
              actor.avatar_url   AS "actorAvatar"
            FROM sprint_scope_changes sc
-           JOIN work_items wi ON wi.id = sc.work_item_id
-           JOIN projects p ON p.id = wi.project_id
-           LEFT JOIN users actor ON actor.id = wi.assignee_id
+           JOIN sprints s ON s.id = sc.sprint_id
+           JOIN projects p ON p.id = s.project_id
+           LEFT JOIN work_items wi ON wi.id = sc.work_item_id
+           LEFT JOIN users actor ON actor.id = COALESCE(sc.actor_id, wi.assignee_id)
           WHERE sc.sprint_id = $1
             AND sc.created_at >= $2::timestamptz + INTERVAL '1 second'
           ORDER BY sc.created_at DESC, sc.id DESC`,
@@ -785,6 +915,16 @@ export class SprintsService {
         r.actorId !== null
           ? { id: r.actorId, displayName: r.actorName!, avatarUrl: r.actorAvatar }
           : (fallbackUser ?? { id: 0, displayName: 'Unknown', avatarUrl: null });
+      if (r.action === 'goal') {
+        return {
+          id: r.id,
+          action: r.action,
+          user: actor,
+          createdAt: r.createdAt,
+          pointsDelta: 0,
+          note: r.note,
+        };
+      }
       return {
         id: r.id,
         action: r.action,
@@ -792,7 +932,7 @@ export class SprintsService {
         createdAt: r.createdAt,
         pointsDelta: r.pointsDelta ?? 0,
         workItem: {
-          id: r.wiId,
+          id: r.wiId!,
           itemKey: `${r.projectPrefix}-${r.itemNumber}`,
           title: r.itemTitle,
           itemType: r.itemType,

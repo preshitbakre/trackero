@@ -155,6 +155,7 @@ export function TaskDetailPage() {
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [assigneeOptions, setAssigneeOptions] = useState<{ value: string; label: string }[]>([]);
   const [sprintOptions, setSprintOptions] = useState<{ value: string; label: string }[]>([]);
+  const [statusOptions, setStatusOptions] = useState<{ value: string; label: string }[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [associations, setAssociations] = useState<any>(null);
   const [discussionTab, setDiscussionTab] = useState<'comments' | 'activity'>('comments');
@@ -200,6 +201,10 @@ export function TaskDetailPage() {
     apiClient.get(`/projects/${pid}/sprints?limit=100`).then((res) => {
       const list = res.data.data.list || [];
       setSprintOptions([{ value: '', label: 'Backlog' }, ...list.map((s: any) => ({ value: String(s.id), label: s.name }))]);
+    }).catch((err) => { console.error(err); });
+    apiClient.get(`/projects/${pid}/statuses`).then((res) => {
+      const list = res.data.data?.list || res.data.data || [];
+      setStatusOptions(list.map((s: any) => ({ value: String(s.id), label: s.name })));
     }).catch((err) => { console.error(err); });
   }, [pid]);
 
@@ -863,18 +868,11 @@ export function TaskDetailPage() {
           <PropertyRow label="Status">
             {canEdit ? (
               <Select
-                value={statusKey}
+                value={task.statusId != null ? String(task.statusId) : ''}
                 onChange={(val) => {
-                  handleFieldChange('statusId', val, loadTask);
+                  handleFieldChange('statusId', parseInt(val), loadTask);
                 }}
-                options={[
-                  { value: 'backlog', label: 'Backlog' },
-                  { value: 'todo', label: 'Todo' },
-                  { value: 'in_progress', label: 'In Progress' },
-                  { value: 'in_review', label: 'In Review' },
-                  { value: 'done', label: 'Done' },
-                  { value: 'cancelled', label: 'Cancelled' },
-                ]}
+                options={statusOptions}
               />
             ) : (
               <span className="status">

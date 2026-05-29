@@ -59,6 +59,11 @@ export class Sprint {
   @Column({ name: 'started_by', type: 'int', nullable: true })
   startedBy: number | null;
 
+  // Set when the sprint transitions planning → active (drives the Settings
+  // audit "Started" line; previously proxied via updated_at).
+  @Column({ name: 'started_at', type: 'timestamptz', nullable: true })
+  startedAt: Date | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

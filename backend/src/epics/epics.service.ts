@@ -595,6 +595,63 @@ export class EpicsService {
   }
 
   // ===========================================================================
+  // Read: recent activity across the epic subtree
+  // ===========================================================================
+
+  /**
+   * Recent activity for the epic AND its belongs_to descendants, so the rail
+   * surfaces child events ("BST-108 · changed sprint") not just the epic's own.
+   */
+  async getRecent(projectId: number, epicId: number, limit = 8) {
+    const prefix = await this.getProjectPrefix(projectId);
+    const idRows = await this.dataSource.query(
+      `
+      WITH RECURSIVE descendants AS (
+        SELECT a.item_id AS id, 1 AS depth FROM work_item_associations a
+        JOIN work_items wi ON wi.id = a.item_id
+        WHERE a.linked_item_id = $1 AND a.link_type = 'belongs_to' AND wi.deleted_at IS NULL
+        UNION ALL
+        SELECT a2.item_id, d.depth + 1 FROM work_item_associations a2
+        JOIN work_items wi2 ON wi2.id = a2.item_id
+        JOIN descendants d ON a2.linked_item_id = d.id
+        WHERE a2.link_type = 'belongs_to' AND wi2.deleted_at IS NULL AND d.depth < 4
+      )
+      SELECT id FROM descendants
+    `,
+      [epicId],
+    );
+    const ids = [epicId, ...idRows.map((r: any) => Number(r.id))];
+
+    const rows = await this.dataSource.query(
+      `
+      SELECT al.id, al.action, al.field_changed AS "fieldChanged", al.old_value AS "oldValue",
+             al.new_value AS "newValue", al.created_at AS "createdAt", al.work_item_id AS "workItemId",
+             wi.item_number AS "itemNumber",
+             u.id AS "userId", u.display_name AS "userName", u.avatar_url AS "userAvatar"
+      FROM activity_logs al
+      LEFT JOIN work_items wi ON wi.id = al.work_item_id
+      LEFT JOIN users u ON u.id = al.user_id
+      WHERE al.project_id = $1 AND al.work_item_id = ANY($2)
+      ORDER BY al.created_at DESC
+      LIMIT $3
+    `,
+      [projectId, ids, limit],
+    );
+
+    return rows.map((r: any) => ({
+      id: r.id,
+      action: r.action,
+      fieldChanged: r.fieldChanged,
+      oldValue: r.oldValue,
+      newValue: r.newValue,
+      createdAt: r.createdAt,
+      itemKey: r.itemNumber != null ? `${prefix}-${r.itemNumber}` : null,
+      isEpic: Number(r.workItemId) === epicId,
+      user: r.userId ? { id: r.userId, displayName: r.userName, avatarUrl: r.userAvatar } : null,
+    }));
+  }
+
+  // ===========================================================================
   // Read: grouped children
   // ===========================================================================
 

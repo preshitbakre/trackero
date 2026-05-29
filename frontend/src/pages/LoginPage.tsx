@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/auth.store';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Logo } from '../components/ui/Logo';
+import LoginOrbit from '@/assets/decor/login-orbit.svg?react';
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
@@ -92,10 +93,7 @@ export function LoginPage() {
         </div>
 
         {/* Editorial circle accent */}
-        <svg className="absolute right-[-60px] bottom-[-80px] w-[480px] h-[480px] opacity-30 pointer-events-none hidden md:block" viewBox="0 0 200 200">
-          <circle cx="100" cy="100" r="90" fill="none" stroke="#7C3AED" strokeWidth="2" />
-          <path d="M 100 10 A 90 90 0 0 1 190 100" fill="none" stroke="#7C3AED" strokeWidth="14" strokeLinecap="square" />
-        </svg>
+        <LoginOrbit className="absolute right-[-60px] bottom-[-80px] w-[480px] h-[480px] opacity-30 pointer-events-none hidden md:block" aria-hidden />
 
         {/* T1 polish — on mobile the hero column is content-sized, so the
             footer collapses right under the stat columns. The mt gives it

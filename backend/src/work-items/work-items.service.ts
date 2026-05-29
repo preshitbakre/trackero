@@ -951,6 +951,7 @@ export class WorkItemsService {
       throw new AppLogicException('SUBTASK_NO_SPRINT', HttpStatus.BAD_REQUEST);
     }
 
+    const previousSprintId = item.sprintId;
     const sprintId = dto.sprintId ?? null;
 
     // Validate the sprint belongs to this project (Task 2.5, audit §4.2/§4.3).
@@ -998,6 +999,7 @@ export class WorkItemsService {
     this.eventEmitter.emit('work_item.sprint_assigned', {
       item: result,
       sprintId,
+      previousSprintId,
       userId,
       projectId,
     });

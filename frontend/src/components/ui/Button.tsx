@@ -13,7 +13,8 @@ const VARIANTS: Record<string, string> = {
   outline: 'bg-transparent text-ink border border-rule hover:bg-paper',
 };
 
-const SQUARE_VARIANTS = new Set(['outline']);
+// Bordered "outline box" variants render with sharp corners (no radius).
+const SQUARE_VARIANTS = new Set(['outline', 'secondary']);
 
 export function Button({ variant = 'primary', size = 'md', className = '', children, ...props }: ButtonProps) {
   const radius = SQUARE_VARIANTS.has(variant) ? 'rounded-none' : 'rounded-md';

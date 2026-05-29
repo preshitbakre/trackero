@@ -22,6 +22,17 @@ export class ActivityController {
     return this.activityService.listProjectActivity(projectId, page || 1, limit || 20);
   }
 
+  @Get('sprints/:sprintId/activity')
+  @Roles('admin', 'project_manager', 'member', 'viewer')
+  @ResponseCode('ACTIVITY_LISTED')
+  async sprintActivity(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('sprintId', ParseIntPipe) sprintId: number,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+  ) {
+    return this.activityService.listSprintActivity(projectId, sprintId, limit || 8);
+  }
+
   @Get('items/:itemId/activity')
   @Roles('admin', 'project_manager', 'member', 'viewer')
   @ResponseCode('ACTIVITY_LISTED')

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { OnEvent } from '@nestjs/event-emitter';
 import { ActivityLog } from './entities/activity-log.entity';
 import { PaginatedResponse } from '../common/dto/paginated-response.dto';
@@ -13,7 +13,89 @@ export class ActivityService {
   constructor(
     @InjectRepository(ActivityLog)
     private readonly activityRepo: Repository<ActivityLog>,
+    private readonly dataSource: DataSource,
   ) {}
+
+  /**
+   * Recent activity for items currently in a sprint — feeds the Sprint Detail
+   * "Recent" rail. activity_logs has no sprint_id, so we join to work_items
+   * and filter on the item's current sprint. Generic 'updated' rows (no
+   * field_changed) are noise and excluded; the rest are phrased server-side
+   * into a ready-to-render line.
+   */
+  async listSprintActivity(projectId: number, sprintId: number, limit = 8) {
+    const rows = await this.dataSource.query(
+      `
+      SELECT a.id,
+             a.action,
+             a.field_changed AS "fieldChanged",
+             a.old_value AS "oldValue",
+             a.new_value AS "newValue",
+             a.created_at AS "createdAt",
+             u.id AS "userId",
+             u.display_name AS "displayName",
+             u.avatar_url AS "avatarUrl",
+             wi.item_number AS "itemNumber",
+             ns.name AS "newStatusName"
+      FROM activity_logs a
+      JOIN work_items wi ON wi.id = a.work_item_id
+      JOIN users u ON u.id = a.user_id
+      LEFT JOIN project_statuses ns
+        ON a.field_changed = 'status'
+        AND ns.id = CASE WHEN a.new_value ~ '^[0-9]+$' THEN a.new_value::int ELSE NULL END
+      WHERE wi.sprint_id = $1
+        AND wi.deleted_at IS NULL
+        AND NOT (a.action = 'updated' AND a.field_changed IS NULL)
+      ORDER BY a.created_at DESC
+      LIMIT $2
+      `,
+      [sprintId, clampLimit(limit)],
+    );
+
+    const [proj] = await this.dataSource.query(`SELECT prefix FROM projects WHERE id = $1`, [projectId]);
+    const prefix: string | undefined = proj?.prefix;
+
+    return {
+      entries: rows.map((r: any) => {
+        const itemKey = prefix ? `${prefix}-${r.itemNumber}` : `#${r.itemNumber}`;
+        return {
+          id: r.id,
+          user: { id: r.userId, displayName: r.displayName, avatarUrl: r.avatarUrl },
+          createdAt: r.createdAt,
+          text: this.phraseActivity(r, itemKey, sprintId),
+        };
+      }),
+    };
+  }
+
+  private phraseActivity(
+    r: { action: string; fieldChanged: string | null; oldValue: string | null; newValue: string | null; newStatusName: string | null },
+    itemKey: string,
+    sprintId: number,
+  ): string {
+    if (r.action === 'created') return `created ${itemKey}`;
+    if (r.action === 'comment_added') return `commented on ${itemKey}`;
+    if (r.action === 'attachment_added') return `attached a file to ${itemKey}`;
+
+    switch (r.fieldChanged) {
+      case 'status':
+        return `moved ${itemKey} to ${r.newStatusName ?? 'a new status'}`;
+      case 'sprint':
+        if (r.newValue === String(sprintId)) return `pulled ${itemKey} into the sprint`;
+        if (r.oldValue === String(sprintId)) return `moved ${itemKey} out of the sprint`;
+        return `changed the sprint of ${itemKey}`;
+      case 'assignee':
+        return `reassigned ${itemKey}`;
+      case 'priority':
+        return `changed ${itemKey} priority`;
+      case 'story_points':
+        return `re-estimated ${itemKey}`;
+      case 'title':
+        return `renamed ${itemKey}`;
+      default:
+        return `updated ${itemKey}`;
+    }
+  }
 
   async listProjectActivity(projectId: number, page: number = 1, limit: number = 20) {
     limit = clampLimit(limit);

@@ -65,6 +65,17 @@ export class EpicsController {
     return this.epicsService.getEpicChildren(projectId, epicId, groupBy === 'sprint' ? 'sprint' : 'status');
   }
 
+  @Get(':epicId/recent')
+  @Roles('admin', 'project_manager', 'member', 'viewer')
+  @ResponseCode('ACTIVITY_LISTED')
+  async recent(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('epicId', ParseIntPipe) epicId: number,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+  ) {
+    return this.epicsService.getRecent(projectId, epicId, limit ?? 8);
+  }
+
   @Get(':epicId/milestones')
   @Roles('admin', 'project_manager', 'member', 'viewer')
   @ResponseCode('EPIC_MILESTONES_LISTED')

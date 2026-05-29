@@ -6,6 +6,13 @@ import { EpicDetailStatStrip } from '../../components/epics/EpicDetailStatStrip'
 import { AcrossSprintsTimeline } from '../../components/epics/AcrossSprintsTimeline';
 import { EpicChildRow } from '../../components/epics/EpicChildRow';
 
+const GROUP_DOT: Record<string, string> = {
+  in_progress: '#D6B588',
+  in_review: '#D688D0',
+  open: '#A8A1B5',
+  done: '#88D68E',
+};
+
 function fmtDate(d: string): string {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
@@ -79,6 +86,9 @@ export function OverviewTab({ epic, projectId, onUpdateStatus, onOpenChild, onSe
               return (
                 <div key={g.key}>
                   <div className="flex items-center gap-2 px-4 py-2 bg-paper-2/40 text-[12px] tracking-[0.1em] uppercase text-faint">
+                    {GROUP_DOT[g.key] && (
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: GROUP_DOT[g.key] }} />
+                    )}
                     <span>{g.label}</span>
                     <span>{g.count}</span>
                     <span className="ml-auto">{g.points} pts</span>

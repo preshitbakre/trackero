@@ -13,14 +13,24 @@ export class SprintScopeChange {
   @Column({ name: 'sprint_id', type: 'int' })
   sprintId: number;
 
-  @Column({ name: 'work_item_id', type: 'int' })
-  workItemId: number;
+  // Nullable: 'goal' entries are sprint-scoped and have no work item.
+  @Column({ name: 'work_item_id', type: 'int', nullable: true })
+  workItemId: number | null;
 
   @Column({ type: 'varchar', length: 10 })
-  action: 'added' | 'removed';
+  action: 'added' | 'removed' | 'goal';
 
   @Column({ name: 'story_points', type: 'int', nullable: true })
   storyPoints: number | null;
+
+  // Who performed the change. Lets the timeline show the real actor instead of
+  // proxying via the work item's assignee. Null on legacy rows.
+  @Column({ name: 'actor_id', type: 'int', nullable: true })
+  actorId: number | null;
+
+  // Free-text detail — used by 'goal' entries to carry the new sprint goal.
+  @Column({ type: 'text', nullable: true })
+  note: string | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

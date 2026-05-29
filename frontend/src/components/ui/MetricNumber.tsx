@@ -2,12 +2,12 @@ import type { ReactNode } from 'react';
 
 interface MetricNumberProps {
   children: ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | number;
   italic?: boolean;
   className?: string;
 }
 
-const SIZE_PX: Record<NonNullable<MetricNumberProps['size']>, number> = {
+const SIZE_PX: Record<'sm' | 'md' | 'lg' | 'xl', number> = {
   sm: 22,
   md: 28,
   lg: 36,
@@ -30,7 +30,7 @@ export function MetricNumber({
   return (
     <span
       className={`font-serif ${italic ? 'italic' : ''} ${className}`}
-      style={{ fontSize: SIZE_PX[size], lineHeight: 1 }}
+      style={{ fontSize: typeof size === 'number' ? size : SIZE_PX[size], lineHeight: 1 }}
     >
       {children}
     </span>

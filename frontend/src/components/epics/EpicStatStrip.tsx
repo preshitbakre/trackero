@@ -10,6 +10,7 @@ interface Cell {
   value: string;
   label: string;
   accent?: boolean;
+  small?: boolean;
 }
 
 /** Five-cell summary strip above the epics list. */
@@ -27,6 +28,7 @@ export function EpicStatStrip({ summary }: { summary: EpicsSummary }) {
     {
       value: fmtDate(summary.nextTarget?.date ?? null),
       label: summary.nextTarget ? `next target · ${summary.nextTarget.epicKey}` : 'next target',
+      small: true,
     },
   ];
 
@@ -37,7 +39,7 @@ export function EpicStatStrip({ summary }: { summary: EpicsSummary }) {
           key={i}
           className={`px-5 py-4 ${i > 0 ? 'border-l border-rule' : ''} ${c.accent ? 'bg-lilac-tint/40' : ''}`}
         >
-          <MetricNumber size="md" className={c.accent ? 'text-lilac' : 'text-text'}>
+          <MetricNumber size={c.small ? 'sm' : 'md'} className={c.accent ? 'text-lilac' : 'text-text'}>
             {c.value}
           </MetricNumber>
           <p className="mt-1 text-[11px] tracking-[0.14em] uppercase text-faint">{c.label}</p>

@@ -76,8 +76,9 @@ export class SprintsController {
     @Param('projectId', ParseIntPipe) projectId: number,
     @Param('sprintId', ParseIntPipe) sprintId: number,
     @Body() dto: UpdateSprintDto,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.sprintsService.update(projectId, sprintId, dto);
+    return this.sprintsService.update(projectId, sprintId, dto, user.userId);
   }
 
   @Delete(':sprintId')

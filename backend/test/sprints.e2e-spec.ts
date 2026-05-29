@@ -644,24 +644,36 @@ describe('Sprints findOne enrichment (statusCounts, typeCounts, assignees, autoC
     expect(item.totalPoints).toBe(19);
     expect(item.completedPoints).toBe(2);
 
-    // Assignees: admin and Bob only — Carol has no items.
+    // Assignees: EVERY project member (admin, Bob, Carol). Carol has no items
+    // and reads 0 across the board.
     expect(Array.isArray(item.assignees)).toBe(true);
-    expect(item.assignees).toHaveLength(2);
+    expect(item.assignees).toHaveLength(3);
     const byId = new Map<number, any>(item.assignees.map((a: any) => [a.id, a]));
     expect(byId.has(adminId)).toBe(true);
     expect(byId.has(userBId)).toBe(true);
-    expect(byId.has(userCId)).toBe(false);
+    expect(byId.has(userCId)).toBe(true);
 
-    // Admin assigned points: 3 + 5 + 0 = 8. Bob assigned points: 2 + 1 = 3.
+    // Admin: open 3 + in_progress 5 + bug 0 → assigned 8, done 0, inProgress 5.
     expect(byId.get(adminId).assigned).toBe(8);
+    expect(byId.get(adminId).done).toBe(0);
+    expect(byId.get(adminId).inProgress).toBe(5);
+    // Bob: task1 transitioned to done (2) + task2 in_progress (1) → assigned 3, done 2, inProgress 1.
     expect(byId.get(userBId).assigned).toBe(3);
+    expect(byId.get(userBId).done).toBe(2);
+    expect(byId.get(userBId).inProgress).toBe(1);
+    // Carol: no items.
+    expect(byId.get(userCId).assigned).toBe(0);
+    expect(byId.get(userCId).done).toBe(0);
+    expect(byId.get(userCId).inProgress).toBe(0);
 
-    // Shape: { id, displayName, avatarUrl, assigned, capacity }
+    // Shape: { id, displayName, avatarUrl, assigned, done, inProgress, capacity }
     for (const a of item.assignees) {
       expect(typeof a.id).toBe('number');
       expect(typeof a.displayName).toBe('string');
       expect(a).toHaveProperty('avatarUrl');
       expect(a).toHaveProperty('assigned');
+      expect(a).toHaveProperty('done');
+      expect(a).toHaveProperty('inProgress');
       expect(a).toHaveProperty('capacity');
       // project_members has no capacity column, so capacity is always null.
       expect(a.capacity).toBeNull();
@@ -671,7 +683,7 @@ describe('Sprints findOne enrichment (statusCounts, typeCounts, assignees, autoC
     expect(item.autoCapacity).toBe(0);
   });
 
-  it('returns zero counts and empty assignees for an empty sprint', async () => {
+  it('returns zero counts and all project members (0 assigned) for an empty sprint', async () => {
     const sprintId = await createSprint('Empty Sprint', 0);
 
     const res = await request(app.getHttpServer())
@@ -686,7 +698,13 @@ describe('Sprints findOne enrichment (statusCounts, typeCounts, assignees, autoC
     expect(item.totalItems).toBe(0);
     expect(item.totalPoints).toBe(0);
     expect(item.completedPoints).toBe(0);
-    expect(item.assignees).toEqual([]);
+    // Workload lists every project member (admin + Bob + Carol), all at 0.
+    expect(item.assignees).toHaveLength(3);
+    for (const a of item.assignees) {
+      expect(a.assigned).toBe(0);
+      expect(a.done).toBe(0);
+      expect(a.inProgress).toBe(0);
+    }
     expect(item.autoCapacity).toBe(0);
   });
 

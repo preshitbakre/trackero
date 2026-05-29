@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Eyebrow } from '../ui/Eyebrow';
 import { Button } from '../ui/Button';
 
@@ -9,6 +10,7 @@ const STEPS = [
 
 /** Zero-epics empty state: editorial copy + 3-step guide + preview card. */
 export function EpicsEmptyState({ onCreate }: { onCreate: () => void }) {
+  const [showWhat, setShowWhat] = useState(false);
   return (
     <div className="px-[28px] py-10 grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
       {/* Left — guide */}
@@ -36,12 +38,22 @@ export function EpicsEmptyState({ onCreate }: { onCreate: () => void }) {
           ))}
         </div>
 
-        <div className="mt-6 flex gap-3">
+        <div className="mt-6 flex items-center gap-4">
           <Button onClick={onCreate}>Create your first epic →</Button>
-          <Button variant="outline" onClick={onCreate}>
+          <button
+            type="button"
+            onClick={() => setShowWhat((v) => !v)}
+            className="text-[14px] text-lilac hover:underline"
+          >
             What's an epic?
-          </Button>
+          </button>
         </div>
+        {showWhat && (
+          <p className="mt-4 text-[14px] text-mute max-w-[460px] border-l-2 border-rule pl-3">
+            Epics group many sprints of related work under one page. Create stories beneath an epic and
+            its progress, timeline, and roadmap slot roll up automatically — then celebrate when it ships.
+          </p>
+        )}
       </div>
 
       {/* Right — preview */}

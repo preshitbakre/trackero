@@ -8,7 +8,8 @@ import { CSS } from '@dnd-kit/utilities';
 import { apiClient } from '../../api/client';
 import { toast } from '../common/Toast';
 import { Input } from '../ui/Input';
-import { DragHandleDots, EllipsisDots } from '../icons';
+import DragHandleDots from '@/assets/icons/drag-handle.svg?react';
+import EllipsisDots from '@/assets/icons/ellipsis.svg?react';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { Modal } from '../common/Modal';
 import { Button } from '../ui/Button';
@@ -134,7 +135,7 @@ function SortableStatusRow({ status, onUpdate, onDelete, onSaveWip }: {
   return (
     <div ref={setNodeRef} style={style} className="grid grid-cols-[20px_16px_1fr_auto_auto_28px] gap-3 items-center py-3 border-b border-rule last:border-b-0">
       <span {...listeners} {...attributes} className="cursor-grab text-faint hover:text-mute text-[12px] flex-shrink-0 flex items-center justify-center">
-        <DragHandleDots />
+        <DragHandleDots width={8} height={14} aria-hidden />
       </span>
 
       <ColorPickerDot color={status.color} onChange={(c) => onUpdate(status.id, { color: c })} />
@@ -173,7 +174,7 @@ function SortableStatusRow({ status, onUpdate, onDelete, onSaveWip }: {
           onClick={() => setMenuOpen((v) => !v)}
           className="w-7 h-7 flex items-center justify-center rounded hover:bg-paper text-faint hover:text-text"
         >
-          <EllipsisDots />
+          <EllipsisDots className="w-[14px] h-[14px]" aria-hidden />
         </button>
         {menuOpen && (
           <div className="dropdown-panel absolute right-0 mt-1 w-36 bg-card z-50 py-1">

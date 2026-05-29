@@ -1,5 +1,9 @@
 import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useEffect, useState, useCallback } from 'react';
+import { BarChart3 } from 'lucide-react';
+import OverviewIcon from '@/assets/icons/today.svg?react';
+import ScopeChangesIcon from '@/assets/icons/scope-changes.svg?react';
+import SettingsIcon from '@/assets/icons/settings.svg?react';
 import { apiClient } from '../api/client';
 import { Tabs } from '../components/ui/Tabs';
 import { PageHeader } from '../components/ui/PageHeader';
@@ -27,6 +31,9 @@ export interface SprintDetail {
   capacity: number | null;
   startedBy: number | null;
   createdBy: number | null;
+  startedAt: string | null;
+  createdByUser: { id: number; displayName: string; handle: string | null } | null;
+  startedByUser: { id: number; displayName: string; handle: string | null } | null;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
@@ -40,6 +47,8 @@ export interface SprintDetail {
     displayName: string;
     avatarUrl: string | null;
     assigned: number;
+    done: number;
+    inProgress: number;
     capacity: number | null;
   }>;
   autoCapacity: number;
@@ -79,6 +88,7 @@ export function SprintDetailPage() {
     );
 
   const [sprint, setSprint] = useState<SprintDetail | null>(null);
+  const [scopeCount, setScopeCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
@@ -100,6 +110,13 @@ export function SprintDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    apiClient
+      .get(`/projects/${projectId}/sprints/${sprintId}/scope-changes`)
+      .then((r) => setScopeCount(r.data.data?.entries?.length ?? 0))
+      .catch(() => setScopeCount(0));
+  }, [projectId, sprintId]);
 
   const handleStart = async () => {
     try {
@@ -141,7 +158,7 @@ export function SprintDetailPage() {
   }
 
   return (
-    <>
+    <div className="h-full flex flex-col overflow-hidden">
       <PageHeader>
       <nav className="text-[12px] text-mute mb-2">
         <Link to={`/projects/${projectId}/sprints`} className="hover:text-text">
@@ -155,9 +172,9 @@ export function SprintDetailPage() {
         <div>
           <span className="font-serif text-[36px] text-text">Sprint</span>
           <span className="font-serif text-[28px] text-text ml-3">{sprint.sprintNumber}</span>
-          <StatusPill status={STATUS_PILL_MAP[sprint.status]} className="ml-3" />
+          <StatusPill status={STATUS_PILL_MAP[sprint.status]} solid dot className="ml-3" />
           {sprint.status === 'active' && (
-            <span className="text-[12px] text-mute ml-2">
+            <span className="font-mono text-[12px] font-semibold bg-lilac-tint text-lilac px-2 py-0.5 ml-3 align-middle">
               day {dayOf(sprint)} of {totalDays(sprint)} · ends in {daysRemaining(sprint)}d
             </span>
           )}
@@ -177,18 +194,18 @@ export function SprintDetailPage() {
       </header>
       </PageHeader>
 
-      <div className="px-[28px] py-6">
       <Tabs
+        className="px-[28px] flex-shrink-0"
         tabs={[
-          { key: 'overview', label: 'Overview' },
-          { key: 'scope-changes', label: 'Scope changes' },
-          { key: 'settings', label: 'Settings' },
+          { key: 'overview', label: 'Overview', icon: <OverviewIcon width={14} height={14} aria-hidden /> },
+          { key: 'scope-changes', label: 'Scope changes', icon: <ScopeChangesIcon width={14} height={14} aria-hidden />, badge: scopeCount },
+          { key: 'settings', label: 'Settings', icon: <SettingsIcon width={14} height={14} aria-hidden /> },
         ]}
         active={tab}
         onChange={(k) => setTab(k as Tab)}
       />
 
-      <div className="mt-6">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {tab === 'overview' && <OverviewTab sprint={sprint} onAfterAction={load} />}
         {tab === 'scope-changes' && <ScopeChangesTab sprint={sprint} />}
         {tab === 'settings' && <SettingsTab sprint={sprint} onSaved={load} />}
@@ -219,8 +236,7 @@ export function SprintDetailPage() {
           onCancel={() => setShowCancelConfirm(false)}
         />
       )}
-      </div>
-    </>
+    </div>
   );
 }
 
@@ -266,12 +282,14 @@ function HeaderActions({
   if (sprint.status === 'active') {
     return (
       <div className="flex gap-2">
-        <Button variant="ghost">Burndown</Button>
-        <Button variant="ghost" onClick={onOpenBoard}>
-          Open board
+        <Button variant="secondary" className="inline-flex items-center gap-1.5">
+          <BarChart3 size={14} /> Burndown
+        </Button>
+        <Button variant="secondary" onClick={onOpenBoard}>
+          Open board →
         </Button>
         {canManageProject && (
-          <Button variant="primary" onClick={onComplete}>
+          <Button variant="ink" onClick={onComplete}>
             Complete sprint…
           </Button>
         )}

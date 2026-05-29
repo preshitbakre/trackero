@@ -23,8 +23,7 @@ const SECTIONS: { key: string; label: string; accent: string; states: EpicDispla
   { key: 'archive', label: 'Archive', accent: 'text-faint', states: ['archived'], collapsible: true },
 ];
 
-const FILTER_OPTIONS = [
-  { value: '', label: 'All' },
+const FILTER_OPTIONS_BASE = [
   { value: 'in_flight', label: 'In flight' },
   { value: 'blocked', label: 'Blocked' },
   { value: 'at_risk', label: 'At risk' },
@@ -69,8 +68,25 @@ export function EpicsPage() {
     load();
   }, [load]);
 
+  // "E" opens the create dialog (matches the KbdKey hint). Ignore when typing
+  // in a field, when a modifier is held, or for read-only viewers.
+  useEffect(() => {
+    if (!canEdit) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'e' && e.key !== 'E') return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      e.preventDefault();
+      setShowCreate(true);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [canEdit]);
+
   const visible = filter ? epics.filter((e) => e.displayState === filter) : epics;
   const isEmpty = !loading && !error && summary?.totalEpics === 0;
+  const filterOptions = [{ value: '', label: `All · ${epics.length}` }, ...FILTER_OPTIONS_BASE];
 
   return (
     <>
@@ -91,8 +107,8 @@ export function EpicsPage() {
             <Select
               value={filter}
               onChange={setFilter}
-              options={FILTER_OPTIONS}
-              className="w-[130px]"
+              options={filterOptions}
+              className="w-[140px]"
             />
           )}
           {canEdit && (

@@ -1,21 +1,11 @@
 import { useState, useEffect } from 'react';
-import { apiClient } from '../../api/client';
-import type { EpicDetail } from '../../api/epics';
+import type { EpicDetail, EpicRecentRow } from '../../api/epics';
+import { getEpicRecent } from '../../api/epics';
 import { Avatar } from '../../components/ui/Avatar';
 import { AvatarStack } from '../../components/ui/AvatarStack';
 import { LabelList } from '../../components/ui/LabelBadge';
 import { TypeTag } from '../../components/ui/TypeTag';
 import type { TypeTagKind } from '../../components/ui/TypeTag';
-
-interface ActivityRow {
-  id: number;
-  action: string;
-  fieldChanged: string | null;
-  oldValue: string | null;
-  newValue: string | null;
-  createdAt: string;
-  user?: { id: number; displayName: string; avatarUrl?: string | null } | null;
-}
 
 function relTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -34,27 +24,30 @@ function fmtVal(v: string | null): string {
   return v;
 }
 
-function describe(a: ActivityRow): string {
-  if (a.action === 'created') return 'created the epic';
-  if (a.action === 'comment_added') return 'commented';
-  if (a.action === 'attachment_added') return 'added an attachment';
+function describe(a: EpicRecentRow): string {
+  // Child events get an item-key prefix ("BST-108 · changed sprint"); the
+  // epic's own events read naturally ("wrote the epic brief").
+  const ref = !a.isEpic && a.itemKey ? `${a.itemKey} · ` : '';
+  if (a.action === 'created') return a.isEpic ? 'created the epic' : `${a.itemKey ?? 'item'} created`;
+  if (a.action === 'comment_added') return `${ref}commented`;
+  if (a.action === 'attachment_added') return `${ref}added an attachment`;
   switch (a.fieldChanged) {
     case 'end_date':
-      return `set target to ${fmtVal(a.newValue)}`;
+      return a.isEpic ? `set target to ${fmtVal(a.newValue)}` : `${ref}target ${fmtVal(a.newValue)}`;
     case 'start_date':
-      return `set start to ${fmtVal(a.newValue)}`;
+      return a.isEpic ? `set start to ${fmtVal(a.newValue)}` : `${ref}start ${fmtVal(a.newValue)}`;
     case 'title':
-      return 'renamed the epic';
+      return a.isEpic ? 'renamed the epic' : `${ref}renamed`;
     case 'description':
-      return 'wrote the epic brief';
+      return a.isEpic ? 'wrote the epic brief' : `${ref}edited`;
     case 'status':
-      return 'changed status';
+      return `${ref}changed status`;
     case 'assignee':
-      return 'changed the lead';
+      return a.isEpic ? 'changed the lead' : `${ref}reassigned`;
     case 'sprint':
-      return 'changed sprint';
+      return `${ref}changed sprint`;
     default:
-      return 'updated the epic';
+      return a.isEpic ? 'updated the epic' : `${ref}updated`;
   }
 }
 
@@ -73,14 +66,13 @@ function fmtDate(d: string | null): string {
 }
 
 export function EpicSidebar({ epic, projectId }: { epic: EpicDetail; projectId: string }) {
-  const [activity, setActivity] = useState<ActivityRow[]>([]);
+  const [activity, setActivity] = useState<EpicRecentRow[]>([]);
 
   useEffect(() => {
     let cancelled = false;
-    apiClient
-      .get(`/projects/${projectId}/items/${epic.id}/activity`, { params: { limit: 8 } })
-      .then((res) => {
-        if (!cancelled) setActivity(res.data.data.list ?? []);
+    getEpicRecent(projectId, epic.id, 8)
+      .then((rows) => {
+        if (!cancelled) setActivity(rows);
       })
       .catch(() => {});
     return () => {

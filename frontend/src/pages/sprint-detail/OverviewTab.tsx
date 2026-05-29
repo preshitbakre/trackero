@@ -97,13 +97,14 @@ export function OverviewTab({ sprint, onAfterAction: _onAfterAction }: OverviewT
     { key: 'done', label: 'Done', n: sprint.statusCounts.done ?? 0, color: 'text-mint-dark' },
     { key: 'in_progress', label: 'In progress', n: sprint.statusCounts.in_progress ?? 0 },
     { key: 'open', label: 'Open', n: sprint.statusCounts.open ?? 0 },
-    { key: 'blocked', label: 'Blocked', n: sprint.statusCounts.blocked ?? 0, color: 'text-danger' },
+    { key: 'blocked', label: 'Blocked', n: sprint.statusCounts.blocked ?? 0, color: 'text-lilac' },
     { key: 'committed', label: 'Committed', n: sprint.totalPoints },
   ];
 
   return (
-    <div className="flex gap-6">
-      <main className="flex-1 min-w-0">
+    <div className="flex h-full min-h-0">
+      <main className="flex-1 min-w-0 overflow-y-auto py-6">
+        <div className="px-[28px]">
         {sprint.status === 'completed' && sprint.completedAt && (
           <p className="text-[13px] text-mute mb-4">
             Sprint shipped {formatDate(sprint.completedAt)} ·{' '}
@@ -112,9 +113,14 @@ export function OverviewTab({ sprint, onAfterAction: _onAfterAction }: OverviewT
           </p>
         )}
 
-        <div className="flex gap-0 py-4 border-b border-rule mb-6">
-          {counters.map((c) => (
-            <div key={c.key} className="flex-1 text-center py-3">
+        <div className="flex border border-rule mb-6">
+          {counters.map((c, i) => (
+            <div
+              key={c.key}
+              className={`flex-1 px-4 py-3 ${i > 0 ? 'border-l border-rule' : ''} ${
+                c.key === 'blocked' ? 'bg-lilac-tint' : ''
+              }`}
+            >
               <MetricNumber size="lg" className={c.color}>
                 {c.n}
               </MetricNumber>
@@ -134,18 +140,19 @@ export function OverviewTab({ sprint, onAfterAction: _onAfterAction }: OverviewT
             completedPoints={sprint.completedPoints}
           />
         )}
+        </div>
 
         <div className="mt-8">
-          <div className="flex items-baseline justify-between mb-3">
-            <h2 className="text-[14px] font-semibold">
+          <div className="px-[28px] flex items-baseline justify-between mb-3">
+            <h2 className="font-serif text-[20px] text-text">
               Items in this sprint{' '}
-              <span className="text-mute font-normal">
+              <span className="font-mono text-[12px] text-mute">
                 · {items.length} items · grouped by status
               </span>
             </h2>
             <Link
               to={`/projects/${sprint.projectId}/board`}
-              className="text-[12px] text-lilac hover:underline"
+              className="btn-ghost text-[12px]"
             >
               Open board →
             </Link>
@@ -159,15 +166,16 @@ export function OverviewTab({ sprint, onAfterAction: _onAfterAction }: OverviewT
           ) : (
             itemsByCategory.map((group) => (
               <section key={group.category} className="mb-4">
-                <header className="flex items-center gap-2 mb-1 text-[11px] font-semibold uppercase tracking-[0.08em]">
-                  <span
-                    className="inline-block w-2 h-2 rounded-full"
-                    style={{ backgroundColor: STATUS_DOT_COLORS[group.category] }}
-                  />
-                  <span>{group.label}</span>
-                  <span className="text-mute font-normal">
-                    {group.items.length} · {group.pts} pts
-                  </span>
+                <header className="flex items-center justify-between bg-[#F1ECF7] px-[28px] py-2 mb-1 font-mono text-[10px] uppercase tracking-[0.08em] text-mute">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="inline-block w-2 h-2 rounded-full"
+                      style={{ backgroundColor: STATUS_DOT_COLORS[group.category] }}
+                    />
+                    <span>{group.label}</span>
+                    <span>{group.items.length}</span>
+                  </div>
+                  <span>{group.pts} pts</span>
                 </header>
                 {group.items.map((it) => (
                   <ItemRow key={it.id} item={it} projectId={sprint.projectId} />
@@ -184,10 +192,16 @@ export function OverviewTab({ sprint, onAfterAction: _onAfterAction }: OverviewT
 }
 
 function ItemRow({ item, projectId }: { item: SprintItem; projectId: number }) {
+  const detailPath =
+    item.itemType === 'story'
+      ? `/projects/${projectId}/stories/${item.id}`
+      : item.itemType === 'epic'
+        ? `/projects/${projectId}/epics/${item.id}`
+        : `/projects/${projectId}/tasks/${item.id}`;
   return (
     <Link
-      to={`/projects/${projectId}/backlog?task=${item.id}`}
-      className="flex items-center gap-3 px-3 py-1.5 border-b border-rule text-[13px] hover:bg-paper/50"
+      to={detailPath}
+      className="flex items-center gap-3 px-[28px] py-1.5 border-b border-rule text-[13px] hover:bg-paper/50"
     >
       <TypeTag kind={item.itemType} size="sm" />
       <span className="font-mono text-[12px] text-faint w-[90px]">{item.itemKey}</span>
@@ -196,8 +210,12 @@ function ItemRow({ item, projectId }: { item: SprintItem; projectId: number }) {
       <span className="w-[40px] font-mono text-[12px] text-right">
         {item.storyPoints ?? '—'}
       </span>
-      <span className="w-[28px] text-center">
-        {item.assignee && <Avatar user={item.assignee} size="xs" />}
+      <span className="w-[28px] flex justify-center">
+        {item.assignee ? (
+          <Avatar user={item.assignee} size="xs" />
+        ) : (
+          <span className="w-5 h-5 rounded-full border border-dashed border-rule-2" />
+        )}
       </span>
     </Link>
   );

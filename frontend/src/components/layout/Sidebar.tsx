@@ -7,11 +7,18 @@ import { apiClient } from '../../api/client';
 import { CreateProjectDialog } from '../common/CreateProjectDialog';
 import { useRole } from '../../hooks/useRole';
 import { PROJECT_DOT_COLORS } from '../../lib/colors';
-import {
-  TodayIcon, BoardIcon, BacklogIcon, SprintsIcon, EpicsIcon,
-  StoriesIcon, ChartsIcon, RetroIcon, MembersIcon, SettingsIcon,
-  EnterKeyGlyph,
-} from '../icons';
+import type { FunctionComponent, SVGProps } from 'react';
+import TodayIcon from '@/assets/icons/today.svg?react';
+import BoardIcon from '@/assets/icons/board.svg?react';
+import BacklogIcon from '@/assets/icons/backlog.svg?react';
+import SprintsIcon from '@/assets/icons/sprints.svg?react';
+import EpicsIcon from '@/assets/icons/epics.svg?react';
+import StoriesIcon from '@/assets/icons/stories.svg?react';
+import ChartsIcon from '@/assets/icons/charts.svg?react';
+import RetroIcon from '@/assets/icons/retro.svg?react';
+import MembersIcon from '@/assets/icons/members.svg?react';
+import SettingsIcon from '@/assets/icons/settings.svg?react';
+import EnterKeyGlyph from '@/assets/icons/enter-key.svg?react';
 
 interface Project {
   id: number;
@@ -71,7 +78,7 @@ type NavKey =
   | 'members'
   | 'settings';
 
-const NAV_ICONS: Record<NavKey, React.FC<{ className?: string; size?: number }>> = {
+const NAV_ICONS: Record<NavKey, FunctionComponent<SVGProps<SVGSVGElement>>> = {
   today: TodayIcon,
   board: BoardIcon,
   backlog: BacklogIcon,
@@ -86,7 +93,7 @@ const NAV_ICONS: Record<NavKey, React.FC<{ className?: string; size?: number }>>
 
 function NavIcon({ name }: { name: NavKey }) {
   const Icon = NAV_ICONS[name];
-  return <Icon />;
+  return <Icon width={14} height={14} aria-hidden />;
 }
 
 type WorkLink = { key: string; iconKey: NavKey; label: string };

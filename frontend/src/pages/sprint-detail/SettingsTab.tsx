@@ -115,12 +115,13 @@ export function SettingsTab({ sprint, onSaved }: SettingsTabProps) {
   };
 
   return (
-    <div className="flex gap-6">
-      <main className="flex-1 max-w-[600px] space-y-8">
+    <div className="flex h-full min-h-0">
+      <main className="flex-1 min-w-0 overflow-y-auto py-6 px-[28px]">
+        <div className="space-y-8">
         {/* Sprint goal */}
         <section>
-          <h2 className="font-serif text-[16px] text-text">Sprint goal</h2>
-          <p className="text-[12px] text-mute mb-2">
+          <h2 className="font-serif text-[20px] text-text">Sprint goal</h2>
+          <p className="text-[13px] text-mute mb-2">
             One sentence — what does shipping this sprint mean for users?
           </p>
           <Textarea
@@ -137,12 +138,12 @@ export function SettingsTab({ sprint, onSaved }: SettingsTabProps) {
 
         {/* Schedule */}
         <section>
-          <h2 className="font-serif text-[16px] text-text">Schedule</h2>
-          <p className="text-[12px] text-mute mb-2">
+          <h2 className="font-serif text-[20px] text-text">Schedule</h2>
+          <p className="text-[13px] text-mute mb-2">
             Sprint length is fixed once a sprint is active. To change it, complete this sprint and
             start a new one.
           </p>
-          <div className="flex gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <FieldLabel label="Start">
               <Input
                 type="date"
@@ -152,7 +153,6 @@ export function SettingsTab({ sprint, onSaved }: SettingsTabProps) {
                   if (startDate !== (sprint.startDate ?? '')) save({ startDate });
                 }}
                 disabled={readOnly || sprint.status !== 'planning'}
-                className="!w-[160px]"
               />
             </FieldLabel>
             <FieldLabel label="End">
@@ -164,7 +164,6 @@ export function SettingsTab({ sprint, onSaved }: SettingsTabProps) {
                   if (endDate !== (sprint.endDate ?? '')) save({ endDate });
                 }}
                 disabled={readOnly || sprint.status !== 'planning'}
-                className="!w-[160px]"
               />
             </FieldLabel>
             <FieldLabel label="Length">
@@ -176,7 +175,7 @@ export function SettingsTab({ sprint, onSaved }: SettingsTabProps) {
                   : LENGTH_OPTIONS
                 ).map((d) => ({ value: String(d), label: `${d} days` }))}
                 placeholder="—"
-                className={`w-[120px] ${
+                className={`w-full ${
                   readOnly || sprint.status !== 'planning'
                     ? 'opacity-60 cursor-not-allowed pointer-events-none'
                     : ''
@@ -188,11 +187,11 @@ export function SettingsTab({ sprint, onSaved }: SettingsTabProps) {
 
         {/* Carry-over policy */}
         <section>
-          <h2 className="font-serif text-[16px] text-text">Carry-over policy</h2>
-          <p className="text-[12px] text-mute mb-2">
+          <h2 className="font-serif text-[20px] text-text">Carry-over policy</h2>
+          <p className="text-[13px] text-mute mb-2">
             What happens to In-progress / In-review items when this sprint completes.
           </p>
-          <div className="flex gap-2">
+          <div className={`flex w-full items-center gap-0.5 bg-lilac-tint/50 p-0.5 rounded-md ${readOnly || isLocked ? 'opacity-50 pointer-events-none' : ''}`}>
             {CARRY_OPTIONS.map((opt) => {
               const selected = policy === opt.key;
               return (
@@ -204,10 +203,10 @@ export function SettingsTab({ sprint, onSaved }: SettingsTabProps) {
                     save({ carryOverPolicy: opt.key });
                   }}
                   disabled={readOnly || isLocked}
-                  className={`h-[30px] px-3 text-[12px] border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                  className={`h-[28px] px-3 text-[12px] rounded transition-colors ${
                     selected
-                      ? 'border-ink bg-ink text-paper'
-                      : 'border-rule-2 bg-transparent text-text hover:bg-paper-2'
+                      ? 'bg-card shadow-sm text-text font-medium'
+                      : 'text-mute hover:text-text'
                   }`}
                 >
                   {opt.label}
@@ -219,8 +218,8 @@ export function SettingsTab({ sprint, onSaved }: SettingsTabProps) {
 
         {/* Capacity */}
         <section>
-          <h2 className="font-serif text-[16px] text-text">Capacity</h2>
-          <p className="text-[12px] text-mute mb-2">
+          <h2 className="font-serif text-[20px] text-text">Capacity</h2>
+          <p className="text-[13px] text-mute mb-2">
             Trackero estimates from your team's velocity. Override to set a fixed cap.
           </p>
           <div className="flex items-center gap-3">
@@ -245,7 +244,7 @@ export function SettingsTab({ sprint, onSaved }: SettingsTabProps) {
             {capacity != null && capacity !== sprint.autoCapacity && !readOnly && !isLocked && (
               <button
                 type="button"
-                className="text-[12px] text-lilac hover:underline"
+                className="ml-auto h-[28px] px-3 text-[12px] border border-rule rounded text-text hover:bg-paper-2 transition-colors"
                 onClick={() => {
                   setCapacity(null);
                   save({ capacity: null });
@@ -260,8 +259,8 @@ export function SettingsTab({ sprint, onSaved }: SettingsTabProps) {
         {/* Sprint operations */}
         {!readOnly && (sprint.status === 'active' || sprint.status === 'planning') && (
           <section>
-            <h2 className="font-serif text-[16px] text-text">Sprint operations</h2>
-            <p className="text-[12px] text-mute mb-2">
+            <h2 className="font-serif text-[20px] text-text">Sprint operations</h2>
+            <p className="text-[13px] text-mute mb-2">
               Operational controls. Some are irreversible.
             </p>
             <div className="border border-rule divide-y divide-rule">
@@ -314,6 +313,7 @@ export function SettingsTab({ sprint, onSaved }: SettingsTabProps) {
             onCancel={() => setShowCancel(false)}
           />
         )}
+        </div>
       </main>
 
       <SettingsSidebar sprint={sprint} />

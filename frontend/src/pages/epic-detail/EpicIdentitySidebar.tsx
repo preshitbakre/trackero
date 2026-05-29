@@ -37,7 +37,7 @@ export function EpicIdentitySidebar({ epic }: { epic: EpicDetail }) {
       </Section>
 
       <Section label="State">
-        <StatusPill status={epicStateToPill(epic.displayState) as StatusKey} />
+        <StatusPill status={epicStateToPill(epic.displayState) as StatusKey} dot />
       </Section>
 
       <Section label="Audit">

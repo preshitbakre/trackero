@@ -130,7 +130,7 @@ export function EpicDetailPage() {
           <div className="flex items-center gap-3 min-w-0">
             <span className="w-5 h-5 rounded shrink-0" style={{ backgroundColor: epic.color }} aria-hidden />
             <h1 className="text-[20px] font-semibold text-text truncate">{epic.title}</h1>
-            <StatusPill status={epicStateToPill(epic.displayState) as StatusKey} />
+            <StatusPill status={epicStateToPill(epic.displayState) as StatusKey} dot />
             {epic.displayState === 'blocked' && epic.priority === 'urgent' && (
               <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-[#E05252] text-white">P0</span>
             )}

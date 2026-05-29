@@ -288,6 +288,43 @@ describe('Epics (e2e)', () => {
     expect(assoc.length).toBe(0);
   });
 
+  it('includes subtasks (parentId-linked) in the descendant rollups', async () => {
+    const epic = await createItem({ itemType: 'epic', title: 'Subtask Epic' });
+    const story = await createItem({ itemType: 'story', title: 'Parent story', storyPoints: 3 });
+    await linkBelongsTo(story.id, epic.id);
+    // A subtask hangs off the story via parentId (not belongs_to).
+    await createItem({ itemType: 'subtask', title: 'A subtask', parentId: story.id });
+
+    const detail = await request(app.getHttpServer())
+      .get(`/api/projects/${projectId}/epics/${epic.id}`)
+      .set(auth())
+      .expect(200);
+    const subtaskType = detail.body.data.byType.find((t: any) => t.type === 'subtask');
+    expect(subtaskType?.count).toBe(1);
+
+    const children = await request(app.getHttpServer())
+      .get(`/api/projects/${projectId}/epics/${epic.id}/children?groupBy=status`)
+      .set(auth())
+      .expect(200);
+    expect(children.body.data.totalItems).toBe(2); // story + subtask
+  });
+
+  it('recent feed includes child-item activity across the subtree', async () => {
+    const epic = await createItem({ itemType: 'epic', title: 'Recent Epic' });
+    const story = await createItem({ itemType: 'story', title: 'Child story' });
+    await linkBelongsTo(story.id, epic.id);
+    // Move the child to done — produces a child status activity row.
+    await setStatus(story.id, doneStatusId);
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/projects/${projectId}/epics/${epic.id}/recent`)
+      .set(auth())
+      .expect(200);
+    const rows = res.body.data;
+    // At least one row references a child item (not the epic itself).
+    expect(rows.some((r: any) => r.isEpic === false && r.itemKey)).toBe(true);
+  });
+
   it('rejects setting epicState=shipped via the update endpoint', async () => {
     const epic = await createItem({ itemType: 'epic', title: 'No direct ship' });
     await request(app.getHttpServer())

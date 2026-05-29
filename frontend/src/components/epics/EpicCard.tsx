@@ -9,7 +9,9 @@ import { LabelList } from '../ui/LabelBadge';
 import { MetricNumber } from '../ui/MetricNumber';
 import { PRIORITY_BADGE_COLORS } from '../../lib/colors';
 
-const PRIORITY_LABEL: Record<string, string> = { urgent: 'P0', high: 'P1', medium: 'P2', low: 'P3' };
+// Only the notable priorities surface as a pill on a card (matches the mockup,
+// where only the urgent/blocked epic shows `P0`).
+const PRIORITY_LABEL: Record<string, string> = { urgent: 'P0', high: 'P1' };
 
 function fmtDate(d: string | null): string {
   if (!d) return '';
@@ -25,6 +27,7 @@ interface Props {
 export function EpicCard({ epic, projectId }: Props) {
   const blocked = epic.displayState === 'blocked';
   const barColor = blocked ? '#E05252' : epic.color;
+  const showPriority = epic.priority === 'urgent' || epic.priority === 'high';
   const priorityPill = PRIORITY_BADGE_COLORS[epic.priority];
   const pct = epic.progress.progressPercent;
 
@@ -40,13 +43,13 @@ export function EpicCard({ epic, projectId }: Props) {
         <TypeTag kind="epic" size="sm" />
         <span className="text-[12px] font-mono text-mute">{epic.itemKey}</span>
         <span className="text-faint">·</span>
-        <StatusPill status={epicStateToPill(epic.displayState) as StatusKey} />
-        {epic.priority !== 'none' && priorityPill && (
+        <StatusPill status={epicStateToPill(epic.displayState) as StatusKey} dot />
+        {showPriority && priorityPill && (
           <span
             className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
             style={{ background: priorityPill.bg, color: priorityPill.color }}
           >
-            {PRIORITY_LABEL[epic.priority] ?? epic.priority}
+            {PRIORITY_LABEL[epic.priority]}
           </span>
         )}
         <span className="ml-auto">{epic.lead && <Avatar user={epic.lead} size="sm" />}</span>

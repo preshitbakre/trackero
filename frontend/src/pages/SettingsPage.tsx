@@ -9,7 +9,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { toast } from '../components/common/Toast';
 import { AVATAR_COLORS } from '../lib/colors';
-import { EllipsisDots } from '../components/icons';
+import EllipsisDots from '@/assets/icons/ellipsis.svg?react';
 
 interface UserRow {
   id: number;
@@ -496,7 +496,7 @@ function RowMenu({ isSelf, isActive, onDeactivate, onReactivate }: {
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
         className="w-7 h-7 flex items-center justify-center rounded hover:bg-paper text-faint hover:text-text"
       >
-        <EllipsisDots />
+        <EllipsisDots className="w-[14px] h-[14px]" aria-hidden />
       </button>
       {open && (
         <div className="dropdown-panel absolute right-0 mt-1 w-36 bg-card z-50 py-1">

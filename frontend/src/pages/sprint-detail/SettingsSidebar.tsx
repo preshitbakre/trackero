@@ -16,44 +16,49 @@ const STATUS_PILL_MAP: Record<SprintDetail['status'], StatusKey> = {
  * burndown-style metrics.
  */
 export function SettingsSidebar({ sprint }: { sprint: SprintDetail }) {
+  const createdHandle = sprint.createdByUser?.handle ?? (sprint.createdBy != null ? `user${sprint.createdBy}` : null);
+  const startedHandle = sprint.startedByUser?.handle ?? (sprint.startedBy != null ? `user${sprint.startedBy}` : null);
   return (
-    <aside className="w-[220px] space-y-6 flex-shrink-0">
+    <aside className="w-[320px] flex-shrink-0 self-stretch overflow-y-auto bg-paper-2 border-l border-rule px-[22px] py-5">
       <section>
         <Eyebrow>Sprint identity</Eyebrow>
-        <dl className="mt-2 space-y-3 text-[13px]">
+        <dl className="mt-3 space-y-4 text-[13px]">
           <div>
             <dt className="text-[10px] uppercase tracking-[0.1em] text-mute">ID</dt>
-            <dd className="font-medium">S-{sprint.sprintNumber}</dd>
+            <dd className="mt-0.5 font-mono font-medium text-[14px] text-text">S-{sprint.sprintNumber}</dd>
           </div>
           <div>
             <dt className="text-[10px] uppercase tracking-[0.1em] text-mute">Number</dt>
-            <dd className="font-medium">{sprint.sprintNumber}</dd>
+            <dd className="mt-0.5 font-serif text-[20px] text-text">{sprint.sprintNumber}</dd>
           </div>
           <div>
-            <dt className="text-[10px] uppercase tracking-[0.1em] text-mute">Status</dt>
-            <dd className="mt-1">
-              <StatusPill status={STATUS_PILL_MAP[sprint.status]} />
+            <dt className="text-[10px] uppercase tracking-[0.1em] text-mute mb-1.5">Status</dt>
+            <dd>
+              <StatusPill status={STATUS_PILL_MAP[sprint.status]} solid dot block />
             </dd>
           </div>
         </dl>
       </section>
 
-      <section>
+      <section className="border-t border-rule pt-6">
         <Eyebrow>Audit</Eyebrow>
-        <ul className="mt-2 space-y-1 text-[11px] text-mute">
+        <ul className="mt-3 space-y-1.5 font-mono text-[12px] text-mute leading-relaxed">
           <li>
             Created {formatDateTime(sprint.createdAt)}
-            {sprint.createdBy != null && (
+            {createdHandle && (
               <>
-                {' '}
-                by <span className="text-lilac">@user{sprint.createdBy}</span>
+                {' '}by <span className="text-lilac">@{createdHandle}</span>
               </>
             )}
           </li>
-          {sprint.startedBy != null && sprint.status !== 'planning' && (
+          {sprint.status !== 'planning' && (sprint.startedAt || sprint.startedBy != null) && (
             <li>
-              Started {formatDateTime(sprint.updatedAt)} by{' '}
-              <span className="text-lilac">@user{sprint.startedBy}</span>
+              Started {formatDateTime(sprint.startedAt ?? sprint.updatedAt)}
+              {startedHandle && (
+                <>
+                  {' '}by <span className="text-lilac">@{startedHandle}</span>
+                </>
+              )}
             </li>
           )}
           <li>Last edited {relativeTime(sprint.updatedAt)}</li>
@@ -65,12 +70,9 @@ export function SettingsSidebar({ sprint }: { sprint: SprintDetail }) {
 
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); // 24h HH:mm
+  return `${date} · ${time}`;
 }
 
 function relativeTime(iso: string): string {

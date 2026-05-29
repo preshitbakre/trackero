@@ -30,8 +30,8 @@ export function Tabs({ tabs, active, onChange, className = '' }: TabsProps) {
             role="tab"
             aria-selected={isActive}
             onClick={() => onChange(t.key)}
-            className={`px-4 py-2 text-[13px] font-medium border-b-2 inline-flex items-center gap-2 transition-colors ${
-              isActive ? 'border-ink text-text' : 'border-transparent text-mute hover:text-text'
+            className={`px-4 py-2 text-[13px] font-medium border-b-2 inline-flex items-center gap-2 transition-colors outline-none focus:outline-none focus-visible:outline-none ${
+              isActive ? 'border-lilac text-text' : 'border-transparent text-mute hover:text-text'
             }`}
           >
             {t.icon}

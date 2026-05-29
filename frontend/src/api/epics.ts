@@ -159,6 +159,27 @@ export async function getEpicChildren(
   return data.data;
 }
 
+export interface EpicRecentRow {
+  id: number;
+  action: string;
+  fieldChanged: string | null;
+  oldValue: string | null;
+  newValue: string | null;
+  createdAt: string;
+  itemKey: string | null;
+  isEpic: boolean;
+  user: EpicUser | null;
+}
+
+export async function getEpicRecent(
+  projectId: number | string,
+  epicId: number | string,
+  limit = 8,
+): Promise<EpicRecentRow[]> {
+  const { data } = await apiClient.get(`${base(projectId)}/${epicId}/recent`, { params: { limit } });
+  return data.data ?? [];
+}
+
 export async function getEpicMilestones(
   projectId: number | string,
   epicId: number | string,
