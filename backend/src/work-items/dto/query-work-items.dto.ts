@@ -1,5 +1,5 @@
-import { IsOptional, IsString, IsInt, IsIn } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsOptional, IsString, IsInt, IsIn, IsBoolean } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
 
 export class QueryWorkItemsDto {
   @IsOptional()
@@ -37,6 +37,13 @@ export class QueryWorkItemsDto {
   @Type(() => Number)
   @IsInt()
   sprintId?: number;
+
+  // When true (and no explicit sprintId), filters to items that have ANY sprint
+  // assigned — i.e. excludes backlog (sprintId IS NULL).
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  hasSprint?: boolean;
 
   @IsOptional()
   @Type(() => Number)

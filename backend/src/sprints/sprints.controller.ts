@@ -127,6 +127,16 @@ export class SprintsController {
     return this.sprintsService.cancel(projectId, sprintId, user.userId);
   }
 
+  @Get(':sprintId/items')
+  @Roles('admin', 'project_manager', 'member', 'viewer')
+  @ResponseCode('SPRINT_ITEMS_LISTED')
+  async items(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('sprintId', ParseIntPipe) sprintId: number,
+  ) {
+    return this.sprintsService.getSprintItems(projectId, sprintId);
+  }
+
   @Get(':sprintId/burndown')
   @Roles('admin', 'project_manager', 'member', 'viewer')
   @ResponseCode('SPRINT_BURNDOWN')

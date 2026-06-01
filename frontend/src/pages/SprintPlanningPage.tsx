@@ -62,6 +62,22 @@ function DraggableTask({ task, readOnly, subtaskCount, showAssignee }: { task: P
   );
 }
 
+function SubtaskRow({ subtask }: { subtask: PlanTask }) {
+  // Subtasks are read-only on the planning surface — they inherit the parent's
+  // sprint. Rendered indented under the parent so the planner sees the full
+  // breakdown without being able to drag them independently.
+  return (
+    <div className="flex items-center gap-2 pl-9 pr-3 py-1.5 border-b border-rule/40 bg-transparent">
+      <TypeTag kind="subtask" size="sm" />
+      <span className="text-[12px] font-mono text-mute flex-shrink-0">{subtask.itemKey || `#${subtask.itemNumber}`}</span>
+      <span className="flex-1 text-[12px] truncate text-mute">{subtask.title}</span>
+      {subtask.storyPoints != null && subtask.storyPoints > 0 && (
+        <span className="text-[12px] text-faint flex-shrink-0">{subtask.storyPoints}</span>
+      )}
+    </div>
+  );
+}
+
 function DroppableZone({ id, children, label }: { id: string; children: React.ReactNode; label: string }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
@@ -78,9 +94,13 @@ export function SprintPlanningPage() {
   const [backlogItems, setBacklogItems] = useState<PlanTask[]>([]);
   const [sprintItems, setSprintItems] = useState<PlanTask[]>([]);
   const [subtaskCounts, setSubtaskCounts] = useState<Map<number, number>>(new Map());
+  const [subtasksByParent, setSubtasksByParent] = useState<Map<number, PlanTask[]>>(new Map());
   const [starting, setStarting] = useState(false);
 
-  const { isReadOnly } = useRole();
+  const { isReadOnly: roleReadOnly } = useRole();
+  // Completed/cancelled sprints are immutable here — no drops, no save.
+  const isSprintLocked = sprint?.status === 'completed' || sprint?.status === 'cancelled';
+  const isReadOnly = roleReadOnly || isSprintLocked;
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const [activeTask, setActiveTask] = useState<PlanTask | null>(null);
   const dragRequestSeq = useRef<number>(0);
@@ -103,14 +123,26 @@ export function SprintPlanningPage() {
         itemType: i.itemType || i.type || 'task',
       }));
 
-      // Count subtasks per parent
+      // Subtasks: fetch and group by parentId. The planner sees them nested
+      // under their parent so the full work breakdown is visible while choosing
+      // what to commit. Subtasks themselves are read-only here — they inherit
+      // the parent's sprint, so dragging them independently makes no sense.
       const counts = new Map<number, number>();
+      const byParent = new Map<number, PlanTask[]>();
       const subRes = await apiClient.get(`/projects/${projectId}/items?itemType=subtask&limit=500`);
-      const subtasks = subRes.data.data.list || [];
+      const subtasks: PlanTask[] = (subRes.data.data.list || []).map((s: any) => ({
+        ...s,
+        itemType: s.itemType || s.type || 'subtask',
+      }));
       for (const st of subtasks) {
-        if (st.parentId) counts.set(st.parentId, (counts.get(st.parentId) || 0) + 1);
+        if (!st.parentId) continue;
+        counts.set(st.parentId, (counts.get(st.parentId) || 0) + 1);
+        const list = byParent.get(st.parentId) || [];
+        list.push(st);
+        byParent.set(st.parentId, list);
       }
       setSubtaskCounts(counts);
+      setSubtasksByParent(byParent);
 
       setBacklogItems(allItems.filter((t) => t.sprintId === null || t.sprintId === undefined));
       setSprintItems(allItems.filter((t) => t.sprintId === parseInt(sprintId!)));
@@ -122,6 +154,7 @@ export function SprintPlanningPage() {
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || !projectId) return;
+    if (isSprintLocked) return;
 
     const taskId = active.id as number;
     const target = String(over.id);
@@ -186,8 +219,8 @@ export function SprintPlanningPage() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-faint mb-1">
-            PLANNING
-            {startLabel ? ` · STARTS ${startLabel}` : ''}
+            {sprint?.status === 'active' ? 'MID-SPRINT SCOPE CHANGE' : 'PLANNING'}
+            {startLabel ? ` · ${sprint?.status === 'active' ? 'STARTED' : 'STARTS'} ${startLabel}` : ''}
             {lengthDays ? ` · ${lengthDays} DAYS` : ''}
           </div>
           <h1 className="font-serif text-[36px] text-text">
@@ -196,45 +229,57 @@ export function SprintPlanningPage() {
           </h1>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <button
-            type="button"
-            disabled={isReadOnly}
-            onClick={async () => {
-              if (!projectId || !sprintId) return;
-              try {
-                await apiClient.put(`/projects/${projectId}/sprints/${sprintId}`, {
-                  name: sprint?.name,
-                  goal: sprint?.goal ?? null,
-                });
-                toast('Draft saved.', 'success');
-              } catch (err: any) {
-                toast(err.response?.data?.message || 'Save failed', 'error');
-              }
-            }}
-            className="px-4 h-9 rounded-md bg-card text-text border border-rule hover:bg-paper text-[13px] font-medium disabled:opacity-50"
-          >
-            Save draft
-          </button>
-          <button
-            type="button"
-            disabled={isReadOnly || starting || sprint?.status !== 'planning'}
-            onClick={async () => {
-              if (!projectId || !sprintId) return;
-              setStarting(true);
-              try {
-                await apiClient.post(`/projects/${projectId}/sprints/${sprintId}/start`);
-                toast('Sprint started.', 'success');
-                loadData();
-              } catch (err: any) {
-                toast(err.response?.data?.message || 'Could not start sprint', 'error');
-              } finally {
-                setStarting(false);
-              }
-            }}
-            className="px-4 h-9 rounded-md bg-lilac text-white hover:bg-lilac-dark text-[13px] font-medium disabled:opacity-50"
-          >
-            {starting ? 'Starting…' : sprint?.status === 'active' ? 'Sprint started' : 'Start sprint  →'}
-          </button>
+          {sprint?.status === 'active' && (
+            <Link
+              to={`/projects/${projectId}/sprints/${sprintId}`}
+              className="px-4 h-9 inline-flex items-center rounded-md bg-card text-text border border-rule hover:bg-paper text-[13px] font-medium"
+            >
+              ← Back to sprint
+            </Link>
+          )}
+          {sprint?.status === 'planning' && (
+            <button
+              type="button"
+              disabled={isReadOnly}
+              onClick={async () => {
+                if (!projectId || !sprintId) return;
+                try {
+                  await apiClient.put(`/projects/${projectId}/sprints/${sprintId}`, {
+                    name: sprint?.name,
+                    goal: sprint?.goal ?? null,
+                  });
+                  toast('Draft saved.', 'success');
+                } catch (err: any) {
+                  toast(err.response?.data?.message || 'Save failed', 'error');
+                }
+              }}
+              className="px-4 h-9 rounded-md bg-card text-text border border-rule hover:bg-paper text-[13px] font-medium disabled:opacity-50"
+            >
+              Save draft
+            </button>
+          )}
+          {sprint?.status === 'planning' && (
+            <button
+              type="button"
+              disabled={isReadOnly || starting}
+              onClick={async () => {
+                if (!projectId || !sprintId) return;
+                setStarting(true);
+                try {
+                  await apiClient.post(`/projects/${projectId}/sprints/${sprintId}/start`);
+                  toast('Sprint started.', 'success');
+                  loadData();
+                } catch (err: any) {
+                  toast(err.response?.data?.message || 'Could not start sprint', 'error');
+                } finally {
+                  setStarting(false);
+                }
+              }}
+              className="px-4 h-9 rounded-md bg-lilac text-white hover:bg-lilac-dark text-[13px] font-medium disabled:opacity-50"
+            >
+              {starting ? 'Starting…' : 'Start sprint  →'}
+            </button>
+          )}
         </div>
       </div>
       </PageHeader>
@@ -250,7 +295,12 @@ export function SprintPlanningPage() {
             <DroppableZone id="backlog-zone" label="DRAG RIGHT →">
               <SortableContext items={backlogItems.map((t) => t.id)} strategy={verticalListSortingStrategy}>
                 {backlogItems.map((task) => (
-                  <DraggableTask key={task.id} task={task} readOnly={isReadOnly} subtaskCount={subtaskCounts.get(task.id)} />
+                  <div key={task.id}>
+                    <DraggableTask task={task} readOnly={isReadOnly} subtaskCount={subtaskCounts.get(task.id)} />
+                    {(subtasksByParent.get(task.id) || []).map((st) => (
+                      <SubtaskRow key={st.id} subtask={st} />
+                    ))}
+                  </div>
                 ))}
               </SortableContext>
               {backlogItems.length === 0 && <p className="text-[12px] text-faint text-center py-4">No backlog items</p>}
@@ -263,10 +313,15 @@ export function SprintPlanningPage() {
               <span className="text-[12px] text-mute">{sprintItems.length} items · {committedPoints} pts committed</span>
               <span className="ml-auto text-[11px] uppercase tracking-[0.16em] text-faint">↑↓ TO RE-ORDER</span>
             </div>
-            <DroppableZone id="sprint-zone" label="DROP TO COMMIT">
+            <DroppableZone id="sprint-zone" label={sprint?.status === 'active' ? 'DROP TO ADD MID-SPRINT' : 'DROP TO COMMIT'}>
               <SortableContext items={sprintItems.map((t) => t.id)} strategy={verticalListSortingStrategy}>
                 {sprintItems.map((task) => (
-                  <DraggableTask key={task.id} task={task} readOnly={isReadOnly} subtaskCount={subtaskCounts.get(task.id)} showAssignee />
+                  <div key={task.id}>
+                    <DraggableTask task={task} readOnly={isReadOnly} subtaskCount={subtaskCounts.get(task.id)} showAssignee />
+                    {(subtasksByParent.get(task.id) || []).map((st) => (
+                      <SubtaskRow key={st.id} subtask={st} />
+                    ))}
+                  </div>
                 ))}
               </SortableContext>
               {sprintItems.length === 0 && <p className="text-[12px] text-faint text-center py-4">Drag items here</p>}

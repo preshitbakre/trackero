@@ -170,7 +170,7 @@ describe('Board Endpoint (e2e)', () => {
 
     it('enriches every card correctly across a multi-card multi-column board', async () => {
       // Epic the tasks belong to
-      const epicRes = await createItem({ itemType: 'epic', title: 'Epic One', color: '#AABBCC' });
+      const epicRes = await createItem({ itemType: 'epic', title: 'Epic One' });
       const epicId = epicRes.body.data.item.id;
 
       // Task A — backlog column, 2 subtasks (1 done), belongs to epic, blocked, has comment+attachment
@@ -222,7 +222,6 @@ describe('Board Endpoint (e2e)', () => {
       expect(a.commentCount).toBe(2);
       expect(a.attachmentCount).toBe(1);
       expect(a.hasBlockers).toBe(true);
-      expect(a.epicColor).toBe('#AABBCC');
       expect(a.parentRef).toBeNull();
 
       const b = allItems.find((t: any) => t.id === taskBId);
@@ -231,7 +230,6 @@ describe('Board Endpoint (e2e)', () => {
       expect(b.commentCount).toBe(0);
       expect(b.attachmentCount).toBe(0);
       expect(b.hasBlockers).toBe(false);
-      expect(b.epicColor).toBe('#AABBCC');
 
       const c = allItems.find((t: any) => t.id === taskCId);
       expect(c.subtaskCount).toBe(0);
@@ -239,11 +237,9 @@ describe('Board Endpoint (e2e)', () => {
       expect(c.commentCount).toBe(0);
       expect(c.attachmentCount).toBe(0);
       expect(c.hasBlockers).toBe(false);
-      expect(c.epicColor).toBeNull();
 
       const d = allItems.find((t: any) => t.id === bugDId);
       expect(d.itemType).toBe('bug');
-      expect(d.epicColor).toBe('#AABBCC');
       expect(d.hasBlockers).toBe(false);
 
       // Subtask cards: parentRef correct

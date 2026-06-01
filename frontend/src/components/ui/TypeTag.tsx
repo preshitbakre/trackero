@@ -4,7 +4,7 @@ export type TypeTagKind = 'task' | 'bug' | 'story' | 'epic' | 'subtask';
 
 interface TypeTagProps {
   kind: TypeTagKind;
-  size?: 'sm' | 'md';
+  size?: 'xs' | 'sm' | 'md';
   className?: string;
 }
 
@@ -25,7 +25,7 @@ const LETTERS: Record<TypeTagKind, string> = {
  */
 export function TypeTag({ kind, size = 'sm', className = '' }: TypeTagProps) {
   const palette = TYPE_TAG_BG[kind] ?? TYPE_TAG_BG.task;
-  const sizePx = size === 'md' ? 20 : 16;
+  const sizePx = size === 'md' ? 20 : size === 'xs' ? 14 : 16;
   return (
     <span
       role="img"
@@ -36,7 +36,7 @@ export function TypeTag({ kind, size = 'sm', className = '' }: TypeTagProps) {
         height: sizePx,
         backgroundColor: palette.bg,
         color: palette.color,
-        fontSize: size === 'md' ? 11 : 9,
+        fontSize: size === 'md' ? 11 : size === 'xs' ? 8 : 9,
         lineHeight: 1,
       }}
     >

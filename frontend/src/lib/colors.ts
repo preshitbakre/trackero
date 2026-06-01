@@ -97,3 +97,27 @@ export const TYPE_ICONS: Record<string, string> = {
 
 /** Project dot rotation (under the sidebar projects header) */
 export const PROJECT_DOT_COLORS = ['#7C3AED', '#88A9D6', '#88D68E', '#D6B588', '#D688D0'];
+
+/**
+ * Project / epic-lifecycle status palette. Covers directory + Today + epic
+ * surfaces (`on_track`, `planning`, `in_flight`, `blocked`, …) — work-item
+ * statuses (backlog/todo/in_progress/…) live in STATUS_BADGE_COLORS above.
+ * `epic_at_risk` is an epic-only amber so the shared red `at_risk` stays
+ * available for Today/directory.
+ */
+export const PROJECT_STATUS_PALETTE: Record<string, { bg: string; color: string }> = {
+  on_track: { bg: '#88D68E20', color: '#3E8E44' },
+  planning: { bg: '#88A9D620', color: '#3F5E8E' },
+  ends_today: { bg: '#D6B58830', color: '#8C6638' },
+  at_risk: { bg: '#E0525215', color: '#E05252' },
+  idle: { bg: '#E8E3F0', color: '#6B6377' },
+  no_sprint: { bg: '#E8E3F0', color: '#A8A1B5' },
+  archived: { bg: '#E8E3F0', color: '#A8A1B5' },
+  active: { bg: '#7C3AED15', color: '#7C3AED' },
+  shipped: { bg: '#88D68E20', color: '#3E8E44' },
+  ends_in_days: { bg: '#7C3AED15', color: '#6326D6' },
+  in_flight: { bg: '#7C3AED15', color: '#6326D6' },
+  blocked: { bg: '#E0525215', color: '#E05252' },
+  draft: { bg: '#E8E3F0', color: '#A8A1B5' },
+  epic_at_risk: { bg: '#E88A4818', color: '#B5631F' },
+};

@@ -176,7 +176,7 @@ export function TodayPage() {
         </section>
       </main>
       <aside className="bg-[var(--paper-2)] border-l border-[var(--line)] overflow-y-auto">
-        <SprintCard sprint={data.currentSprint} summary={data.summary} />
+        <SprintCard sprint={data.currentSprint} summary={data.summary} projectId={projectId} />
         <LiveRail presence={data.presence} />
         <ActivityRail activity={data.activity} />
       </aside>
@@ -284,9 +284,7 @@ function ThreeThings({ items, assignedCount }: { items: TodayPayload['triage']; 
       <header className="mb-5 flex items-center justify-between gap-3">
         <div className="flex items-baseline gap-3">
           <h2 className="serif text-[28px] text-ink">Your three things</h2>
-          <span className="text-[12px] text-[var(--ink-3)]">
-            auto-prioritized · <span className="kbd">⌥</span> to re-rank
-          </span>
+          <span className="text-[12px] text-[var(--ink-3)]">auto-prioritized</span>
         </div>
         {assignedCount > 0 && (
           <Link to="/today?filter=assigned" className="btn-ghost text-[12px]">
@@ -426,9 +424,10 @@ function DueSoonPanel({ items, total }: { items: TodayPayload['dueSoon']; total:
   );
 }
 
-function SprintCard({ sprint, summary }: {
+function SprintCard({ sprint, summary, projectId }: {
   sprint: TodayPayload['currentSprint'];
   summary: TodayPayload['summary'];
+  projectId: string | null;
 }) {
   // Design (rail at 340px): the sprint surface is THREE sibling sections
   // separated by 1px --line dividers, not one bordered card.
@@ -437,11 +436,12 @@ function SprintCard({ sprint, summary }: {
   //   Section 3 — 2×2 metrics:   pad 0 (full-bleed), cells own their pad,
   //                              the inner grid lines also use --line.
   if (!sprint) {
+    const sprintsHref = projectId ? `/projects/${projectId}/sprints` : '/projects';
     return (
       <section className="px-6 py-6 border-b border-[var(--line)]">
         <div className="smallcaps mb-2">No active sprint</div>
         <p className="text-[13px] text-[var(--ink-4)]">
-          Open <Link to="/projects" className="text-[var(--accent)] hover:underline">Projects</Link> and start one.
+          Open <Link to={sprintsHref} className="text-[var(--accent)] hover:underline">Sprints</Link> and start one.
         </p>
       </section>
     );

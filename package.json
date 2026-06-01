@@ -1,21 +1,23 @@
 {
   "name": "trackero",
   "version": "1.11.1",
-  "description": "",
-  "main": "index.js",
-  "directories": {
-    "doc": "docs"
+  "description": "Self-hosted project management for small teams — sprints, epics, Kanban, retrospectives, and more.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AntimortaleBlueAgate/trackero.git"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "e2e:regression": "playwright test e2e/regression"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": ["project-management", "agile", "kanban", "scrum", "sprints", "self-hosted"],
+  "author": "BlueAgate <hello@blueagate.in>",
+  "license": "AGPL-3.0",
   "type": "commonjs",
   "devDependencies": {
     "@playwright/test": "^1.60.0",
+    "canvas": "^3.2.3",
+    "gif-encoder": "^0.7.2",
+    "playwright": "^1.60.0",
     "socket.io-client": "^4.8.3"
   }
 }

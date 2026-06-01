@@ -150,7 +150,13 @@ export function SettingsTab({ sprint, onSaved }: SettingsTabProps) {
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 onBlur={() => {
-                  if (startDate !== (sprint.startDate ?? '')) save({ startDate });
+                  if (startDate === (sprint.startDate ?? '')) return;
+                  if (startDate && endDate && startDate > endDate) {
+                    toast('Start date cannot be after end date', 'error');
+                    setStartDate(sprint.startDate ?? '');
+                    return;
+                  }
+                  save({ startDate });
                 }}
                 disabled={readOnly || sprint.status !== 'planning'}
               />
@@ -161,7 +167,13 @@ export function SettingsTab({ sprint, onSaved }: SettingsTabProps) {
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 onBlur={() => {
-                  if (endDate !== (sprint.endDate ?? '')) save({ endDate });
+                  if (endDate === (sprint.endDate ?? '')) return;
+                  if (startDate && endDate && endDate < startDate) {
+                    toast('End date cannot be before start date', 'error');
+                    setEndDate(sprint.endDate ?? '');
+                    return;
+                  }
+                  save({ endDate });
                 }}
                 disabled={readOnly || sprint.status !== 'planning'}
               />

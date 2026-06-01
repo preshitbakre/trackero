@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
+import { BarChart3, Filter } from 'lucide-react';
+import BurndownIcon from '@/assets/icons/charts.svg?react';
 import { apiClient } from '../api/client';
 import { toast } from '../components/common/Toast';
 import { useRole } from '../hooks/useRole';
-import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { Button } from '../components/ui/Button';
 import { Textarea } from '../components/ui/Textarea';
 import { CardSkeleton } from '../components/common/Skeleton';
@@ -12,7 +13,6 @@ import { ErrorState } from '../components/common/ErrorState';
 import { Eyebrow } from '../components/ui/Eyebrow';
 import { PageHeader } from '../components/ui/PageHeader';
 import { KbdKey } from '../components/ui/KbdKey';
-import { MetricNumber } from '../components/ui/MetricNumber';
 import { StatusPill } from '../components/ui/StatusPill';
 import { AvatarStack } from '../components/ui/AvatarStack';
 import { VelocityChart } from '../components/sprints/VelocityChart';
@@ -35,9 +35,12 @@ interface Sprint {
   totalPoints?: number;
   completedPoints?: number;
   assignees?: SprintAssignee[];
-  statusCounts?: { open?: number; in_progress?: number; done?: number };
+  statusCounts?: { open?: number; in_progress?: number; in_review?: number; done?: number };
   scopeAdded?: number;
   scopeDropped?: number;
+  blockedCount?: number;
+  projectedPoints?: number;
+  capacityPts?: number;
 }
 
 function formatDate(d: string | null): string {
@@ -48,6 +51,11 @@ function formatDate(d: string | null): string {
 function formatRange(start: string | null, end: string | null): string {
   if (!start || !end) return '';
   return `${formatDate(start)} → ${formatDate(end)}`;
+}
+
+function formatRangeDash(start: string | null, end: string | null): string {
+  if (!start || !end) return '';
+  return `${formatDate(start)} — ${formatDate(end)}`;
 }
 
 function daysBetween(start: string, end: string): number {
@@ -73,6 +81,20 @@ function todayStr(): string {
   return new Date().toISOString().split('T')[0];
 }
 
+function capacityVerdict(
+  projected: number | undefined,
+  capacity: number | undefined,
+): string | null {
+  if (!capacity || projected === undefined || projected === null) return null;
+  if (capacity <= 0) return null;
+  const tolerance = capacity * 0.05;
+  if (Math.abs(projected - capacity) <= tolerance) return 'on capacity';
+  if (projected < capacity * 0.9) return 'well under capacity';
+  if (projected < capacity) return 'slightly under capacity';
+  if (projected > capacity * 1.1) return 'well over capacity';
+  return 'slightly over capacity';
+}
+
 function addDays(date: string, days: number): string {
   const d = new Date(date + 'T00:00:00');
   d.setDate(d.getDate() + days);
@@ -90,7 +112,6 @@ export function SprintsPage() {
   const [showVelocity, setShowVelocity] = useState(true);
   const [showAllSprints, setShowAllSprints] = useState(false);
   const { canManageProject } = useRole();
-  const [cancellingSprintId, setCancellingSprintId] = useState<number | null>(null);
 
   const loadSprints = useCallback(async () => {
     if (!projectId) return;
@@ -136,32 +157,11 @@ export function SprintsPage() {
     }
   };
 
-  const handleComplete = async (sprintId: number) => {
-    try {
-      await apiClient.post(`/projects/${projectId}/sprints/${sprintId}/complete`);
-      loadSprints();
-      toast('Sprint completed');
-    } catch (err: any) {
-      toast(err.response?.data?.message || 'Failed to complete sprint', 'error');
-    }
-  };
-
-  const handleCancel = async (sprintId: number) => {
-    setCancellingSprintId(null);
-    try {
-      await apiClient.post(`/projects/${projectId}/sprints/${sprintId}/cancel`);
-      loadSprints();
-      toast('Sprint cancelled');
-    } catch (err: any) {
-      toast(err.response?.data?.message || 'Failed to cancel sprint', 'error');
-    }
-  };
-
-  const cancellingName = sprints.find((s) => s.id === cancellingSprintId)?.name || '';
-
   // Derived data
   const activeSprint = sprints.find((s) => s.status === 'active');
-  const planningSprint = sprints.find((s) => s.status === 'planning');
+  const planningSprints = sprints
+    .filter((s) => s.status === 'planning')
+    .sort((a, b) => a.sprintNumber - b.sprintNumber);
   const archivedSprints = sprints.filter((s) => s.status === 'completed' || s.status === 'cancelled');
   const completedSprints = archivedSprints.filter((s) => s.status === 'completed');
   const recentArchive = showAllSprints
@@ -173,6 +173,41 @@ export function SprintsPage() {
     recentCompleted.reduce((sum, s) => sum + (s.completedPoints || 0), 0) /
       Math.max(1, recentCompleted.length),
   );
+
+  // Velocity baseline. If we have a prior 6-sprint window, use that.
+  // Otherwise (≥4 completed) split the available completed sprints in
+  // half and compare recent half vs older half — a noisier signal but
+  // still meaningful for newer projects.
+  const baselineDelta = (() => {
+    if (completedSprints.length >= 7) {
+      const baselineWindow = completedSprints.slice(6, 12);
+      if (!baselineWindow.length) return null;
+      const baselineAvg = Math.round(
+        baselineWindow.reduce((sum, s) => sum + (s.completedPoints || 0), 0) /
+          baselineWindow.length,
+      );
+      return baselineAvg > 0
+        ? Math.round(((avgVelocity - baselineAvg) / baselineAvg) * 100)
+        : null;
+    }
+    if (completedSprints.length >= 4) {
+      const half = Math.floor(completedSprints.length / 2);
+      const recentHalf = completedSprints.slice(0, completedSprints.length - half);
+      const olderHalf = completedSprints.slice(completedSprints.length - half);
+      const recentAvg = Math.round(
+        recentHalf.reduce((s, x) => s + (x.completedPoints || 0), 0) /
+          Math.max(1, recentHalf.length),
+      );
+      const olderAvg = Math.round(
+        olderHalf.reduce((s, x) => s + (x.completedPoints || 0), 0) /
+          Math.max(1, olderHalf.length),
+      );
+      return olderAvg > 0
+        ? Math.round(((recentAvg - olderAvg) / olderAvg) * 100)
+        : null;
+    }
+    return null;
+  })();
 
   // Loading / error states
   if (loading) {
@@ -197,20 +232,16 @@ export function SprintsPage() {
   if (sprints.length === 0) {
     return (
       <>
-        <PageHeader className="flex items-start justify-between">
+        <PageHeader className="flex items-end justify-between">
           <div>
             <Eyebrow>Project · Backstage · 0 sprints</Eyebrow>
             <h1 className="font-serif text-[36px] text-text mt-1">Sprints</h1>
           </div>
           {canManageProject && (
-            <button
-              type="button"
-              onClick={() => setShowCreate(true)}
-              className="btn btn-accent inline-flex items-center gap-2"
-            >
+            <Button variant="ink" onClick={() => setShowCreate(true)} className="inline-flex items-center gap-2">
               + Plan a sprint
               <KbdKey tone="on-accent">S</KbdKey>
-            </button>
+            </Button>
           )}
         </PageHeader>
 
@@ -304,9 +335,9 @@ export function SprintsPage() {
 
   return (
     <>
-      <PageHeader className="flex items-start justify-between gap-6 flex-wrap">
+      <PageHeader className="flex items-end justify-between gap-6 flex-wrap">
         <div>
-          <Eyebrow>Project · Backstage · {sprints.length} sprints</Eyebrow>
+          <Eyebrow>Project · Backstage · {sprints.length} sprint{sprints.length === 1 ? '' : 's'}</Eyebrow>
           <h1 className="font-serif text-[36px] text-text mt-1">
             Sprints
             {subtitleParts.length > 0 && (
@@ -318,19 +349,21 @@ export function SprintsPage() {
           <button
             type="button"
             onClick={() => setShowVelocity((v) => !v)}
-            className={`btn-ghost ${showVelocity ? 'bg-shade' : ''}`}
+            className={`btn-ghost inline-flex items-center gap-2 ${showVelocity ? 'bg-shade' : ''}`}
           >
+            <BarChart3 size={14} aria-hidden />
             Velocity
           </button>
           <button
             type="button"
             onClick={() => setShowAllSprints((v) => !v)}
-            className={`btn-ghost ${showAllSprints ? 'bg-shade' : ''}`}
+            className={`btn-ghost inline-flex items-center gap-2 ${showAllSprints ? 'bg-shade' : ''}`}
           >
+            <Filter size={14} aria-hidden />
             All sprints
           </button>
           {canManageProject && (
-            <Button onClick={() => setShowCreate(true)} className="gap-2">
+            <Button variant="ink" onClick={() => setShowCreate(true)} className="inline-flex items-center gap-2">
               + Plan a sprint
               <KbdKey tone="on-accent">S</KbdKey>
             </Button>
@@ -338,131 +371,244 @@ export function SprintsPage() {
         </div>
       </PageHeader>
 
-      <div className="px-[28px] py-6">
-      {/* Velocity panel */}
-      {showVelocity && completedSprints.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 py-5 border-b border-rule mb-8">
-          <div>
-            <div className="smallcaps mb-2">Avg velocity · last 6</div>
-            <div className="flex items-baseline gap-2">
-              <MetricNumber size="xl">{avgVelocity}</MetricNumber>
-              <span className="text-[14px] text-mute">pts</span>
-            </div>
-            <div className="text-[12px] text-mute mt-1">across last {recentCompleted.length} completed sprint{recentCompleted.length !== 1 ? 's' : ''}</div>
-          </div>
-          <div className="md:col-span-1">
-            <div className="smallcaps mb-2">Velocity by sprint</div>
-            <VelocityChart
-              sprints={[...completedSprints].reverse().slice(-8).map((s) => ({
-                sprintNumber: s.sprintNumber,
-                completedPoints: s.completedPoints || 0,
-                status: s.status,
-              }))}
-              currentSprintNumber={activeSprint?.sprintNumber}
-            />
-          </div>
-          {activeSprint && (
-            <div>
-              <div className="smallcaps mb-2">This sprint · S-{activeSprint.sprintNumber}</div>
-              <div className="flex items-baseline gap-2">
-                <MetricNumber size="lg">{activeSprint.completedPoints || 0}</MetricNumber>
-                <span className="font-serif italic text-[18px] text-mute">of</span>
-                <MetricNumber size="lg">{activeSprint.totalPoints || 0}</MetricNumber>
-                <span className="text-[12px] text-mute">pts</span>
+      {/* Velocity panel — full-width tinted strip with edge-to-edge bottom rule
+          and explicit vertical dividers between the 3 columns. Mirrors the
+          design's `grid-template-columns: 210px 1fr 220px` shell. */}
+      {showVelocity && (
+        <div className="bg-paper-2 border-b border-rule">
+          <div className="grid grid-cols-1 md:grid-cols-[260px_minmax(0,1fr)_280px]">
+            {/* AVG VELOCITY · LAST N */}
+            <div className="px-[22px] py-[18px] md:border-r md:border-rule">
+              <div className="text-[10px] font-semibold tracking-[0.12em] uppercase text-mute mb-1.5">
+                Avg velocity · last {Math.max(1, recentCompleted.length)}
               </div>
-              <div className="text-[12px] text-mute mt-1">day {dayOfSprint(activeSprint)} of {totalDays(activeSprint)}</div>
+              {completedSprints.length > 0 ? (
+                <>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="font-serif text-[38px] leading-none text-text">{avgVelocity}</span>
+                    <span className="font-serif italic text-[14px] text-mute">pts</span>
+                  </div>
+                  <div className="text-[11px] mt-1.5 font-mono tracking-[-0.005em]">
+                    {baselineDelta !== null ? (
+                      <span className="text-lilac font-semibold">
+                        {baselineDelta >= 0 ? '+' : ''}
+                        {baselineDelta}% {baselineDelta >= 0 ? 'over' : 'under'} baseline
+                      </span>
+                    ) : (
+                      <span className="text-mute">
+                        across last {recentCompleted.length} completed sprint
+                        {recentCompleted.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="font-serif text-[38px] leading-none text-faint">—</span>
+                    <span className="font-serif italic text-[14px] text-mute">pts</span>
+                  </div>
+                  <div className="text-[11px] font-mono text-mute mt-1.5">
+                    No completed sprints yet
+                  </div>
+                </>
+              )}
             </div>
-          )}
+
+            {/* VELOCITY BY SPRINT — max 7, active last (rightmost) */}
+            <div className="px-[24px] py-[14px] md:border-r md:border-rule">
+              <div className="text-[10px] font-semibold tracking-[0.12em] uppercase text-mute mb-2">
+                Velocity by sprint
+              </div>
+              {(completedSprints.length > 0 || activeSprint) ? (
+                <VelocityChart
+                  sprints={(() => {
+                    // Build chronological series (oldest -> newest). Pick the
+                    // most recent 7 sprints with the active sprint last when
+                    // present, so the chart always anchors on "now".
+                    const recent = [...completedSprints]
+                      .sort((a, b) => a.sprintNumber - b.sprintNumber)
+                      .slice(-6);
+                    const series = activeSprint
+                      ? [...recent, activeSprint]
+                      : recent;
+                    return series
+                      .slice(-7)
+                      .map((s) => ({
+                        sprintNumber: s.sprintNumber,
+                        completedPoints: s.completedPoints || 0,
+                        status: s.status,
+                      }));
+                  })()}
+                  currentSprintNumber={activeSprint?.sprintNumber}
+                />
+              ) : (
+                <div className="flex items-end h-[56px]">
+                  <span className="font-serif text-[38px] text-faint leading-none">—</span>
+                </div>
+              )}
+            </div>
+
+            {/* THIS SPRINT · S-N */}
+            <div className="px-[22px] py-[18px]">
+              <div className="text-[10px] font-semibold tracking-[0.12em] uppercase text-mute mb-1">
+                This sprint{activeSprint ? ` · S-${activeSprint.sprintNumber}` : ''}
+              </div>
+              {activeSprint ? (
+                <>
+                  <div className="flex items-baseline gap-1.5 flex-wrap">
+                    <span className="font-serif text-[26px] leading-none text-lilac">{activeSprint.completedPoints || 0}</span>
+                    <span className="font-serif italic text-[14px] text-mute">of {activeSprint.totalPoints || 0} pts</span>
+                    <span className="font-mono text-[10.5px] text-mute">· day {dayOfSprint(activeSprint)}</span>
+                  </div>
+                  {(activeSprint.projectedPoints ?? null) !== null && (
+                    <div className="font-mono text-[10.5px] text-mute mt-1">
+                      Projected ·{' '}
+                      <span className="text-lilac font-semibold">
+                        {activeSprint.projectedPoints}
+                      </span>{' '}
+                      pts
+                      {(() => {
+                        const verdict = capacityVerdict(
+                          activeSprint.projectedPoints,
+                          activeSprint.capacityPts,
+                        );
+                        return verdict ? ` · ${verdict}` : null;
+                      })()}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex items-baseline gap-1.5">
+                  <span className="font-serif text-[26px] text-faint leading-none">—</span>
+                  <span className="font-serif italic text-[14px] text-mute">no active sprint</span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
+      <div className="px-[28px] py-6">
       {/* CURRENT */}
       {activeSprint && (
         <div className="mb-8">
-          <Eyebrow className="mb-3">Current</Eyebrow>
+          <Eyebrow className="mb-3 text-lilac">Current</Eyebrow>
           <SprintCard
             sprint={activeSprint}
             variant="active"
             projectId={projectId!}
             canManage={canManageProject}
-            onComplete={() => handleComplete(activeSprint.id)}
-            onCancel={() => setCancellingSprintId(activeSprint.id)}
             onNavigate={() => navigate(`/projects/${projectId}/sprints/${activeSprint.id}`)}
           />
         </div>
       )}
 
       {/* NEXT UP · PLANNING */}
-      {planningSprint && (
-        <div className="mb-8">
-          <Eyebrow className="mb-3">Next up · Planning</Eyebrow>
-          <SprintCard
-            sprint={planningSprint}
-            variant="planning"
-            projectId={projectId!}
-            canManage={canManageProject}
-            hasActiveSprint={!!activeSprint}
-            onStart={() => handleStart(planningSprint.id)}
-            onCancel={() => setCancellingSprintId(planningSprint.id)}
-            onNavigate={() => navigate(`/projects/${projectId}/sprints/${planningSprint.id}`)}
-          />
-        </div>
-      )}
-
-      {/* ARCHIVE */}
-      {archivedSprints.length > 0 && (
-        <div>
-          <Eyebrow className="mb-3">
-            Archive · {showAllSprints ? `all ${archivedSprints.length}` : 'last 12 weeks'}
-          </Eyebrow>
-          <div className="bg-card border border-rule">
-            {/* Table header */}
-            <div className="row-head flex items-center px-4">
-              <div className="w-[40px]">#</div>
-              <div className="flex-1">Goal</div>
-              <div className="w-[160px]">Dates</div>
-              <div className="w-[80px]">Velocity</div>
-              <div className="w-[90px]">Status</div>
-              <div className="w-[140px]">Team</div>
-              <div className="w-[60px] text-right">Retro</div>
-            </div>
-            {recentArchive.map((s) => (
-              <button
-                type="button"
-                key={s.id}
-                onClick={() => navigate(`/projects/${projectId}/sprints/${s.id}`)}
-                className="w-full flex items-center h-[44px] border-b border-rule px-4 text-[13px] hover:bg-paper transition-colors text-left last:border-b-0"
-              >
-                <div className="w-[40px] font-serif text-[18px] text-text">{s.sprintNumber}</div>
-                <div className="flex-1 truncate text-text pr-3">{s.goal || s.name}</div>
-                <div className="w-[160px] text-mute text-[12px]">{formatRange(s.startDate, s.endDate)}</div>
-                <div className="w-[80px] font-mono text-[12px] text-text">{s.completedPoints || 0} pts</div>
-                <div className="w-[90px]">
-                  <StatusPill status={s.status === 'completed' ? 'shipped' : 'cancelled'} />
-                </div>
-                <div className="w-[140px]">
-                  <AvatarStack users={s.assignees || []} max={5} size="xs" />
-                </div>
-                <div className="w-[60px] text-right">
-                  {s.status === 'completed' ? (
-                    <span
-                      className="text-text underline decoration-rule underline-offset-2 text-[12px]"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/projects/${projectId}/sprints/${s.id}/retro`);
-                      }}
-                    >
-                      open →
-                    </span>
-                  ) : (
-                    <span className="text-faint">—</span>
-                  )}
-                </div>
-              </button>
+      <div className="mb-8">
+        <Eyebrow className="mb-3">Next up · Planning</Eyebrow>
+        {planningSprints.length > 0 ? (
+          <div className="space-y-3">
+            {planningSprints.map((ps) => (
+              <SprintCard
+                key={ps.id}
+                sprint={ps}
+                variant="planning"
+                projectId={projectId!}
+                canManage={canManageProject}
+                hasActiveSprint={!!activeSprint}
+                onStart={() => handleStart(ps.id)}
+                onNavigate={() => navigate(`/projects/${projectId}/sprints/${ps.id}`)}
+              />
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="bg-card border border-rule p-6 flex items-center justify-between gap-4 flex-wrap">
+            <div className="text-[13px] text-mute">
+              Nothing queued. Plan your next sprint to set the next goal.
+            </div>
+            {canManageProject && (
+              <button
+                type="button"
+                onClick={() => setShowCreate(true)}
+                className="btn-ghost"
+              >
+                + Plan a sprint
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ARCHIVE */}
+      <div>
+        <Eyebrow className="mb-3">
+          Archive{archivedSprints.length > 0 ? ` · ${showAllSprints ? `all ${archivedSprints.length}` : 'last 12 weeks'}` : ''}
+        </Eyebrow>
+        {archivedSprints.length === 0 ? (
+          <div className="bg-card border border-rule p-6 text-[13px] text-mute">
+            Nothing shipped yet.
+          </div>
+        ) : (
+          <table className="w-full bg-card border border-rule text-[13px]" style={{ tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>
+            <colgroup>
+              <col style={{ width: 50 }} />
+              <col />
+              <col style={{ width: 160 }} />
+              <col style={{ width: 90 }} />
+              <col style={{ width: 120 }} />
+              <col style={{ width: 160 }} />
+              <col style={{ width: 80 }} />
+            </colgroup>
+            <thead>
+              <tr className="row-head text-left">
+                <th className="px-4 font-medium">#</th>
+                <th className="px-4 font-medium">Goal</th>
+                <th className="px-4 font-medium">Dates</th>
+                <th className="px-4 font-medium">Velocity</th>
+                <th className="px-4 font-medium">Status</th>
+                <th className="px-4 font-medium">Team</th>
+                <th className="px-4 font-medium text-right">Retro</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentArchive.map((s) => (
+                <tr
+                  key={s.id}
+                  onClick={() => navigate(`/projects/${projectId}/sprints/${s.id}`)}
+                  className="h-[52px] border-t border-rule hover:bg-paper transition-colors cursor-pointer"
+                >
+                  <td className="px-4 font-serif text-[18px] text-text">{s.sprintNumber}</td>
+                  <td className="px-4 text-text truncate overflow-hidden">{s.goal || s.name}</td>
+                  <td className="px-4 text-mute text-[12px] whitespace-nowrap">{formatRange(s.startDate, s.endDate)}</td>
+                  <td className="px-4 font-mono text-[12px] text-text whitespace-nowrap">{s.completedPoints || 0} pts</td>
+                  <td className="px-4 whitespace-nowrap overflow-hidden">
+                    <StatusPill status={s.status === 'completed' ? 'shipped' : 'cancelled'} caps dot />
+                  </td>
+                  <td className="px-4 overflow-hidden">
+                    <AvatarStack users={s.assignees || []} max={5} size="xs" />
+                  </td>
+                  <td className="px-4 text-right whitespace-nowrap">
+                    {s.status === 'completed' ? (
+                      <span
+                        className="text-text underline decoration-rule underline-offset-2 text-[12px]"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/projects/${projectId}/sprints/${s.id}/retro`);
+                        }}
+                      >
+                        open →
+                      </span>
+                    ) : (
+                      <span className="text-faint">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
       </div>
 
       {/* Dialogs */}
@@ -476,16 +622,6 @@ export function SprintsPage() {
         />
       )}
 
-      {cancellingSprintId !== null && (
-        <ConfirmDialog
-          title="Cancel sprint"
-          message={`Cancel "${cancellingName}"? All tasks will be moved to the backlog.`}
-          confirmLabel="Cancel sprint"
-          danger
-          onConfirm={() => handleCancel(cancellingSprintId)}
-          onCancel={() => setCancellingSprintId(null)}
-        />
-      )}
     </>
   );
 }
@@ -497,9 +633,22 @@ interface SprintCardProps {
   canManage: boolean;
   hasActiveSprint?: boolean;
   onStart?: () => void;
-  onComplete?: () => void;
-  onCancel?: () => void;
   onNavigate?: () => void;
+}
+
+function formatEndDateUpper(d: string | null): string {
+  if (!d) return '';
+  return new Date(d + 'T00:00:00')
+    .toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    .toUpperCase();
+}
+
+function formatStartLabel(d: string | null): string {
+  if (!d) return '';
+  const date = new Date(d + 'T00:00:00');
+  const weekday = date.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+  const md = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
+  return `STARTS ${weekday} · ${md}`;
 }
 
 function SprintCard({
@@ -509,8 +658,6 @@ function SprintCard({
   canManage,
   hasActiveSprint,
   onStart,
-  onComplete,
-  onCancel,
   onNavigate,
 }: SprintCardProps) {
   const navigate = useNavigate();
@@ -519,170 +666,241 @@ function SprintCard({
   const totalPoints = sprint.totalPoints || 0;
   const completedPoints = sprint.completedPoints || 0;
   const completedPct = totalPoints > 0 ? Math.min(100, Math.round((completedPoints / totalPoints) * 100)) : 0;
+  const timePct = Math.min(100, Math.round((day / total) * 100));
   const remaining = daysUntil(sprint.endDate);
 
   const counts = sprint.statusCounts || {};
   const openCount = counts.open ?? 0;
   const inProgressCount = counts.in_progress ?? 0;
+  const inReviewCount = counts.in_review ?? 0;
   const doneCount = counts.done ?? 0;
-  const totalItems = sprint.taskCount ?? (openCount + inProgressCount + doneCount);
+  const wipCount = inProgressCount + inReviewCount;
+  const totalItems = sprint.taskCount ?? (openCount + inProgressCount + inReviewCount + doneCount);
   const added = sprint.scopeAdded ?? 0;
   const dropped = sprint.scopeDropped ?? 0;
+  const blockedCount = sprint.blockedCount ?? 0;
 
-  // Capacity for planning: target ~ defaultDuration * avg per day; we just show committed
-  // We don't have a true capacity number; show committed pts and use a meter sized to itself.
-  const capacityTarget = Math.max(totalPoints, 1);
+  // Planning capacity meter — prefer real capacityPts when present.
+  const capacityPts = sprint.capacityPts ?? 0;
+  const capacityTarget = Math.max(capacityPts, totalPoints, 1);
   const meterSegments = 10;
-  const meterFilled = Math.min(meterSegments, Math.round((totalPoints / capacityTarget) * meterSegments));
+  const meterFilled = Math.min(
+    meterSegments,
+    Math.round((totalPoints / capacityTarget) * meterSegments),
+  );
 
-  const summaryParts: string[] = [];
-  summaryParts.push(`${totalItems} on deck`);
+  // Scope summary (avatars + "N on deck · +X added, −Y dropped")
+  const scopeParts: string[] = [`${totalItems} on deck`];
   if (added > 0 || dropped > 0) {
     const scope: string[] = [];
     if (added > 0) scope.push(`+${added} added`);
     if (dropped > 0) scope.push(`−${dropped} dropped`);
-    summaryParts.push(scope.join(', '));
+    scopeParts.push(scope.join(', '));
   }
+
+  // Right-rail visual treatments differ per variant:
+  //  • Active sprint  → lavender (paper-2) rail to echo the velocity strip
+  //  • Planning sprint → plain paper rail
+  const rightRailBg = variant === 'active' ? 'bg-paper-2' : 'bg-paper';
+  // 4-col grid widths — design uses 320/220 for active and 220/180 for
+  // planning (planning card is shorter because it has fewer metrics).
+  const gridCols = variant === 'active'
+    ? 'md:grid-cols-[52px_minmax(0,1fr)_320px_220px]'
+    : 'md:grid-cols-[52px_minmax(0,1fr)_220px_180px]';
 
   return (
     <div
-      className="bg-card border border-rule p-5 hover:border-text/30 transition-colors cursor-pointer"
+      className={`bg-card border border-rule grid grid-cols-1 ${gridCols} hover:border-text/30 transition-colors ${onNavigate ? 'cursor-pointer' : ''}`}
       onClick={onNavigate}
     >
-      <div className="flex items-start justify-between gap-4 mb-3">
-        <div className="flex items-baseline gap-3">
-          <MetricNumber size="lg" className="text-text">{sprint.sprintNumber}</MetricNumber>
-          <span className="text-[11px] text-mute tracking-[0.08em] uppercase">sprint</span>
-          <StatusPill status={variant === 'active' ? 'active' : 'planning'} />
+      {/* LEFT — dark rail (52px) with number + 'SPRINT' eyebrow */}
+      <div className="bg-text text-paper flex flex-col items-center justify-center py-5 md:py-0 shrink-0">
+        <div className="font-serif text-[32px] leading-none">{sprint.sprintNumber}</div>
+        <div className="mt-1.5 text-[9px] font-semibold tracking-[0.18em] uppercase text-paper/60">
+          sprint
+        </div>
+      </div>
+
+      {/* MIDDLE-LEFT — status row / italic goal / avatars + scope */}
+      <div className="min-w-0 px-7 py-5 border-t md:border-t-0 md:border-l border-rule flex flex-col justify-center">
+        <div className="flex items-center gap-2.5 flex-wrap mb-2.5">
+          <StatusPill status={variant === 'active' ? 'active' : 'planning'} caps dot />
           <span className="font-mono text-[11px] text-faint">S-{sprint.sprintNumber}</span>
-          <span className="text-[12px] text-mute">{formatRange(sprint.startDate, sprint.endDate)}</span>
+          <span className="text-[12px] text-mute">
+            · {formatRangeDash(sprint.startDate, sprint.endDate)}
+          </span>
           {variant === 'active' && (
-            <span className="text-[12px] text-mute">· day {day}/{total}</span>
+            <span className="text-[12px] text-lilac font-semibold">
+              · day {day}/{total}
+            </span>
+          )}
+        </div>
+
+        {sprint.goal && (
+          <div className="font-serif italic text-[22px] leading-[1.15] text-text mb-3">
+            “{sprint.goal}”
+          </div>
+        )}
+
+        <div className="flex items-center gap-3 flex-wrap">
+          {sprint.assignees && sprint.assignees.length > 0 && (
+            <AvatarStack users={sprint.assignees} max={6} size="sm" />
+          )}
+          <div className="text-[12px] text-mute">{scopeParts.join(' · ')}</div>
+          {variant === 'active' && blockedCount > 0 && (
+            <StatusPill status="blocked" hint={String(blockedCount)} caps dot />
           )}
         </div>
       </div>
 
-      {sprint.goal && (
-        <div className="font-serif italic text-[15px] text-text mb-4">
-          “{sprint.goal}”
-        </div>
-      )}
+      {/* MIDDLE-RIGHT — metrics / bars / stat strip (or capacity meter for planning) */}
+      <div className="px-5 py-4 border-t md:border-t-0 md:border-l border-rule flex flex-col justify-center">
+        {variant === 'active' && (
+          <>
+            <div className="flex items-baseline gap-2 mb-2.5">
+              <span className="font-serif text-[26px] leading-none text-text">{completedPoints}</span>
+              <span className="font-serif italic text-[14px] text-mute">of {totalPoints}</span>
+              <span className="ml-auto font-mono text-[10px] uppercase tracking-[0.06em] text-mute">pts done</span>
+            </div>
 
-      <div className="flex items-center gap-4 mb-4 flex-wrap">
-        {sprint.assignees && sprint.assignees.length > 0 && (
-          <AvatarStack users={sprint.assignees} max={6} size="sm" />
+            {/* WORK bar */}
+            <div className="mb-2.5">
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-mute">Work</span>
+                <span className="font-mono text-[10.5px] text-text font-semibold">{completedPct}%</span>
+              </div>
+              <div className="pbar accent w-full">
+                <i style={{ width: `${completedPct}%` }} />
+              </div>
+            </div>
+
+            {/* TIME bar */}
+            <div className="mb-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-mute">Time</span>
+                <span className="font-mono text-[10.5px] text-text">
+                  day <span className="font-semibold">{day}/{total}</span>
+                </span>
+              </div>
+              <div className="pbar w-full">
+                <i style={{ width: `${timePct}%` }} />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-5 text-[11.5px] text-mute flex-wrap">
+              <div>
+                <span className="font-semibold text-text">{doneCount}</span> done
+              </div>
+              <div>
+                <span className="font-semibold text-text">{wipCount}</span> WIP
+              </div>
+              <div>
+                <span className="font-semibold text-text">{openCount}</span> open
+              </div>
+            </div>
+          </>
         )}
-        <div className="text-[12px] text-mute">
-          {summaryParts.join(' · ')}
-        </div>
+
+        {variant === 'planning' && (
+          <>
+            <div className="text-[10px] font-semibold tracking-[0.12em] uppercase text-mute mb-2">
+              Capacity
+            </div>
+            <div className="flex items-baseline gap-2 mb-2">
+              <span className="font-serif text-[26px] leading-none text-text">{totalPoints}</span>
+              {capacityPts > 0 ? (
+                <span className="font-serif italic text-[13px] text-mute">
+                  of {capacityPts} pts committed
+                </span>
+              ) : (
+                <span className="font-serif italic text-[13px] text-mute">
+                  pts committed
+                </span>
+              )}
+            </div>
+            <div className="meter w-full mb-2.5">
+              {Array.from({ length: meterSegments }).map((_, i) => (
+                <i key={i} className={i < meterFilled ? 'on' : ''} />
+              ))}
+            </div>
+            <div className="text-[11.5px] text-mute">
+              {totalItems} item{totalItems === 1 ? '' : 's'} queued
+              {sprint.assignees && sprint.assignees.length > 0 && (
+                <> · velocity {Math.round((completedPoints + totalPoints) / 2) || totalPoints} pts</>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
-      {variant === 'active' && (
-        <>
-          <div className="pbar accent w-full mb-2">
-            <i style={{ width: `${completedPct}%` }} />
-          </div>
-          <div className="flex items-center gap-6 text-[12px] text-mute mb-4 flex-wrap">
-            <div>
-              <span className="text-faint">Work</span>{' '}
-              <span className="font-semibold text-text">{completedPct}%</span>
+      {/* RIGHT — light rail (buttons + footer) */}
+      <div
+        className={`border-t md:border-t-0 md:border-l border-rule ${rightRailBg} px-[18px] py-[14px] flex flex-col justify-center gap-2`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {variant === 'active' && (
+          <>
+            <button
+              type="button"
+              className="btn justify-between w-full"
+              onClick={() => navigate(`/projects/${projectId}/board?sprint=${sprint.id}`)}
+            >
+              <span>Open board</span>
+              <span aria-hidden>→</span>
+            </button>
+            <button
+              type="button"
+              className="btn-ghost justify-center w-full"
+              onClick={() => navigate(`/projects/${projectId}/sprints/${sprint.id}`)}
+            >
+              <BurndownIcon width={14} height={14} aria-hidden />
+              <span>Burndown</span>
+            </button>
+            <div className="mt-1 text-[9.5px] font-mono font-semibold tracking-[0.06em] uppercase text-mute text-center">
+              {remaining === 0 ? 'ENDS TODAY' : `ENDS IN ${remaining}D`}
+              {sprint.endDate && (
+                <> · {formatEndDateUpper(sprint.endDate)}</>
+              )}
             </div>
-            <div>
-              <span className="text-faint">Time</span>{' '}
-              <span className="font-semibold text-text">day {day}/{total}</span>
-            </div>
-            <div>
-              <span className="font-semibold text-text">{doneCount}</span> done
-            </div>
-            <div>
-              <span className="font-semibold text-text">{inProgressCount}</span> WIP
-            </div>
-            <div>
-              <span className="font-semibold text-text">{openCount}</span> open
-            </div>
-            <div className="ml-auto text-[12px] text-mute">
-              {completedPoints} of {totalPoints} pts
-            </div>
-          </div>
-        </>
-      )}
+          </>
+        )}
 
-      {variant === 'planning' && (
-        <>
-          <div className="meter w-full mb-2">
-            {Array.from({ length: meterSegments }).map((_, i) => (
-              <i key={i} className={i < meterFilled ? 'on' : ''} />
-            ))}
-          </div>
-          <div className="flex items-center gap-6 text-[12px] text-mute mb-4 flex-wrap">
-            <div>
-              <span className="text-faint">Capacity</span>{' '}
-              <span className="font-semibold text-text">{totalPoints} pts</span> committed
-            </div>
-            <div>
-              <span className="font-semibold text-text">{totalItems}</span> items queued
-            </div>
-          </div>
-        </>
-      )}
-
-      {canManage && (
-        <div
-          className="flex items-center gap-2 pt-3 border-t border-rule flex-wrap"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {variant === 'active' && (
-            <>
+        {variant === 'planning' && (
+          <>
+            {canManage ? (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-accent justify-center w-full"
+                  onClick={() => navigate(`/projects/${projectId}/sprints/${sprint.id}/planning`)}
+                >
+                  Continue planning
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost justify-center w-full"
+                  onClick={onStart}
+                  disabled={hasActiveSprint}
+                  title={hasActiveSprint ? 'Another sprint is already active' : 'Start sprint'}
+                >
+                  Start now
+                </button>
+              </>
+            ) : (
               <button
                 type="button"
-                className="btn-ghost"
-                onClick={() => navigate(`/projects/${projectId}/board`)}
-              >
-                Open board
-              </button>
-              <button
-                type="button"
-                className="btn-ghost"
+                className="btn-ghost justify-center w-full"
                 onClick={() => navigate(`/projects/${projectId}/sprints/${sprint.id}`)}
               >
-                Burndown
+                View
               </button>
-              <Button size="sm" variant="success" onClick={onComplete}>
-                Complete
-              </Button>
-              <Button size="sm" variant="ghost" onClick={onCancel}>
-                Cancel sprint
-              </Button>
-              <span className="ml-auto text-[12px] text-mute">
-                {remaining === 0 ? 'ends today' : `ends in ${remaining}d`}
-              </span>
-            </>
-          )}
-          {variant === 'planning' && (
-            <>
-              <button
-                type="button"
-                className="btn btn-accent"
-                onClick={() => navigate(`/projects/${projectId}/sprints/${sprint.id}/planning`)}
-              >
-                Continue planning
-              </button>
-              <button
-                type="button"
-                className="btn-ghost"
-                onClick={onStart}
-                disabled={hasActiveSprint}
-                title={hasActiveSprint ? 'Another sprint is already active' : 'Start sprint'}
-              >
-                {sprint.startDate ? `Start now: ${formatDate(sprint.startDate)}` : 'Start now'}
-              </button>
-              <Button size="sm" variant="ghost" onClick={onCancel} className="ml-auto">
-                Cancel
-              </Button>
-            </>
-          )}
-        </div>
-      )}
+            )}
+            <div className="mt-1 text-[9.5px] font-mono font-semibold tracking-[0.06em] uppercase text-mute text-center">
+              {sprint.startDate ? formatStartLabel(sprint.startDate) : 'NOT SCHEDULED'}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

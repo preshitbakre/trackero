@@ -73,7 +73,7 @@ describe('Epics List Endpoint (e2e)', () => {
 
   it('returns epics with progress and childBreakdown via associations', async () => {
     // Epic with story + tasks linked via belongs_to
-    const epicRes = await createItem({ itemType: 'epic', title: 'Auth', color: '#7C5CFC', priority: 'high' });
+    const epicRes = await createItem({ itemType: 'epic', title: 'Auth', priority: 'high' });
     const epicId = epicRes.body.data.item.id;
 
     const storyRes = await createItem({ itemType: 'story', title: 'Login' });
@@ -99,7 +99,6 @@ describe('Epics List Endpoint (e2e)', () => {
     expect(epic.id).toBe(epicId);
     expect(epic.itemType).toBe('epic');
     expect(epic.title).toBe('Auth');
-    expect(epic.color).toBe('#7C5CFC');
     expect(epic.priority).toBe('high');
 
     // Descendants via belongs_to CTE:

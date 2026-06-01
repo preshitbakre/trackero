@@ -179,6 +179,7 @@ export class SprintsService {
     const assigneesBySprint = new Map<number, Array<{ id: number; displayName: string; avatarUrl: string | null }>>();
     const statusCountsBySprint = new Map<number, Record<string, number>>();
     const scopeDeltasBySprint = new Map<number, { added: number; removed: number }>();
+    const blockedCountBySprint = new Map<number, number>();
     if (sprintIds.length > 0) {
       const rows = await this.dataSource.query(`
         SELECT
@@ -226,9 +227,10 @@ export class SprintsService {
       `, [sprintIds]);
       for (const r of statusRows) {
         if (!statusCountsBySprint.has(r.sprint_id)) {
-          statusCountsBySprint.set(r.sprint_id, { open: 0, in_progress: 0, done: 0 });
+          statusCountsBySprint.set(r.sprint_id, { open: 0, in_progress: 0, in_review: 0, done: 0 });
         }
-        // DB `backlog` → API `open` (user-facing term per design specs)
+        // DB `backlog` → API `open` (user-facing term per design specs).
+        // `in_review` and `in_progress` map straight through.
         const apiKey = r.category === 'backlog' ? 'open' : r.category;
         statusCountsBySprint.get(r.sprint_id)![apiKey] = r.n;
       }
@@ -246,20 +248,59 @@ export class SprintsService {
         else if (r.action === 'removed') deltas.removed = r.n;
         scopeDeltasBySprint.set(r.sprint_id, deltas);
       }
+
+      // Blocked items per sprint — distinct top-level work items with at
+      // least one outgoing `blocks` association whose target item is not
+      // in a done-category status. Mirrors the `has_open_blocker` EXISTS
+      // pattern in today.service.ts (lines 211-217). Scoped to the same
+      // item types the stats query uses (no bugs/subtasks).
+      const blockedRows = await this.dataSource.query(`
+        SELECT wi.sprint_id, COUNT(DISTINCT wi.id)::int AS n
+        FROM work_items wi
+        WHERE wi.sprint_id = ANY($1)
+          AND wi.item_type IN ('task', 'epic', 'story')
+          AND EXISTS (
+            SELECT 1 FROM work_item_associations a
+             JOIN work_items wi2 ON wi2.id = a.linked_item_id
+             JOIN project_statuses ps2 ON ps2.id = wi2.status_id
+            WHERE a.item_id = wi.id AND a.link_type = 'blocks'
+              AND ps2.category != 'done'
+          )
+        GROUP BY wi.sprint_id
+      `, [sprintIds]);
+      for (const r of blockedRows) {
+        blockedCountBySprint.set(r.sprint_id, r.n);
+      }
+    }
+
+    // Auto-capacity per sprint — reuses computeAutoCapacity() (the average
+    // of the last 3 completed sprints' completedPoints, excluding the
+    // current sprint). Returns 0 when there are no prior completed sprints.
+    // Computed per-sprint because the historical window excludes the
+    // current sprint id.
+    const capacityBySprint = new Map<number, number>();
+    for (const s of sprints) {
+      capacityBySprint.set(s.id, await this.computeAutoCapacity(projectId, s.id));
     }
 
     const data = sprints.map((sprint) => {
       const stats = statsBySprint.get(sprint.id);
       const deltas = scopeDeltasBySprint.get(sprint.id);
+      const totalPoints = stats?.total_points ?? 0;
+      const completedPoints = stats?.completed_points ?? 0;
+      const projectedPoints = this.computeProjectedPoints(sprint, totalPoints, completedPoints);
       return {
         ...sprint,
         taskCount: stats?.task_count ?? 0,
-        totalPoints: stats?.total_points ?? 0,
-        completedPoints: stats?.completed_points ?? 0,
+        totalPoints,
+        completedPoints,
+        projectedPoints,
         assignees: assigneesBySprint.get(sprint.id) ?? [],
-        statusCounts: statusCountsBySprint.get(sprint.id) ?? { open: 0, in_progress: 0, done: 0 },
+        statusCounts: statusCountsBySprint.get(sprint.id) ?? { open: 0, in_progress: 0, in_review: 0, done: 0 },
         scopeAdded: deltas?.added ?? 0,
         scopeDropped: deltas?.removed ?? 0,
+        blockedCount: blockedCountBySprint.get(sprint.id) ?? 0,
+        capacityPts: capacityBySprint.get(sprint.id) ?? 0,
       };
     });
 
@@ -380,6 +421,46 @@ export class SprintsService {
       ) t
     `, [projectId, sprintId]);
     return auto.auto_capacity;
+  }
+
+  /**
+   * Linear forecast of where a sprint will land in story points.
+   *
+   * - Not started (planning or no startDate) → totalPoints (assume all
+   *   committed work is in scope).
+   * - Finished (completedAt set OR endDate in the past) → completedPoints
+   *   (the actual landing point).
+   * - In flight → completedPoints + burnRate * daysRemaining, where
+   *   burnRate = completedPoints / max(1, daysElapsed). Clamped to an
+   *   integer >= completedPoints so the projection never regresses below
+   *   what's already shipped.
+   */
+  private computeProjectedPoints(
+    sprint: Sprint,
+    totalPoints: number,
+    completedPoints: number,
+  ): number {
+    if (sprint.status === 'planning' || !sprint.startDate) {
+      return totalPoints;
+    }
+    const now = new Date();
+    const endDate = sprint.endDate ? new Date(sprint.endDate) : null;
+    const isOver = sprint.completedAt != null || (endDate != null && endDate.getTime() < now.getTime());
+    if (isOver) {
+      return completedPoints;
+    }
+    if (!endDate) {
+      // In flight but no end date — best we can do is the current completed total.
+      return completedPoints;
+    }
+    const startDate = new Date(sprint.startDate);
+    const MS_PER_DAY = 86400000;
+    const daysElapsed = Math.max(1, Math.ceil((now.getTime() - startDate.getTime()) / MS_PER_DAY));
+    const daysTotal = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / MS_PER_DAY));
+    const daysRemaining = Math.max(0, daysTotal - daysElapsed);
+    const burnRate = completedPoints / daysElapsed;
+    const projected = Math.round(completedPoints + burnRate * daysRemaining);
+    return Math.max(completedPoints, projected);
   }
 
   /**
@@ -795,6 +876,86 @@ export class SprintsService {
    * sprint's createdBy as fallback when the item has no assignee. A future
    * migration will add actor_id and resolve this properly.
    */
+  /**
+   * Returns ALL non-deleted items in a sprint (top-level items + their
+   * subtasks) as a single flat list, no pagination. Used by the Sprint
+   * Overview tab where status grouping needs the full set in one shot.
+   * Subtasks are included because they live under parents (subtasks
+   * themselves carry sprint_id = null and attach via parent_id).
+   */
+  async getSprintItems(projectId: number, sprintId: number) {
+    const sprint = await this.findOneEntity(projectId, sprintId);
+
+    const rows = await this.dataSource.query(
+      `WITH sprint_top AS (
+         SELECT id FROM work_items
+         WHERE project_id = $1 AND sprint_id = $2 AND deleted_at IS NULL
+       )
+       SELECT
+         wi.id, wi.item_number, wi.item_type, wi.title, wi.parent_id,
+         wi.story_points, wi.created_at,
+         p.prefix AS project_prefix,
+         ps.id AS status_id, ps.name AS status_name,
+         ps.category AS status_category, ps.color AS status_color,
+         u.id AS assignee_id, u.display_name AS assignee_name,
+         u.avatar_url AS assignee_avatar
+       FROM work_items wi
+       JOIN projects p ON p.id = wi.project_id
+       LEFT JOIN project_statuses ps ON ps.id = wi.status_id
+       LEFT JOIN users u ON u.id = wi.assignee_id
+       WHERE wi.project_id = $1
+         AND wi.deleted_at IS NULL
+         AND (
+           wi.id IN (SELECT id FROM sprint_top)
+           OR wi.parent_id IN (SELECT id FROM sprint_top)
+         )
+       ORDER BY wi.created_at ASC`,
+      [projectId, sprint.id],
+    );
+
+    const ids: number[] = rows.map((r: any) => r.id);
+    let labelsByItem: Record<number, Array<{ id: number; name: string; color: string }>> = {};
+    if (ids.length > 0) {
+      const labelRows = await this.dataSource.query(
+        `SELECT wil.work_item_id, l.id, l.name, l.color
+         FROM work_item_labels wil
+         JOIN labels l ON l.id = wil.label_id
+         WHERE wil.work_item_id = ANY($1)`,
+        [ids],
+      );
+      for (const lr of labelRows) {
+        if (!labelsByItem[lr.work_item_id]) labelsByItem[lr.work_item_id] = [];
+        labelsByItem[lr.work_item_id].push({ id: lr.id, name: lr.name, color: lr.color });
+      }
+    }
+
+    return rows.map((r: any) => ({
+      id: r.id,
+      itemKey: `${r.project_prefix}-${r.item_number}`,
+      itemNumber: r.item_number,
+      itemType: r.item_type,
+      title: r.title,
+      parentId: r.parent_id,
+      storyPoints: r.story_points,
+      status: r.status_id
+        ? {
+            id: r.status_id,
+            name: r.status_name,
+            category: r.status_category,
+            color: r.status_color,
+          }
+        : null,
+      assignee: r.assignee_id
+        ? {
+            id: r.assignee_id,
+            displayName: r.assignee_name ?? '',
+            avatarUrl: r.assignee_avatar ?? null,
+          }
+        : null,
+      labels: labelsByItem[r.id] ?? [],
+    }));
+  }
+
   async getScopeChanges(projectId: number, sprintId: number): Promise<ScopeChangesResponse> {
     const sprint = await this.findOneEntity(projectId, sprintId);
 

@@ -2,6 +2,7 @@ import type { EpicDetail } from '../../api/epics';
 import { epicStateToPill } from '../../api/epics';
 import { StatusPill } from '../../components/ui/StatusPill';
 import type { StatusKey } from '../../components/ui/StatusPill';
+import { Eyebrow } from '../../components/ui/Eyebrow';
 
 function relTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -20,7 +21,7 @@ function fmtDate(d: string): string {
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-[11px] tracking-[0.14em] uppercase text-faint">{label}</p>
+      <Eyebrow size="sm">{label}</Eyebrow>
       <div className="mt-2">{children}</div>
     </div>
   );
@@ -30,7 +31,7 @@ function Section({ label, children }: { label: string; children: React.ReactNode
 export function EpicIdentitySidebar({ epic }: { epic: EpicDetail }) {
   return (
     <aside className="w-[240px] shrink-0 border-l border-rule px-5 py-6 flex flex-col gap-5">
-      <p className="text-[11px] tracking-[0.14em] uppercase text-faint font-semibold">Epic identity</p>
+      <Eyebrow size="sm">Epic identity</Eyebrow>
 
       <Section label="ID">
         <p className="font-mono text-[15px] text-text">{epic.itemKey}</p>

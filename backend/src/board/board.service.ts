@@ -23,6 +23,7 @@ export class BoardService {
     priority?: string;
     epicId?: number;
     storyId?: number;
+    hasSprint?: boolean;
   }) {
     const statuses = await this.statusRepo.find({
       where: { projectId },
@@ -61,6 +62,15 @@ export class BoardService {
             SELECT id FROM work_items WHERE sprint_id = :sprintId AND item_type = 'task'
           ))
         )`, { sprintId: filters.sprintId });
+      } else if (filters.hasSprint) {
+        // "All sprints" — show only items that belong to ANY sprint (no backlog).
+        // Tasks/bugs need their own sprintId; subtasks inherit via parent task.
+        qb.andWhere(`(
+          wi.sprintId IS NOT NULL
+          OR (wi.itemType = 'subtask' AND wi.parentId IN (
+            SELECT id FROM work_items WHERE sprint_id IS NOT NULL AND item_type = 'task'
+          ))
+        )`);
       }
       if (filters.assigneeIds && filters.assigneeIds.length > 0) {
         qb.andWhere('wi.assigneeId IN (:...assigneeIds)', { assigneeIds: filters.assigneeIds });

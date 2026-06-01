@@ -1,46 +1,22 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Flag } from 'lucide-react';
 import { TypeTag } from '../../components/ui/TypeTag';
 import { StatusPill } from '../../components/ui/StatusPill';
 import type { StatusKey } from '../../components/ui/StatusPill';
 import { Avatar } from '../../components/ui/Avatar';
 import { LabelList } from '../../components/ui/LabelBadge';
-import { TYPE_ICON_COLORS } from '../../lib/colors';
+import { epicStateToPill } from '../../api/epics';
 import type { StoryGroup } from './helpers';
-import type { EpicHealth } from './types';
-
-const HEALTH_PALETTE: Record<EpicHealth, { bg: string; color: string; label: string }> = {
-  draft: { bg: '#E8E3F0', color: '#6B6377', label: 'DRAFT' },
-  planning: { bg: '#88A9D620', color: '#3F5E8E', label: 'PLANNING' },
-  in_flight: { bg: '#7C3AED15', color: '#6326D6', label: 'IN FLIGHT' },
-  at_risk: { bg: '#E0525215', color: '#E05252', label: 'AT RISK' },
-  blocked: { bg: '#E0525215', color: '#E05252', label: 'BLOCKED' },
-  shipped: { bg: '#88D68E20', color: '#3E8E44', label: 'SHIPPED' },
-  archived: { bg: '#E8E3F0', color: '#A8A1B5', label: 'ARCHIVED' },
-};
-
-function EpicHealthPill({ health }: { health: EpicHealth }) {
-  const p = HEALTH_PALETTE[health];
-  return (
-    <span
-      className="inline-flex items-center text-[10px] tracking-[0.1em] font-semibold px-2 py-0.5 rounded-full"
-      style={{ backgroundColor: p.bg, color: p.color }}
-    >
-      {p.label}
-    </span>
-  );
-}
 
 function GroupHeader({ group }: { group: StoryGroup }) {
   const { header } = group;
   return (
-    <div className="flex items-center gap-2.5 px-4 pt-5 pb-2">
+    <div className="flex items-center gap-2.5 mb-1">
       {header.kind === 'epic' && header.epicId != null && (
-        <Flag size={13} strokeWidth={2.5} style={{ color: TYPE_ICON_COLORS.epic }} className="flex-shrink-0" aria-hidden />
+        <TypeTag kind="epic" size="xs" />
       )}
       {header.kind === 'epic' && header.epicKey && (
-        <span className="font-mono text-[12px] text-mute">{header.epicKey}</span>
+        <span className="font-mono text-[11px] text-faint">{header.epicKey}</span>
       )}
       {header.kind === 'status' && (
         <span
@@ -49,9 +25,12 @@ function GroupHeader({ group }: { group: StoryGroup }) {
           aria-hidden
         />
       )}
-      <span className="font-serif text-[15px] text-text">{header.title}</span>
-      {header.kind === 'epic' && header.health && <EpicHealthPill health={header.health} />}
-      <span className="ml-auto smallcaps">
+      <span className="text-[14px] font-semibold text-text">{header.title}</span>
+      {header.kind === 'epic' && header.health && (
+        <StatusPill status={epicStateToPill(header.health) as StatusKey} dot caps />
+      )}
+      <div className="flex-1 border-t border-rule mx-1" />
+      <span className="font-mono text-[10.5px] text-faint whitespace-nowrap">
         {header.kind === 'epic'
           ? `${group.doneCount}/${group.totalCount} done · ${group.points} pts`
           : `${group.totalCount} stor${group.totalCount === 1 ? 'y' : 'ies'} · ${group.points} pts`}
@@ -112,27 +91,29 @@ interface Props {
   groups: StoryGroup[];
 }
 
-/** Grouped, dense story table — column header + rows per group. */
 export function StoriesTable({ groups }: Props) {
   const navigate = useNavigate();
   const { id: projectId } = useParams();
 
   return (
-    <div className="bg-card border border-rule">
-      {groups.map((group, gi) => (
-        <div key={group.key} className={gi > 0 ? 'border-t border-rule' : ''}>
+    <div className="space-y-6">
+      {groups.map((group) => (
+        <div key={group.key}>
           <GroupHeader group={group} />
+
           {/* Column header */}
-          <div className="row-head flex items-center px-4">
+          <div className="flex items-center h-[28px] px-3 text-[10px] font-semibold tracking-[0.12em] uppercase text-faint border-b border-rule">
             <div className="w-[28px]" />
-            <div className="w-[88px]">ID</div>
+            <div className="w-[80px]">ID</div>
             <div className="flex-1">Title</div>
             <div className="w-[150px]">Status</div>
             <div className="w-[150px]">Labels</div>
             <div className="w-[48px] text-right">Pts</div>
-            <div className="w-[64px] text-right">Tasks</div>
+            <div className="w-[56px] text-right">Tasks</div>
             <div className="w-[32px]" />
           </div>
+
+          {/* Rows */}
           {group.items.map((s) => {
             const tasksTotal = s.progress?.totalItems ?? 0;
             const tasksDone = s.progress?.completedItems ?? 0;
@@ -144,20 +125,20 @@ export function StoriesTable({ groups }: Props) {
                 tabIndex={0}
                 onClick={() => navigate(href)}
                 onKeyDown={(e) => { if (e.key === 'Enter') navigate(href); }}
-                className="w-full flex items-center h-[44px] border-b border-rule px-4 text-[14px] hover:bg-lilac-tint/50 transition-colors text-left last:border-b-0 cursor-pointer"
+                className="flex items-center h-[42px] border-b border-rule px-3 hover:bg-lilac-tint/50 transition-colors cursor-pointer"
               >
                 <div className="w-[28px]"><TypeTag kind="story" /></div>
-                <div className="w-[88px] font-mono text-[12px] text-mute">{s.itemKey}</div>
-                <div className="flex-1 truncate text-text pr-3">{s.title}</div>
+                <div className="w-[80px] font-mono text-[11px] text-faint">{s.itemKey}</div>
+                <div className="flex-1 truncate text-[13px] text-text pr-3">{s.title}</div>
                 <div className="w-[150px] flex items-center gap-2">
                   {s.assignee && <Avatar user={s.assignee} size="xs" />}
-                  {s.status && <StatusPill status={(s.status.category as StatusKey) || 'backlog'} dot />}
+                  {s.status && <StatusPill status={(s.status.category as StatusKey) || 'backlog'} dot caps />}
                 </div>
                 <div className="w-[150px]"><LabelList labels={s.labels} max={2} /></div>
-                <div className="w-[48px] text-right font-mono text-[12px] text-text">
+                <div className="w-[48px] text-right font-mono text-[11.5px] text-text">
                   {s.storyPoints ?? '—'}
                 </div>
-                <div className="w-[64px] text-right font-mono text-[12px] text-mute">
+                <div className="w-[56px] text-right font-mono text-[11.5px] text-mute">
                   {tasksTotal > 0 ? `${tasksDone}/${tasksTotal}` : '—'}
                 </div>
                 <div className="w-[32px] flex justify-end">

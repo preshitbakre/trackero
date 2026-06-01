@@ -4,6 +4,7 @@ import { toast } from '../../components/common/Toast';
 import { Drawer } from '../../components/common/Drawer';
 import { MarkdownField } from '../../components/ui/MarkdownField';
 import { Eyebrow } from '../../components/ui/Eyebrow';
+import { Button } from '../../components/ui/Button';
 
 interface Props {
   projectId: number;
@@ -64,9 +65,9 @@ export function ReleaseNotesDrawer({ projectId, storyId, storyKey, canEdit, open
 
         {canEdit && (
           <div className="flex items-center gap-2 pt-4 border-t border-rule mt-4">
-            <button type="button" className="btn btn-accent" onClick={() => save(true)}>Publish</button>
-            <button type="button" className="btn-ghost" onClick={() => save(false)}>Save draft</button>
-            <button type="button" className="btn-ghost ml-auto" onClick={onClose}>Close</button>
+            <Button variant="ink" size="sm" onClick={() => save(true)}>Publish</Button>
+            <Button variant="ghost" size="sm" onClick={() => save(false)}>Save draft</Button>
+            <Button variant="ghost" size="sm" className="ml-auto" onClick={onClose}>Close</Button>
           </div>
         )}
       </div>

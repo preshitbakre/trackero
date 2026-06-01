@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../api/client';
+import { toast } from '../../components/common/Toast';
 import { Eyebrow } from '../../components/ui/Eyebrow';
 import { Input } from '../../components/ui/Input';
+import { Button } from '../../components/ui/Button';
 import { Combobox } from '../../components/ui/Combobox';
 import { StoryPointsInput } from '../../components/ui/StoryPointsInput';
 import { StatusPill } from '../../components/ui/StatusPill';
@@ -20,14 +22,14 @@ interface Props {
   onOpenItem: (id: number) => void;
 }
 
-function fmtDate(iso: string | null): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
 function fmtDateTime(iso: string | null): string {
   if (!iso) return '—';
   const d = new Date(iso);
   return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+}
+function fmtDate(iso: string | null): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 function relativeTime(iso: string | null): string {
   if (!iso) return '—';
@@ -74,6 +76,40 @@ export function SettingsTab({ story, projectId, canEdit, epics, onChanged, onOpe
       }
     });
 
+  const moveToBacklog = async () => {
+    try {
+      await apiClient.put(`/projects/${projectId}/items/${story.id}`, { sprintId: null });
+      toast('Moved to backlog');
+      onChanged();
+    } catch { toast('Failed to move', 'error'); }
+  };
+
+  const convertToTask = async () => {
+    try {
+      await apiClient.put(`/projects/${projectId}/items/${story.id}`, { itemType: 'task' });
+      toast('Converted to task');
+      onChanged();
+    } catch { toast('Failed to convert', 'error'); }
+  };
+
+  const deleteStory = async () => {
+    try {
+      // Re-link child tasks/bugs to the parent epic before deleting
+      if (story.epic) {
+        const children = story.associations.contains;
+        await Promise.all(children.map((a) =>
+          apiClient.post(`/projects/${projectId}/items/${a.item.id}/associations`, {
+            linkedItemId: story.epic!.id,
+            linkType: 'belongs_to',
+          }).catch(() => {}),
+        ));
+      }
+      await apiClient.delete(`/projects/${projectId}/items/${story.id}`);
+      toast('Story deleted — children moved to parent epic');
+      onChanged();
+    } catch { toast('Failed to delete', 'error'); }
+  };
+
   const linkOptions = [
     ...story.children.map((c) => ({ id: c.id, itemKey: c.itemKey, title: c.title })),
     ...story.associations.contains.map((a) => ({ id: a.item.id, itemKey: a.item.itemKey, title: a.item.title })),
@@ -82,7 +118,7 @@ export function SettingsTab({ story, projectId, canEdit, epics, onChanged, onOpe
   return (
     <div className="flex-1 min-w-0 flex">
       {/* Form column */}
-      <div className="flex-1 min-w-0 px-[28px] py-6 max-w-[680px]">
+      <div className="flex-1 min-w-0 px-[28px] py-6 overflow-y-auto custom-scrollbar">
         <div className="flex items-center justify-between">
           <h2 className="font-serif text-[22px] text-text">Identity</h2>
           {canEdit && <SaveStatusIndicator status={saveStatus} />}
@@ -130,10 +166,37 @@ export function SettingsTab({ story, projectId, canEdit, epics, onChanged, onOpe
           onChanged={onChanged}
           onOpenItem={onOpenItem}
         />
+
+        {canEdit && (
+          <div className="mt-10">
+            <h2 className="font-serif text-[22px] text-text">Story operations</h2>
+            <div className="flex flex-col gap-4 mt-4">
+              <OperationRow
+                title="Move to backlog"
+                description="Removes from current sprint. Story stays where it is in the hierarchy."
+                buttonLabel="Move…"
+                onClick={moveToBacklog}
+              />
+              <OperationRow
+                title="Convert to a task"
+                description="If this is actually a unit of engineering work — not a user outcome."
+                buttonLabel="Convert"
+                onClick={convertToTask}
+              />
+              <OperationRow
+                title="Delete this story"
+                description="Soft delete with 7 day grace. Children move to the parent epic."
+                buttonLabel="Delete…"
+                variant="danger"
+                onClick={deleteStory}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Identity / audit rail */}
-      <aside className="w-[280px] flex-shrink-0 bg-paper border-l border-rule px-5 py-6">
+      <aside className="w-[280px] flex-shrink-0 bg-paper-2 border-l border-rule px-5 py-6 overflow-y-auto custom-scrollbar">
         <div className="pb-3 border-b border-rule">
           <Eyebrow size="sm" className="mb-2">Story identity</Eyebrow>
           <div className="flex items-center justify-between py-1 text-[13px]">
@@ -170,4 +233,29 @@ export function SettingsTab({ story, projectId, canEdit, epics, onChanged, onOpe
       runSave(() => apiClient.put(`/projects/${projectId}/items/${story.id}`, { title: title.trim() }));
     }
   }
+}
+
+function OperationRow({ title, description, buttonLabel, variant, onClick }: {
+  title: string;
+  description: string;
+  buttonLabel: string;
+  variant?: 'danger';
+  onClick: () => void;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4 py-3 border-b border-rule last:border-b-0">
+      <div className="min-w-0">
+        <div className="text-[14px] font-medium text-text">{title}</div>
+        <div className="text-[13px] text-mute mt-0.5">{description}</div>
+      </div>
+      <Button
+        variant={variant === 'danger' ? 'danger' : 'secondary'}
+        size="sm"
+        className="flex-shrink-0"
+        onClick={onClick}
+      >
+        {buttonLabel}
+      </Button>
+    </div>
+  );
 }

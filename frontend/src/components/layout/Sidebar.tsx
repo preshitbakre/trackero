@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, Search } from 'lucide-react';
 import { apiClient } from '../../api/client';
@@ -15,7 +15,6 @@ import SprintsIcon from '@/assets/icons/sprints.svg?react';
 import EpicsIcon from '@/assets/icons/epics.svg?react';
 import StoriesIcon from '@/assets/icons/stories.svg?react';
 import ChartsIcon from '@/assets/icons/charts.svg?react';
-import RetroIcon from '@/assets/icons/retro.svg?react';
 import MembersIcon from '@/assets/icons/members.svg?react';
 import SettingsIcon from '@/assets/icons/settings.svg?react';
 import EnterKeyGlyph from '@/assets/icons/enter-key.svg?react';
@@ -74,7 +73,6 @@ type NavKey =
   | 'epics'
   | 'stories'
   | 'charts'
-  | 'retro'
   | 'members'
   | 'settings';
 
@@ -86,7 +84,6 @@ const NAV_ICONS: Record<NavKey, FunctionComponent<SVGProps<SVGSVGElement>>> = {
   epics: EpicsIcon,
   stories: StoriesIcon,
   charts: ChartsIcon,
-  retro: RetroIcon,
   members: MembersIcon,
   settings: SettingsIcon,
 };
@@ -106,7 +103,6 @@ const WORK_LINKS: WorkLink[] = [
   { key: 'epics', iconKey: 'epics', label: 'Epics' },
   { key: 'stories', iconKey: 'stories', label: 'Stories' },
   { key: 'charts', iconKey: 'charts', label: 'Charts' },
-  { key: 'retro', iconKey: 'retro', label: 'Retro' },
 ];
 
 const PROJECT_LINKS: WorkLink[] = [
@@ -115,6 +111,7 @@ const PROJECT_LINKS: WorkLink[] = [
 
 export function Sidebar({ projects, currentProjectId, onNavigate }: SidebarProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { canAdminister: isAdmin, canManageProject } = useRole();
   const [showCreate, setShowCreate] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
@@ -215,26 +212,12 @@ export function Sidebar({ projects, currentProjectId, onNavigate }: SidebarProps
       // otherwise Members owns the highlight.
       return settingsTab() !== 'members';
     }
-    if (key === 'retro') {
-      // Retro routes live under a sprint (/sprints/:sprintId/retro);
-      // sprintsList/retro page is also handled by the sprint flow.
-      return /\/sprints\/\d+\/retro\b/.test(location.pathname);
-    }
     return location.pathname.startsWith(`${root}/${key}`);
   };
 
   const link = (project: Project | null, key: string): string => {
     if (!project) return '/dashboard';
     if (key === 'members') return `/projects/${project.id}/settings?tab=members`;
-    if (key === 'retro') {
-      // Retro page is per-sprint (route /sprints/:sprintId/retro). When
-      // an active sprint exists, deep-link to its retro; otherwise route
-      // to the sprints list where the user can pick a completed sprint.
-      if (activeSprint?.id) {
-        return `/projects/${project.id}/sprints/${activeSprint.id}/retro`;
-      }
-      return `/projects/${project.id}/sprints`;
-    }
     return `/projects/${project.id}/${key}`;
   };
 
@@ -500,9 +483,10 @@ export function Sidebar({ projects, currentProjectId, onNavigate }: SidebarProps
       {showCreate && (
         <CreateProjectDialog
           onClose={() => setShowCreate(false)}
-          onCreated={() => {
+          onCreated={(project) => {
             setShowCreate(false);
             document.dispatchEvent(new CustomEvent('projects-updated'));
+            if (project?.id) navigate(`/projects/${project.id}/today`);
           }}
         />
       )}

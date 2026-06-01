@@ -22,7 +22,6 @@ interface BoardTask {
   labels: { id: number; name: string; color: string }[];
   sortOrder: string;
   parentRef: { id: number; itemKey: string; title: string } | null;
-  epicColor: string | null;
 }
 
 interface StatusColumnProps {

@@ -158,11 +158,6 @@ export class WorkItem {
   @Column({ name: 'epic_state', type: 'varchar', length: 16, default: 'draft' })
   epicState: 'draft' | 'planning' | 'in_flight' | 'shipped';
 
-  // User-chosen epic hex color (e.g. '#7C3AED'). When null the API resolves a
-  // palette color by id. Children render this color visually.
-  @Column({ name: 'color', type: 'varchar', length: 9, nullable: true })
-  color: string | null;
-
   // Set when archived. Archived epics are excluded from default lists/filters
   // but kept in history (NOT a soft-delete — `deleted_at` is separate).
   @Column({ name: 'archived_at', type: 'timestamptz', nullable: true })

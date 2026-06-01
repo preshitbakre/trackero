@@ -63,6 +63,7 @@ export const ResponseCodes = {
   SPRINT_CANCELLED:       { code: 'S-0057', message: 'Sprint cancelled' },
   SPRINT_BURNDOWN:        { code: 'S-0058', message: 'Burndown data retrieved' },
   SPRINT_SCOPE_CHANGES:   { code: 'S-0059', message: 'Scope changes retrieved' },
+  SPRINT_ITEMS_LISTED:    { code: 'S-0059A', message: 'Sprint items retrieved' },
 
   // Stories — extended (S-0060 – S-0069)
   STORY_STATS:            { code: 'S-0060', message: 'Story stats retrieved' },

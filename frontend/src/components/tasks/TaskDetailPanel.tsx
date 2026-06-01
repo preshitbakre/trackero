@@ -57,6 +57,8 @@ interface TaskDetail {
   createdAt: string;
   parentId?: number | null;
   parentInfo?: { id: number; taskKey: string; title: string } | null;
+  parentSprintId?: number | null;
+  parentSprintName?: string | null;
   subtasks?: Subtask[];
   checklistItems?: { id: number; title: string; isCompleted: boolean }[];
   blockedBy?: Dependency[];
@@ -195,10 +197,15 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
     return () => { ignored = true; };
   }, [projectId]);
 
-  // For subtasks, fetch parent's sprint name
+  // For subtasks, display the parent's sprint (provided by the API as
+  // parentSprintName). Fall back to an extra fetch for older payloads.
   useEffect(() => {
     if (!task || task.itemType !== 'subtask' || !task.parentId) {
       setParentSprintName('');
+      return;
+    }
+    if (task.parentSprintName !== undefined) {
+      setParentSprintName(task.parentSprintName || 'Backlog');
       return;
     }
     let ignored = false;
@@ -210,7 +217,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
       })
       .catch(() => { if (!ignored) setParentSprintName(''); });
     return () => { ignored = true; };
-  }, [task?.itemType, task?.parentId, projectId]);
+  }, [task?.itemType, task?.parentId, task?.parentSprintName, projectId]);
 
   // Load parent options — only for subtasks
   useEffect(() => {
@@ -519,14 +526,14 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
               onBlur={handleTitleBlur}
               onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
               autoFocus
-              className="w-full serif-i text-[32px] leading-[1.05] bg-transparent border-b border-[var(--accent)] outline-none text-ink"
+              className="w-full serif-i text-[32px] leading-[1.05] bg-transparent border-b border-[var(--accent)] outline-none text-text"
             />
           ) : (
             <h2
               onClick={() => setEditing(true)}
-              className="serif-i text-[32px] leading-[1.05] text-ink cursor-pointer hover:text-[var(--accent)]"
+              className="serif-i text-[32px] leading-[1.05] text-text cursor-pointer hover:text-[var(--accent)]"
             >
-              {task.title}
+              {title || task.title}
             </h2>
           )}
 
@@ -705,14 +712,22 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                     ))}
                   </div>
                 )}
-                {associations.contains?.length > 0 && (
-                  <div>
-                    <span className="text-[12px] text-faint uppercase">Contains</span>
-                    {associations.contains.map((a: any) => (
-                      <AssociationRow key={a.id} assoc={a} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} onClick={() => onNavigateToTask?.(a.item?.id)} />
-                    ))}
-                  </div>
-                )}
+                {/* Subtasks render in the dedicated Subtasks list below — filter
+                    them out of the virtual "contains" group to avoid duplication. */}
+                {(() => {
+                  const containsNonSubtasks = (associations.contains || []).filter(
+                    (a: any) => a.item?.itemType !== 'subtask',
+                  );
+                  if (containsNonSubtasks.length === 0) return null;
+                  return (
+                    <div>
+                      <span className="text-[12px] text-faint uppercase">Contains</span>
+                      {containsNonSubtasks.map((a: any) => (
+                        <AssociationRow key={a.id} assoc={a} onRemove={canEdit ? () => handleRemoveAssociation(a.id) : undefined} onClick={() => onNavigateToTask?.(a.item?.id)} />
+                      ))}
+                    </div>
+                  );
+                })()}
                 {associations.blocks?.length > 0 && (
                   <div>
                     <span className="text-[12px] text-faint uppercase">Blocks</span>

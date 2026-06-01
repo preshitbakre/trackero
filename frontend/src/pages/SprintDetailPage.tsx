@@ -191,6 +191,7 @@ export function SprintDetailPage() {
           onOpenBoard={() => navigate(`/projects/${projectId}/board`)}
           onOpenRetro={() => navigate(`/projects/${projectId}/sprints/${sprintId}/retro`)}
           onReopenAsNew={() => navigate(`/projects/${projectId}/sprints`)}
+          onAddItems={() => navigate(`/projects/${projectId}/sprints/${sprintId}/planning`)}
         />
       </header>
       </PageHeader>
@@ -249,6 +250,7 @@ interface HeaderActionsProps {
   onOpenBoard: () => void;
   onOpenRetro: () => void;
   onReopenAsNew: () => void;
+  onAddItems: () => void;
 }
 
 /**
@@ -264,6 +266,7 @@ function HeaderActions({
   onOpenBoard,
   onOpenRetro,
   onReopenAsNew,
+  onAddItems,
 }: HeaderActionsProps) {
   const { canManageProject } = useRole();
   if (sprint.status === 'planning') {
@@ -272,6 +275,11 @@ function HeaderActions({
         <Button variant="ghost" disabled>
           Edit goal
         </Button>
+        {canManageProject && (
+          <Button variant="secondary" onClick={onAddItems}>
+            Plan items →
+          </Button>
+        )}
         {canManageProject && (
           <Button variant="primary" onClick={onStart}>
             Start sprint ↵
@@ -289,6 +297,11 @@ function HeaderActions({
         <Button variant="secondary" onClick={onOpenBoard}>
           Open board →
         </Button>
+        {canManageProject && (
+          <Button variant="secondary" onClick={onAddItems}>
+            Add items →
+          </Button>
+        )}
         {canManageProject && (
           <Button variant="ink" onClick={onComplete}>
             Complete sprint…

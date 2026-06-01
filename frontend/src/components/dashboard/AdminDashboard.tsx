@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { GreetingBar } from './GreetingBar';
 import { StatCard, StatCardGrid } from './StatCard';
 import { ProjectCard } from './ProjectCard';
@@ -8,6 +9,7 @@ import { CreateProjectDialog } from '../common/CreateProjectDialog';
 import { Button } from '../ui/Button';
 
 export function AdminDashboard({ data }: { data: any }) {
+  const navigate = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
   const safeData = data ?? {};
   const {
@@ -151,9 +153,10 @@ export function AdminDashboard({ data }: { data: any }) {
       {showCreate && (
         <CreateProjectDialog
           onClose={() => setShowCreate(false)}
-          onCreated={() => {
+          onCreated={(project) => {
             setShowCreate(false);
             document.dispatchEvent(new CustomEvent('projects-updated'));
+            if (project?.id) navigate(`/projects/${project.id}/today`);
           }}
         />
       )}

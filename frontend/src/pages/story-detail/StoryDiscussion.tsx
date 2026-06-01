@@ -6,6 +6,7 @@ import { Eyebrow } from '../../components/ui/Eyebrow';
 import { Avatar } from '../../components/ui/Avatar';
 import { CommentBody } from '../../components/ui/CommentBody';
 import { MentionTextarea } from '../../components/ui/MentionTextarea';
+import { Button } from '../../components/ui/Button';
 
 interface Reaction { emoji: string; count: number; byMe: boolean }
 interface Comment {
@@ -104,11 +105,12 @@ export function StoryDiscussion({ projectId, storyId, canEdit }: Props) {
       <div className="flex items-center justify-between mb-3">
         <Eyebrow>Discussion · {comments.length} comment{comments.length === 1 ? '' : 's'}</Eyebrow>
         {comments.length > 2 && (
-          <button type="button" onClick={() => setExpanded((v) => !v)} className="text-[12px] text-lilac-dark hover:underline">
+          <button type="button" onClick={() => setExpanded((v) => !v)} className="text-[12px] text-text hover:underline">
             {expanded ? 'collapse' : 'open thread →'}
           </button>
         )}
       </div>
+      <div className="border-t border-rule -mt-1 mb-4" />
 
       <div className="flex flex-col gap-3">
         {shown.map((c) => {
@@ -132,8 +134,8 @@ export function StoryDiscussion({ projectId, storyId, canEdit }: Props) {
                   <div className="mt-1">
                     <MentionTextarea value={editBody} onChange={setEditBody} onSubmit={() => saveEdit(c.id)} members={members} />
                     <div className="flex gap-2 mt-1">
-                      <button type="button" className="btn btn-accent text-[12px]" onClick={() => saveEdit(c.id)}>Save</button>
-                      <button type="button" className="btn-ghost text-[12px]" onClick={() => setEditingId(null)}>Cancel</button>
+                      <Button variant="ink" size="sm" className="text-[12px]" onClick={() => saveEdit(c.id)}>Save</Button>
+                      <Button variant="ghost" size="sm" className="text-[12px]" onClick={() => setEditingId(null)}>Cancel</Button>
                     </div>
                   </div>
                 ) : (
@@ -171,7 +173,7 @@ export function StoryDiscussion({ projectId, storyId, canEdit }: Props) {
         <div className="mt-4">
           <MentionTextarea value={draft} onChange={setDraft} onSubmit={post} members={members} placeholder="Add to the discussion…" />
           <div className="mt-2">
-            <button type="button" className="btn btn-accent text-[12px]" disabled={!draft.trim()} onClick={post}>Comment</button>
+            <Button variant="ink" size="sm" className="text-[12px]" disabled={!draft.trim()} onClick={post}>Comment</Button>
           </div>
         </div>
       )}

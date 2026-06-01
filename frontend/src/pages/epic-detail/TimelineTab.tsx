@@ -42,8 +42,12 @@ export function TimelineTab({ epic, projectId, canEdit }: Props) {
   };
 
   return (
-    <div className="space-y-6">
-      <AcrossSprintsTimeline data={epic.acrossSprints} displayState={epic.displayState} />
+    <div className="space-y-8">
+      <AcrossSprintsTimeline
+        data={epic.acrossSprints}
+        displayState={epic.displayState}
+        milestones={milestones}
+      />
       <MilestoneFeed milestones={milestones} canEdit={canEdit} onAdd={handleAdd} onDelete={handleDelete} />
     </div>
   );

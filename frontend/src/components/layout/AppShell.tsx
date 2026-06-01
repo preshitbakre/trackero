@@ -86,6 +86,13 @@ export function AppShell() {
     loadProjects();
   }, []);
 
+  // Re-fetch when navigating to a project not yet in the cached list.
+  useEffect(() => {
+    if (currentProjectId && !projects.some((p) => p.id === currentProjectId)) {
+      loadProjects();
+    }
+  }, [currentProjectId]);
+
   useEffect(() => {
     const handler = () => loadProjects();
     document.addEventListener('projects-updated', handler);

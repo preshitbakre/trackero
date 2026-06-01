@@ -349,6 +349,9 @@ export class WorkItemsService {
     // Filter: sprintId
     if (query.sprintId) {
       qb.andWhere('wi.sprintId = :sprintId', { sprintId: query.sprintId });
+    } else if (query.hasSprint) {
+      // "Any sprint" filter — excludes backlog items (sprintId IS NULL).
+      qb.andWhere('wi.sprintId IS NOT NULL');
     }
 
     // Filter: labelId
@@ -580,6 +583,25 @@ export class WorkItemsService {
     // Acceptance criteria (full list + met/total summary).
     const acceptanceCriteria = await this.listAcceptanceCriteria(projectId, id);
 
+    // For subtasks, resolve parent's sprint so the FE can display the inherited
+    // sprint without an extra roundtrip. Subtasks themselves always have
+    // sprintId = null in the DB but inherit display from the parent.
+    let parentSprintId: number | null = null;
+    let parentSprintName: string | null = null;
+    if (item.itemType === 'subtask' && item.parentId) {
+      const [parentSprintRow] = await this.dataSource.query(
+        `SELECT s.id, s.name
+         FROM work_items wi
+         LEFT JOIN sprints s ON s.id = wi.sprint_id
+         WHERE wi.id = $1`,
+        [item.parentId],
+      );
+      if (parentSprintRow?.id) {
+        parentSprintId = parentSprintRow.id;
+        parentSprintName = parentSprintRow.name;
+      }
+    }
+
     const baseResponse = this.formatItemResponse(item, children.length, projectPrefix);
     return {
       ...baseResponse,
@@ -599,6 +621,8 @@ export class WorkItemsService {
       approvedBy: item.approvedBy,
       approvedAt: item.approvedAt,
       approver,
+      parentSprintId,
+      parentSprintName,
       commentCount: parseInt(commentRow.cnt),
       attachmentCount: parseInt(attachmentRow.cnt),
     };

@@ -193,13 +193,27 @@ export function ChartsPage() {
                 { id: 'In Review', data: flowData.map((d: any) => ({ x: d.date, y: d.in_review ?? 0 })) },
                 { id: 'Done', data: flowData.map((d: any) => ({ x: d.date, y: d.done ?? 0 })) },
               ]}
-              margin={{ top: 20, right: 100, bottom: 50, left: 50 }}
+              margin={{ top: 20, right: 100, bottom: 60, left: 50 }}
               xScale={{ type: 'point' }}
               yScale={{ type: 'linear', stacked: true, min: 0 }}
               enableArea={true}
               areaOpacity={0.5}
               colors={['#9BAAB880', '#7B9EBF80', '#C4A88280', '#A78BFA80', '#88B5A880']}
               axisLeft={{ legend: 'Tasks', legendPosition: 'middle', legendOffset: -40 }}
+              axisBottom={{
+                tickRotation: -30,
+                tickValues: (() => {
+                  const len = flowData.length;
+                  if (len <= 8) return flowData.map((d: any) => d.date);
+                  const step = Math.ceil(len / 8);
+                  return flowData.filter((_: any, i: number) => i % step === 0 || i === len - 1).map((d: any) => d.date);
+                })(),
+                format: (value: string) => {
+                  const d = new Date(value);
+                  if (isNaN(d.getTime())) return value;
+                  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                },
+              }}
               legends={[{ anchor: 'bottom-right', direction: 'column', translateX: 90, itemWidth: 70, itemHeight: 20 }]}
             />
           ) : (

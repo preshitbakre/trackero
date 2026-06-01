@@ -1,3 +1,5 @@
+import { Button } from '../../components/ui/Button';
+
 interface Props {
   canEdit: boolean;
   onCreate: () => void;
@@ -40,17 +42,17 @@ export function StoriesEmptyState({ canEdit, onCreate }: Props) {
 
         <div className="flex items-center gap-3">
           {canEdit && (
-            <button type="button" onClick={onCreate} className="btn btn-accent">
+            <Button variant="ink" size="sm" onClick={onCreate}>
               Write your first story →
-            </button>
+            </Button>
           )}
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => window.open('https://www.atlassian.com/agile/project-management/user-stories', '_blank', 'noopener')}
-            className="btn-ghost"
           >
             See examples
-          </button>
+          </Button>
         </div>
       </div>
 

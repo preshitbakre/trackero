@@ -196,12 +196,12 @@ export function PMDashboard({ data }: { data: any }) {
               {epicProgress.map((e: any) => (
                 <div key={e.id}>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: e.color }} />
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-lilac" />
                     <span className="text-[16px] font-medium text-neutral-700 truncate">{e.title ?? ''}</span>
                     <span className="text-[16px] text-neutral-400 ml-auto">{e.progressPercent ?? 0}% ({e.completedTasks ?? 0}/{e.totalTasks ?? 0})</span>
                   </div>
                   <div className="h-1.5 rounded-full bg-neutral-200">
-                    <div className="h-full rounded-full transition-all" style={{ width: `${e.progressPercent ?? 0}%`, backgroundColor: e.color }} />
+                    <div className="h-full rounded-full transition-all bg-lilac" style={{ width: `${e.progressPercent ?? 0}%` }} />
                   </div>
                 </div>
               ))}

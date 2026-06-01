@@ -15,13 +15,13 @@ export function EpicChildRow({ item, onClick }: Props) {
     <button
       type="button"
       onClick={() => onClick?.(item.id)}
-      className="w-full flex items-center gap-3 px-4 py-2.5 text-left border-b border-rule last:border-b-0 hover:bg-lilac-tint/30 transition-colors"
+      className="w-full flex items-center gap-3 px-4 h-[36px] text-left border-b border-rule last:border-b-0 hover:bg-lilac-tint/30 transition-colors"
     >
       <TypeTag kind={(item.itemType || 'task') as TypeTagKind} size="sm" />
-      <span className="font-mono text-[13px] text-mute shrink-0 w-20">{item.itemKey}</span>
-      <span className="text-[14px] text-text truncate flex-1 min-w-0">{item.title}</span>
+      <span className="font-mono text-[11px] text-faint shrink-0 w-[70px]">{item.itemKey}</span>
+      <span className="text-[12.5px] text-text truncate flex-1 min-w-0">{item.title}</span>
       <LabelList labels={item.labels} max={2} />
-      {item.storyPoints != null && <span className="text-[13px] text-mute shrink-0">{item.storyPoints}</span>}
+      {item.storyPoints != null && <span className="text-[12px] text-mute shrink-0">{item.storyPoints}</span>}
       <span className="shrink-0 w-7">{item.assignee && <Avatar user={item.assignee} size="sm" />}</span>
     </button>
   );

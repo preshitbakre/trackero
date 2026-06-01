@@ -41,16 +41,16 @@ export function OverviewTab({ story, projectId, canEdit, onChanged, onOpenItem }
   ];
 
   return (
-    <div className="flex-1 min-w-0 px-[28px] py-6">
+    <div className="flex-1 min-w-0 px-[28px] py-6 overflow-y-auto custom-scrollbar">
       {/* Editorial statement */}
       {statement && (
-        <p className="font-serif text-[22px] leading-[1.5] text-text mb-6 max-w-[680px]">
+        <p className="font-serif text-[22px] leading-[1.5] text-text mb-6">
           <Emphasized text={statement} />
         </p>
       )}
 
       {/* Acceptance criteria */}
-      <div className="mb-6 max-w-[680px]">
+      <div className="mb-6">
         <AcceptanceCriteria
           projectId={projectId}
           storyId={story.id}
@@ -66,20 +66,19 @@ export function OverviewTab({ story, projectId, canEdit, onChanged, onOpenItem }
       </div>
 
       {/* Metrics row */}
-      <div className="flex border-y border-rule mb-6 max-w-[680px]">
+      <div className="flex border border-rule mb-6">
         <Metric value={`${tasksDone}/${tasksTotal}`} label="Tasks done" />
         <Metric value={story.storyPoints ?? 0} label="Story points" divider />
         <Metric value={story.bugCount} label="Bugs found" accent divider />
         <Metric
           value={story.sprint ? story.sprint.name : '—'}
           label={story.sprint ? 'In sprint' : 'No sprint'}
-          serifValue
           divider
         />
       </div>
 
       {/* Context */}
-      <div className="mb-8 max-w-[680px]">
+      <div className="mb-8">
         <Eyebrow className="mb-2">Context</Eyebrow>
         {story.description ? (
           <p className="text-[16px] text-mute leading-[1.6] whitespace-pre-wrap">{story.description}</p>
@@ -91,7 +90,7 @@ export function OverviewTab({ story, projectId, canEdit, onChanged, onOpenItem }
       </div>
 
       {/* Discussion */}
-      <div className="max-w-[680px]">
+      <div>
         <StoryDiscussion projectId={projectId} storyId={story.id} canEdit={canEdit} />
       </div>
     </div>
@@ -99,21 +98,16 @@ export function OverviewTab({ story, projectId, canEdit, onChanged, onOpenItem }
 }
 
 function Metric({
-  value, label, divider, accent, serifValue,
+  value, label, divider, accent,
 }: {
   value: React.ReactNode;
   label: string;
   divider?: boolean;
   accent?: boolean;
-  serifValue?: boolean;
 }) {
   return (
     <div className={`flex-1 py-4 px-4 ${divider ? 'border-l border-rule' : ''}`}>
-      {serifValue ? (
-        <span className="font-serif text-[20px] text-text leading-none">{value}</span>
-      ) : (
-        <MetricNumber size="md" className={accent ? 'text-lilac' : 'text-text'}>{value}</MetricNumber>
-      )}
+      <MetricNumber size="md" className={accent ? 'text-lilac' : 'text-text'}>{value}</MetricNumber>
       <div className="smallcaps mt-2">{label}</div>
     </div>
   );

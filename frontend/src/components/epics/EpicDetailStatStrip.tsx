@@ -16,13 +16,13 @@ export function EpicDetailStatStrip({ epic }: { epic: EpicDetail }) {
     { value: fmtDate(epic.endDate), label: 'target date', small: true },
   ];
   return (
-    <div className="bg-card shadow-[0_2px_8px_rgba(0,0,0,0.06)] grid grid-cols-5">
+    <div className="border border-rule grid grid-cols-5">
       {cells.map((c, i) => (
         <div key={i} className={`px-5 py-4 ${i > 0 ? 'border-l border-rule' : ''}`}>
-          <MetricNumber size={c.small ? 'sm' : 'md'} className="text-text">
+          <MetricNumber size={c.small ? 'sm' : 30} className="text-text">
             {c.value}
           </MetricNumber>
-          <p className="mt-1 text-[11px] tracking-[0.14em] uppercase text-faint">{c.label}</p>
+          <p className="mt-1.5 text-[10px] tracking-[0.08em] uppercase text-faint">{c.label}</p>
         </div>
       ))}
     </div>

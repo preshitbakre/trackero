@@ -43,7 +43,6 @@ interface BoardTask {
   labels: { id: number; name: string; color: string }[];
   sortOrder: string;
   parentRef: { id: number; itemKey: string; title: string } | null;
-  epicColor: string | null;
 }
 
 interface BoardColumn {
@@ -58,7 +57,11 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
   const [columns, setColumns] = useState<BoardColumn[]>([]);
   const [activeTask, setActiveTask] = useState<BoardTask | null>(null);
   const selectedTaskId = searchParams.get('task') ? parseInt(searchParams.get('task')!) : null;
-  const [sprintId, setSprintId] = useState<string>('');
+  const sprintParam = searchParams.get('sprint');
+  // Initial sprint comes from ?sprint= when present. Otherwise we let the
+  // sprint-loading effect below pick the active sprint as the default.
+  const [sprintId, setSprintId] = useState<string>(sprintParam ?? '');
+  const [sprintDefaultApplied, setSprintDefaultApplied] = useState<boolean>(sprintParam !== null);
   const [selectedAssignees, setSelectedAssignees] = useState<number[]>([]);
   const [assigneeOptions, setAssigneeOptions] = useState<{ id: number; name: string }[]>([]);
   const [sprints, setSprints] = useState<{
@@ -83,7 +86,12 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
     setError(false);
     try {
       const params = new URLSearchParams();
-      if (sprintId) params.set('sprintId', sprintId);
+      if (sprintId) {
+        params.set('sprintId', sprintId);
+      } else {
+        // "All sprints" = items currently in any sprint; backlog (sprintId IS NULL) is excluded.
+        params.set('hasSprint', 'true');
+      }
       if (epicFilter) params.set('epicId', String(epicFilter));
       if (selectedAssignees.length > 0) params.set('assigneeId', selectedAssignees.join(','));
       const { data } = await apiClient.get(`/projects/${projectId}/board?${params}`);
@@ -101,12 +109,20 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
   useEffect(() => {
     if (!projectId) return;
     apiClient.get(`/projects/${projectId}/sprints?limit=100`).then((r) => {
-      setSprints((r.data.data.list || []).filter((s: any) => s.status === 'active' || s.status === 'planning'));
+      const list = (r.data.data.list || []).filter((s: any) => s.status === 'active' || s.status === 'planning');
+      setSprints(list);
+      // When the URL doesn't pin a sprint, default to the active sprint (if any).
+      // Falls back to "All sprints" when no active sprint exists.
+      if (!sprintDefaultApplied) {
+        const active = list.find((s: any) => s.status === 'active');
+        if (active) setSprintId(String(active.id));
+        setSprintDefaultApplied(true);
+      }
     }).catch((err) => { console.error(err); });
     apiClient.get(`/projects/${projectId}/filters/assignees`).then((r) => {
       setAssigneeOptions((r.data.data.list || []).map((o: any) => ({ id: o.value, name: o.label })));
     }).catch((err) => { console.error(err); });
-  }, [projectId]);
+  }, [projectId, sprintDefaultApplied]);
 
   useEffect(() => {
     const socket = getSocket();

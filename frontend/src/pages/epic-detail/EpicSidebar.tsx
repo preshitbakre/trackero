@@ -41,7 +41,7 @@ function describe(a: EpicRecentRow): string {
     case 'description':
       return a.isEpic ? 'wrote the epic brief' : `${ref}edited`;
     case 'status':
-      return `${ref}changed status`;
+      return a.newValue ? `${ref}${a.newValue.replace(/_/g, ' ')}` : `${ref}changed status`;
     case 'assignee':
       return a.isEpic ? 'changed the lead' : `${ref}reassigned`;
     case 'sprint':
@@ -54,7 +54,7 @@ function describe(a: EpicRecentRow): string {
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-[11px] tracking-[0.14em] uppercase text-faint">{label}</p>
+      <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-faint">{label}</p>
       <div className="mt-2">{children}</div>
     </div>
   );
@@ -81,14 +81,14 @@ export function EpicSidebar({ epic, projectId }: { epic: EpicDetail; projectId: 
   }, [projectId, epic.id]);
 
   return (
-    <aside className="w-[240px] shrink-0 border-l border-rule px-5 py-6 flex flex-col gap-5 overflow-y-auto">
+    <aside className="w-[320px] shrink-0 border-l border-rule bg-paper-2 px-[22px] py-5 flex flex-col gap-5 overflow-y-auto">
       <Section label="Lead">
         {epic.lead ? (
-          <div className="flex items-center gap-2">
-            <Avatar user={epic.lead} size="sm" />
+          <div className="flex items-center gap-2.5">
+            <Avatar user={epic.lead} size="md" />
             <div className="min-w-0">
-              <p className="text-[14px] text-text truncate">{epic.lead.displayName}</p>
-              {epic.lead.handle && <p className="text-[12px] text-faint truncate">@{epic.lead.handle}</p>}
+              <p className="text-[13px] font-semibold text-text truncate">{epic.lead.displayName}</p>
+              {epic.lead.handle && <p className="text-[10.5px] text-faint truncate">@{epic.lead.handle}</p>}
             </div>
           </div>
         ) : (
@@ -105,27 +105,23 @@ export function EpicSidebar({ epic, projectId }: { epic: EpicDetail; projectId: 
       </Section>
 
       <Section label="Dates">
-        <div className="flex items-center gap-3 text-[14px] text-text">
-          <div>
-            <p className="text-[10px] tracking-[0.14em] uppercase text-faint">Start</p>
-            <p>{fmtDate(epic.startDate)}</p>
-          </div>
-          <span className="text-faint">→</span>
-          <div>
-            <p className="text-[10px] tracking-[0.14em] uppercase text-faint">Target</p>
-            <p>{fmtDate(epic.endDate)}</p>
-          </div>
+        <div className="flex items-end gap-1.5 text-[10px] tracking-[0.06em] uppercase text-faint">
+          <span>Start</span>
+          <span>{fmtDate(epic.startDate)}</span>
+          <span className="mx-0.5">→</span>
+          <span>Target</span>
+          <span>{fmtDate(epic.endDate)}</span>
         </div>
       </Section>
 
       {epic.byType.length > 0 && (
         <Section label="By type">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {epic.byType.map((t) => (
-              <div key={t.type} className="flex items-center gap-2 text-[13px] text-text">
+              <div key={t.type} className="flex items-center gap-2.5 text-[12px] text-mute">
                 <TypeTag kind={t.type as TypeTagKind} size="sm" />
                 <span className="capitalize">{t.type}</span>
-                <span className="ml-auto text-mute">{t.count}</span>
+                <span className="ml-auto text-[11.5px] text-text tabular-nums">{t.count}</span>
               </div>
             ))}
           </div>
@@ -145,15 +141,13 @@ export function EpicSidebar({ epic, projectId }: { epic: EpicDetail; projectId: 
           <div className="space-y-2.5">
             {activity.map((a) => (
               <div key={a.id} className="flex items-start gap-2">
+                <span className="text-[10px] text-faint shrink-0 w-[32px] pt-0.5 text-right tabular-nums">{relTime(a.createdAt)}</span>
                 {a.user ? (
                   <Avatar user={a.user} size="xs" />
                 ) : (
                   <span className="w-5 h-5 rounded-full bg-rule shrink-0" />
                 )}
-                <div className="min-w-0">
-                  <p className="text-[13px] text-text leading-tight">{describe(a)}</p>
-                  <p className="text-[11px] text-faint">{relTime(a.createdAt)}</p>
-                </div>
+                <p className="text-[11.5px] text-mute leading-tight min-w-0">{describe(a)}</p>
               </div>
             ))}
           </div>

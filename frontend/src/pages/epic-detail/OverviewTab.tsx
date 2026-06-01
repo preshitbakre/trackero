@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
+import { Ban } from 'lucide-react';
 import type { EpicDetail, EpicChildrenGroups } from '../../api/epics';
 import { getEpicChildren } from '../../api/epics';
 import { Button } from '../../components/ui/Button';
 import { EpicDetailStatStrip } from '../../components/epics/EpicDetailStatStrip';
-import { AcrossSprintsTimeline } from '../../components/epics/AcrossSprintsTimeline';
+import { EpicForecast } from '../../components/epics/EpicForecast';
 import { EpicChildRow } from '../../components/epics/EpicChildRow';
 
 const GROUP_DOT: Record<string, string> = {
@@ -49,14 +50,19 @@ export function OverviewTab({ epic, projectId, onUpdateStatus, onOpenChild, onSe
 
       {/* Blocked banner */}
       {blocked && epic.blockedBy && (
-        <div className="flex items-center gap-3 bg-lilac-tint px-4 py-3">
-          <span aria-hidden>⛔</span>
+        <div className="flex items-center gap-3 bg-lilac-tint border-l-4 border-lilac px-4 py-3">
+          <Ban size={16} className="text-lilac shrink-0" aria-hidden />
           <p className="text-[13px] text-mute flex-1">
-            <span className="font-semibold text-text">Blocked since {fmtDate(epic.blockedBy.since)} ·</span>{' '}
-            {epic.blockedBy.note}
-            {epic.blockedBy.owner && ` Owner: @${epic.blockedBy.owner}`}
+            <span className="font-semibold text-text">Blocked since {fmtDate(epic.blockedBy.since)}</span>
+            {epic.blockedBy.note ? ` · ${epic.blockedBy.note}` : ''}
+            {epic.blockedBy.owner && (
+              <>
+                {' Owner: '}
+                <span className="text-lilac font-medium">@{epic.blockedBy.owner}</span>
+              </>
+            )}
           </p>
-          <Button size="sm" variant="secondary" onClick={onUpdateStatus}>
+          <Button size="sm" variant="outline" onClick={onUpdateStatus} className="text-lilac border-lilac hover:bg-lilac-tint">
             Update status
           </Button>
         </div>
@@ -64,20 +70,24 @@ export function OverviewTab({ epic, projectId, onUpdateStatus, onOpenChild, onSe
 
       <EpicDetailStatStrip epic={epic} />
 
-      <AcrossSprintsTimeline data={epic.acrossSprints} displayState={epic.displayState} />
+      {epic.forecast && <EpicForecast data={epic.forecast} />}
 
       {/* Stories preview */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-[16px] font-medium text-text">
+          <h2 className="text-[20px] font-serif tracking-[-0.4px] text-text">
             Stories <span className="text-mute font-normal">· {children?.totalItems ?? 0} under {epic.itemKey}</span>
           </h2>
-          <button type="button" onClick={onSeeAll} className="text-[13px] text-lilac hover:underline">
+          <button
+            type="button"
+            onClick={onSeeAll}
+            className="text-[11.5px] font-medium text-text border border-rule px-3 py-1.5 hover:bg-paper-2 transition-colors"
+          >
             See all →
           </button>
         </div>
         {children && children.groups.length > 0 ? (
-          <div className="bg-card shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+          <div>
             {children.groups.map((g) => {
               if (shown >= PREVIEW_LIMIT) return null;
               const room = PREVIEW_LIMIT - shown;
@@ -85,13 +95,13 @@ export function OverviewTab({ epic, projectId, onUpdateStatus, onOpenChild, onSe
               shown += items.length;
               return (
                 <div key={g.key}>
-                  <div className="flex items-center gap-2 px-4 py-2 bg-paper-2/40 text-[12px] tracking-[0.1em] uppercase text-faint">
+                  <div className="flex items-center gap-2 px-4 py-1.5 bg-paper-2 text-[10px] tracking-[0.12em] uppercase font-semibold text-text">
                     {GROUP_DOT[g.key] && (
-                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: GROUP_DOT[g.key] }} />
+                      <span className="w-[7px] h-[7px] rounded-full" style={{ backgroundColor: GROUP_DOT[g.key] }} />
                     )}
                     <span>{g.label}</span>
                     <span>{g.count}</span>
-                    <span className="ml-auto">{g.points} pts</span>
+                    <span className="ml-auto font-normal text-faint">{g.points} pts</span>
                   </div>
                   {items.map((it) => (
                     <EpicChildRow key={it.id} item={it} onClick={onOpenChild} />

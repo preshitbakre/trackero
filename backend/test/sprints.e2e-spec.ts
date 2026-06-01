@@ -444,12 +444,13 @@ describe('Sprints listSprints enrichment (assignees, statusCounts, scope deltas)
       expect(a.avatarUrl === null || typeof a.avatarUrl === 'string').toBe(true);
     }
 
-    // statusCounts — 3 user-facing buckets (open / in_progress / done).
+    // statusCounts — 4 user-facing buckets (open / in_progress / in_review / done).
     // The DB `backlog` category is translated to `open` at the API boundary
     // per the design specs, so Admin task 1 + Unassigned task land in `open`.
     expect(s.statusCounts).toEqual({
       open: 2,
       in_progress: 2,
+      in_review: 0,
       done: 1,
     });
 
@@ -485,6 +486,7 @@ describe('Sprints listSprints enrichment (assignees, statusCounts, scope deltas)
     expect(s.statusCounts).toEqual({
       open: 0,
       in_progress: 0,
+      in_review: 0,
       done: 0,
     });
     expect(s.scopeAdded).toBe(0);

@@ -57,6 +57,8 @@ interface TaskDetail {
   reporter?: { id: number; displayName: string; avatarUrl: string | null };
   sprintId: number | null;
   sprint?: { id: number; name: string };
+  parentSprintId?: number | null;
+  parentSprintName?: string | null;
   startDate: string | null;
   endDate: string | null;
   completedAt: string | null;
@@ -854,7 +856,7 @@ export function TaskDetailPage() {
 
         {/* ── Right column — properties sidebar ── */}
         <div
-          className="flex flex-col overflow-y-auto"
+          className="flex flex-col overflow-y-auto border-l border-rule"
           style={{
             width: 280,
             minWidth: 280,
@@ -922,9 +924,14 @@ export function TaskDetailPage() {
             </div>
           </PropertyRow>
 
-          {/* Sprint */}
+          {/* Sprint — subtasks inherit from parent (display only, never editable). */}
           <PropertyRow label="Sprint">
-            {canEdit ? (
+            {task.itemType === 'subtask' ? (
+              <span className="flex items-center gap-1.5" title="Inherited from parent">
+                <span className="dot" style={{ backgroundColor: 'var(--accent)' }} />
+                <span>{task.parentSprintName || 'Backlog'}</span>
+              </span>
+            ) : canEdit ? (
               <Select
                 value={task.sprintId ? String(task.sprintId) : ''}
                 onChange={(val) => {

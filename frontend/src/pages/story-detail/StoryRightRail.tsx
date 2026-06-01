@@ -49,7 +49,7 @@ function PriorityIcon({ priority }: { priority: string }) {
 
 function Section({ label, children, action }: { label: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <div className="py-3 border-b border-rule last:border-b-0">
+    <div className="py-3">
       <div className="flex items-center justify-between mb-1.5">
         <Eyebrow size="sm">{label}</Eyebrow>
         {action}
@@ -66,7 +66,7 @@ export function StoryRightRail({
   const { id: projectId } = useParams();
 
   return (
-    <aside className="w-[280px] flex-shrink-0 bg-paper border-l border-rule px-5 py-2">
+    <aside className="w-[320px] flex-shrink-0 bg-paper-2 border-l border-rule px-5 py-2 overflow-y-auto custom-scrollbar">
       <Section label="Status">
         {canEdit ? (
           <Select
@@ -110,11 +110,11 @@ export function StoryRightRail({
           <button
             type="button"
             onClick={() => navigate(`/projects/${projectId}/epics/${story.epic!.id}`)}
-            className="w-full flex items-center gap-2 bg-card shadow-sm px-3 py-2 text-left hover:bg-paper-2 transition-colors"
+            className="w-full flex items-center gap-2 bg-card border-l-[3px] border-lilac px-3 py-2 text-left hover:bg-shade transition-colors"
           >
             <TypeTag kind="epic" />
             <div className="min-w-0">
-              <div className="text-[13px] text-text truncate">{story.epic.title}</div>
+              <div className="text-[13px] text-text font-medium truncate">{story.epic.title}</div>
               <div className="font-mono text-[11px] text-faint">{story.epic.itemKey}</div>
             </div>
           </button>
@@ -123,31 +123,29 @@ export function StoryRightRail({
         )}
       </Section>
 
-      <div className="flex gap-4">
+      <div className="flex gap-4 py-3">
         <div className="flex-1">
-          <Section label="Points">
-            {canEdit ? (
-              <StoryPointsInput value={story.storyPoints} scale="free" onChange={(v) => onPatch({ storyPoints: v })} />
-            ) : (
-              <span className="font-serif text-[28px] text-text leading-none">{story.storyPoints ?? '—'}</span>
-            )}
-          </Section>
+          <Eyebrow size="sm" className="mb-1.5">Points</Eyebrow>
+          {canEdit ? (
+            <StoryPointsInput value={story.storyPoints} scale="free" onChange={(v) => onPatch({ storyPoints: v })} />
+          ) : (
+            <span className="font-serif text-[28px] text-text leading-none">{story.storyPoints ?? '—'}</span>
+          )}
         </div>
         <div className="flex-1">
-          <Section label="Priority">
-            {canEdit ? (
-              <Select
-                value={story.priority}
-                onChange={(v) => onPatch({ priority: v })}
-                options={['urgent', 'high', 'medium', 'low', 'none'].map((p) => ({ value: p, label: p }))}
-              />
-            ) : (
-              <span className="inline-flex items-center gap-1 text-[14px] capitalize text-text">
-                <PriorityIcon priority={story.priority} />
-                {story.priority}
-              </span>
-            )}
-          </Section>
+          <Eyebrow size="sm" className="mb-1.5">Priority</Eyebrow>
+          {canEdit ? (
+            <Select
+              value={story.priority}
+              onChange={(v) => onPatch({ priority: v })}
+              options={['urgent', 'high', 'medium', 'low', 'none'].map((p) => ({ value: p, label: p }))}
+            />
+          ) : (
+            <span className="inline-flex items-center gap-1 text-[14px] capitalize text-text">
+              <PriorityIcon priority={story.priority} />
+              {story.priority}
+            </span>
+          )}
         </div>
       </div>
 

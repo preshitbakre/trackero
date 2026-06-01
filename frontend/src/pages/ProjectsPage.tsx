@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { Eyebrow, PageHeader } from '../components/ui';
@@ -54,6 +54,7 @@ const FILTERS: { key: FilterKey; label: string; countKey: 'active' | 'planning' 
 ];
 
 export function ProjectsPage() {
+  const navigate = useNavigate();
   const [filter, setFilter] = useState<FilterKey>('active');
   const [search, setSearch] = useState('');
   const [mineOnly, setMineOnly] = useState(false);
@@ -250,11 +251,12 @@ export function ProjectsPage() {
       {showCreate && (
         <CreateProjectDialog
           onClose={() => setShowCreate(false)}
-          onCreated={() => {
+          onCreated={(project) => {
             setShowCreate(false);
             qc.invalidateQueries({ queryKey: ['projects-directory'] });
             qc.invalidateQueries({ queryKey: ['sidebar-recent-projects'] });
             document.dispatchEvent(new CustomEvent('projects-updated'));
+            if (project?.id) navigate(`/projects/${project.id}/today`);
           }}
         />
       )}

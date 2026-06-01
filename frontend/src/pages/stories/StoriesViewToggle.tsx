@@ -11,10 +11,9 @@ const OPTIONS: { key: StoryView; label: string }[] = [
   { key: 'sprint', label: 'By sprint' },
 ];
 
-/** Segmented control switching the story grouping. */
 export function StoriesViewToggle({ view, onChange }: Props) {
   return (
-    <div className="inline-flex items-center bg-paper-2 p-0.5 rounded-md">
+    <div className="inline-flex items-center bg-paper-2 rounded-[4px] p-[3px]">
       {OPTIONS.map((o) => {
         const active = o.key === view;
         return (
@@ -22,8 +21,10 @@ export function StoriesViewToggle({ view, onChange }: Props) {
             key={o.key}
             type="button"
             onClick={() => onChange(o.key)}
-            className={`px-3 py-1 text-[13px] rounded transition-colors ${
-              active ? 'bg-card shadow-sm text-text font-medium' : 'text-mute hover:text-text'
+            className={`px-2.5 py-1 text-[12px] font-semibold rounded-[3px] transition-colors ${
+              active
+                ? 'bg-white text-text border border-text shadow-sm'
+                : 'text-mute border border-transparent hover:text-text'
             }`}
           >
             {o.label}

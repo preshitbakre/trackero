@@ -11,9 +11,6 @@ import { AppLogicException } from '../common/exceptions/app-exceptions';
 import { CreateMilestoneDto, UpdateMilestoneDto } from './dto/milestone.dto';
 import { UpdateEpicDto } from './dto/update-epic.dto';
 
-/** Palette used to resolve an epic color when `color` is null (by id). */
-export const EPIC_COLOR_PALETTE = ['#7C3AED', '#88A9D6', '#88D68E', '#D6B588', '#D688D0'];
-
 export type EpicDisplayState =
   | 'draft'
   | 'planning'
@@ -67,11 +64,6 @@ export class EpicsService {
   // ===========================================================================
   // Derivation helpers (pure — covered via e2e)
   // ===========================================================================
-
-  /** Resolve the display color: explicit `color`, else a palette color by id. */
-  resolveColor(epic: { id: number; color: string | null }): string {
-    return epic.color ?? EPIC_COLOR_PALETTE[epic.id % EPIC_COLOR_PALETTE.length];
-  }
 
   /**
    * At risk = an in-flight epic with a target date that is past or within 7
@@ -291,7 +283,6 @@ export class EpicsService {
         createdAt: epic.createdAt,
         epicState: epic.epicState,
         displayState,
-        color: this.resolveColor(epic),
         lead: assignee ? { id: assignee.id, displayName: assignee.displayName, avatarUrl: assignee.avatarUrl } : null,
         blockedBy: blocker ? { key: blocker.key, title: blocker.title, since: blocker.since } : null,
         archived: !!epic.archivedAt,
@@ -480,6 +471,15 @@ export class EpicsService {
     // Across sprints — project sprints spanning the epic's descendant sprints.
     const acrossSprints = await this.buildAcrossSprints(projectId, descendants, epic.endDate, today);
 
+    // Forecast — velocity-based projection of when this epic finishes.
+    const forecast = await this.buildForecast(
+      projectId,
+      stats.progress.completedPoints,
+      stats.progress.totalPoints,
+      descendants,
+      epic.endDate,
+    );
+
     // blockedBy note/owner — latest risk milestone body + blocker source assignee.
     let blockedBy: any = null;
     if (blocker) {
@@ -510,7 +510,6 @@ export class EpicsService {
       priority: epic.priority,
       epicState: epic.epicState,
       displayState,
-      color: this.resolveColor(epic),
       startDate: epic.startDate,
       endDate: epic.endDate,
       status: epic.status
@@ -531,6 +530,7 @@ export class EpicsService {
       labels: (epic.labels || []).map((l) => ({ id: l.id, name: l.name, color: (l as any).color })),
       blockedBy,
       acrossSprints,
+      forecast,
       audit: {
         createdOn: epic.createdAt,
         createdBy: creator ? { displayName: creator.displayName, handle: this.handleFor(creator.email) } : null,
@@ -545,9 +545,12 @@ export class EpicsService {
        FROM sprints WHERE project_id = $1 ORDER BY sprint_number ASC`,
       [projectId],
     );
-    if (sprints.length === 0) return { fromKey: null, toKey: null, count: 0, target: endDate, sprints: [], todayIndex: -1 };
+    if (sprints.length === 0) {
+      return { fromKey: null, toKey: null, count: 0, target: endDate, sprints: [], stories: [], todayIndex: -1 };
+    }
 
-    // Per-sprint rollup of descendant statuses.
+    // Per-sprint rollup of descendant statuses (kept for tooltips + the
+    // hover summary on each sprint pill).
     const rollups = new Map<number, { done: number; inProg: number; review: number; open: number }>();
     for (const d of descendants) {
       if (!d.sprintId) continue;
@@ -578,6 +581,30 @@ export class EpicsService {
       rollup: rollups.get(s.id) ?? { done: 0, inProg: 0, review: 0, open: 0 },
     }));
 
+    // Index lookup so individual stories can resolve their sprintIndex
+    // along the span (0..count-1). Descendants outside the span — or with
+    // no sprint — are dropped from the dot layer.
+    const sprintIndexById = new Map<number, number>();
+    spanSprints.forEach((s, i) => sprintIndexById.set(s.id, i));
+
+    const stories = descendants
+      .filter((d) => d.sprintId && sprintIndexById.has(d.sprintId))
+      .map((d) => {
+        const cat = d.status.category;
+        const status: 'done' | 'inProg' | 'review' | 'open' =
+          cat === 'done' ? 'done' :
+          cat === 'in_progress' ? 'inProg' :
+          cat === 'in_review' ? 'review' :
+          'open';
+        return {
+          id: d.id,
+          itemKey: d.itemKey,
+          title: d.title,
+          sprintIndex: sprintIndexById.get(d.sprintId)!,
+          status,
+        };
+      });
+
     let todayIndex = spanSprints.findIndex((s) => s.status === 'active');
     if (todayIndex === -1) {
       const todayStr = today.toISOString().slice(0, 10);
@@ -590,7 +617,103 @@ export class EpicsService {
       count: spanSprints.length,
       target: endDate,
       sprints: spanSprints,
+      stories,
       todayIndex,
+    };
+  }
+
+  private async buildForecast(
+    projectId: number,
+    completedPoints: number,
+    totalPoints: number,
+    descendants: any[],
+    endDate: string | null,
+  ) {
+    if (totalPoints === 0) return null;
+
+    const sprints: any[] = await this.dataSource.query(
+      `SELECT id, sprint_number AS "sprintNumber", status, start_date AS "startDate", end_date AS "endDate"
+       FROM sprints WHERE project_id = $1 ORDER BY sprint_number ASC`,
+      [projectId],
+    );
+    if (sprints.length === 0) return null;
+
+    const completedSprints = sprints.filter((s) => s.status === 'completed');
+    const activeSprint = sprints.find((s) => s.status === 'active');
+    if (!activeSprint && completedSprints.length === 0) return null;
+
+    const ptsWip = descendants
+      .filter((d) => d.status?.category === 'in_progress' || d.status?.category === 'in_review')
+      .reduce((sum, d) => sum + (d.storyPoints ?? 0), 0);
+
+    // Velocity = avg completed points over last 3 completed sprints
+    const recentCompleted = completedSprints.slice(-3);
+    let velocity = 0;
+    if (recentCompleted.length > 0) {
+      const sprintIds = recentCompleted.map((s) => s.id);
+      const [velRow] = await this.dataSource.query(
+        `SELECT COALESCE(SUM(story_points) FILTER (WHERE completed_at IS NOT NULL), 0)::int AS pts
+         FROM work_items
+         WHERE sprint_id = ANY($1) AND deleted_at IS NULL`,
+        [sprintIds],
+      );
+      velocity = Math.round((velRow?.pts ?? 0) / recentCompleted.length);
+    }
+    if (velocity <= 0) return null;
+
+    const currentNum = activeSprint?.sprintNumber ?? (completedSprints[completedSprints.length - 1]?.sprintNumber ?? 0);
+    const remaining = totalPoints - completedPoints;
+    const sprintsNeeded = Math.ceil(remaining / velocity);
+    const finishNum = currentNum + sprintsNeeded;
+    const finishSprint = `S-${finishNum}`;
+
+    // Target sprint = the sprint whose date range contains the endDate
+    let targetSprint: string | null = null;
+    let target: string | null = null;
+    if (endDate) {
+      target = new Date(endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const targetS = sprints.find((s) => s.startDate && s.endDate && s.startDate <= endDate && s.endDate >= endDate);
+      if (targetS) {
+        targetSprint = `S-${targetS.sprintNumber}`;
+      } else {
+        // Estimate: find the sprint closest to/after the endDate
+        const afterTarget = sprints.find((s) => s.startDate && s.startDate >= endDate);
+        if (afterTarget) {
+          targetSprint = `S-${afterTarget.sprintNumber}`;
+        } else {
+          // endDate is past all sprints — estimate by extrapolating sprint length
+          const lastSprint = sprints[sprints.length - 1];
+          if (lastSprint.startDate && lastSprint.endDate) {
+            const sprintLen = new Date(lastSprint.endDate).getTime() - new Date(lastSprint.startDate).getTime();
+            if (sprintLen > 0) {
+              const diff = new Date(endDate).getTime() - new Date(lastSprint.endDate).getTime();
+              const extra = Math.ceil(diff / sprintLen);
+              targetSprint = `S-${lastSprint.sprintNumber + extra}`;
+            }
+          }
+        }
+      }
+    }
+
+    let verdict: 'on_track' | 'ahead' | 'at_risk' | 'behind' = 'on_track';
+    if (targetSprint) {
+      const targetNum = parseInt(targetSprint.replace('S-', ''), 10);
+      const diff = targetNum - finishNum;
+      if (diff >= 2) verdict = 'ahead';
+      else if (diff >= 0) verdict = 'on_track';
+      else if (diff >= -1) verdict = 'at_risk';
+      else verdict = 'behind';
+    }
+
+    return {
+      ptsDone: completedPoints,
+      ptsWip,
+      ptsTotal: totalPoints,
+      velocity,
+      finishSprint,
+      targetSprint: targetSprint ?? finishSprint,
+      target: target ?? '',
+      verdict,
     };
   }
 
@@ -883,10 +1006,16 @@ export class EpicsService {
     const epic = await this.requireEpic(projectId, epicId);
     if (dto.title !== undefined) epic.title = dto.title;
     if (dto.description !== undefined) epic.description = dto.description;
-    if (dto.color !== undefined) epic.color = dto.color;
     if (dto.epicState !== undefined) epic.epicState = dto.epicState;
     if (dto.startDate !== undefined) epic.startDate = dto.startDate;
     if (dto.endDate !== undefined) epic.endDate = dto.endDate;
+
+    const effectiveStart = epic.startDate;
+    const effectiveEnd = epic.endDate;
+    if (effectiveStart && effectiveEnd && effectiveStart > effectiveEnd) {
+      throw new AppLogicException('INVALID_DATE', HttpStatus.BAD_REQUEST, 'Start date cannot be after target date');
+    }
+
     const saved = await this.workItemRepo.save(epic);
     this.emitUpdated(saved, userId, projectId, dto);
     return { id: epicId };

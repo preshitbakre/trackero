@@ -47,7 +47,6 @@ export interface EpicListItem {
   createdAt: string;
   epicState: 'draft' | 'planning' | 'in_flight' | 'shipped';
   displayState: EpicDisplayState;
-  color: string;
   lead: EpicUser | null;
   blockedBy: { key: string; title: string; since: string } | null;
   archived: boolean;
@@ -63,6 +62,17 @@ export interface EpicsSummary {
   nextTarget: { date: string; epicKey: string } | null;
 }
 
+export interface EpicForecastData {
+  ptsDone: number;
+  ptsWip: number;
+  ptsTotal: number;
+  velocity: number;
+  finishSprint: string;
+  targetSprint: string;
+  target: string;
+  verdict: 'on_track' | 'ahead' | 'at_risk' | 'behind';
+}
+
 export interface AcrossSprints {
   fromKey: string | null;
   toKey: string | null;
@@ -76,6 +86,13 @@ export interface AcrossSprints {
     status: string;
     rollup: { done: number; inProg: number; review: number; open: number };
   }[];
+  stories: {
+    id: number;
+    itemKey: string;
+    title: string;
+    sprintIndex: number;
+    status: 'done' | 'inProg' | 'review' | 'open';
+  }[];
   todayIndex: number;
 }
 
@@ -87,7 +104,6 @@ export interface EpicDetail {
   priority: string;
   epicState: 'draft' | 'planning' | 'in_flight' | 'shipped';
   displayState: EpicDisplayState;
-  color: string;
   startDate: string | null;
   endDate: string | null;
   status: { id: number; name: string; category: string; color: string } | null;
@@ -98,6 +114,7 @@ export interface EpicDetail {
   labels: EpicLabel[];
   blockedBy: { key: string; title: string; since: string; note: string; owner: string | null } | null;
   acrossSprints: AcrossSprints;
+  forecast: EpicForecastData | null;
   audit: { createdOn: string; createdBy: { displayName: string; handle: string } | null; lastEditedAt: string };
 }
 
@@ -218,7 +235,6 @@ export async function deleteEpicMilestone(
 export interface UpdateEpicBody {
   title?: string;
   description?: string | null;
-  color?: string | null;
   epicState?: 'draft' | 'planning' | 'in_flight';
   startDate?: string | null;
   endDate?: string | null;

@@ -7,11 +7,11 @@ import { TypeTag } from '../ui/TypeTag';
 import { Avatar } from '../ui/Avatar';
 import { LabelList } from '../ui/LabelBadge';
 import { MetricNumber } from '../ui/MetricNumber';
-import { PRIORITY_BADGE_COLORS } from '../../lib/colors';
+import { PRIORITY_BADGE_COLORS, PROJECT_STATUS_PALETTE } from '../../lib/colors';
 
-// Only the notable priorities surface as a pill on a card (matches the mockup,
-// where only the urgent/blocked epic shows `P0`).
-const PRIORITY_LABEL: Record<string, string> = { urgent: 'P0', high: 'P1' };
+// Only urgent surfaces a priority pill on the card (matches the mockup —
+// every visible P1/P2/P3 epic stays clean; only P0 raises a flag).
+const PRIORITY_LABEL: Record<string, string> = { urgent: 'P0' };
 
 function fmtDate(d: string | null): string {
   if (!d) return '';
@@ -26,8 +26,9 @@ interface Props {
 /** List card for one epic. Whole card links to the detail page. */
 export function EpicCard({ epic, projectId }: Props) {
   const blocked = epic.displayState === 'blocked';
-  const barColor = blocked ? '#E05252' : epic.color;
-  const showPriority = epic.priority === 'urgent' || epic.priority === 'high';
+  const pillKey = epicStateToPill(epic.displayState) as StatusKey;
+  const barColor = PROJECT_STATUS_PALETTE[pillKey]?.color ?? '#A8A1B5';
+  const showPriority = epic.priority === 'urgent';
   const priorityPill = PRIORITY_BADGE_COLORS[epic.priority];
   const pct = epic.progress.progressPercent;
 
@@ -43,7 +44,7 @@ export function EpicCard({ epic, projectId }: Props) {
         <TypeTag kind="epic" size="sm" />
         <span className="text-[12px] font-mono text-mute">{epic.itemKey}</span>
         <span className="text-faint">·</span>
-        <StatusPill status={epicStateToPill(epic.displayState) as StatusKey} dot />
+        <StatusPill status={pillKey} dot caps />
         {showPriority && priorityPill && (
           <span
             className="text-[10px] px-1.5 py-0.5 rounded font-semibold"

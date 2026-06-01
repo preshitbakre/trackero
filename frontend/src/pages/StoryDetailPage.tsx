@@ -19,6 +19,7 @@ import { StoryRightRail } from './story-detail/StoryRightRail';
 import type { RailPatch } from './story-detail/StoryRightRail';
 import { StoryHeaderActions } from './story-detail/StoryHeaderActions';
 import { ReleaseNotesDrawer } from './story-detail/ReleaseNotesDrawer';
+import { LinkItemDialog } from './story-detail/LinkItemDialog';
 import type { StoryDetail, DetailUser, TaskRow } from './story-detail/types';
 
 interface StatusOption { id: number; name: string; category: string }
@@ -43,6 +44,7 @@ export function StoryDetailPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [showReleaseNotes, setShowReleaseNotes] = useState(false);
   const [createType, setCreateType] = useState<'task' | 'bug' | null>(null);
+  const [showLinkItem, setShowLinkItem] = useState(false);
   const [topLevel, setTopLevel] = useState<TaskRow[]>([]);
   const [subtasksByParent, setSubtasksByParent] = useState<Map<number, TaskRow[]>>(new Map());
 
@@ -275,21 +277,20 @@ export function StoryDetailPage() {
           </div>
         </div>
 
-        <div className="mt-3 -mb-[16px]">
-          <Tabs
-            active={tab}
-            onChange={(k) => setTab(k as TabKey)}
-            tabs={[
-              { key: 'overview', label: 'Overview', icon: <FileText size={14} /> },
-              { key: 'tasks', label: 'Tasks', icon: <ListChecks size={14} />, badge: taskCount },
-              { key: 'settings', label: 'Settings', icon: <Settings2 size={14} /> },
-            ]}
-            className="border-b-0"
-          />
-        </div>
       </PageHeader>
 
-      <div className="flex flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+      <Tabs
+        className="px-[28px] flex-shrink-0"
+        active={tab}
+        onChange={(k) => setTab(k as TabKey)}
+        tabs={[
+          { key: 'overview', label: 'Overview', icon: <FileText size={14} /> },
+          { key: 'tasks', label: 'Tasks', icon: <ListChecks size={14} />, badge: taskCount },
+          { key: 'settings', label: 'Settings', icon: <Settings2 size={14} /> },
+        ]}
+      />
+
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         {tab === 'overview' && (
           <>
             <OverviewTab story={story} projectId={pid} canEdit={canEdit} onChanged={loadStory} onOpenItem={setSelectedTaskId} />
@@ -306,6 +307,7 @@ export function StoryDetailPage() {
               onOpenItem={setSelectedTaskId}
               onAddTask={() => setCreateType('task')}
               onReportBug={() => setCreateType('bug')}
+              onLinkItem={() => setShowLinkItem(true)}
             />
             <StoryRightRail
               story={story} canEdit={canEdit} members={members} sprints={sprints} statuses={statuses}
@@ -349,6 +351,15 @@ export function StoryDetailPage() {
         open={showReleaseNotes}
         onClose={() => setShowReleaseNotes(false)}
       />
+
+      {showLinkItem && (
+        <LinkItemDialog
+          projectId={pid}
+          storyId={story.id}
+          onLinked={() => { setShowLinkItem(false); loadStory(); }}
+          onClose={() => setShowLinkItem(false)}
+        />
+      )}
     </div>
   );
 }

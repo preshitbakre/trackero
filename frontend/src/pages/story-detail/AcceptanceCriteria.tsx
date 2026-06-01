@@ -3,6 +3,7 @@ import { apiClient } from '../../api/client';
 import { toast } from '../../components/common/Toast';
 import { Eyebrow } from '../../components/ui/Eyebrow';
 import { Combobox } from '../../components/ui/Combobox';
+import { Button } from '../../components/ui/Button';
 import type { AcceptanceCriterion } from './types';
 
 interface LinkOption {
@@ -85,19 +86,23 @@ export function AcceptanceCriteria({
   };
 
   return (
-    <div className="bg-card border border-rule p-4">
-      <div className="flex items-center justify-between mb-3">
-        <Eyebrow>Acceptance criteria · {met} of {total}{mode === 'edit' ? ' met' : ''}</Eyebrow>
+    <div className="bg-card border border-rule">
+      <div className="flex items-center justify-between px-4 py-3 bg-paper-2 border-b border-rule">
+        <div className="flex items-baseline gap-3">
+          <Eyebrow>Acceptance criteria</Eyebrow>
+          <span className="font-mono text-[11px] text-faint tracking-normal">· {met} of {total} met</span>
+        </div>
         {canEdit && (
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="text-[12px] text-lilac-dark hover:underline inline-flex items-center gap-1"
+            className="text-[12px] text-text border border-rule px-2.5 py-0.5 hover:bg-shade transition-colors inline-flex items-center gap-1"
           >
             + add
           </button>
         )}
       </div>
+      <div className="p-4">
 
       <div className="flex flex-col">
         {criteria.map((c, i) => (
@@ -134,6 +139,7 @@ export function AcceptanceCriteria({
           }}
         />
       )}
+      </div>
     </div>
   );
 }
@@ -276,15 +282,16 @@ function AddCriterionForm({ onSave, onCancel }: { onSave: (p: { givenText: strin
       <input className={inputCls} value={when} onChange={(e) => setWhen(e.target.value)} placeholder="When (optional)" />
       <input className={inputCls} value={then} onChange={(e) => setThen(e.target.value)} placeholder="Then (optional)" />
       <div className="flex gap-2 mt-1">
-        <button
-          type="button"
-          className="btn btn-accent text-[12px]"
+        <Button
+          variant="ink"
+          size="sm"
+          className="text-[12px]"
           disabled={!given.trim()}
           onClick={() => onSave({ givenText: given.trim(), whenText: when.trim() || undefined, thenText: then.trim() || undefined })}
         >
           Add
-        </button>
-        <button type="button" className="btn-ghost text-[12px]" onClick={onCancel}>Cancel</button>
+        </Button>
+        <Button variant="ghost" size="sm" className="text-[12px]" onClick={onCancel}>Cancel</Button>
       </div>
     </div>
   );

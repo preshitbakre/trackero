@@ -26,11 +26,13 @@ export class BoardController {
     @Query('assigneeId') assigneeId?: string,
     @Query('priority') priority?: string,
     @Query('epicId', new ParseIntPipe({ optional: true })) epicId?: number,
+    @Query('hasSprint') hasSprint?: string,
   ) {
     const assigneeIds = assigneeId
       ? assigneeId.split(',').map(Number).filter((n) => !isNaN(n))
       : undefined;
-    return this.boardService.getBoard(projectId, { sprintId, assigneeIds, priority, epicId });
+    const hasSprintFlag = hasSprint === 'true' || hasSprint === '1';
+    return this.boardService.getBoard(projectId, { sprintId, assigneeIds, priority, epicId, hasSprint: hasSprintFlag });
   }
 
   @Put('move')

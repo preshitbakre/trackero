@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { apiClient } from '../../api/client';
 import { toast } from '../../components/common/Toast';
+import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
 import { StoryPointsInput } from '../../components/ui/StoryPointsInput';
 import type { RailPatch } from './StoryRightRail';
@@ -58,13 +59,13 @@ export function StoryHeaderActions(props: Props) {
   };
 
   const WatchBtn = (
-    <button type="button" onClick={onToggleWatch} className="btn-ghost">
+    <Button size="sm" variant="ghost" onClick={onToggleWatch}>
       {isWatching ? 'Watching' : 'Watch'}
-    </button>
+    </Button>
   );
   const AttachBtn = (
     <>
-      <button type="button" onClick={() => fileRef.current?.click()} className="btn-ghost">Attach</button>
+      <Button size="sm" variant="ghost" onClick={() => fileRef.current?.click()}>Attach</Button>
       <input ref={fileRef} type="file" className="hidden" onChange={onAttach} />
     </>
   );
@@ -79,7 +80,7 @@ export function StoryHeaderActions(props: Props) {
       {(cat === 'backlog') && (
         <>
           <div className="relative">
-            <button type="button" className="btn-ghost" onClick={() => setPopover(popover === 'estimate' ? null : 'estimate')}>Estimate</button>
+            <Button size="sm" variant="ghost" onClick={() => setPopover(popover === 'estimate' ? null : 'estimate')}>Estimate</Button>
             {popover === 'estimate' && (
               <Popover onClose={() => setPopover(null)}>
                 <div className="smallcaps mb-2">Story points</div>
@@ -88,7 +89,7 @@ export function StoryHeaderActions(props: Props) {
             )}
           </div>
           <div className="relative">
-            <button type="button" className="btn-ghost" onClick={() => setPopover(popover === 'sprint' ? null : 'sprint')}>Put into sprint</button>
+            <Button size="sm" variant="ghost" onClick={() => setPopover(popover === 'sprint' ? null : 'sprint')}>Put into sprint</Button>
             {popover === 'sprint' && (
               <Popover onClose={() => setPopover(null)}>
                 <div className="smallcaps mb-2">Sprint</div>
@@ -101,7 +102,7 @@ export function StoryHeaderActions(props: Props) {
               </Popover>
             )}
           </div>
-          <button type="button" className="btn btn-accent" onClick={startWork}>Start work</button>
+          <Button size="sm" variant="ink" onClick={startWork}>Start work</Button>
         </>
       )}
 
@@ -109,7 +110,7 @@ export function StoryHeaderActions(props: Props) {
         <>
           {AttachBtn}
           {WatchBtn}
-          <button type="button" className="btn btn-accent" onClick={submitReview}>Submit for review</button>
+          <Button size="sm" variant="ink" onClick={submitReview}>Submit for review</Button>
         </>
       )}
 
@@ -117,19 +118,19 @@ export function StoryHeaderActions(props: Props) {
         <>
           {AttachBtn}
           {WatchBtn}
-          <button type="button" className="btn btn-accent" onClick={onApprove}>Approve →</button>
+          <Button size="sm" variant="ink" onClick={onApprove}>Approve →</Button>
         </>
       )}
 
       {cat === 'done' && (
         <>
-          <button type="button" className="btn-ghost" onClick={onReopen}>Reopen</button>
-          <button type="button" className="btn btn-accent" onClick={onOpenReleaseNotes}>View release notes →</button>
+          <Button size="sm" variant="secondary" onClick={onReopen}>Reopen</Button>
+          <Button size="sm" variant="ink" onClick={onOpenReleaseNotes}>View release notes →</Button>
         </>
       )}
 
       {cat === 'cancelled' && (
-        <button type="button" className="btn-ghost" onClick={onReopen}>Reopen</button>
+        <Button size="sm" variant="secondary" onClick={onReopen}>Reopen</Button>
       )}
     </div>
   );

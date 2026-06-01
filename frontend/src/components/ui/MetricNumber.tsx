@@ -9,7 +9,7 @@ interface MetricNumberProps {
 
 const SIZE_PX: Record<'sm' | 'md' | 'lg' | 'xl', number> = {
   sm: 22,
-  md: 28,
+  md: 30,
   lg: 36,
   xl: 48,
 };

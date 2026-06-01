@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { User } from 'lucide-react';
+import { Search, Filter } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { useRole } from '../hooks/useRole';
 import { useAuthStore } from '../store/auth.store';
+import { Button } from '../components/ui/Button';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Eyebrow } from '../components/ui/Eyebrow';
 import { KbdKey } from '../components/ui/KbdKey';
@@ -14,7 +15,6 @@ import { StoriesStatsStrip } from './stories/StoriesStatsStrip';
 import { StoriesViewToggle } from './stories/StoriesViewToggle';
 import { StoriesTable } from './stories/StoriesTable';
 import { StoriesEmptyState } from './stories/StoriesEmptyState';
-import { StoriesFilterPopover } from './stories/StoriesFilterPopover';
 import { groupStories, filterStories } from './stories/helpers';
 import type { StoryFilters } from './stories/helpers';
 import type { StoryListItem, StoryStats, EpicListItem, StoryView } from './stories/types';
@@ -58,12 +58,6 @@ export function StoriesPage() {
 
   const [search, setSearch] = useState('');
   const [mine, setMine] = useState(false);
-  const [facets, setFacets] = useState<Omit<StoryFilters, 'search' | 'mineUserId'>>({
-    assigneeIds: [],
-    labelIds: [],
-    priorities: [],
-    sprintIds: [],
-  });
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -106,8 +100,8 @@ export function StoriesPage() {
   }, [canEdit]);
 
   const filters: StoryFilters = useMemo(
-    () => ({ search, mineUserId: mine ? currentUser?.id ?? null : null, ...facets }),
-    [search, mine, currentUser?.id, facets],
+    () => ({ search, mineUserId: mine ? currentUser?.id ?? null : null, assigneeIds: [], labelIds: [], priorities: [], sprintIds: [] }),
+    [search, mine, currentUser?.id],
   );
 
   const filtered = useMemo(() => filterStories(stories, filters), [stories, filters]);
@@ -129,50 +123,48 @@ export function StoriesPage() {
 
   return (
     <>
-      <PageHeader className="flex items-start justify-between gap-6 flex-wrap">
-        <div>
-          <Eyebrow>Project · {projectName || '—'} · {stats.total} stor{stats.total === 1 ? 'y' : 'ies'}</Eyebrow>
-          <h1 className="font-serif text-[36px] text-text mt-1">
+      <PageHeader>
+        <Eyebrow>Project · {projectName || '—'} · {stats.total} stor{stats.total === 1 ? 'y' : 'ies'}</Eyebrow>
+        <div className="flex items-center justify-between gap-4 mt-1">
+          <h1 className="font-serif text-[36px] text-text shrink-0">
             Stories
-            <span className="font-serif italic text-[20px] text-faint ml-3">— what we're shipping for our users.</span>
+            <span className="font-serif italic text-[20px] text-faint ml-3">— what we’re shipping for our users.</span>
           </h1>
-        </div>
-        {!isEmpty && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <StoriesViewToggle view={view} onChange={setView} />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="filter stories…"
-              className="input h-[30px] w-[160px] text-[13px]"
-            />
-            <button
-              type="button"
-              onClick={() => setMine((v) => !v)}
-              className={`btn-ghost inline-flex items-center gap-1.5 ${mine ? 'bg-shade' : ''}`}
-            >
-              <User size={14} /> Mine
-            </button>
-            <StoriesFilterPopover
-              stories={stories}
-              filters={filters}
-              onChange={(f) => setFacets({ assigneeIds: f.assigneeIds, labelIds: f.labelIds, priorities: f.priorities, sprintIds: f.sprintIds })}
-            />
-            {canEdit && (
-              <button type="button" onClick={() => setShowCreate(true)} className="btn btn-accent inline-flex items-center gap-2">
-                + New story
-                <KbdKey tone="on-accent">C</KbdKey>
+          {!isEmpty && (
+            <div className="flex items-center gap-2 shrink-0">
+              <StoriesViewToggle view={view} onChange={setView} />
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="filter stories…"
+                  className="h-[30px] w-[160px] text-[13px] pl-8 bg-transparent outline-none border-none text-text placeholder:text-faint"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setMine((v) => !v)}
+                className={`inline-flex items-center gap-1.5 px-3 h-[30px] text-[12px] font-medium border border-rule text-text hover:bg-shade transition-colors ${mine ? 'bg-shade' : ''}`}
+              >
+                <Filter size={12} /> Mine
               </button>
-            )}
-          </div>
-        )}
-        {isEmpty && canEdit && (
-          <button type="button" onClick={() => setShowCreate(true)} className="btn btn-accent inline-flex items-center gap-2">
-            + New story
-            <KbdKey tone="on-accent">C</KbdKey>
-          </button>
-        )}
+              {canEdit && (
+                <Button variant="ink" onClick={() => setShowCreate(true)} className="inline-flex items-center gap-2">
+                  + New story
+                  <KbdKey tone="on-accent">C</KbdKey>
+                </Button>
+              )}
+            </div>
+          )}
+          {isEmpty && canEdit && (
+            <Button variant="ink" onClick={() => setShowCreate(true)} className="inline-flex items-center gap-2">
+              + New story
+              <KbdKey tone="on-accent">C</KbdKey>
+            </Button>
+          )}
+        </div>
       </PageHeader>
 
       {isEmpty ? (

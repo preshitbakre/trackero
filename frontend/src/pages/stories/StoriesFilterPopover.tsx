@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { SlidersHorizontal } from 'lucide-react';
+import { Button } from '../../components/ui/Button';
 import type { StoryListItem } from './types';
 import type { StoryFilters } from './helpers';
 
@@ -45,14 +46,15 @@ export function StoriesFilterPopover({ stories, filters, onChange }: Props) {
 
   return (
     <div className="relative" ref={ref}>
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={() => setOpen((v) => !v)}
-        className={`btn-ghost inline-flex items-center gap-1.5 ${activeCount > 0 ? 'bg-shade' : ''}`}
+        className={`inline-flex items-center gap-1.5 ${activeCount > 0 ? 'bg-shade' : ''}`}
       >
         <SlidersHorizontal size={14} /> More
         {activeCount > 0 && <span className="text-lilac">· {activeCount}</span>}
-      </button>
+      </Button>
 
       {open && (
         <div className="absolute right-0 mt-1 w-[260px] bg-card border border-rule shadow-[0_8px_24px_rgba(0,0,0,0.12)] z-20 p-3 max-h-[420px] overflow-y-auto">
@@ -108,15 +110,16 @@ export function StoriesFilterPopover({ stories, filters, onChange }: Props) {
           )}
 
           {activeCount > 0 && (
-            <button
-              type="button"
-              className="btn-ghost w-full mt-2 text-[12px]"
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full mt-2 text-[12px]"
               onClick={() =>
                 onChange({ ...filters, assigneeIds: [], labelIds: [], priorities: [], sprintIds: [] })
               }
             >
               Clear filters
-            </button>
+            </Button>
           )}
         </div>
       )}

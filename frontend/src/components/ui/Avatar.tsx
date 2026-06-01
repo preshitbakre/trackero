@@ -14,7 +14,7 @@ interface AvatarProps {
 }
 
 const SIZE_PX: Record<NonNullable<AvatarProps['size']>, number> = {
-  xs: 24,
+  xs: 22,
   sm: 28,
   md: 32,
   lg: 36,

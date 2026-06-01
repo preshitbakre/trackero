@@ -82,7 +82,6 @@ describe('Epics (e2e)', () => {
     const epic = res.body.data.list[0];
     expect(epic.epicState).toBe('draft');
     expect(epic.displayState).toBe('draft');
-    expect(epic.color).toMatch(/^#[0-9A-Fa-f]{6}$/);
     expect(epic.lead.id).toBe(adminId);
     expect(epic.archived).toBe(false);
   });

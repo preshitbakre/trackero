@@ -33,7 +33,7 @@ export function EpicStatStrip({ summary }: { summary: EpicsSummary }) {
   ];
 
   return (
-    <div className="bg-card shadow-[0_2px_8px_rgba(0,0,0,0.06)] grid grid-cols-5">
+    <div className="grid grid-cols-5 border-b border-rule">
       {cells.map((c, i) => (
         <div
           key={i}

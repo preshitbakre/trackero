@@ -20,6 +20,7 @@ interface SprintItem {
   itemKey: string;
   title: string;
   itemType: 'task' | 'bug' | 'story' | 'epic' | 'subtask';
+  parentId: number | null;
   storyPoints: number | null;
   status: { category: string; name: string; color?: string } | null;
   labels: Array<{ id: number; name: string; color: string }>;
@@ -69,13 +70,17 @@ export function OverviewTab({ sprint, onAfterAction: _onAfterAction }: OverviewT
 
     setItemsLoading(true);
     apiClient
-      .get(`/projects/${sprint.projectId}/items`, {
-        params: { sprintId: sprint.id, limit: 300 },
-      })
-      .then((r) => setItems(r.data.data.list || []))
+      .get(`/projects/${sprint.projectId}/sprints/${sprint.id}/items`)
+      .then((r) => setItems(r.data.data || []))
       .catch(() => setItems([]))
       .finally(() => setItemsLoading(false));
   }, [sprint.id, sprint.projectId]);
+
+  const parentKeyById = useMemo(() => {
+    const map: Record<number, string> = {};
+    for (const it of items) map[it.id] = it.itemKey;
+    return map;
+  }, [items]);
 
   const itemsByCategory = useMemo(() => {
     const groups: Record<string, SprintItem[]> = {};
@@ -85,6 +90,13 @@ export function OverviewTab({ sprint, onAfterAction: _onAfterAction }: OverviewT
       if (!groups[cat]) groups[cat] = [];
       groups[cat].push(item);
     }
+    // Within each group: top-level items first (preserving server order),
+    // then subtasks appended at the end of the group.
+    for (const cat of Object.keys(groups)) {
+      const tops = groups[cat].filter((it) => it.itemType !== 'subtask');
+      const subs = groups[cat].filter((it) => it.itemType === 'subtask');
+      groups[cat] = [...tops, ...subs];
+    }
     return CATEGORY_ORDER.filter((k) => groups[k]?.length > 0).map((k) => ({
       category: k,
       label: STATUS_GROUP_LABELS[k] ?? k,
@@ -92,6 +104,12 @@ export function OverviewTab({ sprint, onAfterAction: _onAfterAction }: OverviewT
       pts: groups[k].reduce((s, it) => s + (it.storyPoints ?? 0), 0),
     }));
   }, [items]);
+
+  const subtaskCount = useMemo(
+    () => items.filter((it) => it.itemType === 'subtask').length,
+    [items],
+  );
+  const topLevelCount = items.length - subtaskCount;
 
   const counters: Array<{ key: string; label: string; n: number; color?: string }> = [
     { key: 'done', label: 'Done', n: sprint.statusCounts.done ?? 0, color: 'text-mint-dark' },
@@ -147,7 +165,8 @@ export function OverviewTab({ sprint, onAfterAction: _onAfterAction }: OverviewT
             <h2 className="font-serif text-[20px] text-text">
               Items in this sprint{' '}
               <span className="font-mono text-[12px] text-mute">
-                · {items.length} items · grouped by status
+                · {topLevelCount} items
+                {subtaskCount > 0 ? ` + ${subtaskCount} subtasks` : ''} · grouped by status
               </span>
             </h2>
             <Link
@@ -178,7 +197,12 @@ export function OverviewTab({ sprint, onAfterAction: _onAfterAction }: OverviewT
                   <span>{group.pts} pts</span>
                 </header>
                 {group.items.map((it) => (
-                  <ItemRow key={it.id} item={it} projectId={sprint.projectId} />
+                  <ItemRow
+                    key={it.id}
+                    item={it}
+                    projectId={sprint.projectId}
+                    parentKey={it.parentId ? parentKeyById[it.parentId] : undefined}
+                  />
                 ))}
               </section>
             ))
@@ -191,7 +215,16 @@ export function OverviewTab({ sprint, onAfterAction: _onAfterAction }: OverviewT
   );
 }
 
-function ItemRow({ item, projectId }: { item: SprintItem; projectId: number }) {
+function ItemRow({
+  item,
+  projectId,
+  parentKey,
+}: {
+  item: SprintItem;
+  projectId: number;
+  parentKey?: string;
+}) {
+  const isSubtask = item.itemType === 'subtask';
   const detailPath =
     item.itemType === 'story'
       ? `/projects/${projectId}/stories/${item.id}`
@@ -205,7 +238,12 @@ function ItemRow({ item, projectId }: { item: SprintItem; projectId: number }) {
     >
       <TypeTag kind={item.itemType} size="sm" />
       <span className="font-mono text-[12px] text-faint w-[90px]">{item.itemKey}</span>
-      <span className="flex-1 truncate">{item.title}</span>
+      <span className="flex-1 truncate">
+        {item.title}
+        {isSubtask && parentKey && (
+          <span className="ml-2 font-mono text-[11px] text-faint">· {parentKey}</span>
+        )}
+      </span>
       <LabelList labels={item.labels ?? []} max={2} size="sm" />
       <span className="w-[40px] font-mono text-[12px] text-right">
         {item.storyPoints ?? '—'}

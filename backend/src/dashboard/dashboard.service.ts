@@ -577,7 +577,6 @@ export class DashboardService {
         e.id,
         e.title,
         p.name AS "projectName",
-        e.color,
         COUNT(t.id)::int AS "totalTasks",
         COUNT(t.id) FILTER (WHERE tps.category = 'done')::int AS "completedTasks"
       FROM work_items e
@@ -594,7 +593,6 @@ export class DashboardService {
       id: e.id,
       title: e.title,
       projectName: e.projectName,
-      color: e.color,
       totalTasks: e.totalTasks,
       completedTasks: e.completedTasks,
       progressPercent: e.totalTasks > 0 ? Math.round((e.completedTasks / e.totalTasks) * 100) : 0,
@@ -1036,7 +1034,6 @@ export class DashboardService {
       SELECT
         e.title,
         p.name AS "projectName",
-        e.color,
         COUNT(t.id)::int AS "totalTasks",
         COUNT(t.id) FILTER (WHERE tps.category = 'done')::int AS "completedTasks"
       FROM work_items e
@@ -1052,7 +1049,6 @@ export class DashboardService {
     const epicProgress = epicRows.map((e: any) => ({
       title: e.title,
       projectName: e.projectName,
-      color: e.color,
       totalTasks: e.totalTasks,
       completedTasks: e.completedTasks,
       progressPercent: e.totalTasks > 0 ? Math.round((e.completedTasks / e.totalTasks) * 100) : 0,

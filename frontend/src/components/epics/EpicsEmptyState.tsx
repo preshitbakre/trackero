@@ -5,7 +5,7 @@ import { Button } from '../ui/Button';
 const STEPS = [
   { n: '01', title: 'Name it', sub: 'A one-line title and a one-paragraph why.' },
   { n: '02', title: 'Set a target', sub: 'Optional. A target date keeps the team honest.' },
-  { n: '03', title: 'Break it up', sub: "Add stories underneath. They'll inherit the epic's color." },
+  { n: '03', title: 'Break it up', sub: 'Add stories underneath — their progress rolls up here.' },
 ];
 
 /** Zero-epics empty state: editorial copy + 3-step guide + preview card. */
@@ -22,8 +22,7 @@ export function EpicsEmptyState({ onCreate }: { onCreate: () => void }) {
         </h2>
         <p className="mt-4 text-[15px] text-mute max-w-[460px]">
           An <strong className="text-text font-semibold">epic</strong> is the largest unit of work in Trackero — a
-          multi-sprint initiative that earns its own page, its own roadmap slot, and its own celebration when it
-          ships.
+          multi-sprint initiative that earns its own page and its own celebration when it ships.
         </p>
 
         <div className="mt-8">
@@ -51,7 +50,7 @@ export function EpicsEmptyState({ onCreate }: { onCreate: () => void }) {
         {showWhat && (
           <p className="mt-4 text-[14px] text-mute max-w-[460px] border-l-2 border-rule pl-3">
             Epics group many sprints of related work under one page. Create stories beneath an epic and
-            its progress, timeline, and roadmap slot roll up automatically — then celebrate when it ships.
+            its progress and timeline roll up automatically — then celebrate when it ships.
           </p>
         )}
       </div>

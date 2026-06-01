@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
+import { Filter } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { useRole } from '../hooks/useRole';
 import { Button } from '../components/ui/Button';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Eyebrow } from '../components/ui/Eyebrow';
 import { KbdKey } from '../components/ui/KbdKey';
-import { Select } from '../components/ui/Select';
 import { CreateItemDialog } from '../components/common/CreateItemDialog';
 import { CardSkeleton } from '../components/common/Skeleton';
 import { ErrorState } from '../components/common/ErrorState';
@@ -42,7 +42,20 @@ export function EpicsPage() {
   const [error, setError] = useState(false);
   const [filter, setFilter] = useState('');
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
   const { canEdit } = useRole();
+
+  useEffect(() => {
+    if (!filterOpen) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setFilterOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [filterOpen]);
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -98,21 +111,44 @@ export function EpicsPage() {
           <div className="flex items-baseline gap-3 flex-wrap mt-1">
             <h1 className="font-serif text-[36px] text-text">Epics</h1>
             {!isEmpty && (
-              <span className="text-[15px] text-mute">— the big rocks. Each spans many sprints.</span>
+              <span className="text-[15px] text-mute font-serif italic">— the big rocks. Each spans many sprints.</span>
             )}
           </div>
         </div>
         <div className="flex items-center gap-2">
           {!isEmpty && (
-            <Select
-              value={filter}
-              onChange={setFilter}
-              options={filterOptions}
-              className="w-[140px]"
-            />
+            <div ref={filterRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setFilterOpen((v) => !v)}
+                className={`btn-ghost inline-flex items-center gap-2 ${filterOpen ? 'bg-shade' : ''}`}
+              >
+                <Filter size={14} aria-hidden />
+                {filterOptions.find((o) => o.value === filter)?.label ?? `All · ${epics.length}`}
+              </button>
+              {filterOpen && (
+                <div className="absolute right-0 top-full mt-1 bg-card shadow-[0_4px_14px_rgba(0,0,0,0.10)] border border-rule min-w-[180px] z-10 py-1">
+                  {filterOptions.map((opt) => (
+                    <button
+                      key={opt.value || 'all'}
+                      type="button"
+                      onClick={() => {
+                        setFilter(opt.value);
+                        setFilterOpen(false);
+                      }}
+                      className={`block w-full text-left px-3 py-1.5 text-[13px] hover:bg-shade ${
+                        filter === opt.value ? 'bg-shade font-medium' : ''
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
           {canEdit && (
-            <Button onClick={() => setShowCreate(true)} className="inline-flex items-center gap-2">
+            <Button variant="ink" onClick={() => setShowCreate(true)} className="inline-flex items-center gap-2">
               + New epic <KbdKey tone="on-accent">E</KbdKey>
             </Button>
           )}
@@ -132,7 +168,7 @@ export function EpicsPage() {
       ) : isEmpty ? (
         <EpicsEmptyState onCreate={() => setShowCreate(true)} />
       ) : (
-        <div className="px-[28px] py-6 space-y-8">
+        <div className="pb-6 space-y-8">
           {summary && <EpicStatStrip summary={summary} />}
 
           {SECTIONS.map((section) => {
@@ -141,18 +177,21 @@ export function EpicsPage() {
             const collapsed = section.collapsible && !archiveOpen;
             return (
               <section key={section.key}>
-                <button
-                  type="button"
-                  className={`text-[12px] tracking-[0.14em] uppercase font-semibold ${section.accent} ${
-                    section.collapsible ? 'cursor-pointer' : 'cursor-default'
-                  }`}
-                  onClick={() => section.collapsible && setArchiveOpen((v) => !v)}
-                  disabled={!section.collapsible}
-                >
-                  {section.label} {section.collapsible && `(${items.length}) ${collapsed ? '▸' : '▾'}`}
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    className={`pl-[28px] text-[12px] tracking-[0.14em] uppercase font-semibold ${section.accent} ${
+                      section.collapsible ? 'cursor-pointer' : 'cursor-default'
+                    }`}
+                    onClick={() => section.collapsible && setArchiveOpen((v) => !v)}
+                    disabled={!section.collapsible}
+                  >
+                    {section.label} {section.collapsible && `(${items.length}) ${collapsed ? '▸' : '▾'}`}
+                  </button>
+                  <div className="flex-1 h-px bg-rule" />
+                </div>
                 {!collapsed && (
-                  <div className="mt-3 grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  <div className="px-[28px] mt-3 grid grid-cols-1 xl:grid-cols-2 gap-4">
                     {items.map((epic) => (
                       <EpicCard key={epic.id} epic={epic} projectId={projectId!} />
                     ))}

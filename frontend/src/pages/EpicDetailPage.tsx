@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { LayoutDashboard, Layers, Clock, Settings as SettingsIcon } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { useRole } from '../hooks/useRole';
 import { getEpic, reopenEpic, epicStateToPill } from '../api/epics';
@@ -10,6 +9,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { Tabs } from '../components/ui/Tabs';
 import { StatusPill } from '../components/ui/StatusPill';
 import type { StatusKey } from '../components/ui/StatusPill';
+import { TypeTag } from '../components/ui/TypeTag';
 import { ErrorState } from '../components/common/ErrorState';
 import { TaskDetailPanel } from '../components/tasks/TaskDetailPanel';
 import { CreateItemDialog } from '../components/common/CreateItemDialog';
@@ -20,16 +20,9 @@ import { TimelineTab } from './epic-detail/TimelineTab';
 import { SettingsTab } from './epic-detail/SettingsTab';
 import { EpicSidebar } from './epic-detail/EpicSidebar';
 import { EpicIdentitySidebar } from './epic-detail/EpicIdentitySidebar';
-
-const ACCENTS: Record<string, string> = {
-  in_flight: '#7C3AED',
-  at_risk: '#E88A48',
-  blocked: '#E05252',
-  shipped: '#3E8E44',
-  planning: '#A8A1B5',
-  draft: '#A8A1B5',
-  archived: '#A8A1B5',
-};
+import OverviewIcon from '../assets/icons/overview.svg?react';
+import TimelineIcon from '../assets/icons/timeline.svg?react';
+import SettingsIcon from '../assets/icons/settings.svg?react';
 
 type TabKey = 'overview' | 'stories' | 'timeline' | 'settings';
 
@@ -103,7 +96,6 @@ export function EpicDetailPage() {
   }
 
   const shipped = epic.epicState === 'shipped';
-  const accent = ACCENTS[epic.displayState] ?? '#7C3AED';
 
   const handleReopen = async () => {
     try {
@@ -117,22 +109,22 @@ export function EpicDetailPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="h-[3px] w-full" style={{ backgroundColor: accent }} aria-hidden />
-
       <PageHeader>
-        <div className="text-[13px] text-mute mb-2">
-          <Link to={`/projects/${projectId}/epics`} className="hover:underline">
+        <nav className="text-[12px] text-mute mb-2">
+          <Link to={`/projects/${projectId}/epics`} className="hover:text-text">
             Epics
-          </Link>{' '}
-          › {epic.itemKey}
-        </div>
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <span className="w-5 h-5 rounded shrink-0" style={{ backgroundColor: epic.color }} aria-hidden />
-            <h1 className="text-[20px] font-semibold text-text truncate">{epic.title}</h1>
-            <StatusPill status={epicStateToPill(epic.displayState) as StatusKey} dot />
+          </Link>
+          <span className="mx-2">›</span>
+          <span>{epic.itemKey}</span>
+        </nav>
+
+        <header className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <TypeTag kind="epic" size="md" />
+            <h1 className="font-serif text-[32px] leading-none tracking-[-0.8px] text-text truncate">{epic.title}</h1>
+            <StatusPill status={epicStateToPill(epic.displayState) as StatusKey} dot caps />
             {epic.displayState === 'blocked' && epic.priority === 'urgent' && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-[#E05252] text-white">P0</span>
+              <span className="text-[10px] px-1.5 py-0.5 font-semibold bg-[#E05252] text-white">P0</span>
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -160,20 +152,20 @@ export function EpicDetailPage() {
               </>
             )}
           </div>
-        </div>
-
-        <Tabs
-          className="mt-4 -mb-[16px] border-b-0"
-          active={tab}
-          onChange={setTab}
-          tabs={[
-            { key: 'overview', label: 'Overview', icon: <LayoutDashboard size={14} /> },
-            { key: 'stories', label: 'Stories', icon: <Layers size={14} />, badge: childCount },
-            { key: 'timeline', label: 'Timeline', icon: <Clock size={14} /> },
-            { key: 'settings', label: 'Settings', icon: <SettingsIcon size={14} /> },
-          ]}
-        />
+        </header>
       </PageHeader>
+
+      <Tabs
+        className="px-[28px] flex-shrink-0"
+        active={tab}
+        onChange={setTab}
+        tabs={[
+          { key: 'overview', label: 'Overview', icon: <OverviewIcon className="w-[14px] h-[14px]" /> },
+          { key: 'stories', label: 'Stories', icon: <TypeTag kind="story" size="xs" />, badge: childCount },
+          { key: 'timeline', label: 'Timeline', icon: <TimelineIcon className="w-[14px] h-[14px]" /> },
+          { key: 'settings', label: 'Settings', icon: <SettingsIcon className="w-[14px] h-[14px]" /> },
+        ]}
+      />
 
       <div className="flex flex-1 min-h-0">
         <div className="flex-1 min-w-0 overflow-y-auto custom-scrollbar px-[28px] py-6">

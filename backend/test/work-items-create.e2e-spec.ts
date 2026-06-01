@@ -74,7 +74,6 @@ describe('WorkItems CREATE (e2e)', () => {
       itemType: 'epic',
       title: 'User Auth',
       priority: 'high',
-      color: '#7C5CFC',
     }).expect(201);
 
     expect(res.body.success).toBe(true);
@@ -83,7 +82,6 @@ describe('WorkItems CREATE (e2e)', () => {
     expect(item.itemType).toBe('epic');
     expect(item.title).toBe('User Auth');
     expect(item.priority).toBe('high');
-    expect(item.color).toBe('#7C5CFC');
     expect(item.parentId).toBeNull();
     expect(item.itemNumber).toBe(1);
     expect(item.statusId).toBe(defaultStatusId);

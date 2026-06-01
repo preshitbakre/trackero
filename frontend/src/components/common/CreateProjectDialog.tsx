@@ -22,7 +22,13 @@ function generatePrefix(name: string): string {
   return name.replace(/[^a-zA-Z]/g, '').slice(0, 5).toUpperCase();
 }
 
-export function CreateProjectDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+interface CreatedProject {
+  id: number;
+  name: string;
+  prefix: string;
+}
+
+export function CreateProjectDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (project: CreatedProject) => void }) {
   const [name, setName] = useState('');
   const [prefix, setPrefix] = useState('');
   const [prefixTouched, setPrefixTouched] = useState(false);
@@ -42,9 +48,10 @@ export function CreateProjectDialog({ onClose, onCreated }: { onClose: () => voi
     setError('');
     setLoading(true);
     try {
-      await apiClient.post('/projects', { name, prefix: prefix.toUpperCase(), description: description || undefined });
+      const res = await apiClient.post('/projects', { name, prefix: prefix.toUpperCase(), description: description || undefined });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      onCreated();
+      const created = res.data?.data?.item as CreatedProject;
+      onCreated(created);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to create project');
     } finally {

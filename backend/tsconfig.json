@@ -16,5 +16,6 @@
       "@/*": ["./src/*"]
     },
     "baseUrl": "."
-  }
+  },
+  "exclude": ["test", "dist", "vitest.config.ts", "src/**/*.spec.ts"]
 }

@@ -6,17 +6,32 @@ import { Select } from '../ui/Select';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
 
+/**
+ * Milestone feed — matches `docs/Epics/Epic detail _ timeline.png`.
+ *
+ * Each row is a two-line block:
+ *
+ *   ■  (NN) Author Name   MAY 5   risk           ← meta line (auto-height)
+ *      One-sentence body about what happened.    ← body line
+ *
+ * The colored square in the gutter (kind colour) doubles as the
+ * scanning anchor; "risk"/"target" chips render only for those kinds.
+ */
+
+// Marker square fill colour by kind — taken from the design tokens
+// (--c-forest / --accent / --c-mustard / --ink / --c-sky).
 const KIND_COLOR: Record<string, string> = {
-  note: '#6B6377',
-  kickoff: '#1A1424',
-  shipped: '#3E8E44',
-  risk: '#E88A48',
-  target: '#7C3AED',
+  note: 'var(--ink-3)',
+  kickoff: 'var(--ink)',
+  shipped: 'var(--c-forest)',
+  risk: 'var(--c-mustard)',
+  target: 'var(--accent)',
 };
 
-const CHIP: Record<string, { bg: string; color: string } | null> = {
-  risk: { bg: '#E88A4818', color: '#B5631F' },
-  target: { bg: '#7C3AED15', color: '#6326D6' },
+// Chip styling for the two emphasized kinds shown inline in the meta row.
+const CHIP: Record<string, { color: string } | null> = {
+  risk: { color: 'var(--c-mustard)' },
+  target: { color: 'var(--accent-ink)' },
   note: null,
   kickoff: null,
   shipped: null,
@@ -49,8 +64,10 @@ export function MilestoneFeed({ milestones, canEdit, onAdd, onDelete }: Props) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="font-serif text-[20px] text-text">Milestones</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-serif text-[20px] text-text" style={{ letterSpacing: '-0.02em' }}>
+          Milestones
+        </h2>
         {canEdit && !adding && (
           <Button size="sm" variant="ghost" onClick={() => setAdding(true)}>
             + Add milestone
@@ -81,25 +98,62 @@ export function MilestoneFeed({ milestones, canEdit, onAdd, onDelete }: Props) {
         </div>
       )}
 
-      <div className="relative pl-2">
+      <ul className="space-y-3">
         {milestones.map((m) => {
           const chip = CHIP[m.kind];
           return (
-            <div key={`${m.id}-${m.occurredOn}`} className="group flex gap-3 pb-5 last:pb-0">
+            <li key={`${m.id}-${m.occurredOn}`} className="group flex gap-3 items-start">
+              {/* Kind marker square — fixed column for vertical alignment */}
               <span
-                className="w-2.5 h-2.5 mt-1.5 shrink-0"
-                style={{ backgroundColor: KIND_COLOR[m.kind] ?? '#6B6377' }}
                 aria-hidden
+                className="shrink-0"
+                style={{
+                  width: 10,
+                  height: 10,
+                  background: KIND_COLOR[m.kind] ?? 'var(--ink-3)',
+                  marginTop: 5,
+                }}
               />
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  {m.author && <Avatar user={m.author} size="xs" />}
-                  {m.author && <span className="text-[13px] font-medium text-text">{m.author.displayName}</span>}
-                  <span className="text-[12px] text-faint">{fmtDate(m.occurredOn)}</span>
+                {/* Meta row: avatar · name · date · optional chip · delete */}
+                <div className="flex items-center gap-2" style={{ minHeight: 20 }}>
+                  {m.author ? (
+                    <Avatar user={m.author} size="xs" />
+                  ) : (
+                    <span
+                      aria-hidden
+                      className="inline-block rounded-full bg-paper-3"
+                      style={{ width: 20, height: 20 }}
+                    />
+                  )}
+                  {m.author && (
+                    <span
+                      className="text-text"
+                      style={{ fontSize: 12, fontWeight: 600, letterSpacing: '-0.005em', lineHeight: '16px' }}
+                    >
+                      {m.author.displayName}
+                    </span>
+                  )}
+                  <span
+                    className="font-mono uppercase"
+                    style={{
+                      fontSize: 10.5,
+                      letterSpacing: '-0.005em',
+                      color: 'var(--ink-3)',
+                      lineHeight: '14px',
+                    }}
+                  >
+                    {fmtDate(m.occurredOn)}
+                  </span>
                   {chip && (
                     <span
-                      className="text-[10px] uppercase px-1.5 py-0.5 rounded-full"
-                      style={{ background: chip.bg, color: chip.color }}
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 500,
+                        letterSpacing: '0.04em',
+                        color: chip.color,
+                        lineHeight: '10px',
+                      }}
                     >
                       {m.kind}
                     </span>
@@ -114,12 +168,23 @@ export function MilestoneFeed({ milestones, canEdit, onAdd, onDelete }: Props) {
                     </button>
                   )}
                 </div>
-                <p className="mt-1 text-[14px] text-text">{m.body}</p>
+                {/* Body line */}
+                <p
+                  className="text-text"
+                  style={{
+                    fontSize: 13,
+                    letterSpacing: '-0.005em',
+                    lineHeight: '19.5px',
+                    marginTop: 2,
+                  }}
+                >
+                  {m.body}
+                </p>
               </div>
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </div>
   );
 }

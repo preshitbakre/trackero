@@ -5,7 +5,7 @@ import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
-import { ColorPicker } from '../../components/epics/ColorPicker';
+import { Eyebrow } from '../../components/ui/Eyebrow';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { toast } from '../../components/common/Toast';
 
@@ -19,21 +19,40 @@ interface Props {
 
 type Confirm = 'ship' | 'reopen' | 'detach' | 'archive' | null;
 
-function Section({ title, help, children }: { title: string; help: string; children: React.ReactNode }) {
+/**
+ * Section wrapper — serif heading + help line. Matches the design's
+ * "Identity / Scope / Operations" rhythm (18px serif heading, 12px mute
+ * help, generous vertical space between sections, no top border on first).
+ */
+function Section({
+  title,
+  help,
+  children,
+}: {
+  title: string;
+  help: string;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="py-6 border-t border-rule first:border-t-0">
-      <h2 className="font-serif text-[22px] text-text">{title}</h2>
-      <p className="text-[13px] text-mute mb-4">{help}</p>
-      {children}
+    <section className="pt-8 first:pt-0">
+      <h2 className="font-serif text-[18px] leading-[1.4] tracking-[-0.36px] text-text">
+        {title}
+      </h2>
+      <p className="text-[12px] text-mute mt-1">{help}</p>
+      <div className="mt-5">{children}</div>
     </section>
   );
 }
 
+/**
+ * Smallcaps-eyebrow + control. Eyebrow is the same 10px / 600 / 1.2px
+ * tracking style used across the app (Eyebrow size="sm").
+ */
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-[11px] tracking-[0.14em] uppercase text-faint mb-1">{label}</p>
-      {children}
+      <Eyebrow size="sm">{label}</Eyebrow>
+      <div className="mt-2">{children}</div>
     </div>
   );
 }
@@ -41,7 +60,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 export function SettingsTab({ epic, projectId, canEdit, onChanged, onArchived }: Props) {
   const [title, setTitle] = useState(epic.title);
   const [description, setDescription] = useState(epic.description ?? '');
-  const [color, setColor] = useState(epic.color);
   const [startDate, setStartDate] = useState(epic.startDate ?? '');
   const [endDate, setEndDate] = useState(epic.endDate ?? '');
   const [state, setState] = useState(epic.epicState);
@@ -87,9 +105,14 @@ export function SettingsTab({ epic, projectId, canEdit, onChanged, onArchived }:
   const disabled = !canEdit;
 
   return (
-    <div className="max-w-[680px]">
+    <div className="w-full">
+      {/*
+        Identity section — covers Title AND Brief/Why. They share the same
+        section heading per the design (no second serif heading, no extra
+        divider between them).
+      */}
       <Section title="Identity" help="What this epic is called and where it lives.">
-        <div className="grid grid-cols-[1fr_180px] gap-4">
+        <div className="space-y-5">
           <Field label="Title">
             <Input
               value={title}
@@ -98,26 +121,19 @@ export function SettingsTab({ epic, projectId, canEdit, onChanged, onArchived }:
               onBlur={() => title !== epic.title && save({ title })}
             />
           </Field>
-          <Field label="Color">
-            <ColorPicker
-              value={color}
-              onChange={(c) => {
-                setColor(c);
-                save({ color: c });
-              }}
+
+          <Field label="Brief / Why">
+            <Textarea
+              value={description}
+              disabled={disabled}
+              rows={4}
+              onChange={(e) => setDescription(e.target.value)}
+              onBlur={() =>
+                description !== (epic.description ?? '') && save({ description })
+              }
             />
           </Field>
         </div>
-      </Section>
-
-      <Section title="Brief / why" help="A one-paragraph why. This shows on the Overview.">
-        <Textarea
-          value={description}
-          disabled={disabled}
-          rows={4}
-          onChange={(e) => setDescription(e.target.value)}
-          onBlur={() => description !== (epic.description ?? '') && save({ description })}
-        />
       </Section>
 
       <Section title="Scope" help="Dates are optional — but a target keeps the team honest.">
@@ -128,7 +144,15 @@ export function SettingsTab({ epic, projectId, canEdit, onChanged, onArchived }:
               value={startDate}
               disabled={disabled}
               onChange={(e) => setStartDate(e.target.value)}
-              onBlur={() => startDate !== (epic.startDate ?? '') && save({ startDate: startDate || null })}
+              onBlur={() => {
+                if (startDate === (epic.startDate ?? '')) return;
+                if (startDate && endDate && startDate > endDate) {
+                  toast('Start date cannot be after target date', 'error');
+                  setStartDate(epic.startDate ?? '');
+                  return;
+                }
+                save({ startDate: startDate || null });
+              }}
             />
           </Field>
           <Field label="Target">
@@ -137,12 +161,22 @@ export function SettingsTab({ epic, projectId, canEdit, onChanged, onArchived }:
               value={endDate}
               disabled={disabled}
               onChange={(e) => setEndDate(e.target.value)}
-              onBlur={() => endDate !== (epic.endDate ?? '') && save({ endDate: endDate || null })}
+              onBlur={() => {
+                if (endDate === (epic.endDate ?? '')) return;
+                if (startDate && endDate && endDate < startDate) {
+                  toast('Target date cannot be before start date', 'error');
+                  setEndDate(epic.endDate ?? '');
+                  return;
+                }
+                save({ endDate: endDate || null });
+              }}
             />
           </Field>
           <Field label="State">
             {shipped ? (
-              <div className="h-[30px] flex items-center text-[13px] text-mute">Shipped</div>
+              <div className="h-[38px] flex items-center text-[14px] text-mute">
+                Shipped
+              </div>
             ) : (
               <Select
                 value={state}
@@ -162,8 +196,8 @@ export function SettingsTab({ epic, projectId, canEdit, onChanged, onArchived }:
       </Section>
 
       <Section title="Operations" help="Operational controls. Some are irreversible.">
-        <div className="space-y-px">
-          <OpRow
+        <div className="space-y-3">
+          <OpCard
             icon="✓"
             title={shipped ? 'Reopen epic' : 'Mark epic as shipped'}
             desc={
@@ -172,28 +206,44 @@ export function SettingsTab({ epic, projectId, canEdit, onChanged, onArchived }:
                 : 'All children must be Done or moved out. The epic moves to the Shipped section.'
             }
             button={
-              <Button size="sm" variant={shipped ? 'secondary' : 'ink'} disabled={disabled} onClick={() => setConfirm(shipped ? 'reopen' : 'ship')}>
+              <Button
+                size="sm"
+                variant={shipped ? 'secondary' : 'ink'}
+                disabled={disabled}
+                onClick={() => setConfirm(shipped ? 'reopen' : 'ship')}
+              >
                 {shipped ? 'Reopen' : 'Ship epic…'}
               </Button>
             }
           />
-          <OpRow
+          <OpCard
             icon="↩"
             title="Move children to backlog"
             desc="Detach all child items. They keep their data, lose their parent."
             button={
-              <Button size="sm" variant="secondary" disabled={disabled} onClick={() => setConfirm('detach')}>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={disabled}
+                onClick={() => setConfirm('detach')}
+              >
                 Detach…
               </Button>
             }
           />
-          <OpRow
+          <OpCard
             icon="⚠"
             title="Archive epic"
             desc="Read-only. Survives in history; doesn't show up in filters."
-            warn
+            tone="lilac"
             button={
-              <Button size="sm" variant="secondary" disabled={disabled} onClick={() => setConfirm('archive')}>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={disabled}
+                onClick={() => setConfirm('archive')}
+                className="text-lilac-dark"
+              >
                 Archive…
               </Button>
             }
@@ -231,25 +281,38 @@ export function SettingsTab({ epic, projectId, canEdit, onChanged, onArchived }:
   );
 }
 
-function OpRow({
+/**
+ * Single destructive-operation card. Each op is its OWN card (per the
+ * design), no shared container. Cards are flat — no border-radius, hairline
+ * rule on all sides via `border border-rule`. The "lilac" tone tints the
+ * title + leading icon to draw attention to the archive action without
+ * shouting (no danger-red background).
+ */
+function OpCard({
   icon,
   title,
   desc,
   button,
-  warn,
+  tone = 'neutral',
 }: {
   icon: string;
   title: string;
   desc: string;
   button: React.ReactNode;
-  warn?: boolean;
+  tone?: 'neutral' | 'lilac';
 }) {
+  const accent = tone === 'lilac' ? 'text-lilac-dark' : 'text-mute';
+  const titleColor = tone === 'lilac' ? 'text-lilac-dark' : 'text-text';
   return (
-    <div className={`flex items-center gap-3 px-4 py-3 ${warn ? 'bg-[#E0525208]' : 'bg-card'} shadow-[0_1px_0_var(--rule,#E8E3F0)]`}>
-      <span className={`text-[14px] ${warn ? 'text-[#E05252]' : 'text-mute'}`}>{icon}</span>
+    <div className="flex items-center gap-3 bg-card border border-rule px-[14px] py-3">
+      <span aria-hidden className={`text-[14px] leading-none ${accent}`}>
+        {icon}
+      </span>
       <div className="flex-1 min-w-0">
-        <p className={`text-[14px] font-medium ${warn ? 'text-[#E05252]' : 'text-text'}`}>{title}</p>
-        <p className="text-[13px] text-mute">{desc}</p>
+        <p className={`text-[13px] font-semibold leading-[1.4] ${titleColor}`}>
+          {title}
+        </p>
+        <p className="text-[11.5px] text-mute mt-0.5">{desc}</p>
       </div>
       {button}
     </div>
