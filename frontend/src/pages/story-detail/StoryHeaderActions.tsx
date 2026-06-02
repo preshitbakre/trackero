@@ -11,6 +11,7 @@ interface Props {
   story: StoryDetail;
   projectId: number;
   canEdit: boolean;
+  canManageProject: boolean;
   statuses: { id: number; name: string; category: string }[];
   sprints: { id: number; name: string }[];
   isWatching: boolean;
@@ -27,7 +28,7 @@ function firstStatusId(statuses: Props['statuses'], category: string): number | 
 }
 
 export function StoryHeaderActions(props: Props) {
-  const { story, projectId, canEdit, statuses, sprints, isWatching, onPatch, onApprove, onReopen, onToggleWatch, onOpenReleaseNotes, onChanged } = props;
+  const { story, projectId, canEdit, canManageProject, statuses, sprints, isWatching, onPatch, onApprove, onReopen, onToggleWatch, onOpenReleaseNotes, onChanged } = props;
   const cat = story.status?.category ?? 'backlog';
   const fileRef = useRef<HTMLInputElement>(null);
   const [popover, setPopover] = useState<'estimate' | 'sprint' | null>(null);
@@ -118,19 +119,19 @@ export function StoryHeaderActions(props: Props) {
         <>
           {AttachBtn}
           {WatchBtn}
-          <Button size="sm" variant="ink" onClick={onApprove}>Approve →</Button>
+          {canManageProject && <Button size="sm" variant="ink" onClick={onApprove}>Approve →</Button>}
         </>
       )}
 
       {cat === 'done' && (
         <>
-          <Button size="sm" variant="secondary" onClick={onReopen}>Reopen</Button>
+          {canManageProject && <Button size="sm" variant="secondary" onClick={onReopen}>Reopen</Button>}
           <Button size="sm" variant="ink" onClick={onOpenReleaseNotes}>View release notes →</Button>
         </>
       )}
 
       {cat === 'cancelled' && (
-        <Button size="sm" variant="secondary" onClick={onReopen}>Reopen</Button>
+        canManageProject && <Button size="sm" variant="secondary" onClick={onReopen}>Reopen</Button>
       )}
     </div>
   );

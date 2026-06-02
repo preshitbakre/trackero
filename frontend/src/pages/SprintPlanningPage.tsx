@@ -97,7 +97,7 @@ export function SprintPlanningPage() {
   const [subtasksByParent, setSubtasksByParent] = useState<Map<number, PlanTask[]>>(new Map());
   const [starting, setStarting] = useState(false);
 
-  const { isReadOnly: roleReadOnly } = useRole();
+  const { isReadOnly: roleReadOnly, canManageProject } = useRole();
   // Completed/cancelled sprints are immutable here — no drops, no save.
   const isSprintLocked = sprint?.status === 'completed' || sprint?.status === 'cancelled';
   const isReadOnly = roleReadOnly || isSprintLocked;
@@ -237,7 +237,7 @@ export function SprintPlanningPage() {
               ← Back to sprint
             </Link>
           )}
-          {sprint?.status === 'planning' && (
+          {sprint?.status === 'planning' && canManageProject && (
             <button
               type="button"
               disabled={isReadOnly}
@@ -258,7 +258,7 @@ export function SprintPlanningPage() {
               Save draft
             </button>
           )}
-          {sprint?.status === 'planning' && (
+          {sprint?.status === 'planning' && canManageProject && (
             <button
               type="button"
               disabled={isReadOnly || starting}

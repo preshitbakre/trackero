@@ -109,7 +109,10 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
   const [showAddChecklist, setShowAddChecklist] = useState(false);
   const [newChecklistTitle, setNewChecklistTitle] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const { canEdit } = useRole();
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  const [editCommentBody, setEditCommentBody] = useState('');
+  const { canEdit, canManageProject, canAdminister } = useRole();
+  const currentUser = useAuthStore((s) => s.user);
   const [assigneeOptions, setAssigneeOptions] = useState<{ value: string; label: string }[]>([]);
   const [parentOptions, setParentOptions] = useState<{ value: string; label: string; data?: any }[]>([]);
   const [sprintOptions, setSprintOptions] = useState<{ value: string; label: string }[]>([]);
@@ -360,10 +363,11 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
     setEditing(false);
   };
 
-  const handleDeleteItem = async () => {
+  const handleDeleteItem = async (hard = false) => {
     try {
-      await apiClient.delete(`/projects/${projectId}/items/${taskId}`);
-      toast('Item deleted');
+      const query = hard ? '?hard=true' : '';
+      await apiClient.delete(`/projects/${projectId}/items/${taskId}${query}`);
+      toast(hard ? 'Item permanently deleted' : 'Item deleted');
       setShowDeleteConfirm(false);
       onClose();
       onUpdated?.();
@@ -382,6 +386,50 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
       setComments(data.data.list || []);
     } catch (err: any) {
       toast(err.response?.data?.message || 'Failed to post comment', 'error');
+    }
+  };
+
+  const reloadComments = async () => {
+    try {
+      const { data } = await apiClient.get(`/projects/${projectId}/items/${taskId}/comments`);
+      setComments(data.data.list || []);
+    } catch (err) { console.error(err); }
+  };
+
+  const reloadAttachments = async () => {
+    try {
+      const { data } = await apiClient.get(`/projects/${projectId}/items/${taskId}/attachments`);
+      setAttachments(data.data.list || []);
+    } catch (err) { console.error(err); }
+  };
+
+  const handleEditComment = async (commentId: number) => {
+    if (!editCommentBody.trim()) return;
+    try {
+      await apiClient.put(`/projects/${projectId}/items/${taskId}/comments/${commentId}`, { body: editCommentBody.trim() });
+      setEditingCommentId(null);
+      reloadComments();
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to edit comment', 'error');
+    }
+  };
+
+  const handleDeleteComment = async (commentId: number) => {
+    try {
+      await apiClient.delete(`/projects/${projectId}/items/${taskId}/comments/${commentId}`);
+      reloadComments();
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to delete comment', 'error');
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId: number) => {
+    try {
+      await apiClient.delete(`/projects/${projectId}/items/${taskId}/attachments/${attachmentId}`);
+      reloadAttachments();
+      toast('Attachment deleted');
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to delete attachment', 'error');
     }
   };
 
@@ -680,7 +728,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
           {/* Labels */}
           <div>
             <h3 className="smallcaps mb-2">Labels</h3>
-            {canEdit ? (
+            {canEdit && (
               <LabelPicker
                 projectId={projectId}
                 selectedIds={(task.labels || []).map(l => l.id)}
@@ -694,14 +742,25 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                   }
                 }}
               />
-            ) : (
+            )}
+            {!canEdit && (task.labels || []).length > 0 && (
               <LabelList labels={task.labels || []} max={10} size="md" />
+            )}
+            {(task.labels || []).length === 0 && (
+              <p className="text-[13px] text-[var(--ink-4)]">No labels</p>
             )}
           </div>
 
           {/* Associations */}
           <div>
-            <h3 className="smallcaps mb-2">Associations</h3>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="smallcaps">Associations</h3>
+              {canEdit && !showAddAssociation && (
+                <button onClick={() => setShowAddAssociation(true)} className="text-[11.5px] font-medium text-[var(--ink-2)] hover:text-[var(--ink)]">
+                  + Link item
+                </button>
+              )}
+            </div>
             {associations && (
               <div className="space-y-2">
                 {associations.belongsTo?.length > 0 && (
@@ -770,11 +829,19 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                 )}
               </div>
             )}
-            {canEdit && !showAddAssociation && (
-              <button onClick={() => setShowAddAssociation(true)} className="text-[14px] text-lilac-dark hover:underline mt-2">
-                + Link item
-              </button>
-            )}
+            {(() => {
+              const hasAny = associations && (
+                (associations.belongsTo?.length > 0) ||
+                ((associations.contains || []).some((a: any) => a.item?.itemType !== 'subtask')) ||
+                (associations.blocks?.length > 0) ||
+                (associations.blockedBy?.length > 0) ||
+                (associations.relatesTo?.length > 0) ||
+                (associations.causedBy?.length > 0) ||
+                (associations.causes?.length > 0)
+              );
+              if (!hasAny && !showAddAssociation) return <p className="text-[13px] text-[var(--ink-4)]">No associations</p>;
+              return null;
+            })()}
             {showAddAssociation && canEdit && (
               <div className="mt-2 p-3 rounded-lg bg-paper shadow-sm space-y-2">
                 <div className="flex gap-2 flex-wrap">
@@ -833,27 +900,34 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
           {task.itemType !== 'subtask' && (
             <div>
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-[16px] font-medium text-neutral-400">
-                  Subtasks {task.subtasks && task.subtasks.length > 0 && `(${task.subtasks.length})`}
+                <h3 className="smallcaps">
+                  Subtasks{task.subtasks && task.subtasks.length > 0 ? ` · ${task.subtasks.length}` : ''}
                 </h3>
+                {canEdit && !showAddSubtask && (
+                  <button onClick={() => setShowAddSubtask(true)} className="text-[11.5px] font-medium text-[var(--ink-2)] hover:text-[var(--ink)]">
+                    + Add subtask
+                  </button>
+                )}
               </div>
               {task.subtasks && task.subtasks.length > 0 && (
                 <div className="space-y-1 mb-2">
                   {task.subtasks.map((st) => (
-                    <button key={st.id} onClick={() => onNavigateToTask?.(st.id)} className="flex items-center gap-2 text-[16px] py-1.5 px-2 rounded hover:bg-neutral-100 w-full text-left">
-                      <span className={st.completedAt ? 'text-success' : 'text-neutral-400'}>
+                    <button key={st.id} onClick={() => onNavigateToTask?.(st.id)} className="flex items-center gap-2 text-[13px] py-1.5 px-2 hover:bg-[var(--shade)] w-full text-left">
+                      <span style={{ color: st.completedAt ? 'var(--accent)' : 'var(--ink-4)' }}>
                         {st.completedAt ? '☑' : '☐'}
                       </span>
-                      <span className={`flex-1 ${st.completedAt ? 'line-through text-neutral-400' : 'text-neutral-700'}`}>
+                      <span className={`flex-1 truncate ${st.completedAt ? 'line-through' : ''}`} style={{ color: st.completedAt ? 'var(--ink-4)' : 'var(--ink)' }}>
                         {st.title}
                       </span>
-                      <span className="text-neutral-400 text-[16px]">→</span>
                     </button>
                   ))}
                 </div>
               )}
-              {canEdit && (showAddSubtask ? (
-                <form onSubmit={(e) => { e.preventDefault(); handleCreateSubtaskAndOpen(); }} className="flex gap-1">
+              {(!task.subtasks || task.subtasks.length === 0) && !showAddSubtask && (
+                <p className="text-[13px] text-[var(--ink-4)]">No subtasks</p>
+              )}
+              {canEdit && showAddSubtask && (
+                <form onSubmit={(e) => { e.preventDefault(); handleCreateSubtaskAndOpen(); }} className="flex gap-1 mt-2">
                   <Input
                     value={newSubtaskTitle}
                     onChange={(e) => setNewSubtaskTitle(e.target.value)}
@@ -864,49 +938,45 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                   <Button type="submit" variant="primary" size="sm">Add</Button>
                   <Button type="button" variant="ghost" size="sm" onClick={() => setShowAddSubtask(false)}>Cancel</Button>
                 </form>
-              ) : (
-                <button onClick={() => setShowAddSubtask(true)} className="text-[16px] text-neutral-400 hover:text-lilac-dark">
-                  + Add subtask
-                </button>
-              ))}
+              )}
             </div>
           )}
 
           {/* Checklist */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-[16px] font-medium text-neutral-400">
-                Checklist {checklistItems.length > 0 && `(${checklistItems.filter((i) => i.isCompleted).length}/${checklistItems.length})`}
+              <h3 className="smallcaps">
+                Checklist{checklistItems.length > 0 ? ` · ${checklistItems.filter((i) => i.isCompleted).length}/${checklistItems.length}` : ''}
               </h3>
               {canEdit && !showAddChecklist && (
-                <button onClick={() => setShowAddChecklist(true)} className="text-[16px] text-lilac-dark hover:underline">+ Add item</button>
+                <button onClick={() => setShowAddChecklist(true)} className="text-[11.5px] font-medium text-[var(--ink-2)] hover:text-[var(--ink)]">+ Add item</button>
               )}
             </div>
             {checklistItems.length > 0 && (
               <div className="space-y-1 mb-2">
                 {checklistItems.map((item) => (
-                  <div key={item.id} className="flex items-center gap-2 text-[16px] py-1 px-2 rounded hover:bg-neutral-100">
+                  <div key={item.id} className="flex items-center gap-2 text-[13px] py-1 px-2 hover:bg-[var(--shade)]">
                     <input
                       type="checkbox"
                       checked={item.isCompleted}
                       onChange={() => canEdit && handleToggleChecklist(item.id, item.isCompleted)}
-                      className="w-4 h-4 rounded border-neutral-200"
+                      style={{ width: 14, height: 14, accentColor: 'var(--accent)' }}
                     />
-                    <span className={`flex-1 ${item.isCompleted ? 'line-through text-neutral-400' : 'text-neutral-700'}`}>
+                    <span className={`flex-1 ${item.isCompleted ? 'line-through' : ''}`} style={{ color: item.isCompleted ? 'var(--ink-4)' : 'var(--ink)' }}>
                       {item.title}
                     </span>
                     {canEdit && (
-                      <button onClick={() => handleDeleteChecklist(item.id)} className="text-[16px] text-neutral-400 hover:text-danger">×</button>
+                      <button onClick={() => handleDeleteChecklist(item.id)} style={{ color: 'var(--ink-4)', fontSize: 14 }}>×</button>
                     )}
                   </div>
                 ))}
               </div>
             )}
             {checklistItems.length === 0 && !showAddChecklist && (
-              <p className="text-[16px] text-neutral-400">No checklist items</p>
+              <p className="text-[13px] text-[var(--ink-4)]">No checklist items</p>
             )}
             {showAddChecklist && canEdit && (
-              <form onSubmit={handleAddChecklistItem} className="flex gap-1">
+              <form onSubmit={handleAddChecklistItem} className="flex gap-1 mt-2">
                 <Input
                   value={newChecklistTitle}
                   onChange={(e) => setNewChecklistTitle(e.target.value)}
@@ -932,9 +1002,11 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
           {/* Attachments */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-[16px] font-medium text-neutral-400">Attachments</h3>
+              <h3 className="smallcaps">
+                Attachments{attachments.length > 0 ? ` · ${attachments.length}` : ''}
+              </h3>
               {canEdit && (
-                <label className="text-[16px] text-lilac-dark hover:underline cursor-pointer">
+                <label className="text-[11.5px] font-medium text-[var(--ink-2)] hover:text-[var(--ink)] cursor-pointer">
                   + Upload
                   <input type="file" className="hidden" onChange={handleUpload} />
                 </label>
@@ -943,11 +1015,11 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
             {attachments.length > 0 ? (
               <div className="space-y-2">
                 {attachments.map((att) => (
-                  <AttachmentRow key={att.id} attachment={att} projectId={projectId} taskId={taskId} onDownload={handleDownload} />
+                  <AttachmentRow key={att.id} attachment={att} projectId={projectId} taskId={taskId} onDownload={handleDownload} onDelete={canEdit ? () => handleDeleteAttachment(att.id) : undefined} />
                 ))}
               </div>
             ) : (
-              <p className="text-[16px] text-neutral-400">No attachments</p>
+              <p className="text-[13px] text-[var(--ink-4)]">No attachments</p>
             )}
           </div>
 
@@ -958,8 +1030,11 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
             </h3>
             {comments.length > 0 && (
               <div className="space-y-3 mb-3">
-                {comments.map((c) => (
-                  <div key={c.id} className="text-[16px]">
+                {comments.map((c) => {
+                  const isAuthor = !!currentUser && c.author?.id === currentUser.id;
+                  const canDeleteThis = isAuthor || canManageProject;
+                  return (
+                  <div key={c.id} className="text-[16px] group">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="font-medium text-neutral-700">
                         {c.author?.displayName || 'Unknown'}
@@ -968,10 +1043,27 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                         {new Date(c.createdAt).toLocaleString()}
                         {c.editedAt && ' (edited)'}
                       </span>
+                      {canEdit && editingCommentId !== c.id && canDeleteThis && (
+                        <span className="ml-auto opacity-0 group-hover:opacity-100 flex items-center gap-2 transition-opacity">
+                          {isAuthor && <button type="button" onClick={() => { setEditingCommentId(c.id); setEditCommentBody(c.body); }} className="text-[11px] text-neutral-400 hover:text-neutral-700">edit</button>}
+                          <button type="button" onClick={() => handleDeleteComment(c.id)} className="text-[11px] text-neutral-400 hover:text-red-600">delete</button>
+                        </span>
+                      )}
                     </div>
-                    <CommentBody body={c.body} style={{ color: undefined }} />
+                    {editingCommentId === c.id ? (
+                      <div className="mt-1">
+                        <MentionTextarea value={editCommentBody} onChange={setEditCommentBody} onSubmit={() => handleEditComment(c.id)} members={projectMembers} />
+                        <div className="flex gap-2 mt-1">
+                          <Button variant="primary" size="sm" onClick={() => handleEditComment(c.id)}>Save</Button>
+                          <Button variant="ghost" size="sm" onClick={() => setEditingCommentId(null)}>Cancel</Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <CommentBody body={c.body} style={{ color: undefined }} />
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
             {canEdit && (
@@ -1005,10 +1097,12 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
       {showDeleteConfirm && (
         <ConfirmDialog
           title="Delete item"
-          message={`Are you sure you want to delete "${task?.title}"? This action cannot be undone.`}
-          confirmLabel="Delete"
+          message={canAdminister
+            ? `Are you sure you want to delete "${task?.title}"? As admin, this will permanently remove the item.`
+            : `Are you sure you want to delete "${task?.title}"? The item can be restored within 7 days.`}
+          confirmLabel={canAdminister ? 'Delete permanently' : 'Delete'}
           danger
-          onConfirm={handleDeleteItem}
+          onConfirm={() => handleDeleteItem(canAdminister)}
           onCancel={() => setShowDeleteConfirm(false)}
         />
       )}
@@ -1092,25 +1186,25 @@ function DependencySection({ projectId, taskId, blockedBy, blocks, canEdit, onCh
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-[16px] font-medium text-neutral-400">Dependencies</h3>
+        <h3 className="smallcaps">Dependencies</h3>
         {canEdit && !showAdd && (
-          <button onClick={() => setShowAdd(true)} className="text-[16px] text-lilac-dark hover:underline">+ Add</button>
+          <button onClick={() => setShowAdd(true)} className="text-[11.5px] font-medium text-[var(--ink-2)] hover:text-[var(--ink)]">+ Add</button>
         )}
       </div>
 
       {blockedBy.length > 0 && (
         <div className="mb-2">
-          <span className={`text-[14px] font-medium uppercase ${unresolvedCount > 0 ? 'text-danger' : 'text-neutral-400'}`}>
+          <span className="text-[12px] text-faint uppercase">
             Blocked by ({unresolvedCount > 0 ? `${unresolvedCount} unresolved` : blockedBy.length})
           </span>
           {blockedBy.map((dep) => (
-            <div key={dep.id} className="group flex items-center gap-2 text-[16px] py-1 px-2 rounded hover:bg-neutral-100">
-              <span className="text-danger text-[14px]">🔒</span>
-              <span className="text-neutral-600 truncate flex-1">
+            <div key={dep.id} className="group flex items-center gap-2 text-[13px] py-1 px-2 hover:bg-[var(--shade)]">
+              <span style={{ color: 'var(--ink-3)', fontSize: 12 }}>🔒</span>
+              <span className="truncate flex-1" style={{ color: 'var(--ink)' }}>
                 #{dep.dependsOnItem?.itemKey} {dep.dependsOnItem?.title}
               </span>
               {canEdit && (
-                <button onClick={() => handleRemove(dep.id)} className="text-neutral-400 hover:text-danger opacity-0 group-hover:opacity-100 text-[14px]">×</button>
+                <button onClick={() => handleRemove(dep.id)} className="opacity-0 group-hover:opacity-100" style={{ color: 'var(--ink-4)', fontSize: 14 }}>×</button>
               )}
             </div>
           ))}
@@ -1119,22 +1213,22 @@ function DependencySection({ projectId, taskId, blockedBy, blocks, canEdit, onCh
 
       {blocks.length > 0 && (
         <div className="mb-2">
-          <span className="text-[14px] font-medium uppercase text-neutral-400">Blocks ({blocks.length})</span>
+          <span className="text-[12px] text-faint uppercase">Blocks ({blocks.length})</span>
           {blocks.map((dep) => (
-            <div key={dep.id} className="group flex items-center gap-2 text-[16px] py-1 px-2 rounded hover:bg-neutral-100">
-              <span className="text-tan text-[14px]">⏳</span>
-              <span className="text-neutral-600 truncate flex-1">
+            <div key={dep.id} className="group flex items-center gap-2 text-[13px] py-1 px-2 hover:bg-[var(--shade)]">
+              <span style={{ color: 'var(--ink-3)', fontSize: 12 }}>⏳</span>
+              <span className="truncate flex-1" style={{ color: 'var(--ink)' }}>
                 #{dep.item?.itemKey} {dep.item?.title}
               </span>
               {canEdit && (
-                <button onClick={() => handleRemove(dep.id)} className="text-neutral-400 hover:text-danger opacity-0 group-hover:opacity-100 text-[14px]">×</button>
+                <button onClick={() => handleRemove(dep.id)} className="opacity-0 group-hover:opacity-100" style={{ color: 'var(--ink-4)', fontSize: 14 }}>×</button>
               )}
             </div>
           ))}
         </div>
       )}
 
-      {!hasDeps && !showAdd && <p className="text-[16px] text-neutral-400">No dependencies</p>}
+      {!hasDeps && !showAdd && <p className="text-[13px] text-[var(--ink-4)]">No dependencies</p>}
 
       {showAdd && (
         <div className="mt-2 p-3 rounded-lg bg-neutral-50 shadow-sm space-y-2">
@@ -1171,11 +1265,12 @@ function DependencySection({ projectId, taskId, blockedBy, blocks, canEdit, onCh
   );
 }
 
-function AttachmentRow({ attachment, projectId, taskId, onDownload }: {
+function AttachmentRow({ attachment, projectId, taskId, onDownload, onDelete }: {
   attachment: AttachmentItem;
   projectId: number;
   taskId: number;
   onDownload: (id: number) => void;
+  onDelete?: () => void;
 }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const isImage = attachment.mimeType.startsWith('image/');
@@ -1193,19 +1288,31 @@ function AttachmentRow({ attachment, projectId, taskId, onDownload }: {
   }, [attachment.id, isImage, projectId, taskId]);
 
   return (
-    <button
-      onClick={() => onDownload(attachment.id)}
-      className="flex items-start gap-2 w-full text-left text-[16px] p-2 rounded hover:bg-neutral-100"
-    >
-      {isImage && previewUrl ? (
-        <img src={previewUrl} alt={attachment.originalFilename} className="w-12 h-12 rounded object-cover flex-shrink-0 border border-neutral-200" />
-      ) : (
-        <span className="text-neutral-400 flex-shrink-0 mt-0.5">&#x1F4CE;</span>
+    <div className="flex items-start gap-2 w-full text-[16px] p-2 rounded hover:bg-neutral-100 group">
+      <button
+        onClick={() => onDownload(attachment.id)}
+        className="flex items-start gap-2 flex-1 min-w-0 text-left"
+      >
+        {isImage && previewUrl ? (
+          <img src={previewUrl} alt={attachment.originalFilename} className="w-12 h-12 rounded object-cover flex-shrink-0 border border-neutral-200" />
+        ) : (
+          <span className="text-neutral-400 flex-shrink-0 mt-0.5">&#x1F4CE;</span>
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="text-[16px] text-neutral-700 truncate">{attachment.originalFilename}</p>
+          <p className="text-[16px] text-neutral-400">{(attachment.sizeBytes / 1024).toFixed(0)} KB</p>
+        </div>
+      </button>
+      {onDelete && (
+        <button
+          type="button"
+          onClick={onDelete}
+          className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-1"
+          title="Delete attachment"
+        >
+          <Trash2 size={14} className="text-neutral-400 hover:text-red-600" />
+        </button>
       )}
-      <div className="flex-1 min-w-0">
-        <p className="text-[16px] text-neutral-700 truncate">{attachment.originalFilename}</p>
-        <p className="text-[16px] text-neutral-400">{(attachment.sizeBytes / 1024).toFixed(0)} KB</p>
-      </div>
-    </button>
+    </div>
   );
 }

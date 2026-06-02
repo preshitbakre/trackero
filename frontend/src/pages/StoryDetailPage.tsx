@@ -27,7 +27,7 @@ type TabKey = 'overview' | 'tasks' | 'settings';
 
 export function StoryDetailPage() {
   const { id: projectId, storyId } = useParams();
-  const { canEdit } = useRole();
+  const { canEdit, canManageProject } = useRole();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [story, setStory] = useState<StoryDetail | null>(null);
@@ -188,7 +188,6 @@ export function StoryDetailPage() {
   };
 
   const onCreated = async (createdId?: number) => {
-    setCreateType(null);
     // Link the new task/bug to this story via belongs_to.
     if (createdId && projectId && storyId) {
       try {
@@ -264,6 +263,7 @@ export function StoryDetailPage() {
               story={story}
               projectId={pid}
               canEdit={canEdit}
+              canManageProject={canManageProject}
               statuses={statuses}
               sprints={sprints}
               isWatching={isWatching}
@@ -293,7 +293,7 @@ export function StoryDetailPage() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {tab === 'overview' && (
           <>
-            <OverviewTab story={story} projectId={pid} canEdit={canEdit} onChanged={loadStory} onOpenItem={setSelectedTaskId} />
+            <OverviewTab story={story} projectId={pid} canEdit={canEdit} canManageProject={canManageProject} onChanged={loadStory} onOpenItem={setSelectedTaskId} />
             <StoryRightRail
               story={story} canEdit={canEdit} members={members} sprints={sprints} statuses={statuses}
               watchers={watchers} isWatching={isWatching} onPatch={patch} onToggleWatch={toggleWatch}

@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ChevronRight, ChevronLeft, AlertCircle, Eye, Trash2, Link2, Plus, FileText } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { useRole } from '../hooks/useRole';
+import { useAuthStore } from '../store/auth.store';
 import { Select } from '../components/ui/Select';
 import { Input } from '../components/ui/Input';
 import { useTaskAutoSave } from '../hooks/useTaskAutoSave';
@@ -168,7 +169,11 @@ export function TaskDetailPage() {
   const [assocSearching, setAssocSearching] = useState(false);
   const [projectMembers, setProjectMembers] = useState<{ id: number; displayName: string; avatarUrl: string | null }[]>([]);
 
-  const { canEdit } = useRole();
+  const { canEdit, canManageProject, canAdminister } = useRole();
+  const currentUser = useAuthStore((s) => s.user);
+
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  const [editCommentBody, setEditCommentBody] = useState('');
 
   const { saveStatus, flushDebounce, debouncedFieldChange, handleFieldChange, saveAssignee } = useTaskAutoSave({
     projectId: pid,
@@ -326,10 +331,11 @@ export function TaskDetailPage() {
     }
   };
 
-  const handleDeleteItem = async () => {
+  const handleDeleteItem = async (hard = false) => {
     try {
-      await apiClient.delete(`/projects/${pid}/items/${tid}`);
-      toast('Item deleted');
+      const query = hard ? '?hard=true' : '';
+      await apiClient.delete(`/projects/${pid}/items/${tid}${query}`);
+      toast(hard ? 'Item permanently deleted' : 'Item deleted');
       navigate(`/projects/${pid}/backlog`);
     } catch (err: any) {
       toast(err.response?.data?.message || 'Failed to delete', 'error');
@@ -352,6 +358,36 @@ export function TaskDetailPage() {
       loadActivity();
     } catch (err: any) {
       toast(err.response?.data?.message || 'Failed to post comment', 'error');
+    }
+  };
+
+  const handleEditComment = async (commentId: number) => {
+    if (!editCommentBody.trim()) return;
+    try {
+      await apiClient.put(`/projects/${pid}/items/${tid}/comments/${commentId}`, { body: editCommentBody.trim() });
+      setEditingCommentId(null);
+      loadComments();
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to edit comment', 'error');
+    }
+  };
+
+  const handleDeleteComment = async (commentId: number) => {
+    try {
+      await apiClient.delete(`/projects/${pid}/items/${tid}/comments/${commentId}`);
+      loadComments();
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to delete comment', 'error');
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId: number) => {
+    try {
+      await apiClient.delete(`/projects/${pid}/items/${tid}/attachments/${attachmentId}`);
+      loadAttachments();
+      toast('Attachment deleted');
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to delete attachment', 'error');
     }
   };
 
@@ -750,14 +786,33 @@ export function TaskDetailPage() {
                   {comments.length === 0 && (
                     <p style={{ fontSize: 13, color: 'var(--ink-4)' }}>No comments yet</p>
                   )}
-                  {comments.map((c) => (
-                    <div key={`c-${c.id}`} className="flex gap-3" style={{ fontSize: '13.5px' }}>
+                  {comments.map((c) => {
+                    const isAuthor = !!currentUser && c.author?.id === currentUser.id;
+                    const canDeleteThis = isAuthor || canManageProject;
+                    return (
+                    <div key={`c-${c.id}`} className="flex gap-3 group" style={{ fontSize: '13.5px' }}>
                       {c.author && <Avatar user={c.author} size="sm" />}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2" style={{ marginBottom: 4 }}>
                           <span style={{ fontWeight: 500 }}>{c.author?.displayName || 'Unknown'}</span>
                           <span className="mono" style={{ fontSize: 11, color: 'var(--ink-3)' }}>{timeAgo(c.createdAt)}{c.editedAt && ' (edited)'}</span>
+                          {canEdit && editingCommentId !== c.id && canDeleteThis && (
+                            <span className="ml-auto opacity-0 group-hover:opacity-100 flex items-center gap-2 transition-opacity">
+                              {isAuthor && <button type="button" onClick={() => { setEditingCommentId(c.id); setEditCommentBody(c.body); }} style={{ fontSize: 11, color: 'var(--ink-4)' }}>edit</button>}
+                              <button type="button" onClick={() => handleDeleteComment(c.id)} style={{ fontSize: 11, color: 'var(--danger)' }}>delete</button>
+                            </span>
+                          )}
                         </div>
+                        {editingCommentId === c.id ? (
+                          <div style={{ marginTop: 4 }}>
+                            <MentionTextarea value={editCommentBody} onChange={setEditCommentBody} onSubmit={() => handleEditComment(c.id)} members={projectMembers} />
+                            <div className="flex gap-2" style={{ marginTop: 4 }}>
+                              <Button variant="ink" size="sm" onClick={() => handleEditComment(c.id)}>Save</Button>
+                              <Button variant="ghost" size="sm" onClick={() => setEditingCommentId(null)}>Cancel</Button>
+                            </div>
+                          </div>
+                        ) : (
+                        <>
                         <CommentBody body={c.body} />
                         <div className="flex items-center gap-1.5 flex-wrap" style={{ marginTop: 6 }}>
                           {(c.reactions ?? []).map((r) => (
@@ -793,9 +848,12 @@ export function TaskDetailPage() {
                             </button>
                           )}
                         </div>
+                        </>
+                        )}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Comment input — pinned at bottom */}
@@ -1146,16 +1204,28 @@ export function TaskDetailPage() {
             {attachments.length > 0 && (
               <div className="flex flex-col" style={{ gap: 6 }}>
                 {attachments.map((att) => (
-                  <button
-                    key={att.id}
-                    onClick={() => handleDownload(att.id)}
-                    className="flex items-center gap-2 text-left hover:bg-[var(--shade)]"
-                    style={{ padding: '4px 0', fontSize: '13.5px', borderRadius: 4 }}
-                  >
-                    <FileText size={16} stroke="var(--ink-3)" strokeWidth={1.5} />
-                    <span className="truncate flex-1">{att.originalFilename}</span>
-                    <span className="mono" style={{ fontSize: 11, color: 'var(--ink-3)', flexShrink: 0 }}>{formatFileSize(att.sizeBytes)}</span>
-                  </button>
+                  <div key={att.id} className="flex items-center gap-2 group" style={{ padding: '4px 0', fontSize: '13.5px' }}>
+                    <button
+                      onClick={() => handleDownload(att.id)}
+                      className="flex items-center gap-2 text-left hover:bg-[var(--shade)] flex-1 min-w-0"
+                      style={{ borderRadius: 4 }}
+                    >
+                      <FileText size={16} stroke="var(--ink-3)" strokeWidth={1.5} className="flex-shrink-0" />
+                      <span className="truncate flex-1">{att.originalFilename}</span>
+                      <span className="mono" style={{ fontSize: 11, color: 'var(--ink-3)', flexShrink: 0 }}>{formatFileSize(att.sizeBytes)}</span>
+                    </button>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAttachment(att.id)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                        style={{ fontSize: 11, color: 'var(--danger)' }}
+                        title="Delete attachment"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
@@ -1188,10 +1258,12 @@ export function TaskDetailPage() {
       {showDeleteConfirm && (
         <ConfirmDialog
           title="Delete item"
-          message={`Are you sure you want to delete "${task?.title}"? This action cannot be undone.`}
-          confirmLabel="Delete"
+          message={canAdminister
+            ? `Are you sure you want to delete "${task?.title}"? As admin, this will permanently remove the item.`
+            : `Are you sure you want to delete "${task?.title}"? The item can be restored within 7 days.`}
+          confirmLabel={canAdminister ? 'Delete permanently' : 'Delete'}
           danger
-          onConfirm={handleDeleteItem}
+          onConfirm={() => handleDeleteItem(canAdminister)}
           onCancel={() => setShowDeleteConfirm(false)}
         />
       )}

@@ -9,6 +9,7 @@ interface Props {
   story: StoryDetail;
   projectId: number;
   canEdit: boolean;
+  canManageProject?: boolean;
   onChanged: () => void;
   onOpenItem: (id: number) => void;
 }
@@ -29,7 +30,7 @@ function Emphasized({ text }: { text: string }) {
   );
 }
 
-export function OverviewTab({ story, projectId, canEdit, onChanged, onOpenItem }: Props) {
+export function OverviewTab({ story, projectId, canEdit, canManageProject = false, onChanged, onOpenItem }: Props) {
   const statement = story.userStory || story.description || '';
   const progress = story.progress;
   const tasksDone = progress?.completedItems ?? 0;
@@ -91,7 +92,7 @@ export function OverviewTab({ story, projectId, canEdit, onChanged, onOpenItem }
 
       {/* Discussion */}
       <div>
-        <StoryDiscussion projectId={projectId} storyId={story.id} canEdit={canEdit} />
+        <StoryDiscussion projectId={projectId} storyId={story.id} canEdit={canEdit} canManageProject={canManageProject} />
       </div>
     </div>
   );

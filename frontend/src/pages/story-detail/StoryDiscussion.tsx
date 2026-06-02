@@ -22,6 +22,7 @@ interface Props {
   projectId: number;
   storyId: number;
   canEdit: boolean;
+  canManageProject?: boolean;
 }
 
 function relativeTime(iso: string): string {
@@ -36,7 +37,7 @@ function relativeTime(iso: string): string {
 
 const QUICK_EMOJIS = ['👍', '🎉', '👀'];
 
-export function StoryDiscussion({ projectId, storyId, canEdit }: Props) {
+export function StoryDiscussion({ projectId, storyId, canEdit, canManageProject = false }: Props) {
   const currentUser = useAuthStore((s) => s.user);
   const [comments, setComments] = useState<Comment[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
@@ -122,9 +123,9 @@ export function StoryDiscussion({ projectId, storyId, canEdit }: Props) {
                 <div className="flex items-baseline gap-2">
                   <span className="text-[13px] font-medium text-text">{c.author?.displayName ?? 'Someone'}</span>
                   <span className="text-[12px] text-faint">{relativeTime(c.createdAt)}</span>
-                  {canEdit && isAuthor && editingId !== c.id && (
+                  {canEdit && editingId !== c.id && (isAuthor || canManageProject) && (
                     <span className="ml-auto opacity-0 group-hover:opacity-100 flex items-center gap-2 transition-opacity">
-                      <button type="button" onClick={() => { setEditingId(c.id); setEditBody(c.body); }} className="text-[11px] text-faint hover:text-text">edit</button>
+                      {isAuthor && <button type="button" onClick={() => { setEditingId(c.id); setEditBody(c.body); }} className="text-[11px] text-faint hover:text-text">edit</button>}
                       <button type="button" onClick={() => remove(c.id)} className="text-[11px] text-faint hover:text-danger">delete</button>
                     </span>
                   )}

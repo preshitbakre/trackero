@@ -176,9 +176,9 @@ export function BacklogPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const user = useAuthStore((s) => s.user);
-  const { canEdit } = useRole();
+  const { canEdit, canAdminister } = useRole();
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: canEdit ? 5 : Infinity } }));
   const [activeTask, setActiveTask] = useState<BacklogTask | null>(null);
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -220,9 +220,13 @@ export function BacklogPage() {
   useEffect(() => { loadData(); }, [loadData]);
 
   useEffect(() => {
-    const handler = () => setShowCreate(true);
-    document.addEventListener('shortcut-create-item', handler as EventListener);
-    return () => document.removeEventListener('shortcut-create-item', handler as EventListener);
+    const handler = (e: Event) => {
+      e.preventDefault();
+      selectTask(null);
+      setShowCreate(true);
+    };
+    document.addEventListener('shortcut-create-item', handler);
+    return () => document.removeEventListener('shortcut-create-item', handler);
   }, []);
 
   const handleCreated = (createdId?: number) => {
@@ -273,8 +277,9 @@ export function BacklogPage() {
 
   const handleBulkDelete = async () => {
     if (!projectId || selectedIds.size === 0) return;
+    const query = canAdminister ? '?hard=true' : '';
     for (const taskId of selectedIds) {
-      await apiClient.delete(`/projects/${projectId}/items/${taskId}`);
+      await apiClient.delete(`/projects/${projectId}/items/${taskId}${query}`);
     }
     setSelectedIds(new Set());
     loadData();
@@ -336,7 +341,7 @@ export function BacklogPage() {
   return (
     <>
     <ReadOnlyBanner />
-    <DndContext sensors={canEdit ? sensors : []} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={(e) => { handleDragEnd(e).finally(() => setActiveTask(null)); }}>
+    <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={(e) => { handleDragEnd(e).finally(() => setActiveTask(null)); }}>
     <div className="flex h-full">
       {/* Main backlog list */}
       <div className={`flex-1 flex flex-col overflow-hidden ${selectedTaskId || showCreate ? 'mr-[480px]' : ''}`}>
@@ -556,8 +561,10 @@ export function BacklogPage() {
       {showBulkDeleteConfirm && (
         <ConfirmDialog
           title="Delete items"
-          message={`Are you sure you want to delete ${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''}? This action cannot be undone.`}
-          confirmLabel="Delete"
+          message={canAdminister
+            ? `Are you sure you want to permanently delete ${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''}? This cannot be undone.`
+            : `Are you sure you want to delete ${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''}? Items can be restored within 7 days.`}
+          confirmLabel={canAdminister ? 'Delete permanently' : 'Delete'}
           danger
           onConfirm={() => { setShowBulkDeleteConfirm(false); handleBulkDelete(); }}
           onCancel={() => setShowBulkDeleteConfirm(false)}
