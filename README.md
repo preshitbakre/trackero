@@ -4,13 +4,16 @@
 
 Trackero is a self-hosted, real-time project management application for small-to-mid-size product teams. Sprints, epics, stories, Kanban boards, retrospectives, charts, full-text search, file attachments, role-based access, in-app notifications, and a keyboard-first interface.
 
-**Not a prototype. Not a demo.**
+## Not a prototype. Not a demo.
 
-| | |
-|---|---|
-| **157** | API endpoints across **36** feature areas |
-| **35** | database tables |
-| **22** | pages |
+### Project Scale
+
+| Metric | Count |
+|---------|---------:|
+| API Endpoints | **157** |
+| Feature Areas | **36** |
+| Database Tables | **35** |
+| Pages | **22** |
 
 Built by [BlueAgate](https://blueagate.in) as a capability showcase. If you're wondering what a small, focused team can ship when the engineering is right, this is the answer.
 
