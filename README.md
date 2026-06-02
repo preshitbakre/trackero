@@ -67,7 +67,7 @@ We built it in two weeks to prove a point: that a small studio with the right en
 | **Real-time** | Socket.IO (WebSocket transport, room-based project channels) |
 | **UI primitives** | Radix UI (11 packages), @dnd-kit, @nivo, CVA |
 | **File storage** | MinIO / S3-compatible (@aws-sdk/client-s3) |
-| **API docs** | Swagger/OpenAPI at `/api/api-docs` |
+| **API docs** | Swagger/OpenAPI at `/api/docs` |
 | **Infra** | Docker multi-stage build, docker-compose (app + Postgres + MinIO) |
 | **Security** | bcrypt (cost 12), SHA-256 token hashing, helmet, rate limiting |
 
@@ -82,14 +82,14 @@ git clone https://github.com/AntimortaleBlueAgate/trackero.git
 cd trackero
 
 # Create your .env from the example
-cp .env.example .env
+cp backend/.env.example backend/.env
 
 # Set at minimum: JWT_SECRET
 # Then start everything
 docker compose up -d
 ```
 
-The app is at `http://localhost:3001`. MinIO console at `http://localhost:9001`.
+The app is at `http://localhost:3000`. MinIO console at `http://localhost:9001`.
 
 On first visit, a setup wizard walks you through creating the admin account and inviting your team. The first user to sign up becomes the admin. Migrations run automatically on startup.
 
@@ -110,19 +110,78 @@ cd frontend
 npm install
 npm run dev             # App at http://localhost:5173
 
-# Swagger docs at http://localhost:3001/api/api-docs
+# Swagger docs at http://localhost:3001/api/docs
 ```
 
 ### Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `JWT_SECRET` | Yes | Random 64+ character string for token signing |
-| `DATABASE_HOST` | No | PostgreSQL host (default: `localhost`) |
-| `DATABASE_PORT` | No | PostgreSQL port (default: `5432`) |
-| `DATABASE_NAME` | No | Database name (default: `trackero`) |
-| `S3_ENDPOINT` | No | MinIO/S3 endpoint (default: `http://localhost:9000`) |
-| `SMTP_HOST` | No | SMTP server. Leave empty to disable email |
+Copy `.env.example` to `.env` and configure. The example file is annotated — here's the full reference:
+
+**Server**
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `NODE_ENV` | No | `development` | `development` enables auto-sync of DB schema. `production` requires migrations (run by the Docker `migrate` service). |
+| `PORT` | No | `3001` | Port the backend listens on. In Docker, nginx proxies to this internally. |
+| `APP_URL` | No | `http://localhost:5173` | Base URL used in email links and CORS origin. Set to your public URL in production. |
+
+**Database (PostgreSQL)**
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DATABASE_HOST` | Yes | `localhost` | PostgreSQL host. In Docker, use the service name `postgres`. |
+| `DATABASE_PORT` | No | `5432` | PostgreSQL port. |
+| `DATABASE_USERNAME` | Yes | — | DB user. In Docker, the app uses `trackero_app` (DML-only); the migrate service uses `trackero_admin` (DDL). |
+| `DATABASE_PASSWORD` | Yes | — | Password for the DB user. |
+| `DATABASE_NAME` | Yes | `trackero` | Database name. |
+| `DATABASE_SSL` | No | `false` | Set to `true` for SSL connections (e.g., cloud-hosted Postgres). |
+
+**Auth**
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `JWT_SECRET` | **Yes** | — | Random 64+ character string for signing access and refresh tokens. Generate with `openssl rand -hex 32`. |
+| `ACCESS_TOKEN_EXPIRY` | No | `15m` | How long access tokens are valid (`15m`, `1h`, etc.). |
+| `REFRESH_TOKEN_EXPIRY` | No | `7d` | How long refresh tokens are valid. |
+
+**File Storage (MinIO / S3)**
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `STORAGE_DRIVER` | No | `s3` | Storage backend. Currently only `s3` (MinIO-compatible). |
+| `MINIO_ENDPOINT` | No | `localhost` | MinIO/S3 host. In Docker, use the service name `minio`. |
+| `MINIO_PORT` | No | `9000` | MinIO API port. |
+| `MINIO_ACCESS_KEY` | No | `minioadmin` | MinIO root access key. |
+| `MINIO_SECRET_KEY` | No | `minioadmin` | MinIO root secret key. Change in production. |
+| `MINIO_BUCKET` | No | `trackero-files` | Bucket name for file uploads. Created automatically if it doesn't exist. |
+| `MINIO_USE_SSL` | No | `false` | Set to `true` when connecting to MinIO/S3 over HTTPS. |
+| `PRESIGNED_URL_EXPIRY` | No | `1800` | Presigned URL TTL in seconds (default: 30 minutes). |
+| `MAX_UPLOAD_SIZE_MB` | No | `10` | Maximum file upload size in MB. |
+
+**Email (SMTP)**
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SMTP_HOST` | No | — | SMTP server hostname. Leave empty to disable email (notifications log to console instead). |
+| `SMTP_PORT` | No | `587` | SMTP port. Use `587` for STARTTLS, `465` for SSL. |
+| `SMTP_USER` | No | — | SMTP username. For Gmail, use your email address. |
+| `SMTP_PASS` | No | — | SMTP password. For Gmail, use an [App Password](https://myaccount.google.com/apppasswords). |
+| `SMTP_FROM` | No | `noreply@trackero.dev` | Sender address for outgoing emails. |
+
+**Swagger**
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SWAGGER_ENABLED` | No | `false` | In non-production, Swagger UI at `/api/docs` is always on. In production, set to `true` to enable it. |
+
+**Rate Limiting**
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `THROTTLE_TTL` | No | `60000` | General rate-limit window in milliseconds. |
+| `THROTTLE_LIMIT` | No | `30` | Max requests per window for general endpoints. |
+| `AUTH_THROTTLE_TTL` | No | `60000` | Rate-limit window for auth endpoints (login, register). |
+| `AUTH_THROTTLE_LIMIT` | No | `5` | Max requests per window for auth endpoints. Lower to prevent brute-force. |
 
 ---
 
@@ -209,7 +268,7 @@ All endpoints return a standard envelope:
 }
 ```
 
-Interactive documentation at `/api/api-docs` (Swagger UI). 157 endpoints across auth, projects, work items, sprints, epics, board, comments, attachments, notifications, charts, retrospectives, search, integrations, and more.
+Interactive documentation at `/api/docs` (Swagger UI). 157 endpoints across auth, projects, work items, sprints, epics, board, comments, attachments, notifications, charts, retrospectives, search, integrations, and more.
 
 ---
 

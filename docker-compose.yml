@@ -1,28 +1,57 @@
 version: '3.8'
 
 services:
-  trackero:
-    build: .
+  nginx:
+    build:
+      context: .
+      target: nginx
     ports:
-      - "3001:3001"
-    env_file: .env
+      - "3000:80"
     depends_on:
-      postgres:
+      trackero:
         condition: service_healthy
+    restart: unless-stopped
+
+  trackero:
+    build:
+      context: .
+      target: backend
+    expose:
+      - "3001"
+    env_file: backend/.env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
       minio:
         condition: service_started
     restart: unless-stopped
 
+  migrate:
+    build:
+      context: .
+      target: backend
+    env_file: backend/.env
+    environment:
+      DATABASE_USERNAME: trackero_admin
+      DATABASE_PASSWORD: trackero_admin_secret
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["node", "./node_modules/typeorm/cli.js", "migration:run", "-d", "dist/config/migration-cli.config.js"]
+    restart: "no"
+
   postgres:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: trackero
-      POSTGRES_PASSWORD: trackero_secret
+      POSTGRES_USER: trackero_admin
+      POSTGRES_PASSWORD: trackero_admin_secret
       POSTGRES_DB: trackero
+      APP_DB_PASSWORD: trackero_app_secret
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./docker/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U trackero"]
+      test: ["CMD-SHELL", "pg_isready -U trackero_admin -d trackero"]
       interval: 5s
       timeout: 5s
       retries: 5

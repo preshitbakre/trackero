@@ -7,6 +7,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { json, urlencoded } from 'express';
+import { existsSync } from 'fs';
 
 import { join } from 'path';
 import { AppModule } from './app.module';
@@ -64,8 +65,10 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
-  // 7. Swagger (not in production)
-  if (config.get<string>('NODE_ENV') !== 'production') {
+  // 7. Swagger — always on in non-production; in production, opt-in via SWAGGER_ENABLED=true
+  const isProduction = config.get<string>('NODE_ENV') === 'production';
+  const swaggerEnabled = !isProduction || config.get<string>('SWAGGER_ENABLED') === 'true';
+  if (swaggerEnabled) {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Trackero API')
       .setVersion('1.0')
@@ -73,16 +76,16 @@ async function bootstrap() {
       .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'JWT')
       .build();
     const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
-    SwaggerModule.setup('api/api-docs', app, swaggerDocument, {
+    SwaggerModule.setup('docs', app, swaggerDocument, {
       swaggerOptions: { persistAuthorization: true },
+      useGlobalPrefix: true,
     });
   }
 
-  // 8. Serve frontend static files in production
-  if (config.get<string>('NODE_ENV') === 'production') {
-    const publicPath = join(__dirname, '..', 'public');
+  // 8. Serve frontend static files in production (single-container deploys only)
+  const publicPath = join(__dirname, '..', 'public');
+  if (config.get<string>('NODE_ENV') === 'production' && existsSync(publicPath)) {
     app.useStaticAssets(publicPath);
-    // SPA fallback: serve index.html for non-API GET requests
     app.use((req: any, res: any, next: any) => {
       if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/socket.io')) {
         res.sendFile(join(publicPath, 'index.html'));
@@ -96,7 +99,7 @@ async function bootstrap() {
   const port = config.get<number>('PORT', 3001);
   await app.listen(port);
   logger.log(`Trackero running on port ${port}`);
-  logger.log(`Swagger docs: http://localhost:${port}/api/api-docs`);
+  logger.log(`Swagger docs: http://localhost:${port}/api/docs`);
 }
 
 bootstrap();

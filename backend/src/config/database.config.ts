@@ -6,11 +6,9 @@ import * as path from 'path';
  * Runtime TypeORM config.
  *
  * Schema source of truth:
- *   - dev / test → `synchronize: true`. Entity definitions drive the schema;
- *     no migrations needed.
- *   - production → migrations. `synchronize` is off; a baseline migration
- *     (generated from the current entity state) is the only thing that
- *     creates or alters schema. `migrationsRun` auto-applies on boot.
+ *   - dev / test → `synchronize: true`. Entity definitions drive the schema.
+ *   - production → migrations, run by the separate `migrate` Docker service
+ *     before the app starts. The app never runs migrations itself.
  */
 export const getDatabaseConfig = (
   configService: ConfigService,
@@ -18,7 +16,7 @@ export const getDatabaseConfig = (
   const env = configService.get<string>('NODE_ENV');
   const isProduction = env === 'production';
   const synchronize = !isProduction;
-  const migrationsRun = isProduction;
+  const migrationsRun = false;
 
   return {
     type: 'postgres',

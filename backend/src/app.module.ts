@@ -97,14 +97,14 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
   ],
 })
 export class AppModule implements OnModuleInit {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly configService: ConfigService,
+  ) {}
 
   async onModuleInit() {
-    // TypeORM synchronize cannot create GENERATED ALWAYS AS columns. The
-    // primary owner of this DDL is migration 1716000019000 (prod path), but we
-    // keep an idempotent fallback here so the test DB (which uses
-    // synchronize and re-creates schema on the fly) still gets the column +
-    // index without having to run migrations.
+    if (this.configService.get<string>('NODE_ENV') === 'production') return;
+
     await this.dataSource.query(`
       DO $$ BEGIN
         ALTER TABLE work_items ADD COLUMN search_vector tsvector
@@ -117,25 +117,12 @@ export class AppModule implements OnModuleInit {
     `);
     await this.dataSource.query(`CREATE INDEX IF NOT EXISTS "IDX_wi_search" ON work_items USING gin(search_vector)`);
 
-    // Partial unique EXPRESSION index for daily-notification idempotency.
-    // synchronize cannot build (created_at::date) expression indexes, so — like
-    // the search_vector index above — it is created here so test/dev/prod stay
-    // consistent. Migration 1716000018000 creates the same index for prod
-    // deployments; IF NOT EXISTS makes the two harmless together.
-    // Scoped (WHERE type IN ...) to ONLY cron-generated notification types so
-    // legitimate same-day event-notification duplicates are not blocked.
-    // ((created_at AT TIME ZONE 'UTC')::date) — the bare created_at::date cast
-    // is only STABLE (depends on the session TimeZone) and Postgres rejects it
-    // in an index expression; pinning to UTC makes the expression IMMUTABLE.
     await this.dataSource.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS "UQ_notif_daily_dedup"
       ON notifications (user_id, type, reference_id, ((created_at AT TIME ZONE 'UTC')::date))
       WHERE type IN ('sprint_ending', 'task_due_soon', 'task_overdue')
     `);
 
-    // Epics rebuild — backfill epic_state for any epics that predate the column
-    // (synchronize/test paths get the column default automatically; this covers
-    // the prod/migration path where existing rows may be NULL). Idempotent.
     await this.dataSource.query(
       `UPDATE work_items SET epic_state = 'draft' WHERE item_type = 'epic' AND epic_state IS NULL`,
     );
