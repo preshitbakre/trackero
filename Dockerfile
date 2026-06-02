@@ -1,5 +1,5 @@
 # Stage 1: Build everything
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -11,7 +11,7 @@ COPY backend/ ./backend/
 RUN cd backend && npm run build
 RUN cd backend && npx tsc --outDir ./compiled-migrations --declaration false --module commonjs --target ES2021 --esModuleInterop --skipLibCheck migrations/*.ts
 
-# Frontend
+# Frontend — install all deps (vite is a devDep), then build, no test deps needed at runtime
 COPY frontend/package*.json ./frontend/
 RUN cd frontend && npm ci
 
@@ -19,7 +19,7 @@ COPY frontend/ ./frontend/
 RUN cd frontend && npm run build
 
 # Stage 2: Backend (Node API)
-FROM node:20-alpine AS backend
+FROM node:22-alpine AS backend
 
 WORKDIR /app
 

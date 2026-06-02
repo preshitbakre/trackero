@@ -128,7 +128,12 @@ export function SetupWizardLayout({
                 {footer.backLabel ?? '← Back'}
               </button>
             ) : (
-              <div />
+              <div className="text-[11px] text-[var(--ink-4)]">
+                Built by{' '}
+                <a href="https://blueagate.in" target="_blank" rel="noopener noreferrer" className="text-[var(--ink-3)] hover:text-[var(--ink-2)] transition-colors">
+                  BlueAgate
+                </a>
+              </div>
             )}
 
             <div className="flex items-center gap-3">

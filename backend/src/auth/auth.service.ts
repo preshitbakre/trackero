@@ -47,6 +47,7 @@ export class AuthService {
     return {
       isSetup,
       instanceName: instanceNameRow?.value ?? null,
+      appUrl: this.configService.get<string>('APP_URL', ''),
     };
   }
 

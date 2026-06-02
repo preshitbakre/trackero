@@ -13,6 +13,7 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSetup, setIsSetup] = useState<boolean | null>(null);
+  const [appUrl, setAppUrl] = useState('');
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
   const authStatus = useAuthStore((s) => s.authStatus);
@@ -34,6 +35,7 @@ export function LoginPage() {
   useEffect(() => {
     apiClient.get('/auth/setup-status').then((res) => {
       setIsSetup(res.data.data.isSetup);
+      if (res.data.data.appUrl) setAppUrl(res.data.data.appUrl);
       if (!res.data.data.isSetup) {
         navigate('/setup');
         return;
@@ -100,7 +102,10 @@ export function LoginPage() {
             breathing room; on md+ the section is full-height and
             justify-between already spaces it correctly. */}
         <div className="relative z-10 mt-16 md:mt-0 text-[11px] tracking-[0.15em] uppercase text-white/40">
-          trackero.example.io · v1.0.4 · built 2026-05-22
+          Built by{' '}
+          <a href="https://blueagate.in" target="_blank" rel="noopener noreferrer" className="text-white/60 hover:text-white/80 transition-colors">
+            BlueAgate
+          </a>
         </div>
       </section>
 
@@ -113,7 +118,7 @@ export function LoginPage() {
           <p className="mt-2 text-[14px] text-mute">
             Your instance is hosted at{' '}
             <code className="px-1.5 py-0.5 rounded bg-lilac-tint text-lilac-dark text-[13px] font-mono">
-              {typeof window !== 'undefined' ? window.location.host : 'trackero.local'}
+              {appUrl ? (() => { try { return new URL(appUrl).host; } catch { return appUrl; } })() : (typeof window !== 'undefined' ? window.location.host : 'trackero.local')}
             </code>
             .
           </p>

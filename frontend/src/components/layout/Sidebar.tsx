@@ -478,6 +478,13 @@ export function Sidebar({ projects, currentProjectId, onNavigate }: SidebarProps
         {activeSprint && (
           <SprintFooter sprint={activeSprint} />
         )}
+
+        <div className="mt-auto px-4 py-3 border-t border-[var(--line)] text-[10px] text-[var(--ink-4)]">
+          Built by{' '}
+          <a href="https://blueagate.in" target="_blank" rel="noopener noreferrer" className="text-[var(--ink-3)] hover:text-[var(--ink-2)] transition-colors">
+            BlueAgate
+          </a>
+        </div>
       </aside>
 
       {showCreate && (
