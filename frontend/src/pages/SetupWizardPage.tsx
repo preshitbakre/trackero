@@ -180,13 +180,16 @@ export function SetupWizardPage() {
   };
 
   const filledInviteCount = invites.filter((inv) => inv.email.trim()).length;
+  const smtpReady = preflightChecks.find((c) => c.key === 'smtp')?.status === 'ok';
 
   const nextLabels = [
     'Get started → admin account',
     submitting ? 'Creating account…' : 'Create account → invite team',
-    filledInviteCount > 0
-      ? `Send ${filledInviteCount} invite${filledInviteCount !== 1 ? 's' : ''} & finish →`
-      : 'Continue → ready',
+    !smtpReady
+      ? 'Continue → ready'
+      : filledInviteCount > 0
+        ? `Send ${filledInviteCount} invite${filledInviteCount !== 1 ? 's' : ''} & finish →`
+        : 'Continue → ready',
     'Open Trackero →',
   ];
 
@@ -197,7 +200,7 @@ export function SetupWizardPage() {
     onNext: step < SETUP_STEPS.length - 1 ? goNext : handleFinishSetup,
     onBack: step === 2 ? goBack : undefined,
     nextDisabled: step === 1 && submitting,
-    extraButtons: step === 2 ? (
+    extraButtons: step === 2 && smtpReady ? (
       <button
         type="button"
         onClick={() => {
@@ -434,7 +437,25 @@ export function SetupWizardPage() {
               You can also paste a CSV — name, email, role — for bulk.
             </p>
 
-            <div className="mt-8 flex gap-10">
+            {!smtpReady && (
+              <div className="mt-6 border border-[#C68F12]/30 bg-[#C68F12]/5 px-5 py-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-[7px] h-[7px] rounded-full bg-[#C68F12] shrink-0" />
+                  <span className="text-[13px] font-semibold text-[var(--ink)]">
+                    SMTP not configured
+                  </span>
+                </div>
+                <p className="text-[12px] text-[var(--ink-3)] leading-relaxed">
+                  Email invitations require SMTP. Set the <code className="text-[11px] font-mono bg-[var(--paper-2)] px-1 py-0.5">SMTP_HOST</code>,{' '}
+                  <code className="text-[11px] font-mono bg-[var(--paper-2)] px-1 py-0.5">SMTP_PORT</code>,{' '}
+                  <code className="text-[11px] font-mono bg-[var(--paper-2)] px-1 py-0.5">SMTP_USER</code>, and{' '}
+                  <code className="text-[11px] font-mono bg-[var(--paper-2)] px-1 py-0.5">SMTP_PASS</code>{' '}
+                  environment variables, then restart the server. You can invite users from admin settings once SMTP is live.
+                </p>
+              </div>
+            )}
+
+            <div className={`mt-8 flex gap-10${!smtpReady ? ' opacity-40 pointer-events-none select-none' : ''}`}>
               {/* Left column — invite list */}
               <div className="flex-1 min-w-0">
                 {/* Table header */}
@@ -461,6 +482,7 @@ export function SetupWizardPage() {
                         value={inv.email}
                         onChange={(e) => updateInvite(idx, 'email', e.target.value)}
                         placeholder="colleague@example.com"
+                        disabled={!smtpReady}
                         className="w-full bg-transparent border-0 p-0 text-[13px] leading-tight text-[var(--ink)] placeholder-[var(--ink-4)] focus:outline-none focus:ring-0"
                       />
                       <input
@@ -468,6 +490,7 @@ export function SetupWizardPage() {
                         value={inv.name}
                         onChange={(e) => updateInvite(idx, 'name', e.target.value)}
                         placeholder="Display name"
+                        disabled={!smtpReady}
                         className="w-full bg-transparent border-0 p-0 text-[12px] leading-tight text-[var(--ink-3)] placeholder-[var(--ink-4)] focus:outline-none focus:ring-0"
                       />
                     </div>
@@ -499,6 +522,7 @@ export function SetupWizardPage() {
                 <button
                   type="button"
                   onClick={addInviteRow}
+                  disabled={!smtpReady}
                   className="w-full flex items-center border-b border-[var(--line)] py-2.5 gap-3 text-[var(--ink-4)] hover:text-[var(--ink-2)] transition-colors"
                 >
                   <div className="w-[28px] h-[28px] rounded-full border border-dashed border-[var(--line-2)] flex items-center justify-center flex-shrink-0 text-[14px]">

@@ -187,7 +187,7 @@ export function StoriesPage() {
           projectId={parseInt(projectId)}
           defaultType="story"
           onClose={() => setShowCreate(false)}
-          onCreated={() => { setShowCreate(false); load(); }}
+          onCreated={() => { load(); }}
         />
       )}
     </>

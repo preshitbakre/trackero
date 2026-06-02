@@ -99,9 +99,12 @@ export function AppShell() {
     return () => document.removeEventListener('projects-updated', handler);
   }, []);
 
-  // Listen for create-item events from child pages (e.g., BacklogPage keyboard shortcut)
+  // Listen for create-item events from CommandPalette; skip if a page
+  // handler already called preventDefault (e.g. BacklogPage inline drawer).
   useEffect(() => {
-    const handler = () => setShowCreateItem(true);
+    const handler = (e: Event) => {
+      if (!e.defaultPrevented) setShowCreateItem(true);
+    };
     document.addEventListener('shortcut-create-item', handler);
     return () => document.removeEventListener('shortcut-create-item', handler);
   }, []);
@@ -140,11 +143,14 @@ export function AppShell() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  // Global keyboard shortcuts
+  // Global keyboard shortcuts — dispatch event so page-level handlers
+  // (e.g. BacklogPage's inline drawer) can intercept before the fallback.
   useKeyboardShortcuts({
     onCreateItem: () => {
       if (currentProjectId) {
-        setShowCreateItem(true);
+        const ev = new CustomEvent('shortcut-create-item', { cancelable: true });
+        const handled = !document.dispatchEvent(ev);
+        if (!handled) setShowCreateItem(true);
       }
     },
   });
@@ -202,7 +208,7 @@ export function AppShell() {
           projectId={activeProjectId}
           defaultType="task"
           onClose={() => setShowCreateItem(false)}
-          onCreated={() => setShowCreateItem(false)}
+          onCreated={() => {}}
         />
       )}
 

@@ -19,7 +19,6 @@ Thumbs.db
 .idea/
 
 # Project-specific ignores
-docs/
 .claude/
 
 # Playwright artifacts

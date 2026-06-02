@@ -11,6 +11,7 @@ import type { TypeTagKind } from '../ui/TypeTag';
 import { Drawer, DrawerHeader, DrawerBody, DrawerFooter } from './Drawer';
 import { toast } from './Toast';
 import { TYPE_TAG_BG } from '../../lib/colors';
+import { TaskDetailPanel } from '../tasks/TaskDetailPanel';
 
 const ITEM_TYPES = [
   { value: 'epic', label: 'Epic', color: TYPE_TAG_BG.epic.bg },
@@ -81,6 +82,7 @@ export function CreateItemDialog({
   // UI state
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [createdTaskId, setCreatedTaskId] = useState<number | null>(null);
 
   useEffect(() => {
     let ignored = false;
@@ -204,13 +206,44 @@ export function CreateItemDialog({
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['sprints'] });
       toast(`${itemType.charAt(0).toUpperCase() + itemType.slice(1)} created`);
-      onCreated(res.data?.data?.item?.id);
+      const newId = res.data?.data?.item?.id;
+      if (newId) {
+        setCreatedTaskId(newId);
+        onCreated(newId);
+      } else {
+        onCreated();
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || `Failed to create ${itemType}`);
     } finally { setLoading(false); }
   };
 
   const labelClass = 'block text-[14px] font-medium text-neutral-500 mb-1';
+
+  if (createdTaskId) {
+    const editContent = (
+      <TaskDetailPanel
+        projectId={projectId}
+        taskId={createdTaskId}
+        projectPrefix=""
+        onClose={onClose}
+        onUpdated={() => {
+          queryClient.invalidateQueries({ queryKey: ['items'] });
+          queryClient.invalidateQueries({ queryKey: ['backlog'] });
+          queryClient.invalidateQueries({ queryKey: ['board'] });
+          queryClient.invalidateQueries({ queryKey: ['sprints'] });
+        }}
+        onNavigateToTask={(id) => setCreatedTaskId(id)}
+        bare
+      />
+    );
+    if (bare) return editContent;
+    return (
+      <Drawer open onClose={onClose} width="w-[480px]">
+        {editContent}
+      </Drawer>
+    );
+  }
 
   const content = (
     <>
@@ -222,7 +255,7 @@ export function CreateItemDialog({
       </DrawerHeader>
 
       <DrawerBody className="px-5 py-4">
-        <form id="create-item-form" onSubmit={handleSubmit} className="space-y-4">
+        <form id="create-item-form" onSubmit={handleSubmit} noValidate className="space-y-4">
           {error && <div className="text-[14px] text-danger">{error}</div>}
 
           {/* Type selector */}
@@ -329,7 +362,10 @@ export function CreateItemDialog({
       <DrawerFooter>
         <div className="flex justify-end gap-2 px-5 py-3">
           <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button type="submit" form="create-item-form" variant="primary" disabled={loading}>
+          <Button type="button" variant="primary" disabled={loading} onClick={() => {
+            const form = document.getElementById('create-item-form') as HTMLFormElement | null;
+            if (form) form.requestSubmit();
+          }}>
             {loading ? 'Creating...' : `Create ${itemType}`}
           </Button>
         </div>

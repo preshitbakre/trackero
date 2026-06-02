@@ -26,6 +26,7 @@ export interface TodayPayload {
   };
   triage: Array<{
     id: number;
+    projectId: number;
     itemKey: string;
     itemType: string;
     title: string;
@@ -244,6 +245,7 @@ export class TodayService {
     );
     return rows.map((r: any) => ({
       id: r.id,
+      projectId: r.project_id,
       itemKey: `${r.prefix}-${r.item_number}`,
       itemType: r.item_type,
       title: r.title,

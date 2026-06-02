@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/auth.store';
 import { Button } from '../components/ui/Button';
@@ -145,7 +145,7 @@ export function LoginPage() {
                 <label htmlFor="password" className="block text-[11px] uppercase tracking-[0.18em] font-semibold text-mute">
                   Password
                 </label>
-                <a href="#" className="text-[12px] text-faint hover:text-lilac-dark">forgot?</a>
+                <Link to="/forgot-password" className="text-[12px] text-faint hover:text-lilac-dark">forgot?</Link>
               </div>
               <Input
                 id="password"

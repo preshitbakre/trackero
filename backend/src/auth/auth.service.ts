@@ -172,7 +172,7 @@ export class AuthService {
         key: 'smtp',
         label: 'SMTP not set',
         status: 'warn',
-        sub: 'configurable in step 3',
+        sub: 'set via environment variables',
       });
     }
 

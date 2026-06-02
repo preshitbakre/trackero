@@ -208,10 +208,7 @@ export function EpicsPage() {
           projectId={parseInt(projectId)}
           defaultType="epic"
           onClose={() => setShowCreate(false)}
-          onCreated={() => {
-            setShowCreate(false);
-            load();
-          }}
+          onCreated={() => { load(); }}
         />
       )}
     </>

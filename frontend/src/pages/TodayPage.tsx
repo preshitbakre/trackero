@@ -21,6 +21,7 @@ interface TodayPayload {
   };
   triage: Array<{
     id: number;
+    projectId: number;
     itemKey: string;
     itemType: string;
     title: string;
@@ -355,7 +356,7 @@ function ThreeThings({ items, assignedCount }: { items: TodayPayload['triage']; 
                   </span>
                 )}
                 <Link
-                  to={`/projects/${(t as any).projectId ?? ''}/tasks/${t.id}`}
+                  to={`/projects/${t.projectId}/tasks/${t.id}`}
                   className="btn"
                 >
                   Open <span className="kbd ml-1">↵</span>

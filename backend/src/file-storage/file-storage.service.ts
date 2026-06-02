@@ -12,6 +12,7 @@ import { AppLogicException } from '../common/exceptions/app-exceptions';
 @Injectable()
 export class FileStorageService implements OnModuleInit {
   private readonly s3: S3Client | null;
+  private readonly s3Public: S3Client | null;
   private readonly bucket: string;
   private readonly presignExpiry: number;
   private readonly isTestMode: boolean;
@@ -19,10 +20,6 @@ export class FileStorageService implements OnModuleInit {
   constructor(private readonly configService: ConfigService) {
     this.isTestMode = this.configService.get<string>('NODE_ENV') === 'test';
     this.bucket = this.configService.get<string>('MINIO_BUCKET', 'trackero-files');
-    // Clamp PRESIGNED_URL_EXPIRY to a safe range so a misconfigured env var
-    // can't yield a near-permanent URL (S3/MinIO presigned URLs cap at 7 days
-    // anyway, but we enforce the floor and a sane default here defensively).
-    // Min: 60s (1 minute). Max: 604800s (7 days, AWS SigV4 hard cap).
     const PRESIGN_MIN = 60;
     const PRESIGN_MAX = 7 * 24 * 60 * 60;
     const PRESIGN_DEFAULT = 1800;
@@ -35,19 +32,30 @@ export class FileStorageService implements OnModuleInit {
       const port = this.configService.get<number>('MINIO_PORT', 443);
       const useSSL = this.configService.get<string>('MINIO_USE_SSL', 'true') === 'true';
       const protocol = useSSL ? 'https' : 'http';
+      const internalOrigin = `${protocol}://${endpoint}:${port}`;
+      const publicOrigin = this.configService.get<string>('MINIO_PUBLIC_URL', '') || null;
+
+      const region = this.configService.get<string>('S3_REGION', 'us-east-1');
+      const credentials = {
+        accessKeyId: this.configService.get<string>('MINIO_ACCESS_KEY', ''),
+        secretAccessKey: this.configService.get<string>('MINIO_SECRET_KEY', ''),
+      };
 
       this.s3 = new S3Client({
-        endpoint: `${protocol}://${endpoint}:${port}`,
-        region: this.configService.get<string>('S3_REGION', 'us-east-1'),
-        credentials: {
-          accessKeyId: this.configService.get<string>('MINIO_ACCESS_KEY', ''),
-          secretAccessKey: this.configService.get<string>('MINIO_SECRET_KEY', ''),
-        },
+        endpoint: internalOrigin,
+        region,
+        credentials,
         forcePathStyle: true,
         tls: useSSL,
       });
+
+      // Separate client for presigned URLs so signatures match the public hostname.
+      this.s3Public = publicOrigin
+        ? new S3Client({ endpoint: publicOrigin, region, credentials, forcePathStyle: true, tls: publicOrigin.startsWith('https') })
+        : this.s3;
     } else {
       this.s3 = null;
+      this.s3Public = null;
     }
   }
 
@@ -178,12 +186,9 @@ export class FileStorageService implements OnModuleInit {
     key: string,
     mimeType?: string,
   ): Promise<{ url: string; expiresIn: number }> {
-    if (!this.s3) {
+    if (!this.s3Public) {
       return { url: `http://localhost:9000/${this.bucket}/${key}`, expiresIn: this.presignExpiry };
     }
-    // A presigned S3 GET URL can override the response headers the object is
-    // served with. For non-image types, force a download (§4.3) so even a
-    // permissively-stored object cannot be rendered inline.
     const { contentDisposition, contentType } = this.resolveDisposition(mimeType ?? '');
     const command = new GetObjectCommand({
       Bucket: this.bucket,
@@ -191,7 +196,7 @@ export class FileStorageService implements OnModuleInit {
       ...(contentDisposition ? { ResponseContentDisposition: contentDisposition } : {}),
       ...(contentType ? { ResponseContentType: contentType } : {}),
     });
-    const url = await getSignedUrl(this.s3, command, { expiresIn: this.presignExpiry });
+    const url = await getSignedUrl(this.s3Public, command, { expiresIn: this.presignExpiry });
     return { url, expiresIn: this.presignExpiry };
   }
 }

@@ -24,6 +24,8 @@ import { StoriesPage } from './pages/StoriesPage';
 import { StoryDetailPage } from './pages/StoryDetailPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { SetupWizardPage } from './pages/SetupWizardPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AdminRoute } from './components/AdminRoute';
 import { AppShell } from './components/layout/AppShell';
@@ -36,6 +38,8 @@ export function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/setup" element={<Navigate to="/setup/1" replace />} />
           <Route path="/setup/:step" element={<SetupWizardPage />} />
           <Route

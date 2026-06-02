@@ -403,7 +403,7 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
         <CreateItemDialog
           projectId={parseInt(projectId)}
           onClose={() => setShowCreateDialog(false)}
-          onCreated={() => { setShowCreateDialog(false); loadBoard(); }}
+          onCreated={() => { loadBoard(); }}
         />
       )}
     </div>

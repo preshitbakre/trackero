@@ -245,7 +245,6 @@ export function EpicDetailPage() {
           defaultParentId={parseInt(epicId)}
           onClose={() => setShowAddStory(false)}
           onCreated={() => {
-            setShowAddStory(false);
             reload();
           }}
         />
