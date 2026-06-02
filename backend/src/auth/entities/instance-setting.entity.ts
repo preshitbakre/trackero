@@ -5,8 +5,8 @@ export class InstanceSetting {
   @PrimaryColumn({ type: 'varchar', length: 100 })
   key: string;
 
-  @Column({ type: 'jsonb', nullable: true })
-  value: unknown;
+  @Column({ type: 'text' })
+  value: string;
 
   @Column({ name: 'updated_by', type: 'int', nullable: true })
   updatedBy: number | null;
