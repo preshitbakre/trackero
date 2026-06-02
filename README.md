@@ -78,7 +78,7 @@ We built it in two weeks to prove a point: that a small studio with the right en
 ### Docker Compose
 
 ```bash
-git clone https://github.com/AntimortaleBlueAgate/trackero.git
+git clone https://github.com/preshitbakre/trackero.git
 cd trackero
 
 # Create your .env from the example
