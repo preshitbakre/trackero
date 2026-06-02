@@ -153,7 +153,7 @@ export async function clearDatabase(app: INestApplication): Promise<void> {
  * Register the first user (becomes admin automatically).
  * Returns the admin's JWT token and user ID.
  */
-export async function registerAdmin(app: INestApplication, email = 'admin@test.com', password = 'password123') {
+export async function registerAdmin(app: INestApplication, email = 'admin@test.com', password = 'Password1!') {
   const res = await request(app.getHttpServer())
     .post('/api/auth/register')
     .send({ email, password, displayName: 'Admin' });
@@ -170,7 +170,7 @@ export async function registerInvitedUser(
   adminToken: string,
   email: string,
   role = 'member',
-  password = 'password123',
+  password = 'Password1!',
 ) {
   // Admin creates invitation
   const inviteRes = await request(app.getHttpServer())
