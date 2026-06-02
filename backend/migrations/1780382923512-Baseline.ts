@@ -70,7 +70,7 @@ export class Baseline1780382923512 implements MigrationInterface {
         await queryRunner.query(`CREATE TABLE "refresh_tokens" ("id" SERIAL NOT NULL, "user_id" integer NOT NULL, "token" character varying(500) NOT NULL, "expires_at" TIMESTAMP WITH TIME ZONE NOT NULL, "is_revoked" boolean NOT NULL DEFAULT false, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_7d8bee0204106019488c4c50ffa" PRIMARY KEY ("id"))`);
         await queryRunner.query(`CREATE INDEX "IDX_refresh_token_user" ON "refresh_tokens" ("user_id") `);
         await queryRunner.query(`CREATE UNIQUE INDEX "IDX_refresh_token" ON "refresh_tokens" ("token") `);
-        await queryRunner.query(`CREATE TABLE "instance_settings" ("key" character varying(100) NOT NULL, "value" text NOT NULL, "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_f4841fbd4c9819d5ade4b5dfeb8" PRIMARY KEY ("key"))`);
+        await queryRunner.query(`CREATE TABLE "instance_settings" ("key" character varying(100) NOT NULL, "value" text NOT NULL, "updated_by" integer, "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_f4841fbd4c9819d5ade4b5dfeb8" PRIMARY KEY ("key"))`);
         await queryRunner.query(`CREATE TABLE "invitations" ("id" SERIAL NOT NULL, "email" character varying(255) NOT NULL, "token" character varying(500) NOT NULL, "role" character varying(20) NOT NULL DEFAULT 'member', "project_id" integer, "invited_by" integer NOT NULL, "status" character varying(10) NOT NULL DEFAULT 'pending', "expires_at" TIMESTAMP WITH TIME ZONE NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_5dec98cfdfd562e4ad3648bbb07" PRIMARY KEY ("id"))`);
         await queryRunner.query(`CREATE UNIQUE INDEX "UQ_invitation_pending_email" ON "invitations" ("email") WHERE status = 'pending'`);
         await queryRunner.query(`CREATE INDEX "IDX_invite_email" ON "invitations" ("email") `);
@@ -82,6 +82,12 @@ export class Baseline1780382923512 implements MigrationInterface {
         await queryRunner.query(`CREATE TABLE "work_item_labels" ("work_item_id" integer NOT NULL, "label_id" integer NOT NULL, CONSTRAINT "PK_7074aae12877d30bbcfad890374" PRIMARY KEY ("work_item_id", "label_id"))`);
         await queryRunner.query(`CREATE INDEX "IDX_366aa1ac10b3b35e3e9ec33596" ON "work_item_labels" ("work_item_id") `);
         await queryRunner.query(`CREATE INDEX "IDX_f19b2cc88f10c181cee4768ca0" ON "work_item_labels" ("label_id") `);
+        await queryRunner.query(`CREATE TABLE "pinned_projects" ("user_id" integer NOT NULL, "project_id" integer NOT NULL, "pinned_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_pinned_projects" PRIMARY KEY ("user_id", "project_id"))`);
+        await queryRunner.query(`CREATE TABLE "project_visits" ("user_id" integer NOT NULL, "project_id" integer NOT NULL, "visited_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_project_visits" PRIMARY KEY ("user_id", "project_id"))`);
+        await queryRunner.query(`ALTER TABLE "pinned_projects" ADD CONSTRAINT "FK_pinned_projects_user" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "pinned_projects" ADD CONSTRAINT "FK_pinned_projects_project" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "project_visits" ADD CONSTRAINT "FK_project_visits_user" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "project_visits" ADD CONSTRAINT "FK_project_visits_project" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
         await queryRunner.query(`ALTER TABLE "project_members" ADD CONSTRAINT "FK_b5729113570c20c7e214cf3f58d" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
         await queryRunner.query(`ALTER TABLE "project_members" ADD CONSTRAINT "FK_e89aae80e010c2faa72e6a49ce8" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
         await queryRunner.query(`ALTER TABLE "projects" ADD CONSTRAINT "FK_f92749a9dcdd54f83bdde8edfd5" FOREIGN KEY ("lead_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE NO ACTION`);
@@ -203,6 +209,8 @@ export class Baseline1780382923512 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE "projects" DROP CONSTRAINT "FK_f92749a9dcdd54f83bdde8edfd5"`);
         await queryRunner.query(`ALTER TABLE "project_members" DROP CONSTRAINT "FK_e89aae80e010c2faa72e6a49ce8"`);
         await queryRunner.query(`ALTER TABLE "project_members" DROP CONSTRAINT "FK_b5729113570c20c7e214cf3f58d"`);
+        await queryRunner.query(`DROP TABLE "project_visits"`);
+        await queryRunner.query(`DROP TABLE "pinned_projects"`);
         await queryRunner.query(`DROP INDEX "public"."IDX_f19b2cc88f10c181cee4768ca0"`);
         await queryRunner.query(`DROP INDEX "public"."IDX_366aa1ac10b3b35e3e9ec33596"`);
         await queryRunner.query(`DROP TABLE "work_item_labels"`);

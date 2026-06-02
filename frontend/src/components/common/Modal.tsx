@@ -108,8 +108,10 @@ export function Modal({
            * for accessibility while the caller is free to render its own
            * styled heading inside `children`.
            */}
-          {!titleId && title && (
-            <DialogPrimitive.Title className="sr-only">{title}</DialogPrimitive.Title>
+          {titleId ? null : (
+            <DialogPrimitive.Title className="sr-only">
+              {title ?? 'Dialog'}
+            </DialogPrimitive.Title>
           )}
           {description && (
             <DialogPrimitive.Description className="sr-only">
