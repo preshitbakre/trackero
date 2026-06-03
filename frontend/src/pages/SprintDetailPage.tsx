@@ -10,6 +10,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { StatusPill, type StatusKey } from '../components/ui/StatusPill';
 import { Button } from '../components/ui/Button';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
+import { SprintCompleteDialog } from '../components/sprints/SprintCompleteDialog';
 import { toast } from '../components/common/Toast';
 import { useRole } from '../hooks/useRole';
 import { CardSkeleton } from '../components/common/Skeleton';
@@ -127,15 +128,6 @@ export function SprintDetailPage() {
       toast(e?.response?.data?.message || 'Failed to start sprint', 'error');
     }
   };
-  const handleComplete = async () => {
-    try {
-      await apiClient.post(`/projects/${projectId}/sprints/${sprintId}/complete`);
-      toast('Sprint completed');
-      load();
-    } catch (e: any) {
-      toast(e?.response?.data?.message || 'Failed to complete sprint', 'error');
-    }
-  };
   const handleCancel = async () => {
     try {
       await apiClient.post(`/projects/${projectId}/sprints/${sprintId}/cancel`);
@@ -213,14 +205,14 @@ export function SprintDetailPage() {
         {tab === 'settings' && <SettingsTab sprint={sprint} onSaved={load} />}
       </div>
 
-      {showCompleteConfirm && (
-        <ConfirmDialog
-          title="Complete this sprint?"
-          message="Done items will ship. WIP follows the carry-over policy. This will also open the retro."
-          confirmLabel="Complete"
-          onConfirm={async () => {
+      {showCompleteConfirm && sprint && (
+        <SprintCompleteDialog
+          projectId={projectId}
+          sprintId={sprintId}
+          sprintName={`Sprint ${sprint.sprintNumber}`}
+          onCompleted={() => {
             setShowCompleteConfirm(false);
-            await handleComplete();
+            load();
           }}
           onCancel={() => setShowCompleteConfirm(false)}
         />
