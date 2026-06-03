@@ -9,6 +9,7 @@ import { PaginatedResponse } from '../common/dto/paginated-response.dto';
 import { PaginatedMutationResponse } from '../common/dto/paginated-mutation-response.dto';
 import { CreateSprintDto } from './dto/create-sprint.dto';
 import { UpdateSprintDto } from './dto/update-sprint.dto';
+import { CompleteSprintDto } from './dto/complete-sprint.dto';
 import { clampLimit } from '../common/helpers/pagination.helper';
 import { rethrowAsDuplicate } from '../common/helpers/db-error.helper';
 import { SprintSnapshotsService } from './sprint-snapshots.service';
@@ -761,9 +762,8 @@ export class SprintsService {
     };
   }
 
-  async complete(projectId: number, sprintId: number, userId: number) {
+  async complete(projectId: number, sprintId: number, userId: number, dto?: CompleteSprintDto) {
     const result = await this.dataSource.transaction(async (manager) => {
-      // Re-load with a pessimistic write lock so concurrent callers serialize.
       const sprint = await manager.findOne(Sprint, {
         where: { id: sprintId, projectId },
         lock: { mode: 'pessimistic_write' },
@@ -771,8 +771,6 @@ export class SprintsService {
       if (!sprint) {
         throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
       }
-
-      // Re-check status inside the lock.
       if (sprint.status !== 'active') {
         throw new AppLogicException('SPRINT_NOT_ACTIVE', HttpStatus.BAD_REQUEST);
       }
@@ -781,18 +779,15 @@ export class SprintsService {
       sprint.completedAt = new Date();
       await manager.save(Sprint, sprint);
 
-      // Find incomplete tasks (status category NOT done)
-      const incompleteTasks = await manager.query(
+      const incompleteTasks: { id: number }[] = await manager.query(
         `SELECT t.id FROM work_items t
          JOIN project_statuses ps ON t.status_id = ps.id
          WHERE t.sprint_id = $1 AND ps.category != 'done'`,
         [sprintId],
       );
 
-      let movedTo = 'Backlog';
       const movedTasks = incompleteTasks.length;
 
-      // Create SprintScopeChange 'removed' records for tasks leaving this sprint
       for (const task of incompleteTasks) {
         const [taskData] = await manager.query(
           'SELECT story_points FROM work_items WHERE id = $1',
@@ -810,34 +805,89 @@ export class SprintsService {
         );
       }
 
-      if (movedTasks > 0) {
-        // Find next planning sprint
-        const nextSprint = await manager.findOne(Sprint, {
-          where: { projectId, status: 'planning' },
-          order: { sprintNumber: 'ASC' },
-        });
+      const nextSprint = await manager.findOne(Sprint, {
+        where: { projectId, status: 'planning' as any },
+        order: { sprintNumber: 'ASC' },
+      });
 
-        if (nextSprint) {
-          movedTo = nextSprint.name;
-          const taskIds = incompleteTasks.map((t: any) => t.id);
-          await manager.query(
-            `UPDATE work_items SET sprint_id = $1, added_mid_sprint = false WHERE id = ANY($2)`,
-            [nextSprint.id, taskIds],
-          );
-        } else {
-          // Move to backlog
-          const taskIds = incompleteTasks.map((t: any) => t.id);
+      let movedTo = 'Backlog';
+      const policy = sprint.carryOverPolicy || 'ask';
+
+      if (movedTasks > 0) {
+        if (policy === 'backlog') {
+          const taskIds = incompleteTasks.map((t) => t.id);
           await manager.query(
             `UPDATE work_items SET sprint_id = NULL WHERE id = ANY($1)`,
             [taskIds],
           );
+          movedTo = 'Backlog';
+        } else if (policy === 'roll') {
+          const taskIds = incompleteTasks.map((t) => t.id);
+          if (nextSprint) {
+            await manager.query(
+              `UPDATE work_items SET sprint_id = $1, added_mid_sprint = false WHERE id = ANY($2)`,
+              [nextSprint.id, taskIds],
+            );
+            movedTo = nextSprint.name;
+          } else {
+            await manager.query(
+              `UPDATE work_items SET sprint_id = NULL WHERE id = ANY($1)`,
+              [taskIds],
+            );
+            movedTo = 'Backlog';
+          }
+        } else {
+          // policy === 'ask'
+          const itemActions = dto?.itemActions;
+          if (!itemActions) {
+            throw new AppLogicException('ITEM_ACTIONS_REQUIRED', HttpStatus.BAD_REQUEST);
+          }
+
+          const incompleteIds = new Set(incompleteTasks.map((t) => t.id));
+          const actionIds = new Set(Object.keys(itemActions).map(Number));
+
+          const missing = [...incompleteIds].filter((id) => !actionIds.has(id));
+          if (missing.length > 0) {
+            throw new AppLogicException('MISSING_ITEM_ACTIONS', HttpStatus.BAD_REQUEST);
+          }
+
+          const extra = [...actionIds].filter((id) => !incompleteIds.has(id));
+          if (extra.length > 0) {
+            throw new AppLogicException('INVALID_ITEM_IDS', HttpStatus.BAD_REQUEST);
+          }
+
+          const rollIds = Object.entries(itemActions)
+            .filter(([, action]) => action === 'roll')
+            .map(([id]) => Number(id));
+          const backlogIds = Object.entries(itemActions)
+            .filter(([, action]) => action === 'backlog')
+            .map(([id]) => Number(id));
+
+          if (rollIds.length > 0 && !nextSprint) {
+            throw new AppLogicException('NO_NEXT_SPRINT_FOR_ROLL', HttpStatus.BAD_REQUEST);
+          }
+
+          if (rollIds.length > 0 && nextSprint) {
+            await manager.query(
+              `UPDATE work_items SET sprint_id = $1, added_mid_sprint = false WHERE id = ANY($2)`,
+              [nextSprint.id, rollIds],
+            );
+          }
+          if (backlogIds.length > 0) {
+            await manager.query(
+              `UPDATE work_items SET sprint_id = NULL WHERE id = ANY($1)`,
+              [backlogIds],
+            );
+          }
+
+          movedTo = rollIds.length > 0 && backlogIds.length > 0 ? 'mixed' :
+                    rollIds.length > 0 ? nextSprint!.name : 'Backlog';
         }
       }
 
       return { sprint, movedTasks, movedTo };
     });
 
-    // Emit only after the transaction commits.
     this.eventEmitter.emit('sprint.completed', { sprintId, projectId, actorId: userId });
 
     return result;

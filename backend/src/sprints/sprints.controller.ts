@@ -12,6 +12,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 import { CreateSprintDto } from './dto/create-sprint.dto';
 import { UpdateSprintDto } from './dto/update-sprint.dto';
+import { CompleteSprintDto } from './dto/complete-sprint.dto';
 
 @Controller('projects/:projectId/sprints')
 @UseGuards(JwtAuthGuard, ProjectAccessGuard, RolesGuard)
@@ -111,8 +112,9 @@ export class SprintsController {
     @Param('projectId', ParseIntPipe) projectId: number,
     @Param('sprintId', ParseIntPipe) sprintId: number,
     @CurrentUser() user: JwtPayload,
+    @Body() dto: CompleteSprintDto,
   ) {
-    return this.sprintsService.complete(projectId, sprintId, user.userId);
+    return this.sprintsService.complete(projectId, sprintId, user.userId, dto);
   }
 
   @Get(':sprintId/complete-preview')
