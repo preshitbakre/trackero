@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { apiClient } from '../../api/client';
 import { Eyebrow } from '../ui';
 import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { Select } from '../ui/Select';
 import { toast } from '../common/Toast';
 
 /**
@@ -127,21 +129,21 @@ export function IntegrationsTab({ projectId }: { projectId: number }) {
         <div className="rounded-lg border border-rule bg-card p-4 space-y-3">
           <Eyebrow>New integration</Eyebrow>
           <div className="flex items-center gap-2">
-            <select
+            <Select
               value={draft.type}
-              onChange={(e) => setDraft((d) => ({ ...d, type: e.target.value as IntegrationType }))}
-              className="px-2 py-1.5 text-[13px] rounded-md bg-paper border border-rule"
-            >
-              <option value="webhook">Generic webhook</option>
-              <option value="slack">Slack incoming webhook</option>
-              <option value="github">GitHub repo dispatch</option>
-            </select>
-            <input
-              type="url"
+              onChange={(v) => setDraft((d) => ({ ...d, type: v as IntegrationType }))}
+              options={[
+                { value: 'webhook', label: 'Generic webhook' },
+                { value: 'slack', label: 'Slack incoming webhook' },
+                { value: 'github', label: 'GitHub repo dispatch' },
+              ]}
+            />
+            <Input
+              type="text"
               value={draft.url}
               onChange={(e) => setDraft((d) => ({ ...d, url: e.target.value }))}
               placeholder="https://example.com/webhook"
-              className="flex-1 px-3 py-1.5 text-[13px] rounded-md bg-paper border border-rule focus:outline-none focus:border-lilac"
+              className="!flex-1 !text-[13px] !rounded-md !bg-paper"
             />
             <Button onClick={handleCreate}>Add</Button>
             <Button variant="ghost" onClick={() => { setShowCreate(false); setDraft({ type: 'webhook', url: '' }); }}>Cancel</Button>

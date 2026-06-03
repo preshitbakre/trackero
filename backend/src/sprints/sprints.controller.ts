@@ -60,6 +60,16 @@ export class SprintsController {
     return this.sprintsService.findActive(projectId, user.userId);
   }
 
+  @Get(':sprintId/complete-preview')
+  @Roles('admin', 'project_manager')
+  @ResponseCode('SPRINT_COMPLETE_PREVIEW')
+  async completePreview(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('sprintId', ParseIntPipe) sprintId: number,
+  ) {
+    return this.sprintsService.completePreview(projectId, sprintId);
+  }
+
   @Get(':sprintId')
   @Roles('admin', 'project_manager', 'member', 'viewer')
   @ResponseCode('SPRINT_FETCHED')
@@ -115,16 +125,6 @@ export class SprintsController {
     @Body() dto: CompleteSprintDto,
   ) {
     return this.sprintsService.complete(projectId, sprintId, user.userId, dto);
-  }
-
-  @Get(':sprintId/complete-preview')
-  @Roles('admin', 'project_manager')
-  @ResponseCode('SPRINT_COMPLETE_PREVIEW')
-  async completePreview(
-    @Param('projectId', ParseIntPipe) projectId: number,
-    @Param('sprintId', ParseIntPipe) sprintId: number,
-  ) {
-    return this.sprintsService.completePreview(projectId, sprintId);
   }
 
   @Post(':sprintId/cancel')

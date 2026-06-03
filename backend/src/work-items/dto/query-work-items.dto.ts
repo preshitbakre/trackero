@@ -46,6 +46,11 @@ export class QueryWorkItemsDto {
   hasSprint?: boolean;
 
   @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  backlog?: boolean;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   labelId?: number;

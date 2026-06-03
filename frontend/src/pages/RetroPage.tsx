@@ -5,6 +5,7 @@ import { apiClient } from '../api/client';
 import { useRole } from '../hooks/useRole';
 import { Button } from '../components/ui/Button';
 import { PageHeader } from '../components/ui/PageHeader';
+import { Textarea } from '../components/ui/Textarea';
 import { toast } from '../components/common/Toast';
 
 // Phase 6 — UI vocabulary is the new four-column set. Storage may still
@@ -437,15 +438,14 @@ export function RetroPage() {
                       {/* Card content */}
                       {editingCard?.id === card.id ? (
                         <div>
-                          <textarea
+                          <Textarea
                             value={editingCard.content}
                             onChange={(e) =>
                               setEditingCard({ ...editingCard, content: e.target.value })
                             }
                             autoFocus
                             rows={3}
-                            className="w-full rounded border border-rule bg-card p-2 focus:border-lilac focus:outline-none"
-                            style={{ fontSize: 13 }}
+                            className="!rounded !p-2 !text-[13px]"
                           />
                           <div className="flex items-center gap-2 mt-2">
                             <Button
@@ -611,14 +611,13 @@ export function RetroPage() {
                 <div style={{ padding: '0 12px 12px' }}>
                   {newCard?.column === col.key ? (
                     <div className="space-y-2">
-                      <textarea
+                      <Textarea
                         value={newCard.content}
                         onChange={(e) => setNewCard({ ...newCard, content: e.target.value })}
                         placeholder="What stood out?"
                         autoFocus
                         rows={3}
-                        className="w-full rounded border border-rule bg-card p-2 focus:border-lilac focus:outline-none"
-                        style={{ fontSize: 13 }}
+                        className="!rounded !p-2 !text-[13px]"
                       />
                       <div className="flex gap-1">
                         <Button size="sm" onClick={() => handleAddCard(col.key)}>

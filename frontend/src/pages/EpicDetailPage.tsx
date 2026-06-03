@@ -12,10 +12,9 @@ import type { StatusKey } from '../components/ui/StatusPill';
 import { TypeTag } from '../components/ui/TypeTag';
 import { ErrorState } from '../components/common/ErrorState';
 import { TaskDetailPanel } from '../components/tasks/TaskDetailPanel';
-import { CreateItemDialog } from '../components/common/CreateItemDialog';
 import { toast } from '../components/common/Toast';
 import { OverviewTab } from './epic-detail/OverviewTab';
-import { StoriesTab } from './epic-detail/StoriesTab';
+import { TicketsTab } from './epic-detail/TicketsTab';
 import { TimelineTab } from './epic-detail/TimelineTab';
 import { SettingsTab } from './epic-detail/SettingsTab';
 import { EpicSidebar } from './epic-detail/EpicSidebar';
@@ -24,7 +23,7 @@ import OverviewIcon from '../assets/icons/overview.svg?react';
 import TimelineIcon from '../assets/icons/timeline.svg?react';
 import SettingsIcon from '../assets/icons/settings.svg?react';
 
-type TabKey = 'overview' | 'stories' | 'timeline' | 'settings';
+type TabKey = 'overview' | 'tickets' | 'timeline' | 'settings';
 
 export function EpicDetailPage() {
   const { id: projectId, epicId } = useParams();
@@ -38,7 +37,6 @@ export function EpicDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
-  const [showAddStory, setShowAddStory] = useState(false);
   const [showBrief, setShowBrief] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const { canEdit } = useRole();
@@ -140,16 +138,9 @@ export function EpicDetailPage() {
                 )}
               </>
             ) : (
-              <>
-                <Button size="sm" variant="ghost" onClick={() => setShowBrief(true)}>
-                  Brief
-                </Button>
-                {canEdit && (
-                  <Button size="sm" variant="secondary" onClick={() => setShowAddStory(true)}>
-                    + Add ticket
-                  </Button>
-                )}
-              </>
+              <Button size="sm" variant="ghost" onClick={() => setShowBrief(true)}>
+                Brief
+              </Button>
             )}
           </div>
         </header>
@@ -161,7 +152,7 @@ export function EpicDetailPage() {
         onChange={setTab}
         tabs={[
           { key: 'overview', label: 'Overview', icon: <OverviewIcon className="w-[14px] h-[14px]" /> },
-          { key: 'stories', label: 'Stories', icon: <TypeTag kind="story" size="xs" />, badge: childCount },
+          { key: 'tickets', label: 'Tickets', icon: <TypeTag kind="task" size="xs" />, badge: childCount },
           { key: 'timeline', label: 'Timeline', icon: <TimelineIcon className="w-[14px] h-[14px]" /> },
           { key: 'settings', label: 'Settings', icon: <SettingsIcon className="w-[14px] h-[14px]" /> },
         ]}
@@ -175,18 +166,18 @@ export function EpicDetailPage() {
               projectId={projectId!}
               onUpdateStatus={() => setTab('settings')}
               onOpenChild={setSelectedTaskId}
-              onSeeAll={() => setTab('stories')}
+              onSeeAll={() => setTab('tickets')}
             />
           )}
-          {tab === 'stories' && (
-            <StoriesTab
+          {tab === 'tickets' && (
+            <TicketsTab
               epicId={epic.id}
               epicKey={epic.itemKey}
               projectId={projectId!}
               canEdit={canEdit}
-              onAddStory={() => setShowAddStory(true)}
               onOpenChild={setSelectedTaskId}
               reloadKey={reloadKey}
+              onLinked={reload}
             />
           )}
           {tab === 'timeline' && <TimelineTab epic={epic} projectId={projectId!} canEdit={canEdit} />}
@@ -238,17 +229,6 @@ export function EpicDetailPage() {
         />
       )}
 
-      {showAddStory && projectId && epicId && (
-        <CreateItemDialog
-          projectId={parseInt(projectId)}
-          defaultType="story"
-          defaultParentId={parseInt(epicId)}
-          onClose={() => setShowAddStory(false)}
-          onCreated={() => {
-            reload();
-          }}
-        />
-      )}
     </div>
   );
 }

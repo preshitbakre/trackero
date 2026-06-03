@@ -192,21 +192,8 @@ export function BacklogPage() {
     setLoading(true);
     setError(false);
     try {
-      const { data: taskData } = await apiClient.get(`/projects/${projectId}/items?itemType=epic,story,task,bug,subtask&limit=300`);
-      const allItems: BacklogTask[] = taskData.data.list || [];
-      const backlogWorkIds = new Set(
-        allItems.filter((t) => {
-          const tp = t.itemType || t.type;
-          return (tp === 'task' || tp === 'bug') && (t.sprintId === null || t.sprintId === undefined);
-        }).map((t) => t.id),
-      );
-      const backlogTasks = allItems.filter((t) => {
-        const type = t.itemType || t.type;
-        if (type === 'epic' || type === 'story') return true;
-        if (type === 'task' || type === 'bug') return backlogWorkIds.has(t.id);
-        if (type === 'subtask') return t.parentId !== null && backlogWorkIds.has(t.parentId);
-        return false;
-      });
+      const { data: taskData } = await apiClient.get(`/projects/${projectId}/items?itemType=epic,story,task,bug,subtask&backlog=true&limit=300`);
+      const backlogTasks: BacklogTask[] = taskData.data.list || [];
       setTasks(backlogTasks);
 
       const { data: sprintData } = await apiClient.get(`/projects/${projectId}/sprints?limit=100`);

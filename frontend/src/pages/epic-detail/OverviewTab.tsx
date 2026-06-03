@@ -72,11 +72,11 @@ export function OverviewTab({ epic, projectId, onUpdateStatus, onOpenChild, onSe
 
       {epic.forecast && <EpicForecast data={epic.forecast} />}
 
-      {/* Stories preview */}
+      {/* Tickets preview */}
       <div>
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-[20px] font-serif tracking-[-0.4px] text-text">
-            Stories <span className="text-mute font-normal">· {children?.totalItems ?? 0} under {epic.itemKey}</span>
+            Tickets <span className="text-mute font-normal">· {children?.totalItems ?? 0} under {epic.itemKey}</span>
           </h2>
           <button
             type="button"

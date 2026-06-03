@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { apiClient } from '../../api/client';
 import { KbdKey, TypeTag } from '../ui';
+import { Input } from '../ui/Input';
 import type { TypeTagKind } from '../ui';
 
 /**
@@ -324,14 +325,14 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
         {/* Search bar */}
         <div className="flex items-center px-4 border-b border-rule">
           <Search size={16} className="text-faint mr-3" />
-          <input
+          <Input
             ref={inputRef}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Search items, projects, people…"
-            className="flex-1 py-3 text-[16px] bg-transparent outline-none text-text placeholder-faint"
+            className="flex-1 !py-3 !text-[16px] !bg-transparent !border-none !shadow-none !ring-0 !outline-none !px-0 text-text placeholder-faint"
           />
           {currentProjectId && (
             <button

@@ -349,8 +349,9 @@ export class WorkItemsService {
     // Filter: sprintId
     if (query.sprintId) {
       qb.andWhere('wi.sprintId = :sprintId', { sprintId: query.sprintId });
+    } else if (query.backlog) {
+      qb.andWhere('wi.sprintId IS NULL');
     } else if (query.hasSprint) {
-      // "Any sprint" filter — excludes backlog items (sprintId IS NULL).
       qb.andWhere('wi.sprintId IS NOT NULL');
     }
 
@@ -752,9 +753,10 @@ export class WorkItemsService {
         throw new AppLogicException('NOT_FOUND', HttpStatus.BAD_REQUEST, 'Status not found');
       }
 
-      // If changing to 'done' category, check association blockers
+      // If changing to 'done' category, check blockers and subtasks
       if (newStatus.category === 'done') {
         await this.assertNoOpenBlockers(id);
+        await this.assertSubtasksDone(id);
       }
 
       // Set or clear completedAt
@@ -1129,6 +1131,13 @@ export class WorkItemsService {
     }
 
     const isDone = status[0].category === 'done';
+
+    if (isDone) {
+      for (const itemId of itemIds) {
+        await this.assertNoOpenBlockers(itemId);
+        await this.assertSubtasksDone(itemId);
+      }
+    }
 
     await this.dataSource.transaction(async (manager) => {
       if (isDone) {
@@ -2077,6 +2086,24 @@ export class WorkItemsService {
     return status;
   }
 
+  private async assertSubtasksDone(id: number) {
+    const incomplete = await this.dataSource.query(
+      `SELECT wi.id, wi.title
+       FROM work_items wi
+       JOIN project_statuses ps ON ps.id = wi.status_id
+       WHERE wi.parent_id = $1 AND wi.deleted_at IS NULL AND ps.category != 'done'
+       LIMIT 1`,
+      [id],
+    );
+    if (incomplete.length > 0) {
+      throw new AppLogicException(
+        'SUBTASKS_INCOMPLETE',
+        HttpStatus.BAD_REQUEST,
+        `Complete all subtasks before marking this item as done.`,
+      );
+    }
+  }
+
   /** Rejects with ITEM_BLOCKED when the item has any unresolved `blocks` association. */
   private async assertNoOpenBlockers(id: number) {
     const blockers = await this.dataSource.query(
@@ -2103,6 +2130,7 @@ export class WorkItemsService {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
     await this.assertNoOpenBlockers(id);
+    await this.assertSubtasksDone(id);
     const doneStatus = await this.firstStatusOfCategory(projectId, 'done');
     item.statusId = doneStatus.id;
     item.completedAt = new Date();

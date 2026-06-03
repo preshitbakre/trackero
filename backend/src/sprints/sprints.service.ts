@@ -736,7 +736,7 @@ export class SprintsService {
 
     const incompleteItems = await this.dataSource.query(
       `SELECT t.id, t.item_number AS "itemNumber",
-              p.key || '-' || t.item_number AS "itemKey",
+              p.prefix || '-' || t.item_number AS "itemKey",
               t.title, t.item_type AS "itemType",
               t.priority, t.story_points AS "storyPoints",
               json_build_object(

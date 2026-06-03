@@ -3,8 +3,11 @@ import { Search } from 'lucide-react';
 import { apiClient } from '../../api/client';
 import { toast } from '../../components/common/Toast';
 import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
 import { TypeTag } from '../../components/ui/TypeTag';
 import type { TypeTagKind } from '../../components/ui/TypeTag';
+import { LINK_TYPE_OPTIONS } from '../../lib/associations';
 
 interface Props {
   projectId: number;
@@ -23,6 +26,7 @@ export function LinkItemDialog({ projectId, storyId, onLinked, onClose }: Props)
   const [page, setPage] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
   const [linking, setLinking] = useState<number | null>(null);
+  const [linkType, setLinkType] = useState('belongs_to');
   const seqRef = useRef(0);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -69,11 +73,23 @@ export function LinkItemDialog({ projectId, storyId, onLinked, onClose }: Props)
   const link = async (itemId: number) => {
     setLinking(itemId);
     try {
-      await apiClient.post(`/projects/${projectId}/items/${itemId}/associations`, {
-        linkedItemId: storyId,
-        linkType: 'belongs_to',
-      });
-      toast('Item linked to story');
+      if (linkType === 'contains') {
+        await apiClient.post(`/projects/${projectId}/items/${itemId}/associations`, {
+          linkedItemId: storyId,
+          linkType: 'belongs_to',
+        });
+      } else if (linkType === 'blocked_by') {
+        await apiClient.post(`/projects/${projectId}/items/${itemId}/associations`, {
+          linkedItemId: storyId,
+          linkType: 'blocks',
+        });
+      } else {
+        await apiClient.post(`/projects/${projectId}/items/${storyId}/associations`, {
+          linkedItemId: itemId,
+          linkType,
+        });
+      }
+      toast('Item linked');
       onLinked();
     } catch (err: any) {
       toast(err.response?.data?.message || 'Failed to link item', 'error');
@@ -90,17 +106,25 @@ export function LinkItemDialog({ projectId, storyId, onLinked, onClose }: Props)
       >
         <div className="px-4 py-3 border-b border-rule bg-paper-2">
           <h3 className="text-[14px] font-semibold text-text mb-2">Link existing item</h3>
-          <div className="relative">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => search(e.target.value)}
-              onFocus={() => { if (results.length === 0) search(''); }}
-              placeholder="Search tasks and bugs…"
-              autoFocus
-              className="w-full h-[32px] text-[13px] pl-8 pr-3 bg-card border border-rule text-text placeholder:text-faint outline-none"
+          <div className="flex gap-2">
+            <Select
+              value={linkType}
+              onChange={setLinkType}
+              options={LINK_TYPE_OPTIONS}
+              className="flex-shrink-0"
             />
+            <div className="relative flex-1">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
+              <Input
+                type="text"
+                value={query}
+                onChange={(e) => search(e.target.value)}
+                onFocus={() => { if (results.length === 0) search(''); }}
+                placeholder="Search tasks and bugs…"
+                autoFocus
+                className="!h-[32px] !text-[13px] pl-8 !pr-3 !rounded-none"
+              />
+            </div>
           </div>
         </div>
 

@@ -204,12 +204,12 @@ export function SettingsPage() {
             <div className="flex-1" />
             <div className="relative">
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
-              <input
+              <Input
                 type="search"
                 value={memberSearch}
                 onChange={(e) => setMemberSearch(e.target.value)}
                 placeholder="search users…"
-                className="pl-8 pr-3 py-1.5 text-[13px] bg-transparent border border-rule rounded-[var(--radius)] w-[200px] outline-none focus:border-lilac text-text placeholder:text-faint"
+                className="!pl-8 !py-1.5 !text-[13px] !bg-transparent !w-[200px]"
               />
             </div>
           </div>

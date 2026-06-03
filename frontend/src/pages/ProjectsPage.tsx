@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { Eyebrow, PageHeader } from '../components/ui';
+import { Input } from '../components/ui/Input';
 import { PROJECT_DOT_COLORS } from '../lib/colors';
 import { useRole } from '../hooks/useRole';
 import { CreateProjectDialog } from '../components/common/CreateProjectDialog';
@@ -129,12 +130,12 @@ export function ProjectsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <input
-            type="text"
+          <Input
+            type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="search projects…"
-            className="w-[220px] px-3 py-1.5 text-[13px] bg-paper border border-[var(--line)] rounded-md placeholder-faint focus:outline-none focus:ring-1 focus:ring-lilac"
+            className="!w-[220px] !py-1.5 !text-[13px] !bg-paper"
           />
           <button
             type="button"

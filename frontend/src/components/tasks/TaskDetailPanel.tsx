@@ -18,6 +18,7 @@ import { useRole } from '../../hooks/useRole';
 import { SaveStatusIndicator } from '../common/SaveStatusIndicator';
 import { LabelPicker } from '../ui/LabelPicker';
 import { MarkdownField } from '../ui/MarkdownField';
+import { LINK_TYPE_OPTIONS } from '../../lib/associations';
 import { MentionTextarea } from '../ui/MentionTextarea';
 import { CommentBody } from '../ui/CommentBody';
 import { TypeTag } from '../ui/TypeTag';
@@ -580,7 +581,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
               still feels like a hero inside the slide-over without dominating.
               Click-to-edit preserved. */}
           {editing ? (
-            <input
+            <Input
               value={title}
               onChange={(e) => {
                 setTitle(e.target.value);
@@ -591,7 +592,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
               onBlur={handleTitleBlur}
               onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
               autoFocus
-              className="w-full serif-i text-[32px] leading-[1.05] bg-transparent border-b border-[var(--accent)] outline-none text-text"
+              className="w-full serif-i text-[32px] leading-[1.05] !bg-transparent !border-none !border-b !border-[var(--accent)] !rounded-none !shadow-none !ring-0 !outline-none !px-0 !py-0 text-text"
             />
           ) : (
             <h2
@@ -623,7 +624,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
 
             <div>
               <span className="smallcaps block mb-1.5">Story Points</span>
-              <input
+              <Input
                 type="text"
                 inputMode="numeric"
                 value={storyPoints}
@@ -639,7 +640,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                 }}
                 onBlur={() => flushDebounce()}
                 onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                className="w-full rounded-md border border-neutral-200 bg-white px-3 py-1 text-[16px] text-neutral-700 focus:border-lilac focus:outline-none focus:ring-2 focus:ring-lilac/30 h-[30px]"
+                className="w-full !py-1 !text-[16px] h-[30px]"
                 placeholder="-"
               />
             </div>
@@ -865,14 +866,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                   <Select
                     value={addAssocLinkType}
                     onChange={setAddAssocLinkType}
-                    options={[
-                      { value: 'belongs_to', label: 'Part of' },
-                      { value: 'contains', label: 'Contains' },
-                      { value: 'relates_to', label: 'Related' },
-                      { value: 'blocks', label: 'Blocks' },
-                      { value: 'blocked_by', label: 'Blocked by' },
-                      { value: 'caused_by', label: 'Caused by' },
-                    ]}
+                    options={LINK_TYPE_OPTIONS}
                     className="flex-shrink-0"
                   />
                   <Input

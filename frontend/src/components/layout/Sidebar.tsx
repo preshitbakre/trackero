@@ -18,6 +18,7 @@ import ChartsIcon from '@/assets/icons/charts.svg?react';
 import MembersIcon from '@/assets/icons/members.svg?react';
 import SettingsIcon from '@/assets/icons/settings.svg?react';
 import EnterKeyGlyph from '@/assets/icons/enter-key.svg?react';
+import { Input } from '../ui/Input';
 
 interface Project {
   id: number;
@@ -279,13 +280,13 @@ export function Sidebar({ projects, currentProjectId, onNavigate }: SidebarProps
                     mute, kbd ⌘P on the right. */}
                 <div className="relative flex items-center gap-2 px-[14px] py-3 border-b border-[rgb(207,194,221)]">
                   <Search size={14} className="text-[var(--mute)] flex-shrink-0" />
-                  <input
+                  <Input
                     type="text"
                     autoFocus
                     value={switcherSearch}
                     onChange={(e) => setSwitcherSearch(e.target.value)}
                     placeholder="Switch project…"
-                    className="flex-1 text-[13px] bg-transparent placeholder-[var(--mute)] focus:outline-none"
+                    className="flex-1 !text-[13px] !bg-transparent !border-none !shadow-none !ring-0 !outline-none !px-0 !py-0 placeholder-[var(--mute)]"
                   />
                   <span
                     className="font-mono font-semibold text-[10px] text-[var(--ink-2)] bg-[var(--paper)] border-l border-t border-[rgb(207,194,221)] border-b-2 border-r border-[rgb(207,194,221)] px-1 rounded-[3px] flex-shrink-0"

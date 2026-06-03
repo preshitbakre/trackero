@@ -103,7 +103,6 @@ export class AppModule implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    if (this.configService.get<string>('NODE_ENV') === 'production') return;
 
     await this.dataSource.query(`
       DO $$ BEGIN

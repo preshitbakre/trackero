@@ -296,6 +296,17 @@ export class BoardService {
         throw new AppLogicException('ITEM_BLOCKED', HttpStatus.BAD_REQUEST);
       }
 
+      const incompleteSubtasks = await this.dataSource.query(
+        `SELECT wi.id FROM work_items wi
+         JOIN project_statuses ps ON ps.id = wi.status_id
+         WHERE wi.parent_id = $1 AND wi.deleted_at IS NULL AND ps.category != 'done'
+         LIMIT 1`,
+        [itemId],
+      );
+      if (incompleteSubtasks.length > 0) {
+        throw new AppLogicException('SUBTASKS_INCOMPLETE', HttpStatus.BAD_REQUEST);
+      }
+
       item.completedAt = new Date();
     } else {
       // Moving out of done — clear completedAt

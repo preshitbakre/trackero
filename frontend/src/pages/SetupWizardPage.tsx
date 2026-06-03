@@ -477,21 +477,21 @@ export function SetupWizardPage() {
                       size="md"
                     />
                     <div className="flex-1 min-w-0 -space-y-0.5">
-                      <input
+                      <Input
                         type="email"
                         value={inv.email}
                         onChange={(e) => updateInvite(idx, 'email', e.target.value)}
                         placeholder="colleague@example.com"
                         disabled={!smtpReady}
-                        className="w-full bg-transparent border-0 p-0 text-[13px] leading-tight text-[var(--ink)] placeholder-[var(--ink-4)] focus:outline-none focus:ring-0"
+                        className="!bg-transparent !border-0 !p-0 !text-[13px] !leading-tight !text-text !placeholder-faint !focus:ring-0 !rounded-none"
                       />
-                      <input
+                      <Input
                         type="text"
                         value={inv.name}
                         onChange={(e) => updateInvite(idx, 'name', e.target.value)}
                         placeholder="Display name"
                         disabled={!smtpReady}
-                        className="w-full bg-transparent border-0 p-0 text-[12px] leading-tight text-[var(--ink-3)] placeholder-[var(--ink-4)] focus:outline-none focus:ring-0"
+                        className="!bg-transparent !border-0 !p-0 !text-[12px] !leading-tight !text-mute !placeholder-faint !focus:ring-0 !rounded-none"
                       />
                     </div>
                     <div className="w-[130px] flex-shrink-0">

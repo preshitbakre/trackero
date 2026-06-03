@@ -98,6 +98,12 @@ export function MilestoneFeed({ milestones, canEdit, onAdd, onDelete }: Props) {
         </div>
       )}
 
+      {milestones.length === 0 && !adding && (
+        <p className="text-[14px] text-faint py-8 text-center">
+          No milestones yet. Add key dates, risks, or progress notes to track this epic's journey.
+        </p>
+      )}
+
       <ul className="space-y-3">
         {milestones.map((m) => {
           const chip = CHIP[m.kind];

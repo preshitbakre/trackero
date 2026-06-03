@@ -8,6 +8,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { apiClient } from '../../api/client';
 import { toast } from '../common/Toast';
 import { Input } from '../ui/Input';
+import { Select } from '../ui/Select';
 import DragHandleDots from '@/assets/icons/drag-handle.svg?react';
 import EllipsisDots from '@/assets/icons/ellipsis.svg?react';
 import { ConfirmDialog } from '../common/ConfirmDialog';
@@ -158,14 +159,14 @@ function SortableStatusRow({ status, onUpdate, onDelete, onSaveWip }: {
       <div className="flex items-center gap-3">
         <CategoryBadge category={status.category} />
         <span className="text-[11px] font-mono text-faint uppercase">WIP</span>
-        <input
-          type="text"
+        <Input
+          type="number"
           value={parseInt(wipVal) === 0 ? '—' : wipVal}
           onFocus={(e) => { if (e.target.value === '—') { setWipVal(''); } }}
           onChange={(e) => { const v = e.target.value; if (v === '' || /^\d+$/.test(v)) setWipVal(v); }}
           onBlur={handleWipBlur}
           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-          className="w-10 h-7 text-center text-[13px] font-mono text-text bg-transparent border border-rule rounded-[var(--radius)] outline-none focus:border-lilac"
+          className="!w-10 !h-7 !text-center !text-[13px] !font-mono !bg-transparent !border-rule !rounded-[var(--radius)] !outline-none focus:!border-lilac !px-0 !ring-0"
         />
       </div>
 
@@ -380,13 +381,12 @@ function AddStatusDialog({ projectId, onClose, onCreated }: { projectId: string;
         </div>
         <div>
           <label className="block text-[12px] font-medium text-mute mb-1">Category</label>
-          <select
+          <Select
             value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="w-full h-9 px-3 text-[13px] text-text bg-transparent border border-rule rounded-[var(--radius)] outline-none focus:border-lilac"
-          >
-            {CATEGORY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+            onChange={(v) => setCategory(v)}
+            options={CATEGORY_OPTIONS}
+            className="!w-full"
+          />
         </div>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>

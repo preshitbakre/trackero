@@ -4,6 +4,7 @@ import { toast } from '../../components/common/Toast';
 import { Eyebrow } from '../../components/ui/Eyebrow';
 import { Combobox } from '../../components/ui/Combobox';
 import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
 import type { AcceptanceCriterion } from './types';
 
 interface LinkOption {
@@ -230,7 +231,7 @@ function EditableCriterion({ c, onPatch }: { c: AcceptanceCriterion; onPatch: (f
   const [given, setGiven] = useState(c.givenText);
   const [when, setWhen] = useState(c.whenText ?? '');
   const [then, setThen] = useState(c.thenText ?? '');
-  const inputCls = 'w-full bg-paper border border-rule px-2 py-1 text-[13px] text-text mb-1';
+  const inputCls = '!bg-paper !px-2 !py-1 !text-[13px] mb-1 !rounded-none';
 
   const commit = () => {
     onPatch({
@@ -244,15 +245,15 @@ function EditableCriterion({ c, onPatch }: { c: AcceptanceCriterion; onPatch: (f
     <div>
       <div className="flex items-center gap-1">
         <span className={`${KW} text-[#8C6638] w-[44px]`}>Given</span>
-        <input className={inputCls} value={given} onChange={(e) => setGiven(e.target.value)} onBlur={commit} />
+        <Input type="text" className={inputCls} value={given} onChange={(e) => setGiven(e.target.value)} onBlur={commit} />
       </div>
       <div className="flex items-center gap-1">
         <span className={`${KW} text-[#3F5E8E] w-[44px]`}>When</span>
-        <input className={inputCls} value={when} onChange={(e) => setWhen(e.target.value)} onBlur={commit} placeholder="(optional)" />
+        <Input type="text" className={inputCls} value={when} onChange={(e) => setWhen(e.target.value)} onBlur={commit} placeholder="(optional)" />
       </div>
       <div className="flex items-center gap-1">
         <span className={`${KW} text-[#8E3E88] w-[44px]`}>Then</span>
-        <input className={inputCls} value={then} onChange={(e) => setThen(e.target.value)} onBlur={commit} placeholder="(optional)" />
+        <Input type="text" className={inputCls} value={then} onChange={(e) => setThen(e.target.value)} onBlur={commit} placeholder="(optional)" />
       </div>
     </div>
   );
@@ -274,13 +275,13 @@ function AddCriterionForm({ onSave, onCancel }: { onSave: (p: { givenText: strin
   const [given, setGiven] = useState('');
   const [when, setWhen] = useState('');
   const [then, setThen] = useState('');
-  const inputCls = 'w-full bg-paper border border-rule px-2 py-1 text-[13px] text-text mb-1';
+  const inputCls = '!bg-paper !px-2 !py-1 !text-[13px] mb-1 !rounded-none';
 
   return (
     <div className="mt-3 pt-3 border-t border-rule">
-      <input autoFocus className={inputCls} value={given} onChange={(e) => setGiven(e.target.value)} placeholder="Given (or a plain statement)" />
-      <input className={inputCls} value={when} onChange={(e) => setWhen(e.target.value)} placeholder="When (optional)" />
-      <input className={inputCls} value={then} onChange={(e) => setThen(e.target.value)} placeholder="Then (optional)" />
+      <Input type="text" autoFocus className={inputCls} value={given} onChange={(e) => setGiven(e.target.value)} placeholder="Given (or a plain statement)" />
+      <Input type="text" className={inputCls} value={when} onChange={(e) => setWhen(e.target.value)} placeholder="When (optional)" />
+      <Input type="text" className={inputCls} value={then} onChange={(e) => setThen(e.target.value)} placeholder="Then (optional)" />
       <div className="flex gap-2 mt-1">
         <Button
           variant="ink"

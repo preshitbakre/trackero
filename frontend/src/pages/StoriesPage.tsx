@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Search, Filter } from 'lucide-react';
+import { Input } from '../components/ui/Input';
 import { apiClient } from '../api/client';
 import { useRole } from '../hooks/useRole';
 import { useAuthStore } from '../store/auth.store';
@@ -134,19 +135,19 @@ export function StoriesPage() {
             <div className="flex items-center gap-2 shrink-0">
               <StoriesViewToggle view={view} onChange={setView} />
               <div className="relative">
-                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
-                <input
-                  type="text"
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none z-10" />
+                <Input
+                  type="search"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="filter stories…"
-                  className="h-[30px] w-[160px] text-[13px] pl-8 bg-transparent outline-none border-none text-text placeholder:text-faint"
+                  className="h-[30px] w-[180px] !text-[13px] !pl-8 !py-0"
                 />
               </div>
               <button
                 type="button"
                 onClick={() => setMine((v) => !v)}
-                className={`inline-flex items-center gap-1.5 px-3 h-[30px] text-[12px] font-medium border border-rule text-text hover:bg-shade transition-colors ${mine ? 'bg-shade' : ''}`}
+                className={`inline-flex items-center gap-1.5 px-3 h-[30px] text-[12px] font-medium border transition-colors ${mine ? 'bg-lilac-tint border-lilac text-lilac-dark' : 'border-rule text-text hover:bg-shade'}`}
               >
                 <Filter size={12} /> Mine
               </button>

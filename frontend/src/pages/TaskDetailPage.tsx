@@ -22,6 +22,7 @@ import { MarkdownField } from '../components/ui/MarkdownField';
 import { MentionTextarea } from '../components/ui/MentionTextarea';
 import { CommentBody } from '../components/ui/CommentBody';
 import type { TypeTagKind } from '../components/ui';
+import { LINK_TYPE_OPTIONS } from '../lib/associations';
 
 interface Subtask {
   id: number;
@@ -1141,12 +1142,7 @@ export function TaskDetailPage() {
             {showAddAssociation && canEdit && (
               <div style={{ marginTop: 8, padding: 10, background: 'var(--card-bg, #fff)', borderRadius: 'var(--radius)', border: '1px solid var(--line-2)' }}>
                 <div className="flex gap-1 flex-wrap" style={{ marginBottom: 8 }}>
-                  {[
-                    { value: 'belongs_to', label: 'Part of' },
-                    { value: 'relates_to', label: 'Related' },
-                    { value: 'blocks', label: 'Blocks' },
-                    { value: 'caused_by', label: 'Caused by' },
-                  ].map((lt) => (
+                  {LINK_TYPE_OPTIONS.map((lt) => (
                     <button
                       key={lt.value}
                       onClick={() => setAddAssocLinkType(lt.value)}

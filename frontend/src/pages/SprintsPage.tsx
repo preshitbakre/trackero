@@ -7,6 +7,7 @@ import { apiClient } from '../api/client';
 import { toast } from '../components/common/Toast';
 import { useRole } from '../hooks/useRole';
 import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
 import { CardSkeleton } from '../components/common/Skeleton';
 import { ErrorState } from '../components/common/ErrorState';
@@ -970,11 +971,11 @@ function CreateSprintDialog({ projectId, defaultDuration, nextSprintNumber, onCl
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[16px] font-medium text-neutral-500 mb-1">Start date</label>
-              <input type="date" value={startDate} onChange={(e) => handleStartDateChange(e.target.value)} min={today} required className={inputClass} />
+              <Input type="date" value={startDate} onChange={(e) => handleStartDateChange(e.target.value)} min={today} required className={inputClass} />
             </div>
             <div>
               <label className="block text-[16px] font-medium text-neutral-500 mb-1">End date</label>
-              <input type="date" value={endDate} onChange={(e) => handleEndDateChange(e.target.value)} min={minEndDate} required className={inputClass} />
+              <Input type="date" value={endDate} onChange={(e) => handleEndDateChange(e.target.value)} min={minEndDate} required className={inputClass} />
             </div>
           </div>
           <p className="text-[16px] text-neutral-400">
