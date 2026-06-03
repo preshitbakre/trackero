@@ -110,38 +110,24 @@ export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId,
             <span className="text-[11px] text-faint mt-1">Drop here or click + to add</span>
           </div>
         )}
-      </div>
 
-      {/* Quick add */}
-      {canEdit && (
-        <div className="px-[10px] pb-[10px]">
-          {showQuickAdd ? (
-            <form onSubmit={handleQuickAdd} className="space-y-1">
-              <Input
-                value={quickTitle}
-                onChange={(e) => setQuickTitle(e.target.value)}
-                placeholder="Task title…"
-                autoFocus
-                onBlur={() => !quickTitle && setShowQuickAdd(false)}
-                className="!text-[13px] !px-2 !py-1.5"
-              />
-              <div className="flex gap-1">
-                <Button type="submit" variant="primary" size="sm">Add</Button>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setShowQuickAdd(false)}>Cancel</Button>
-              </div>
-            </form>
-          ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowQuickAdd(true)}
-              className="w-full !text-[11px] !h-auto !py-1.5 text-faint"
-            >
-              + Add task
-            </Button>
-          )}
-        </div>
-      )}
+        {canEdit && showQuickAdd && (
+          <form onSubmit={handleQuickAdd} className="space-y-1">
+            <Input
+              value={quickTitle}
+              onChange={(e) => setQuickTitle(e.target.value)}
+              placeholder="Task title…"
+              autoFocus
+              onBlur={() => !quickTitle && setShowQuickAdd(false)}
+              className="!text-[13px] !px-2 !py-1.5"
+            />
+            <div className="flex gap-1">
+              <Button type="submit" variant="primary" size="sm">Add</Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setShowQuickAdd(false)}>Cancel</Button>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   );
 }

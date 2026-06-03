@@ -32,10 +32,12 @@ services:
     environment:
       DATABASE_USERNAME: trackero_admin
       DATABASE_PASSWORD: trackero_admin_secret
+      APP_DB_USER: trackero_app
+      APP_DB_PASSWORD: trackero_app_secret
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["node", "./node_modules/typeorm/cli.js", "migration:run", "-d", "dist/config/migration-cli.config.js"]
+    command: ["sh", "./migrate.sh"]
     restart: "no"
 
   postgres:

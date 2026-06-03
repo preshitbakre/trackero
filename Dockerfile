@@ -23,11 +23,14 @@ FROM node:22-alpine AS backend
 
 WORKDIR /app
 
+RUN apk add --no-cache postgresql-client
+
 COPY --from=builder /app/backend/package*.json ./
 RUN npm ci --omit=dev
 
 COPY --from=builder /app/backend/dist ./dist
 COPY --from=builder /app/backend/compiled-migrations ./migrations
+COPY docker/migrate.sh ./migrate.sh
 
 RUN addgroup -S app && adduser -S app -G app
 USER app
