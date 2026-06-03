@@ -461,11 +461,11 @@ export class WorkItemsService {
     );
     const projectPrefix: string = projectRow?.prefix;
 
-    // Children (direct only) — oldest first
+    // Children (direct only) — sorted by sortOrder then createdAt
     const children = await this.workItemRepo.find({
       where: { parentId: id, deletedAt: IsNull() },
       relations: ['status', 'assignee'],
-      order: { createdAt: 'ASC' },
+      order: { sortOrder: 'ASC', createdAt: 'ASC' },
     });
 
     const childrenFormatted = children.map(c => ({
@@ -479,6 +479,7 @@ export class WorkItemsService {
       assignee: c.assignee ? { id: c.assignee.id, displayName: (c.assignee as any).displayName, avatarUrl: (c.assignee as any).avatarUrl } : null,
       storyPoints: c.storyPoints,
       completedAt: c.completedAt,
+      sortOrder: c.sortOrder,
     }));
 
     // Breadcrumb (walk up ancestors to root, then reverse)
@@ -1112,6 +1113,106 @@ export class WorkItemsService {
     for (const { itemId, sortOrder } of reorders) {
       await this.workItemRepo.update({ id: itemId, projectId }, { sortOrder });
     }
+  }
+
+  // =========================================================================
+  // BULK OPERATIONS
+  // =========================================================================
+
+  async bulkUpdateStatus(projectId: number, itemIds: number[], statusId: number, userId: number) {
+    const status = await this.dataSource.query(
+      `SELECT id, category FROM project_statuses WHERE id = $1 AND project_id = $2`,
+      [statusId, projectId],
+    );
+    if (status.length === 0) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    const isDone = status[0].category === 'done';
+
+    await this.dataSource.transaction(async (manager) => {
+      if (isDone) {
+        await manager.query(
+          `UPDATE work_items SET status_id = $1, completed_at = NOW(), updated_at = NOW()
+           WHERE id = ANY($2) AND project_id = $3 AND deleted_at IS NULL`,
+          [statusId, itemIds, projectId],
+        );
+      } else {
+        await manager.query(
+          `UPDATE work_items SET status_id = $1, completed_at = NULL, updated_at = NOW()
+           WHERE id = ANY($2) AND project_id = $3 AND deleted_at IS NULL`,
+          [statusId, itemIds, projectId],
+        );
+      }
+    });
+
+    for (const itemId of itemIds) {
+      this.eventEmitter.emit('board.moved', {
+        projectId, itemId, statusId, actorId: userId,
+      });
+    }
+
+    return { updated: itemIds.length };
+  }
+
+  async bulkAssign(projectId: number, itemIds: number[], assigneeId: number | null, userId: number) {
+    await this.dataSource.query(
+      `UPDATE work_items SET assignee_id = $1, updated_at = NOW()
+       WHERE id = ANY($2) AND project_id = $3 AND deleted_at IS NULL`,
+      [assigneeId, itemIds, projectId],
+    );
+
+    for (const itemId of itemIds) {
+      this.eventEmitter.emit('work_item.updated', {
+        itemId, projectId, userId, changes: { assigneeId },
+      });
+    }
+
+    return { updated: itemIds.length };
+  }
+
+  async bulkAssignSprint(projectId: number, itemIds: number[], sprintId: number | null, userId: number) {
+    if (sprintId !== null) {
+      await this.validateSprintInProject(sprintId, projectId);
+    }
+
+    await this.dataSource.query(
+      `UPDATE work_items SET sprint_id = $1, updated_at = NOW()
+       WHERE id = ANY($2) AND project_id = $3 AND deleted_at IS NULL
+         AND item_type IN ('task', 'bug')`,
+      [sprintId, itemIds, projectId],
+    );
+
+    for (const itemId of itemIds) {
+      this.eventEmitter.emit('work_item.sprint_assigned', {
+        itemId, projectId, sprintId, userId,
+      });
+    }
+
+    return { updated: itemIds.length };
+  }
+
+  async bulkDelete(projectId: number, itemIds: number[], userId: number, hard = false) {
+    if (hard) {
+      await this.dataSource.query(
+        `DELETE FROM work_items WHERE id = ANY($1) AND project_id = $2`,
+        [itemIds, projectId],
+      );
+    } else {
+      await this.dataSource.query(
+        `UPDATE work_items SET deleted_at = NOW(), updated_at = NOW()
+         WHERE id = ANY($1) AND project_id = $2 AND deleted_at IS NULL`,
+        [itemIds, projectId],
+      );
+    }
+
+    for (const itemId of itemIds) {
+      this.eventEmitter.emit('work_item.deleted', {
+        itemId, projectId, userId, soft: !hard,
+      });
+    }
+
+    return { deleted: itemIds.length };
   }
 
   // =========================================================================

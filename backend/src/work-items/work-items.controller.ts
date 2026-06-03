@@ -18,6 +18,7 @@ import { QueryWorkItemsDto } from './dto/query-work-items.dto';
 import { AssignSprintDto } from './dto/assign-sprint.dto';
 import { AssignWorkItemDto } from './dto/assign-work-item.dto';
 import { ReorderItemsDto } from './dto/reorder-items.dto';
+import { BulkStatusDto, BulkAssignDto, BulkSprintDto, BulkDeleteDto } from './dto/bulk-operations.dto';
 
 @Controller('projects/:projectId/items')
 @UseGuards(JwtAuthGuard, ProjectAccessGuard, RolesGuard)
@@ -58,6 +59,51 @@ export class WorkItemsController {
   ) {
     await this.workItemsService.reorderItems(projectId, dto.reorders);
     return null;
+  }
+
+  @Put('bulk-status')
+  @Roles('admin', 'project_manager', 'member')
+  @ResponseCode('ITEM_UPDATED')
+  async bulkStatus(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Body() dto: BulkStatusDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.workItemsService.bulkUpdateStatus(projectId, dto.itemIds, dto.statusId, user.userId);
+  }
+
+  @Put('bulk-assign')
+  @Roles('admin', 'project_manager', 'member')
+  @ResponseCode('ITEM_UPDATED')
+  async bulkAssign(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Body() dto: BulkAssignDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.workItemsService.bulkAssign(projectId, dto.itemIds, dto.assigneeId ?? null, user.userId);
+  }
+
+  @Put('bulk-sprint')
+  @Roles('admin', 'project_manager', 'member')
+  @ResponseCode('ITEM_UPDATED')
+  async bulkSprint(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Body() dto: BulkSprintDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.workItemsService.bulkAssignSprint(projectId, dto.itemIds, dto.sprintId ?? null, user.userId);
+  }
+
+  @Post('bulk-delete')
+  @Roles('admin', 'project_manager', 'member')
+  @ResponseCode('ITEM_DELETED')
+  async bulkDelete(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Body() dto: BulkDeleteDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const hard = dto.hard === true && user.role === 'admin';
+    return this.workItemsService.bulkDelete(projectId, dto.itemIds, user.userId, hard);
   }
 
   @Get(':id')

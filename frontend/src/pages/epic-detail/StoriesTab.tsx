@@ -92,7 +92,7 @@ export function StoriesTab({ epicId, projectId, canEdit, onAddStory, onOpenChild
           </div>
           {canEdit && (
             <Button variant="ink" onClick={onAddStory} className="inline-flex items-center gap-2">
-              + Add story
+              + Add ticket
             </Button>
           )}
         </div>

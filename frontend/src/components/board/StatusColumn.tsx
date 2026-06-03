@@ -1,4 +1,5 @@
 import { useDroppable } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { TaskCard } from './TaskCard';
 import { useState } from 'react';
 import { apiClient } from '../../api/client';
@@ -32,9 +33,11 @@ interface StatusColumnProps {
   projectId: number;
   onTaskCreated: () => void;
   canEdit?: boolean;
+  selectedIds?: Set<number>;
+  onSelect?: (id: number) => void;
 }
 
-export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId, onTaskCreated, canEdit = true }: StatusColumnProps) {
+export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId, onTaskCreated, canEdit = true, selectedIds, onSelect }: StatusColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: `column-${status.id}` });
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickTitle, setQuickTitle] = useState('');
@@ -99,9 +102,17 @@ export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId,
       </div>
 
       {/* Cards */}
+      <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
       <div className="flex-1 overflow-y-auto custom-scrollbar p-[10px] flex flex-col gap-2 min-h-[100px]">
         {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} onClick={() => onTaskClick(task.id)} />
+          <TaskCard
+            key={task.id}
+            task={task}
+            onClick={() => onTaskClick(task.id)}
+            selected={selectedIds?.has(task.id)}
+            onSelect={onSelect}
+            selectionActive={selectedIds ? selectedIds.size > 0 : false}
+          />
         ))}
 
         {tasks.length === 0 && !showQuickAdd && (
@@ -128,6 +139,7 @@ export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId,
           </form>
         )}
       </div>
+      </SortableContext>
     </div>
   );
 }

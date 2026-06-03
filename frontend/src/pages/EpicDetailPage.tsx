@@ -146,7 +146,7 @@ export function EpicDetailPage() {
                 </Button>
                 {canEdit && (
                   <Button size="sm" variant="secondary" onClick={() => setShowAddStory(true)}>
-                    + Add story
+                    + Add ticket
                   </Button>
                 )}
               </>

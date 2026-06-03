@@ -73,6 +73,61 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const { canEdit } = useRole();
+  const user = useAuthStore((s) => s.user);
+
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [showBulkStatusPicker, setShowBulkStatusPicker] = useState(false);
+  const [showBulkAssignPicker, setShowBulkAssignPicker] = useState(false);
+
+  const toggleSelect = useCallback((id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleBulkStatusChange = async (statusId: number) => {
+    if (!projectId || selectedIds.size === 0) return;
+    try {
+      await apiClient.put(`/projects/${projectId}/items/bulk-status`, {
+        itemIds: [...selectedIds],
+        statusId,
+      });
+      setSelectedIds(new Set());
+      setShowBulkStatusPicker(false);
+      loadBoard();
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Bulk status update failed', 'error');
+    }
+  };
+
+  const handleBulkAssign = async (assigneeId: number | null) => {
+    if (!projectId || selectedIds.size === 0) return;
+    try {
+      await apiClient.put(`/projects/${projectId}/items/bulk-assign`, {
+        itemIds: [...selectedIds],
+        assigneeId,
+      });
+      setSelectedIds(new Set());
+      setShowBulkAssignPicker(false);
+      loadBoard();
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Bulk assign failed', 'error');
+    }
+  };
+
+  const handleBulkAssignToMe = async () => {
+    if (!user) return;
+    await handleBulkAssign(user.id);
+  };
+
+  useEffect(() => {
+    if (!showBulkStatusPicker && !showBulkAssignPicker) return;
+    const close = () => { setShowBulkStatusPicker(false); setShowBulkAssignPicker(false); };
+    const timer = setTimeout(() => document.addEventListener('click', close), 0);
+    return () => { clearTimeout(timer); document.removeEventListener('click', close); };
+  }, [showBulkStatusPicker, showBulkAssignPicker]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -86,10 +141,13 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
     setError(false);
     try {
       const params = new URLSearchParams();
-      if (sprintId) {
+      if (sprintId === 'backlog') {
+        params.set('backlog', 'true');
+      } else if (sprintId === 'all') {
+        // No filter — show everything including backlog
+      } else if (sprintId) {
         params.set('sprintId', sprintId);
       } else {
-        // "All sprints" = items currently in any sprint; backlog (sprintId IS NULL) is excluded.
         params.set('hasSprint', 'true');
       }
       if (epicFilter) params.set('epicId', String(epicFilter));
@@ -181,6 +239,23 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
     setActiveTask(task || null);
   };
 
+  const midpoint = (a: string, b: string): string => {
+    const base = 'a';
+    const pad = (s: string, len: number) => s.padEnd(len, base);
+    const maxLen = Math.max(a.length, b.length) + 1;
+    const aa = pad(a || base, maxLen);
+    const bb = pad(b || '', maxLen);
+    let result = '';
+    for (let i = 0; i < maxLen; i++) {
+      const ca = aa.charCodeAt(i);
+      const cb = bb.charCodeAt(i) || (base.charCodeAt(0) + 26);
+      const mid = Math.floor((ca + cb) / 2);
+      result += String.fromCharCode(mid);
+      if (mid > ca) return result;
+    }
+    return result + 'm';
+  };
+
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || !projectId) {
@@ -189,51 +264,88 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
     }
 
     const taskId = active.id as number;
-    const overId = over.id as string;
+    const overId = String(over.id);
 
-    // Determine target status
+    // Find source column
+    const sourceCol = columns.find((c) => c.tasks.some((t) => t.id === taskId));
+
+    // Determine target column and position
     let targetStatusId: number;
+    let targetTasks: BoardTask[];
+
     if (overId.startsWith('column-')) {
       targetStatusId = parseInt(overId.replace('column-', ''));
+      const col = columns.find((c) => c.status.id === targetStatusId);
+      targetTasks = col ? col.tasks.filter((t) => t.id !== taskId) : [];
     } else {
-      // Dropped on another task - find its column
       const col = columns.find((c) => c.tasks.some((t) => t.id === parseInt(overId)));
       if (!col) { setActiveTask(null); return; }
       targetStatusId = col.status.id;
+      targetTasks = col.tasks.filter((t) => t.id !== taskId);
+    }
+
+    // Same column, same position — no-op
+    if (sourceCol?.status.id === targetStatusId && overId.startsWith('column-')) {
+      setActiveTask(null);
+      return;
+    }
+
+    // Compute sort order based on drop position
+    let newSortOrder: string;
+    if (overId.startsWith('column-') || targetTasks.length === 0) {
+      const last = targetTasks[targetTasks.length - 1];
+      newSortOrder = last ? midpoint(last.sortOrder, '') : 'n';
+    } else {
+      const overIndex = targetTasks.findIndex((t) => t.id === parseInt(overId));
+      if (overIndex <= 0) {
+        newSortOrder = midpoint('', targetTasks[0].sortOrder);
+      } else {
+        newSortOrder = midpoint(targetTasks[overIndex - 1].sortOrder, targetTasks[overIndex].sortOrder);
+      }
     }
 
     // Optimistic update
-    setColumns((prev) => {
-      const newCols = prev.map((col) => ({
-        ...col,
-        tasks: col.tasks.filter((t) => t.id !== taskId),
-      }));
-      const targetCol = newCols.find((c) => c.status.id === targetStatusId);
-      const task = findTask(taskId);
-      if (targetCol && task) {
-        targetCol.tasks.push({ ...task, sortOrder: 'n' });
-        targetCol.taskCount = targetCol.tasks.length;
-      }
-      return newCols;
-    });
+    const task = findTask(taskId);
+    if (task) {
+      setColumns((prev) => {
+        const newCols = prev.map((col) => ({
+          ...col,
+          tasks: col.tasks.filter((t) => t.id !== taskId),
+        }));
+        const targetCol = newCols.find((c) => c.status.id === targetStatusId);
+        if (targetCol) {
+          const updatedTask = { ...task, sortOrder: newSortOrder };
+          if (overId.startsWith('column-') || targetCol.tasks.length === 0) {
+            targetCol.tasks.push(updatedTask);
+          } else {
+            const idx = targetCol.tasks.findIndex((t) => t.id === parseInt(overId));
+            targetCol.tasks.splice(idx >= 0 ? idx : targetCol.tasks.length, 0, updatedTask);
+          }
+          targetCol.taskCount = targetCol.tasks.length;
+        }
+        // Update source column count
+        const srcCol = newCols.find((c) => c.status.id === sourceCol?.status.id);
+        if (srcCol && srcCol.status.id !== targetStatusId) {
+          srcCol.taskCount = srcCol.tasks.length;
+        }
+        return newCols;
+      });
+    }
 
     dragRequestSeq.current += 1;
     const myReq = dragRequestSeq.current;
 
-    // API call
     try {
       await apiClient.put(`/projects/${projectId}/board/move`, {
         itemId: taskId,
         statusId: targetStatusId,
-        sortOrder: 'n',
+        sortOrder: newSortOrder,
       });
-      // Only the latest drag reloads — stale drags skip to avoid clobbering newer optimistic state.
       if (myReq === dragRequestSeq.current) {
         loadBoard();
       }
     } catch (err: any) {
       toast(err.response?.data?.message || 'Move failed', 'error');
-      // Still skip reload if a newer drag is in flight; that drag will resync the UI.
       if (myReq === dragRequestSeq.current) {
         loadBoard();
       }
@@ -302,6 +414,8 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
           onChange={setSprintId}
           options={[
             { value: '', label: 'All sprints' },
+            { value: 'all', label: 'All items' },
+            { value: 'backlog', label: 'Backlog' },
             ...sprints.map((s) => ({ value: String(s.id), label: `${s.name} (${s.status})` })),
           ]}
           placeholder="Sprint"
@@ -337,10 +451,74 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
         {canEdit && (
           <Button variant="ink" size="sm" onClick={() => setShowCreateDialog(true)} className="gap-1.5">
             + New item
-            <KbdKey>C</KbdKey>
+            <KbdKey tone="on-accent">C</KbdKey>
           </Button>
         )}
       </div>
+
+      {/* Bulk action bar */}
+      {canEdit && selectedIds.size > 0 && (
+        <div
+          className="sticky top-[53px] z-20 flex items-center gap-3 px-6 h-[40px] bg-paper-2 border-b border-rule"
+          aria-live="polite"
+        >
+          <span className="text-[13px] text-text font-medium">
+            {selectedIds.size} selected
+          </span>
+
+          {/* Status change */}
+          <div className="relative">
+            <Button size="sm" variant="ghost" onClick={() => setShowBulkStatusPicker((v) => !v)}>
+              Change status
+            </Button>
+            {showBulkStatusPicker && (
+              <div className="absolute top-full left-0 mt-1 bg-card border border-rule shadow-lg z-30 min-w-[160px]">
+                {columns.map((col) => (
+                  <button
+                    key={col.status.id}
+                    onClick={() => handleBulkStatusChange(col.status.id)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-text hover:bg-lilac-tint text-left"
+                  >
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: col.status.color }} />
+                    {col.status.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Assign */}
+          <div className="relative">
+            <Button size="sm" variant="ghost" onClick={() => setShowBulkAssignPicker((v) => !v)}>
+              Assign
+            </Button>
+            {showBulkAssignPicker && (
+              <div className="absolute top-full left-0 mt-1 bg-card border border-rule shadow-lg z-30 min-w-[180px] max-h-[240px] overflow-y-auto">
+                <button
+                  onClick={() => handleBulkAssign(null)}
+                  className="w-full px-3 py-2 text-[13px] text-faint hover:bg-lilac-tint text-left"
+                >
+                  Unassign
+                </button>
+                {assigneeOptions.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => handleBulkAssign(m.id)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-text hover:bg-lilac-tint text-left"
+                  >
+                    <Avatar user={{ id: m.id, displayName: m.name }} size="xs" />
+                    {m.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Button size="sm" variant="ghost" onClick={handleBulkAssignToMe}>Assign to me</Button>
+
+          <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())} className="ml-auto">Clear</Button>
+        </div>
+      )}
 
       {/* Loading skeleton */}
       {loading && columns.length === 0 && !error && (
@@ -383,6 +561,8 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
                 projectId={parseInt(projectId || '0')}
                 onTaskCreated={loadBoard}
                 canEdit={canEdit}
+                selectedIds={selectedIds}
+                onSelect={canEdit ? toggleSelect : undefined}
               />
             ))}
           </div>

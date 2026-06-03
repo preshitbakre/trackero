@@ -1,4 +1,5 @@
-import { useDraggable } from '@dnd-kit/core';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Tooltip } from '../common/Tooltip';
 import { TypeTag, Avatar } from '../ui';
 import type { TypeTagKind } from '../ui';
@@ -25,16 +26,21 @@ interface TaskCardProps {
   task: BoardTask;
   isDragging?: boolean;
   onClick?: () => void;
+  selected?: boolean;
+  onSelect?: (id: number) => void;
+  selectionActive?: boolean;
 }
 
-export function TaskCard({ task, isDragging, onClick }: TaskCardProps) {
-  const { attributes, listeners, setNodeRef, isDragging: isBeingDragged } = useDraggable({
+export function TaskCard({ task, isDragging, onClick, selected, onSelect, selectionActive }: TaskCardProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging: isBeingDragged } = useSortable({
     id: task.id,
   });
 
-  const style: React.CSSProperties = isBeingDragged
-    ? { opacity: 0.4 }
-    : { boxShadow: 'none' };
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isBeingDragged ? 0.4 : 1,
+  };
 
   const typeName = task.itemType || 'task';
   const typeKind = (typeName as TypeTagKind) || 'task';
@@ -45,6 +51,11 @@ export function TaskCard({ task, isDragging, onClick }: TaskCardProps) {
   const showSubtasks = task.subtaskCount > 0;
   const hasMetadata = showPoints || showSubtasks;
 
+  const handleCheckbox = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onSelect?.(task.id);
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -52,14 +63,30 @@ export function TaskCard({ task, isDragging, onClick }: TaskCardProps) {
       {...listeners}
       {...attributes}
       onClick={onClick}
-      className={`p-[10px] rounded-[4px] cursor-grab border border-[var(--line)] transition-all duration-150 ${
+      className={`relative p-[10px] rounded-[4px] cursor-grab border border-[var(--line)] transition-all duration-150 group/card ${
         task.hasBlockers ? 'border-l-2 border-l-danger' : ''
       } ${
         isDragging
           ? 'shadow-xl opacity-90 scale-105 rotate-1'
           : ''
-      } bg-white`}
+      } ${selected ? 'bg-lilac-tint/40 ring-1 ring-lilac/30' : 'bg-white'}`}
     >
+      {/* Checkbox — top-right corner */}
+      {onSelect && (
+        <div
+          onClick={handleCheckbox}
+          className={`absolute top-[6px] right-[6px] z-10 ${selectionActive ? 'block' : 'hidden group-hover/card:block'}`}
+        >
+          <input
+            type="checkbox"
+            checked={!!selected}
+            readOnly
+            className="w-3.5 h-3.5 accent-lilac cursor-pointer"
+            aria-label={`Select ${taskKey}`}
+          />
+        </div>
+      )}
+
       {/* Row 1: type badge + key (+ parent ref) */}
       <div className="flex items-center gap-1.5">
         <Tooltip label={typeName.charAt(0).toUpperCase() + typeName.slice(1)}>

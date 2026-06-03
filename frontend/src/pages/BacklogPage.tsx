@@ -267,32 +267,63 @@ export function BacklogPage() {
     }
   };
 
+  const [members, setMembers] = useState<{ id: number; name: string }[]>([]);
+  const [showAssignPicker, setShowAssignPicker] = useState(false);
+
+  useEffect(() => {
+    if (!showAssignPicker) return;
+    const close = () => setShowAssignPicker(false);
+    const timer = setTimeout(() => document.addEventListener('click', close), 0);
+    return () => { clearTimeout(timer); document.removeEventListener('click', close); };
+  }, [showAssignPicker]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    apiClient.get(`/projects/${projectId}/filters/assignees`).then((r) => {
+      setMembers((r.data.data.list || []).map((o: any) => ({ id: o.value, name: o.label })));
+    }).catch(() => {});
+  }, [projectId]);
+
   const handleBulkMoveToSprint = async (sprintId: number) => {
     if (!projectId || selectedIds.size === 0) return;
-    for (const taskId of selectedIds) {
-      await apiClient.put(`/projects/${projectId}/items/${taskId}/sprint`, { sprintId });
-    }
+    try {
+      await apiClient.put(`/projects/${projectId}/items/bulk-sprint`, {
+        itemIds: [...selectedIds],
+        sprintId,
+      });
+    } catch { /* toast or ignore */ }
     setSelectedIds(new Set());
     loadData();
   };
 
   const handleBulkDelete = async () => {
     if (!projectId || selectedIds.size === 0) return;
-    const query = canAdminister ? '?hard=true' : '';
-    for (const taskId of selectedIds) {
-      await apiClient.delete(`/projects/${projectId}/items/${taskId}${query}`);
-    }
+    try {
+      await apiClient.post(`/projects/${projectId}/items/bulk-delete`, {
+        itemIds: [...selectedIds],
+        hard: !!canAdminister,
+      });
+    } catch { /* toast or ignore */ }
     setSelectedIds(new Set());
     loadData();
   };
 
-  const handleBulkAssignToMe = async () => {
-    if (!projectId || selectedIds.size === 0 || !user) return;
-    for (const taskId of selectedIds) {
-      await apiClient.put(`/projects/${projectId}/items/${taskId}`, { assigneeId: user.id });
-    }
+  const handleBulkAssign = async (assigneeId: number | null) => {
+    if (!projectId || selectedIds.size === 0) return;
+    try {
+      await apiClient.put(`/projects/${projectId}/items/bulk-assign`, {
+        itemIds: [...selectedIds],
+        assigneeId,
+      });
+    } catch { /* toast or ignore */ }
     setSelectedIds(new Set());
+    setShowAssignPicker(false);
     loadData();
+  };
+
+  const handleBulkAssignToMe = async () => {
+    if (!user) return;
+    await handleBulkAssign(user.id);
   };
 
   const toggleSelect = (id: number) => {
@@ -373,11 +404,30 @@ export function BacklogPage() {
             <span className="text-[13px] text-text font-medium">
               {selectedIds.size} selected · {selectedPoints} pts
             </span>
-            <Button size="sm" variant="ghost" onClick={handleBulkAssignToMe}>Assign</Button>
-            {/* "Estimate" is included per the spec but estimation editing
-                still happens inline on individual rows — this button is a
-                placeholder hook for the upcoming bulk estimate flow. */}
-            <Button size="sm" variant="ghost" disabled title="Bulk estimate coming soon">Estimate</Button>
+            <Button size="sm" variant="ghost" onClick={handleBulkAssignToMe}>Assign to me</Button>
+            <div className="relative">
+              <Button size="sm" variant="ghost" onClick={(e: React.MouseEvent) => { e.stopPropagation(); setShowAssignPicker((v) => !v); }}>Assign to...</Button>
+              {showAssignPicker && (
+                <div className="absolute top-full left-0 mt-1 bg-card border border-rule shadow-lg z-30 min-w-[180px] max-h-[240px] overflow-y-auto">
+                  <button
+                    onClick={() => handleBulkAssign(null)}
+                    className="w-full px-3 py-2 text-[13px] text-faint hover:bg-lilac-tint text-left"
+                  >
+                    Unassign
+                  </button>
+                  {members.map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => handleBulkAssign(m.id)}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-text hover:bg-lilac-tint text-left"
+                    >
+                      <Avatar user={{ id: m.id, displayName: m.name }} size="xs" />
+                      {m.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             {moveTargetSprint && (
               <Button
                 size="sm"

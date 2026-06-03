@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Trash2, Maximize2, X } from 'lucide-react';
+import { Trash2, Maximize2, X, GripVertical } from 'lucide-react';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { apiClient } from '../../api/client';
 import { useAuthStore } from '../../store/auth.store';
 import { Select } from '../ui/Select';
@@ -27,6 +30,7 @@ interface Subtask {
   title: string;
   statusId: number;
   completedAt: string | null;
+  sortOrder: string;
   checklistItems?: { id: number; title: string; isCompleted: boolean }[];
 }
 
@@ -85,6 +89,7 @@ interface AttachmentItem {
 }
 
 export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onUpdated, onNavigateToTask, bare = false }: TaskDetailPanelProps) {
+  const subtaskSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const navigate = useNavigate();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [editing, setEditing] = useState(false);
@@ -497,6 +502,25 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
     }
   };
 
+  const handleSubtaskReorder = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !task?.subtasks) return;
+    const oldIndex = task.subtasks.findIndex((s) => s.id === active.id);
+    const newIndex = task.subtasks.findIndex((s) => s.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = [...task.subtasks];
+    const [moved] = reordered.splice(oldIndex, 1);
+    reordered.splice(newIndex, 0, moved);
+    const reorders = reordered.map((st, i) => ({ itemId: st.id, sortOrder: String(i).padStart(6, '0') }));
+    setTask({ ...task, subtasks: reordered });
+    try {
+      await apiClient.put(`/projects/${projectId}/items/reorder`, { reorders });
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to reorder', 'error');
+      loadTask();
+    }
+  };
+
   const taskKey = task ? (projectPrefix ? `${projectPrefix}-${task.itemNumber}` : `#${task.itemNumber}`) : '';
 
   const innerContent = (
@@ -901,18 +925,15 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
                 )}
               </div>
               {task.subtasks && task.subtasks.length > 0 && (
-                <div className="space-y-1 mb-2">
-                  {task.subtasks.map((st) => (
-                    <button key={st.id} onClick={() => onNavigateToTask?.(st.id)} className="flex items-center gap-2 text-[13px] py-1.5 px-2 hover:bg-[var(--shade)] w-full text-left">
-                      <span style={{ color: st.completedAt ? 'var(--accent)' : 'var(--ink-4)' }}>
-                        {st.completedAt ? '☑' : '☐'}
-                      </span>
-                      <span className={`flex-1 truncate ${st.completedAt ? 'line-through' : ''}`} style={{ color: st.completedAt ? 'var(--ink-4)' : 'var(--ink)' }}>
-                        {st.title}
-                      </span>
-                    </button>
-                  ))}
-                </div>
+                <DndContext sensors={subtaskSensors} collisionDetection={closestCenter} onDragEnd={handleSubtaskReorder}>
+                  <SortableContext items={task.subtasks.map((st) => st.id)} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-1 mb-2">
+                      {task.subtasks.map((st) => (
+                        <SortableSubtaskRow key={st.id} subtask={st} canEdit={canEdit} onNavigate={() => onNavigateToTask?.(st.id)} />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               )}
               {(!task.subtasks || task.subtasks.length === 0) && !showAddSubtask && (
                 <p className="text-[13px] text-[var(--ink-4)]">No subtasks</p>
@@ -1159,6 +1180,32 @@ function AttachmentRow({ attachment, projectId, taskId, onDownload, onDelete }: 
           <Trash2 size={14} className="text-neutral-400 hover:text-red-600" />
         </button>
       )}
+    </div>
+  );
+}
+
+function SortableSubtaskRow({ subtask, canEdit, onNavigate }: { subtask: Subtask; canEdit: boolean; onNavigate: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: subtask.id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-1 text-[13px] py-1.5 px-2 hover:bg-[var(--shade)] group">
+      {canEdit && (
+        <span {...attributes} {...listeners} className="cursor-grab text-[var(--ink-4)] opacity-0 group-hover:opacity-100 flex-shrink-0">
+          <GripVertical size={12} />
+        </span>
+      )}
+      <button onClick={onNavigate} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+        <span style={{ color: subtask.completedAt ? 'var(--accent)' : 'var(--ink-4)' }}>
+          {subtask.completedAt ? '☑' : '☐'}
+        </span>
+        <span className={`flex-1 truncate ${subtask.completedAt ? 'line-through' : ''}`} style={{ color: subtask.completedAt ? 'var(--ink-4)' : 'var(--ink)' }}>
+          {subtask.title}
+        </span>
+      </button>
     </div>
   );
 }
