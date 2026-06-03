@@ -53,28 +53,29 @@ export class BoardService {
       const qb = this.workItemRepo.createQueryBuilder('wi')
         .where('wi.projectId = :projectId', { projectId })
         .andWhere('wi.statusId = :statusId', { statusId: status.id })
-        .andWhere("wi.itemType IN ('task', 'bug', 'subtask')");
+        .andWhere("wi.itemType IN ('task', 'bug', 'subtask', 'epic', 'story')");
 
       if (filters.sprintId) {
-        // Tasks with this sprintId, plus subtasks whose parent is in this sprint
         qb.andWhere(`(
-          wi.sprintId = :sprintId
+          wi.itemType IN ('epic', 'story')
+          OR wi.sprintId = :sprintId
           OR (wi.itemType = 'subtask' AND wi.parentId IN (
             SELECT id FROM work_items WHERE sprint_id = :sprintId AND item_type = 'task'
           ))
         )`, { sprintId: filters.sprintId });
       } else if (filters.backlog) {
         qb.andWhere(`(
-          wi.sprintId IS NULL
-          AND (wi.itemType != 'subtask' OR wi.parentId IN (
-            SELECT id FROM work_items WHERE sprint_id IS NULL AND item_type = 'task'
-          ))
+          wi.itemType IN ('epic', 'story')
+          OR (wi.sprintId IS NULL
+            AND (wi.itemType != 'subtask' OR wi.parentId IN (
+              SELECT id FROM work_items WHERE sprint_id IS NULL AND item_type = 'task'
+            ))
+          )
         )`);
       } else if (filters.hasSprint) {
-        // "All sprints" — show only items that belong to ANY sprint (no backlog).
-        // Tasks/bugs need their own sprintId; subtasks inherit via parent task.
         qb.andWhere(`(
-          wi.sprintId IS NOT NULL
+          wi.itemType IN ('epic', 'story')
+          OR wi.sprintId IS NOT NULL
           OR (wi.itemType = 'subtask' AND wi.parentId IN (
             SELECT id FROM work_items WHERE sprint_id IS NOT NULL AND item_type = 'task'
           ))

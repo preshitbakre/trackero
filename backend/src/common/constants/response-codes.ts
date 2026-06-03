@@ -235,6 +235,11 @@ export const ResponseCodes = {
   SPRINT_NO_TASKS:        { code: 'F-L-0021', message: 'Cannot start sprint with no tasks' },
   SPRINT_NOT_PLANNING:    { code: 'F-L-0022', message: 'Sprint must be in planning status' },
   SPRINT_NOT_ACTIVE:      { code: 'F-L-0023', message: 'Sprint is not active' },
+  SPRINT_COMPLETE_PREVIEW: { code: 'S-0060', message: 'Sprint completion preview retrieved' },
+  ITEM_ACTIONS_REQUIRED:  { code: 'F-L-0024', message: 'Item actions are required to complete the sprint' },
+  MISSING_ITEM_ACTIONS:   { code: 'F-L-0025', message: 'Actions are missing for some items' },
+  INVALID_ITEM_IDS:       { code: 'F-L-0026', message: 'Some item IDs are invalid for this sprint' },
+  NO_NEXT_SPRINT_FOR_ROLL: { code: 'F-L-0027', message: 'No next sprint available for rolling over items' },
 
   TASK_BLOCKED:           { code: 'F-L-0030', message: 'Task is blocked by a dependency. Resolve the blocker first.' },
   CIRCULAR_DEPENDENCY:    { code: 'F-L-0031', message: 'This dependency would create a circular chain' },

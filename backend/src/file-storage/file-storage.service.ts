@@ -37,8 +37,8 @@ export class FileStorageService implements OnModuleInit {
 
       const region = this.configService.get<string>('S3_REGION', 'us-east-1');
       const credentials = {
-        accessKeyId: this.configService.get<string>('MINIO_ROOT_USER', ''),
-        secretAccessKey: this.configService.get<string>('MINIO_ROOT_PASSWORD', ''),
+        accessKeyId: this.configService.get<string>('MINIO_ACCESS_KEY', ''),
+        secretAccessKey: this.configService.get<string>('MINIO_SECRET_KEY', ''),
       };
 
       this.s3 = new S3Client({

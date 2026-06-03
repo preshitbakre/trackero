@@ -14,6 +14,11 @@ export function ChartsPage() {
   const [sprints, setSprints] = useState<any[]>([]);
   const [selectedSprintId, setSelectedSprintId] = useState<string>('');
   const [burndownData, setBurndownData] = useState<any>(null);
+  const [sprintsLoaded, setSprintsLoaded] = useState(false);
+
+  const eligibleSprints = sprints.filter((s: any) => s.status === 'active' || s.status === 'completed');
+  const hasSprints = sprints.length > 0;
+  const hasEligibleSprints = eligibleSprints.length > 0;
 
   useEffect(() => {
     if (!projectId) return;
@@ -22,6 +27,7 @@ export function ChartsPage() {
     apiClient.get(`/projects/${projectId}/sprints?limit=100`).then((r) => {
       const list = r.data.data.list || [];
       setSprints(list);
+      setSprintsLoaded(true);
       if (!selectedSprintId) {
         const active = list.find((s: any) => s.status === 'active');
         const completed = [...list].filter((s: any) => s.status === 'completed').sort((a: any, b: any) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime())[0];
@@ -35,6 +41,8 @@ export function ChartsPage() {
     if (selectedSprintId && projectId) {
       apiClient.get(`/projects/${projectId}/sprints/${selectedSprintId}/burndown`)
         .then((r) => setBurndownData(r.data.data)).catch((err) => { console.error(err); });
+    } else {
+      setBurndownData(null);
     }
   }, [selectedSprintId, projectId]);
 
@@ -104,7 +112,13 @@ export function ChartsPage() {
               ]}
             />
           ) : (
-            <div className="flex items-center justify-center h-full text-neutral-400">No completed sprints yet</div>
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <p className="text-[15px] text-mute">
+                {!hasSprints
+                  ? 'Create your first sprint to start tracking velocity.'
+                  : 'Story points completed per sprint will appear here once a sprint is completed.'}
+              </p>
+            </div>
           )}
         </div>
       )}
@@ -113,15 +127,17 @@ export function ChartsPage() {
         <div>
           <div className="mb-4 max-w-xs">
             <label className="block text-[16px] font-medium text-neutral-600 mb-1">Sprint</label>
-            <Select
-              value={selectedSprintId}
-              onChange={setSelectedSprintId}
-              placeholder="Select a sprint"
-              options={[
-                { value: '', label: 'Select a sprint' },
-                ...sprints.filter((s: any) => s.status === 'active' || s.status === 'completed').map((s: any) => ({ value: String(s.id), label: s.name })),
-              ]}
-            />
+            {hasEligibleSprints ? (
+              <Select
+                value={selectedSprintId}
+                onChange={setSelectedSprintId}
+                options={eligibleSprints.map((s: any) => ({ value: String(s.id), label: `${s.name}${s.status === 'active' ? ' (active)' : ''}` }))}
+              />
+            ) : (
+              <p className="text-[13px] text-faint">
+                {!hasSprints ? 'No sprints created yet.' : 'No active or completed sprints available.'}
+              </p>
+            )}
           </div>
 
           <div className="h-[400px]">
@@ -172,10 +188,16 @@ export function ChartsPage() {
                 legends={[{ anchor: 'bottom-right', direction: 'column', translateX: 80, itemWidth: 60, itemHeight: 20 }]}
               />
             ) : (
-              <div className="flex items-center justify-center h-full text-[16px] text-neutral-400">
-                {sprints.filter((s: any) => s.status === 'active' || s.status === 'completed').length === 0
-                  ? 'Complete a sprint to see burndown data'
-                  : selectedSprintId ? 'No burndown data' : 'Complete a sprint to see burndown data'}
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                {sprintsLoaded && (
+                  <p className="text-[15px] text-mute">
+                    {!hasSprints
+                      ? 'Create a sprint and add tasks to see remaining work tracked day by day.'
+                      : !hasEligibleSprints
+                        ? 'Start or complete a sprint to see remaining story points tracked over its duration.'
+                        : 'No burndown data available for this sprint. Add story points to tasks to track progress.'}
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -217,7 +239,13 @@ export function ChartsPage() {
               legends={[{ anchor: 'bottom-right', direction: 'column', translateX: 90, itemWidth: 70, itemHeight: 20 }]}
             />
           ) : (
-            <div className="flex items-center justify-center h-full text-neutral-400">No data yet</div>
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <p className="text-[15px] text-mute">
+                {!hasSprints
+                  ? 'Create sprints and move tasks through statuses to see how work flows over time.'
+                  : 'Task counts per status over time will appear here as work moves through your workflow.'}
+              </p>
+            </div>
           )}
         </div>
       )}
