@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, Search, ChevronDown } from 'lucide-react';
+import { Menu, X, Search, ChevronDown, Plus } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useRole } from '../../hooks/useRole';
 import { NotificationBell } from '../notifications/NotificationBell';
@@ -80,6 +80,16 @@ export function TopBar({ currentProjectId, projects = [], onToggleSidebar, sideb
           </span>
         ))}
       </nav>
+
+      {currentProjectId && (
+        <button
+          onClick={() => document.dispatchEvent(new CustomEvent('shortcut-create-item', { cancelable: true }))}
+          className="h-8 px-3 rounded-[var(--radius)] bg-lilac text-white text-[13px] font-medium flex items-center gap-1.5 hover:bg-lilac-dark transition-colors flex-shrink-0"
+        >
+          <Plus size={14} strokeWidth={2.5} />
+          <span className="hidden sm:inline">Create</span>
+        </button>
+      )}
 
       {/* Jump-to-anything search button — design uses a wide pill with paper-2
           background, magnifier icon, placeholder text, and a .kbd at the right. */}
