@@ -86,16 +86,16 @@ We built it in two weeks to prove a point: that a small studio with the right en
 
 ## Quickstart
 
-### Docker Compose
+### Docker Compose (recommended)
 
 ```bash
 git clone https://github.com/preshitbakre/trackero.git
 cd trackero
 
-# Create your .env from the example
+# Create your .env from the Docker example (works out of the box)
 cp backend/.env.example backend/.env
 
-# Set at minimum: JWT_SECRET
+# Set at minimum: JWT_SECRET (generate with: openssl rand -hex 32)
 # Then start everything
 docker compose up -d
 ```
@@ -111,36 +111,41 @@ On first visit, a setup wizard walks you through creating the admin account and 
 
 # Backend
 cd backend
-cp .env.example .env    # Edit with your DB credentials and JWT_SECRET
+cp .env.dev.example .env    # Edit with your local DB credentials and JWT_SECRET
 npm install
 npm run migration:run
-npm run start:dev       # API at http://localhost:3001
+npm run start:dev           # API at http://localhost:3001
 
 # Frontend (separate terminal)
 cd frontend
 npm install
-npm run dev             # App at http://localhost:5173
+npm run dev                 # App at http://localhost:5173
 
 # Swagger docs at http://localhost:3001/api/docs
 ```
 
 ### Environment Variables
 
-Copy `.env.example` to `.env` and configure. The example file is annotated — here's the full reference:
+Two sample files are provided:
+
+- **`backend/.env.example`** — Docker defaults. Copy to `.env` and run `docker compose up`.
+- **`backend/.env.dev.example`** — Local development defaults. Copy to `.env` for running outside Docker.
+
+The sample files are annotated — here's the full reference:
 
 **Server**
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `NODE_ENV` | No | `development` | `development` enables auto-sync of DB schema. `production` requires migrations (run by the Docker `migrate` service). |
+| `NODE_ENV` | No | `production` | `production` requires migrations (run by the Docker `migrate` service). `development` enables auto-sync of DB schema. |
 | `PORT` | No | `3001` | Port the backend listens on. In Docker, nginx proxies to this internally. |
-| `APP_URL` | No | `http://localhost:5173` | Base URL used in email links and CORS origin. Set to your public URL in production. |
+| `APP_URL` | No | `http://localhost:3000` | Base URL used in email links and CORS origin. Docker: `http://localhost:3000`. Local dev: `http://localhost:5173`. |
 
 **Database (PostgreSQL)**
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `DATABASE_HOST` | Yes | `localhost` | PostgreSQL host. In Docker, use the service name `postgres`. |
+| `DATABASE_HOST` | Yes | `postgres` | PostgreSQL host. Docker: `postgres` (service name). Local dev: `localhost`. |
 | `DATABASE_PORT` | No | `5432` | PostgreSQL port. |
 | `DATABASE_USERNAME` | Yes | — | DB user. In Docker, the app uses `trackero_app` (DML-only); the migrate service uses `trackero_admin` (DDL). |
 | `DATABASE_PASSWORD` | Yes | — | Password for the DB user. |
@@ -160,7 +165,7 @@ Copy `.env.example` to `.env` and configure. The example file is annotated — h
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `STORAGE_DRIVER` | No | `s3` | Storage backend. Currently only `s3` (MinIO-compatible). |
-| `MINIO_ENDPOINT` | No | `localhost` | MinIO/S3 host. In Docker, use the service name `minio`. |
+| `MINIO_ENDPOINT` | No | `minio` | MinIO/S3 host. Docker: `minio` (service name). Local dev: `localhost`. |
 | `MINIO_PORT` | No | `9000` | MinIO API port. |
 | `MINIO_ACCESS_KEY` | No | `minioadmin` | MinIO root access key. |
 | `MINIO_SECRET_KEY` | No | `minioadmin` | MinIO root secret key. Change in production. |
