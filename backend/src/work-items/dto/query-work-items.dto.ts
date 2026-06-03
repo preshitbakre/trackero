@@ -55,6 +55,11 @@ export class QueryWorkItemsDto {
   search?: string;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  excludeAssociationsOf?: number;
+
+  @IsOptional()
   @IsString()
   @IsIn(['createdAt', 'updatedAt', 'priority', 'endDate', 'sortOrder'])
   sort?: string;

@@ -11,6 +11,7 @@ import { useRole } from '../hooks/useRole';
 import { ReadOnlyBanner } from '../components/common/ReadOnlyBanner';
 import { Avatar } from '../components/ui/Avatar';
 import { Button } from '../components/ui/Button';
+import { KbdKey } from '../components/ui/KbdKey';
 import { Eyebrow } from '../components/ui/Eyebrow';
 import { PageHeader } from '../components/ui/PageHeader';
 import { TaskDetailPanel } from '../components/tasks/TaskDetailPanel';
@@ -356,7 +357,9 @@ export function BacklogPage() {
             </Eyebrow>
           </div>
           {canEdit && (
-            <Button onClick={() => setShowCreate(true)}>+ Create Task</Button>
+            <Button variant="ink" onClick={() => setShowCreate(true)} className="inline-flex items-center gap-2">
+              + Create Task <KbdKey tone="on-accent">C</KbdKey>
+            </Button>
           )}
         </PageHeader>
 

@@ -30,14 +30,6 @@ interface Subtask {
   checklistItems?: { id: number; title: string; isCompleted: boolean }[];
 }
 
-interface Dependency {
-  id: number;
-  workItemId?: number;
-  dependencyType: string;
-  item?: { id: number; itemKey: string; itemType: string; title: string; status?: any };
-  dependsOnItem?: { id: number; itemKey: string; itemType: string; title: string; status?: any };
-}
-
 interface TaskDetail {
   id: number;
   itemNumber: number;
@@ -61,8 +53,6 @@ interface TaskDetail {
   parentSprintName?: string | null;
   subtasks?: Subtask[];
   checklistItems?: { id: number; title: string; isCompleted: boolean }[];
-  blockedBy?: Dependency[];
-  blocks?: Dependency[];
   subtaskCount?: number;
   labels?: { id: number; name: string; color: string }[];
 }
@@ -294,12 +284,13 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
   const ASSOC_PAGE_SIZE = 20;
 
   const fetchAssocPage = async (q: string, page: number, seq: number) => {
-    const params = q.length >= 2
+    const base = q.length >= 2
       ? `search=${encodeURIComponent(q)}&limit=${ASSOC_PAGE_SIZE}&page=${page}`
       : `limit=${ASSOC_PAGE_SIZE}&page=${page}&sort=updatedAt&order=DESC`;
+    const params = `${base}&excludeAssociationsOf=${taskId}`;
     const { data } = await apiClient.get(`/projects/${projectId}/items?${params}`);
     if (seq !== assocSearchSeqRef.current) return null;
-    const list = (data.data.list || []).filter((t: any) => t.id !== taskId);
+    const list = data.data.list || [];
     const total = data.data.total ?? 0;
     return { list, hasMore: page * ASSOC_PAGE_SIZE < total };
   };
@@ -337,6 +328,8 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
     try {
       if (addAssocLinkType === 'contains') {
         await apiClient.post(`/projects/${projectId}/items/${linkedItemId}/associations`, { linkedItemId: taskId, linkType: 'belongs_to' });
+      } else if (addAssocLinkType === 'blocked_by') {
+        await apiClient.post(`/projects/${projectId}/items/${linkedItemId}/associations`, { linkedItemId: taskId, linkType: 'blocks' });
       } else {
         await apiClient.post(`/projects/${projectId}/items/${taskId}/associations`, { linkedItemId, linkType: addAssocLinkType });
       }
@@ -844,31 +837,29 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
             })()}
             {showAddAssociation && canEdit && (
               <div className="mt-2 p-3 rounded-lg bg-paper shadow-sm space-y-2">
-                <div className="flex gap-2 flex-wrap">
-                  {[
-                    { value: 'belongs_to', label: 'Part of' },
-                    { value: 'contains', label: 'Contains' },
-                    { value: 'relates_to', label: 'Related' },
-                    { value: 'blocks', label: 'Blocks' },
-                    { value: 'caused_by', label: 'Caused by' },
-                  ].map((lt) => (
-                    <button
-                      key={lt.value}
-                      onClick={() => setAddAssocLinkType(lt.value)}
-                      className={`text-[14px] px-2 py-1 rounded ${addAssocLinkType === lt.value ? 'bg-lilac text-white' : 'text-faint hover:bg-lilac-tint'}`}
-                    >
-                      {lt.label}
-                    </button>
-                  ))}
+                <div className="flex gap-2">
+                  <Select
+                    value={addAssocLinkType}
+                    onChange={setAddAssocLinkType}
+                    options={[
+                      { value: 'belongs_to', label: 'Part of' },
+                      { value: 'contains', label: 'Contains' },
+                      { value: 'relates_to', label: 'Related' },
+                      { value: 'blocks', label: 'Blocks' },
+                      { value: 'blocked_by', label: 'Blocked by' },
+                      { value: 'caused_by', label: 'Caused by' },
+                    ]}
+                    className="flex-shrink-0"
+                  />
+                  <Input
+                    value={assocSearchQuery}
+                    onChange={(e) => handleAssocSearch(e.target.value)}
+                    onFocus={() => { if (assocSearchResults.length === 0) handleAssocSearch(''); }}
+                    placeholder="Search items..."
+                    autoFocus
+                    className="!text-[13px] !py-1.5 !h-[32px] flex-1"
+                  />
                 </div>
-                <Input
-                  value={assocSearchQuery}
-                  onChange={(e) => handleAssocSearch(e.target.value)}
-                  onFocus={() => { if (assocSearchResults.length === 0) handleAssocSearch(''); }}
-                  placeholder="Search items..."
-                  autoFocus
-                  className="!text-[14px] !py-1.5 !h-[32px]"
-                />
                 {assocSearching && <p className="text-[12px] text-faint">Searching...</p>}
                 <div
                   ref={assocListRef}
@@ -990,15 +981,6 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
             )}
           </div>
 
-          {/* Dependencies */}
-          <DependencySection
-            projectId={projectId}
-            taskId={taskId}
-            blockedBy={task.blockedBy || []}
-            blocks={task.blocks || []}
-            canEdit={canEdit}
-            onChanged={loadTask}
-          />
           {/* Attachments */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -1121,145 +1103,6 @@ function AssociationRow({ assoc, onRemove, onClick }: { assoc: any; onRemove?: (
       <span className="text-text truncate flex-1">{item.title}</span>
       {onRemove && (
         <button onClick={(e) => { e.stopPropagation(); onRemove(); }} className="text-faint hover:text-danger opacity-0 group-hover:opacity-100 text-[14px]">x</button>
-      )}
-    </div>
-  );
-}
-
-function DependencySection({ projectId, taskId, blockedBy, blocks, canEdit, onChanged }: {
-  projectId: number; taskId: number; blockedBy: Dependency[]; blocks: Dependency[]; canEdit: boolean; onChanged: () => void;
-}) {
-  const [showAdd, setShowAdd] = useState(false);
-  const [addType, setAddType] = useState<'blocks' | 'blocked_by'>('blocked_by');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<{ id: number; itemNumber: number; itemKey: string; title: string }[]>([]);
-  const [searching, setSearching] = useState(false);
-  const searchSeqRef = useRef(0);
-
-  const existingIds = new Set([
-    taskId,
-    ...blockedBy.map((d) => d.dependsOnItem?.id).filter(Boolean),
-    ...blocks.map((d) => d.item?.id).filter(Boolean),
-  ]);
-
-  const handleSearch = async (q: string) => {
-    setSearchQuery(q);
-    if (q.length < 2) { setSearchResults([]); return; }
-    setSearching(true);
-    const seq = ++searchSeqRef.current;
-    try {
-      const { data } = await apiClient.get(`/projects/${projectId}/items?search=${encodeURIComponent(q)}&limit=10`);
-      if (seq !== searchSeqRef.current) return;
-      setSearchResults((data.data.list || []).filter((t: any) => !existingIds.has(t.id)));
-    } catch (err) { console.error(err); }
-    if (seq === searchSeqRef.current) setSearching(false);
-  };
-
-  const handleAdd = async (targetTaskId: number) => {
-    try {
-      if (addType === 'blocked_by') {
-        await apiClient.post(`/projects/${projectId}/items/${taskId}/associations`, { linkedItemId: targetTaskId, linkType: 'blocks' });
-      } else {
-        await apiClient.post(`/projects/${projectId}/items/${targetTaskId}/associations`, { linkedItemId: taskId, linkType: 'blocks' });
-      }
-      setShowAdd(false);
-      setSearchQuery('');
-      setSearchResults([]);
-      onChanged();
-    } catch (err: any) {
-      toast(err.response?.data?.message || 'Failed to add dependency', 'error');
-    }
-  };
-
-  const handleRemove = async (depId: number) => {
-    try {
-      await apiClient.delete(`/projects/${projectId}/items/${taskId}/associations/${depId}`);
-      onChanged();
-    } catch (err: any) {
-      toast(err.response?.data?.message || 'Failed to remove dependency', 'error');
-    }
-  };
-
-  const unresolvedCount = blockedBy.filter((d) => d.dependsOnItem).length;
-  const hasDeps = blockedBy.length > 0 || blocks.length > 0;
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="smallcaps">Dependencies</h3>
-        {canEdit && !showAdd && (
-          <button onClick={() => setShowAdd(true)} className="text-[11.5px] font-medium text-[var(--ink-2)] hover:text-[var(--ink)]">+ Add</button>
-        )}
-      </div>
-
-      {blockedBy.length > 0 && (
-        <div className="mb-2">
-          <span className="text-[12px] text-faint uppercase">
-            Blocked by ({unresolvedCount > 0 ? `${unresolvedCount} unresolved` : blockedBy.length})
-          </span>
-          {blockedBy.map((dep) => (
-            <div key={dep.id} className="group flex items-center gap-2 text-[13px] py-1 px-2 hover:bg-[var(--shade)]">
-              <span style={{ color: 'var(--ink-3)', fontSize: 12 }}>🔒</span>
-              <span className="truncate flex-1" style={{ color: 'var(--ink)' }}>
-                #{dep.dependsOnItem?.itemKey} {dep.dependsOnItem?.title}
-              </span>
-              {canEdit && (
-                <button onClick={() => handleRemove(dep.id)} className="opacity-0 group-hover:opacity-100" style={{ color: 'var(--ink-4)', fontSize: 14 }}>×</button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {blocks.length > 0 && (
-        <div className="mb-2">
-          <span className="text-[12px] text-faint uppercase">Blocks ({blocks.length})</span>
-          {blocks.map((dep) => (
-            <div key={dep.id} className="group flex items-center gap-2 text-[13px] py-1 px-2 hover:bg-[var(--shade)]">
-              <span style={{ color: 'var(--ink-3)', fontSize: 12 }}>⏳</span>
-              <span className="truncate flex-1" style={{ color: 'var(--ink)' }}>
-                #{dep.item?.itemKey} {dep.item?.title}
-              </span>
-              {canEdit && (
-                <button onClick={() => handleRemove(dep.id)} className="opacity-0 group-hover:opacity-100" style={{ color: 'var(--ink-4)', fontSize: 14 }}>×</button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {!hasDeps && !showAdd && <p className="text-[13px] text-[var(--ink-4)]">No dependencies</p>}
-
-      {showAdd && (
-        <div className="mt-2 p-3 rounded-lg bg-neutral-50 shadow-sm space-y-2">
-          <div className="flex gap-2">
-            <button onClick={() => setAddType('blocked_by')} className={`text-[14px] px-2 py-1 rounded ${addType === 'blocked_by' ? 'bg-lilac text-white' : 'text-neutral-400 hover:bg-neutral-100'}`}>Blocked by</button>
-            <button onClick={() => setAddType('blocks')} className={`text-[14px] px-2 py-1 rounded ${addType === 'blocks' ? 'bg-lilac text-white' : 'text-neutral-400 hover:bg-neutral-100'}`}>Blocks</button>
-          </div>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => handleSearch(e.target.value)}
-            placeholder="Search tasks..."
-            autoFocus
-            className="w-full text-[16px] px-2 py-1.5 rounded border border-neutral-200 bg-white text-neutral-700 placeholder-neutral-300 focus:border-lilac focus:outline-none"
-          />
-          {searching && <p className="text-[14px] text-neutral-400">Searching...</p>}
-          {searchResults.length > 0 && (
-            <div className="max-h-[160px] overflow-y-auto space-y-1">
-              {searchResults.map((t) => (
-                <button key={t.id} onClick={() => handleAdd(t.id)} className="w-full text-left flex items-center gap-2 px-2 py-1.5 rounded hover:bg-neutral-100 text-[16px]">
-                  <span className="font-mono text-[14px] text-neutral-400">{t.itemKey}</span>
-                  <span className="text-neutral-700 truncate">{t.title}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          {searchQuery.length >= 2 && !searching && searchResults.length === 0 && (
-            <p className="text-[14px] text-neutral-400">No tasks found</p>
-          )}
-          <Button variant="ghost" size="sm" onClick={() => { setShowAdd(false); setSearchQuery(''); setSearchResults([]); }}>Cancel</Button>
-        </div>
       )}
     </div>
   );

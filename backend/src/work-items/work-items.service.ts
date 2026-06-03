@@ -380,6 +380,17 @@ export class WorkItemsService {
       }
     }
 
+    // Filter: exclude the item itself and all its existing associations
+    if (query.excludeAssociationsOf) {
+      const itemId = query.excludeAssociationsOf;
+      qb.andWhere('wi.id != :exclItemId', { exclItemId: itemId });
+      qb.andWhere(`wi.id NOT IN (
+        SELECT a.linked_item_id FROM work_item_associations a WHERE a.item_id = :exclItemId2
+        UNION
+        SELECT a.item_id FROM work_item_associations a WHERE a.linked_item_id = :exclItemId2
+      )`, { exclItemId2: itemId });
+    }
+
     // Sorting — subtasks always sort oldest-first within their parent group;
     // all other item types respect the caller's requested sort.
     const sortColumn = query.sort || 'createdAt';
@@ -583,6 +594,19 @@ export class WorkItemsService {
     // Acceptance criteria (full list + met/total summary).
     const acceptanceCriteria = await this.listAcceptanceCriteria(projectId, id);
 
+    // Checklist items (tasks/subtasks only).
+    const checklistRows = await this.dataSource.query(
+      `SELECT id, title, is_completed AS "isCompleted", sort_order AS "sortOrder"
+       FROM checklist_items WHERE work_item_id = $1 ORDER BY sort_order ASC`,
+      [id],
+    );
+    const checklistItems = checklistRows.map((r: any) => ({
+      id: r.id,
+      title: r.title,
+      isCompleted: r.isCompleted,
+      sortOrder: r.sortOrder,
+    }));
+
     // For subtasks, resolve parent's sprint so the FE can display the inherited
     // sprint without an extra roundtrip. Subtasks themselves always have
     // sprintId = null in the DB but inherit display from the parent.
@@ -617,6 +641,7 @@ export class WorkItemsService {
       childStatusBreakdown,
       epic,
       acceptanceCriteria,
+      checklistItems,
       estimatedAt: item.estimatedAt,
       approvedBy: item.approvedBy,
       approvedAt: item.approvedAt,
