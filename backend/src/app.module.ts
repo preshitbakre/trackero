@@ -111,19 +111,34 @@ export class AppModule implements OnModuleInit {
           setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
           setweight(to_tsvector('english', coalesce(description, '')), 'B')
         ) STORED;
-      EXCEPTION WHEN duplicate_column THEN NULL;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN insufficient_privilege THEN NULL;
       END $$
     `);
-    await this.dataSource.query(`CREATE INDEX IF NOT EXISTS "IDX_wi_search" ON work_items USING gin(search_vector)`);
 
-    await this.dataSource.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS "UQ_notif_daily_dedup"
-      ON notifications (user_id, type, reference_id, ((created_at AT TIME ZONE 'UTC')::date))
-      WHERE type IN ('sprint_ending', 'task_due_soon', 'task_overdue')
-    `);
+    try {
+      await this.dataSource.query(`CREATE INDEX IF NOT EXISTS "IDX_wi_search" ON work_items USING gin(search_vector)`);
+    } catch (err: any) {
+      if (err?.driverError?.code !== '42501') throw err;
+    }
 
-    await this.dataSource.query(
-      `UPDATE work_items SET epic_state = 'draft' WHERE item_type = 'epic' AND epic_state IS NULL`,
-    );
+    try {
+      await this.dataSource.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS "UQ_notif_daily_dedup"
+        ON notifications (user_id, type, reference_id, ((created_at AT TIME ZONE 'UTC')::date))
+        WHERE type IN ('sprint_ending', 'task_due_soon', 'task_overdue')
+      `);
+    } catch (err: any) {
+      if (err?.driverError?.code !== '42501') throw err;
+    }
+
+    try {
+      await this.dataSource.query(
+        `UPDATE work_items SET epic_state = 'draft' WHERE item_type = 'epic' AND epic_state IS NULL`,
+      );
+    } catch (err: any) {
+      if (err?.driverError?.code !== '42501') throw err;
+    }
   }
 }
