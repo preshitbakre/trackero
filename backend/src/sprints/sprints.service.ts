@@ -722,6 +722,45 @@ export class SprintsService {
     return saved;
   }
 
+  async completePreview(projectId: number, sprintId: number) {
+    const sprint = await this.sprintRepo.findOne({
+      where: { id: sprintId, projectId },
+    });
+    if (!sprint) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    if (sprint.status !== 'active') {
+      throw new AppLogicException('SPRINT_NOT_ACTIVE', HttpStatus.BAD_REQUEST);
+    }
+
+    const incompleteItems = await this.dataSource.query(
+      `SELECT t.id, t.item_number AS "itemNumber",
+              p.key || '-' || t.item_number AS "itemKey",
+              t.title, t.item_type AS "itemType",
+              t.priority, t.story_points AS "storyPoints",
+              json_build_object(
+                'name', ps.name, 'color', ps.color, 'category', ps.category
+              ) AS status
+       FROM work_items t
+       JOIN project_statuses ps ON t.status_id = ps.id
+       JOIN projects p ON t.project_id = p.id
+       WHERE t.sprint_id = $1 AND ps.category != 'done'
+       ORDER BY t.item_number`,
+      [sprintId],
+    );
+
+    const nextSprint = await this.sprintRepo.findOne({
+      where: { projectId, status: 'planning' as any },
+      order: { sprintNumber: 'ASC' },
+    });
+
+    return {
+      carryOverPolicy: sprint.carryOverPolicy,
+      incompleteItems,
+      nextSprint: nextSprint ? { id: nextSprint.id, name: nextSprint.name } : null,
+    };
+  }
+
   async complete(projectId: number, sprintId: number, userId: number) {
     const result = await this.dataSource.transaction(async (manager) => {
       // Re-load with a pessimistic write lock so concurrent callers serialize.

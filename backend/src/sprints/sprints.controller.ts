@@ -115,6 +115,16 @@ export class SprintsController {
     return this.sprintsService.complete(projectId, sprintId, user.userId);
   }
 
+  @Get(':sprintId/complete-preview')
+  @Roles('admin', 'project_manager')
+  @ResponseCode('SPRINT_COMPLETE_PREVIEW')
+  async completePreview(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('sprintId', ParseIntPipe) sprintId: number,
+  ) {
+    return this.sprintsService.completePreview(projectId, sprintId);
+  }
+
   @Post(':sprintId/cancel')
   @Roles('admin', 'project_manager')
   @HttpCode(HttpStatus.OK)
