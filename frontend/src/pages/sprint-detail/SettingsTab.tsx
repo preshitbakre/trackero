@@ -4,6 +4,7 @@ import { Textarea } from '../../components/ui/Textarea';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { SprintCompleteDialog } from '../../components/sprints/SprintCompleteDialog';
 import { useRole } from '../../hooks/useRole';
 import { toast } from '../../components/common/Toast';
 import { SettingsSidebar } from './SettingsSidebar';
@@ -90,17 +91,6 @@ export function SettingsTab({ sprint, onSaved }: SettingsTabProps) {
     const newEnd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     setEndDate(newEnd);
     save({ endDate: newEnd });
-  };
-
-  const onComplete = async () => {
-    setShowComplete(false);
-    try {
-      await apiClient.post(`/projects/${sprint.projectId}/sprints/${sprint.id}/complete`);
-      toast('Sprint completed');
-      onSaved();
-    } catch (err: any) {
-      toast(err?.response?.data?.message || 'Failed to complete', 'error');
-    }
   };
 
   const onCancelSprint = async () => {
@@ -307,11 +297,14 @@ export function SettingsTab({ sprint, onSaved }: SettingsTabProps) {
         )}
 
         {showComplete && (
-          <ConfirmDialog
-            title="Complete this sprint?"
-            message="Done items will ship. WIP follows the carry-over policy. This will also open the retro."
-            confirmLabel="Complete"
-            onConfirm={onComplete}
+          <SprintCompleteDialog
+            projectId={sprint.projectId}
+            sprintId={sprint.id}
+            sprintName={sprint.name}
+            onCompleted={() => {
+              setShowComplete(false);
+              onSaved();
+            }}
             onCancel={() => setShowComplete(false)}
           />
         )}
