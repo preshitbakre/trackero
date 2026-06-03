@@ -1117,9 +1117,10 @@ function AttachmentRow({ attachment, projectId, taskId, onDownload, onDelete }: 
 }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const isImage = attachment.mimeType.startsWith('image/');
+  const isVideo = attachment.mimeType.startsWith('video/');
 
   useEffect(() => {
-    if (!isImage) return;
+    if (!isImage && !isVideo) return;
     let ignored = false;
     apiClient.get(`/projects/${projectId}/items/${taskId}/attachments/${attachment.id}/url`)
       .then((res) => {
@@ -1128,7 +1129,7 @@ function AttachmentRow({ attachment, projectId, taskId, onDownload, onDelete }: 
       })
       .catch((err) => { console.error(err); });
     return () => { ignored = true; };
-  }, [attachment.id, isImage, projectId, taskId]);
+  }, [attachment.id, isImage, isVideo, projectId, taskId]);
 
   return (
     <div className="flex items-start gap-2 w-full text-[16px] p-2 rounded hover:bg-neutral-100 group">
@@ -1138,12 +1139,14 @@ function AttachmentRow({ attachment, projectId, taskId, onDownload, onDelete }: 
       >
         {isImage && previewUrl ? (
           <img src={previewUrl} alt={attachment.originalFilename} className="w-12 h-12 rounded object-cover flex-shrink-0 border border-neutral-200" />
+        ) : isVideo && previewUrl ? (
+          <video src={previewUrl} className="w-16 h-12 rounded object-cover flex-shrink-0 border border-neutral-200" muted />
         ) : (
           <span className="text-neutral-400 flex-shrink-0 mt-0.5">&#x1F4CE;</span>
         )}
         <div className="flex-1 min-w-0">
           <p className="text-[16px] text-neutral-700 truncate">{attachment.originalFilename}</p>
-          <p className="text-[16px] text-neutral-400">{(attachment.sizeBytes / 1024).toFixed(0)} KB</p>
+          <p className="text-[16px] text-neutral-400">{attachment.sizeBytes >= 1024 * 1024 ? `${(attachment.sizeBytes / (1024 * 1024)).toFixed(1)} MB` : `${(attachment.sizeBytes / 1024).toFixed(0)} KB`}</p>
         </div>
       </button>
       {onDelete && (

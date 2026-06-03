@@ -16,7 +16,7 @@ import { Attachment } from './entities/attachment.entity';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         limits: {
-          fileSize: config.get<number>('MAX_UPLOAD_SIZE_MB', 10) * 1024 * 1024,
+          fileSize: 50 * 1024 * 1024,
           files: 1,
         },
       }),

@@ -208,7 +208,7 @@ export function AppShell() {
           projectId={activeProjectId}
           defaultType="task"
           onClose={() => setShowCreateItem(false)}
-          onCreated={() => {}}
+          onCreated={() => { document.dispatchEvent(new CustomEvent('item-created')); }}
         />
       )}
 

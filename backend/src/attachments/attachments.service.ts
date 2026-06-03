@@ -45,14 +45,9 @@ export class AttachmentsService {
       throw new AppLogicException('FILE_REQUIRED', HttpStatus.BAD_REQUEST);
     }
 
-    const maxBytes = this.maxSizeMb * 1024 * 1024;
-    if (file.size > maxBytes) {
-      throw new AppLogicException('FILE_TOO_LARGE', HttpStatus.BAD_REQUEST);
-    }
-
-    // Validate MIME type by magic bytes
-    // image/svg+xml is deliberately excluded: SVGs can embed <script> and
-    // would execute as stored XSS if served inline (§4.3).
+    const VIDEO_MIMES = [
+      'video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo', 'video/x-matroska',
+    ];
     const ALLOWED_MIMES = [
       'image/jpeg', 'image/png', 'image/gif', 'image/webp',
       'application/pdf',
@@ -61,7 +56,15 @@ export class AttachmentsService {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      ...VIDEO_MIMES,
     ];
+
+    const isVideo = VIDEO_MIMES.includes(file.mimetype);
+    const maxMb = isVideo ? 50 : this.maxSizeMb;
+    const maxBytes = maxMb * 1024 * 1024;
+    if (file.size > maxBytes) {
+      throw new AppLogicException('FILE_TOO_LARGE', HttpStatus.BAD_REQUEST);
+    }
     // MIME types whose containers `file-type` reports as `application/zip`.
     // (OOXML docx/xlsx genuinely ARE zip containers; file-type@16 normally
     // detects them precisely, but a generic-zip fallback is handled here too.)

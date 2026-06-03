@@ -107,7 +107,7 @@ export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId,
         {tasks.length === 0 && !showQuickAdd && (
           <div className="flex flex-col items-center justify-center min-h-[140px] border border-dashed border-[var(--line)]">
             <span className="text-[12px] text-faint">No tasks</span>
-            <span className="text-[11px] text-faint mt-1">Drop here or click + to add</span>
+            <span className="text-[11px] text-faint mt-1">Drop cards here to add to {status.name}</span>
           </div>
         )}
 

@@ -151,6 +151,12 @@ export function SprintPlanningPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  useEffect(() => {
+    const handler = () => loadData();
+    document.addEventListener('item-created', handler);
+    return () => document.removeEventListener('item-created', handler);
+  }, [loadData]);
+
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || !projectId) return;

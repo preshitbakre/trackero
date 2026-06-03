@@ -107,6 +107,12 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
   }, [loadBoard]);
 
   useEffect(() => {
+    const handler = () => loadBoard();
+    document.addEventListener('item-created', handler);
+    return () => document.removeEventListener('item-created', handler);
+  }, [loadBoard]);
+
+  useEffect(() => {
     if (!projectId) return;
     apiClient.get(`/projects/${projectId}/sprints?limit=100`).then((r) => {
       const list = (r.data.data.list || []).filter((s: any) => s.status === 'active' || s.status === 'planning');
