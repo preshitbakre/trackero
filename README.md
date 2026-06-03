@@ -141,14 +141,24 @@ The sample files are annotated — here's the full reference:
 | `PORT` | No | `3001` | Port the backend listens on. In Docker, nginx proxies to this internally. |
 | `APP_URL` | No | `http://localhost:3000` | Base URL used in email links and CORS origin. Docker: `http://localhost:3000`. Local dev: `http://localhost:5173`. |
 
-**Database (PostgreSQL)**
+**Docker Infrastructure (Postgres container + migrate service)**
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `POSTGRES_USER` | Docker | `trackero_admin` | Postgres superuser for DDL / migrations. |
+| `POSTGRES_PASSWORD` | Docker | `trackero_admin_secret` | Password for the Postgres superuser. |
+| `POSTGRES_DB` | Docker | `trackero` | Database created on first Postgres init. |
+| `APP_DB_USER` | Docker | `trackero_app` | Restricted app-level DB user (DML-only). Created by `init-db.sh`. |
+| `APP_DB_PASSWORD` | Docker | `trackero_app_secret` | Password for the app-level DB user. |
+
+**Database (application runtime)**
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `DATABASE_HOST` | Yes | `postgres` | PostgreSQL host. Docker: `postgres` (service name). Local dev: `localhost`. |
 | `DATABASE_PORT` | No | `5432` | PostgreSQL port. |
-| `DATABASE_USERNAME` | Yes | — | DB user. In Docker, the app uses `trackero_app` (DML-only); the migrate service uses `trackero_admin` (DDL). |
-| `DATABASE_PASSWORD` | Yes | — | Password for the DB user. |
+| `DATABASE_USERNAME` | Yes | `trackero_app` | DB user for the running application. |
+| `DATABASE_PASSWORD` | Yes | `trackero_app_secret` | Password for the app DB user. |
 | `DATABASE_NAME` | Yes | `trackero` | Database name. |
 | `DATABASE_SSL` | No | `false` | Set to `true` for SSL connections (e.g., cloud-hosted Postgres). |
 
@@ -167,8 +177,8 @@ The sample files are annotated — here's the full reference:
 | `STORAGE_DRIVER` | No | `s3` | Storage backend. Currently only `s3` (MinIO-compatible). |
 | `MINIO_ENDPOINT` | No | `minio` | MinIO/S3 host. Docker: `minio` (service name). Local dev: `localhost`. |
 | `MINIO_PORT` | No | `9000` | MinIO API port. |
-| `MINIO_ACCESS_KEY` | No | `minioadmin` | MinIO root access key. |
-| `MINIO_SECRET_KEY` | No | `minioadmin` | MinIO root secret key. Change in production. |
+| `MINIO_ROOT_USER` | No | `minioadmin` | MinIO root user / S3 access key. |
+| `MINIO_ROOT_PASSWORD` | No | `minioadmin` | MinIO root password / S3 secret key. Change in production. |
 | `MINIO_BUCKET` | No | `trackero-files` | Bucket name for file uploads. Created automatically if it doesn't exist. |
 | `MINIO_USE_SSL` | No | `false` | Set to `true` when connecting to MinIO/S3 over HTTPS. |
 | `PRESIGNED_URL_EXPIRY` | No | `1800` | Presigned URL TTL in seconds (default: 30 minutes). |

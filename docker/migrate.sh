@@ -5,11 +5,11 @@ set -e
 # init-db.sh handles this on first Postgres init, but if the volume
 # already existed (e.g. retry after a failed first attempt) the init
 # script won't re-run. This guarantees the user is always present.
-PGPASSWORD="$DATABASE_PASSWORD" psql \
+PGPASSWORD="$POSTGRES_PASSWORD" psql \
   -h "$DATABASE_HOST" \
   -p "$DATABASE_PORT" \
-  -U "$DATABASE_USERNAME" \
-  -d "$DATABASE_NAME" \
+  -U "$POSTGRES_USER" \
+  -d "$POSTGRES_DB" \
   -c "
     DO \$\$
     BEGIN
@@ -18,23 +18,24 @@ PGPASSWORD="$DATABASE_PASSWORD" psql \
       END IF;
     END
     \$\$;
-    GRANT CONNECT ON DATABASE $DATABASE_NAME TO ${APP_DB_USER:-trackero_app};
+    GRANT CONNECT ON DATABASE $POSTGRES_DB TO ${APP_DB_USER:-trackero_app};
     GRANT USAGE ON SCHEMA public TO ${APP_DB_USER:-trackero_app};
-    ALTER DEFAULT PRIVILEGES FOR ROLE $DATABASE_USERNAME IN SCHEMA public
+    ALTER DEFAULT PRIVILEGES FOR ROLE $POSTGRES_USER IN SCHEMA public
       GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${APP_DB_USER:-trackero_app};
-    ALTER DEFAULT PRIVILEGES FOR ROLE $DATABASE_USERNAME IN SCHEMA public
+    ALTER DEFAULT PRIVILEGES FOR ROLE $POSTGRES_USER IN SCHEMA public
       GRANT USAGE, SELECT ON SEQUENCES TO ${APP_DB_USER:-trackero_app};
   "
 
-# Run TypeORM migrations
-node ./node_modules/typeorm/cli.js migration:run -d dist/config/migration-cli.config.js
+# Run TypeORM migrations as admin
+DATABASE_USERNAME="$POSTGRES_USER" DATABASE_PASSWORD="$POSTGRES_PASSWORD" \
+  node ./node_modules/typeorm/cli.js migration:run -d dist/config/migration-cli.config.js
 
 # Grant on any tables the migration just created
-PGPASSWORD="$DATABASE_PASSWORD" psql \
+PGPASSWORD="$POSTGRES_PASSWORD" psql \
   -h "$DATABASE_HOST" \
   -p "$DATABASE_PORT" \
-  -U "$DATABASE_USERNAME" \
-  -d "$DATABASE_NAME" \
+  -U "$POSTGRES_USER" \
+  -d "$POSTGRES_DB" \
   -c "
     GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${APP_DB_USER:-trackero_app};
     GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${APP_DB_USER:-trackero_app};
