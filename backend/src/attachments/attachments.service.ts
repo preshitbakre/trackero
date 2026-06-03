@@ -8,6 +8,7 @@ import { FileStorageService } from '../file-storage/file-storage.service';
 import { AppLogicException } from '../common/exceptions/app-exceptions';
 import { PaginatedResponse } from '../common/dto/paginated-response.dto';
 import { PaginatedMutationResponse } from '../common/dto/paginated-mutation-response.dto';
+import { fromBuffer as fileTypeFromBuffer } from 'file-type';
 
 @Injectable()
 export class AttachmentsService {
@@ -68,9 +69,7 @@ export class AttachmentsService {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     ];
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const fileType = require('file-type');
-    const detected = await fileType.fromBuffer(file.buffer);
+    const detected = await fileTypeFromBuffer(file.buffer);
 
     let effectiveMime: string;
     if (detected) {
