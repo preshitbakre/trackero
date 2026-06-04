@@ -1,5 +1,4 @@
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { useDraggable } from '@dnd-kit/core';
 import { Tooltip } from '../common/Tooltip';
 import { TypeTag, Avatar } from '../ui';
 import type { TypeTagKind } from '../ui';
@@ -32,15 +31,11 @@ interface TaskCardProps {
 }
 
 export function TaskCard({ task, isDragging, onClick, selected, onSelect, selectionActive }: TaskCardProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging: isBeingDragged } = useSortable({
+  const { attributes, listeners, setNodeRef, isDragging: isBeingDragged } = useDraggable({
     id: task.id,
   });
 
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isBeingDragged ? 0.4 : 1,
-  };
+  const style: React.CSSProperties = isBeingDragged ? { opacity: 0.4 } : {};
 
   const typeName = task.itemType || 'task';
   const typeKind = (typeName as TypeTagKind) || 'task';

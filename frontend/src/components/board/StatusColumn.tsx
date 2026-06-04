@@ -1,5 +1,4 @@
 import { useDroppable } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { TaskCard } from './TaskCard';
 import { useState } from 'react';
 import { apiClient } from '../../api/client';
@@ -102,7 +101,6 @@ export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId,
       </div>
 
       {/* Cards */}
-      <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
       <div className="flex-1 overflow-y-auto custom-scrollbar p-[10px] flex flex-col gap-2 min-h-[100px]">
         {tasks.map((task) => (
           <TaskCard
@@ -139,7 +137,6 @@ export function StatusColumn({ status, tasks, taskCount, onTaskClick, projectId,
           </form>
         )}
       </div>
-      </SortableContext>
     </div>
   );
 }
