@@ -189,7 +189,7 @@ export class SprintsService {
           COALESCE(SUM(story_points), 0)::int as total_points,
           COALESCE(SUM(story_points) FILTER (WHERE completed_at IS NOT NULL), 0)::int as completed_points
         FROM work_items
-        WHERE sprint_id = ANY($1) AND item_type IN ('task', 'epic', 'story')
+        WHERE sprint_id = ANY($1) AND item_type IN ('task', 'story', 'bug')
         GROUP BY sprint_id
       `, [sprintIds]);
       for (const r of rows) {
@@ -259,7 +259,7 @@ export class SprintsService {
         SELECT wi.sprint_id, COUNT(DISTINCT wi.id)::int AS n
         FROM work_items wi
         WHERE wi.sprint_id = ANY($1)
-          AND wi.item_type IN ('task', 'epic', 'story')
+          AND wi.item_type IN ('task', 'story', 'bug')
           AND EXISTS (
             SELECT 1 FROM work_item_associations a
              JOIN work_items wi2 ON wi2.id = a.linked_item_id
@@ -643,7 +643,7 @@ export class SprintsService {
 
       // Check sprint has tasks
       const taskCount = await manager.query(
-        `SELECT COUNT(*) as count FROM work_items WHERE sprint_id = $1 AND item_type IN ('task', 'epic', 'story')`,
+        `SELECT COUNT(*) as count FROM work_items WHERE sprint_id = $1 AND item_type IN ('task', 'story', 'bug')`,
         [sprintId],
       );
       if (parseInt(taskCount[0].count) === 0) {
