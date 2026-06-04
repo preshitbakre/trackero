@@ -590,6 +590,7 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
           projectId={parseInt(projectId)}
           onClose={() => setShowCreateDialog(false)}
           onCreated={() => { loadBoard(); }}
+          excludeTypes={['epic']}
         />
       )}
     </div>

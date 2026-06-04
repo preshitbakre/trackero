@@ -5,6 +5,7 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEn
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { apiClient } from '../../api/client';
+import { getSocket } from '../../lib/socket';
 import { useAuthStore } from '../../store/auth.store';
 import { Select } from '../ui/Select';
 import { Combobox } from '../ui/Combobox';
@@ -267,6 +268,27 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
     return () => document.removeEventListener('shortcut-assign-to-me', handler as EventListener);
   }, [projectId, taskId, task]);
 
+  useEffect(() => {
+    const socket = getSocket();
+    const currentUserId = useAuthStore.getState().user?.id;
+
+    const handleMoved = (data: { itemId: number; actorId?: number }) => {
+      if (data.itemId !== taskId || data.actorId === currentUserId) return;
+      loadTask();
+    };
+    const handleUpdated = (data: { itemId: number; actorId?: number }) => {
+      if (data.itemId !== taskId || data.actorId === currentUserId) return;
+      loadTask();
+    };
+
+    socket.on('board:moved', handleMoved);
+    socket.on('work-item:updated', handleUpdated);
+    return () => {
+      socket.off('board:moved', handleMoved);
+      socket.off('work-item:updated', handleUpdated);
+    };
+  }, [taskId, projectId]);
+
   const loadTask = async () => {
     try {
       const { data } = await apiClient.get(`/projects/${projectId}/items/${taskId}`);
@@ -438,9 +460,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const { data } = await apiClient.post(`/projects/${projectId}/items/${taskId}/attachments`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const { data } = await apiClient.post(`/projects/${projectId}/items/${taskId}/attachments`, formData);
       setAttachments(data.data.list || []);
     } catch (err: any) {
       toast(err.response?.data?.message || 'Failed to upload', 'error');

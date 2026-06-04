@@ -53,29 +53,25 @@ export class BoardService {
       const qb = this.workItemRepo.createQueryBuilder('wi')
         .where('wi.projectId = :projectId', { projectId })
         .andWhere('wi.statusId = :statusId', { statusId: status.id })
-        .andWhere("wi.itemType IN ('task', 'bug', 'subtask', 'epic', 'story')");
+        .andWhere("wi.itemType IN ('task', 'bug', 'subtask', 'story')");
 
       if (filters.sprintId) {
         qb.andWhere(`(
-          wi.itemType IN ('epic', 'story')
-          OR wi.sprintId = :sprintId
+          wi.sprintId = :sprintId
           OR (wi.itemType = 'subtask' AND wi.parentId IN (
             SELECT id FROM work_items WHERE sprint_id = :sprintId AND item_type = 'task'
           ))
         )`, { sprintId: filters.sprintId });
       } else if (filters.backlog) {
         qb.andWhere(`(
-          wi.itemType IN ('epic', 'story')
-          OR (wi.sprintId IS NULL
-            AND (wi.itemType != 'subtask' OR wi.parentId IN (
-              SELECT id FROM work_items WHERE sprint_id IS NULL AND item_type = 'task'
-            ))
-          )
+          wi.sprintId IS NULL
+          AND (wi.itemType != 'subtask' OR wi.parentId IN (
+            SELECT id FROM work_items WHERE sprint_id IS NULL AND item_type = 'task'
+          ))
         )`);
       } else if (filters.hasSprint) {
         qb.andWhere(`(
-          wi.itemType IN ('epic', 'story')
-          OR wi.sprintId IS NOT NULL
+          wi.sprintId IS NOT NULL
           OR (wi.itemType = 'subtask' AND wi.parentId IN (
             SELECT id FROM work_items WHERE sprint_id IS NOT NULL AND item_type = 'task'
           ))
@@ -313,6 +309,38 @@ export class BoardService {
       const currentStatus = await this.statusRepo.findOne({ where: { id: item.statusId } });
       if (currentStatus?.category === 'done') {
         item.completedAt = null;
+
+        // Subtask leaving done — cascade: revert parent to in_progress if it's done
+        if (item.itemType === 'subtask' && item.parentId) {
+          const [parent] = await this.dataSource.query(
+            `SELECT wi.id, ps.category FROM work_items wi
+             JOIN project_statuses ps ON ps.id = wi.status_id
+             WHERE wi.id = $1 AND wi.deleted_at IS NULL`,
+            [item.parentId],
+          );
+          if (parent?.category === 'done') {
+            const [inProgressStatus] = await this.dataSource.query(
+              `SELECT id FROM project_statuses
+               WHERE project_id = $1 AND category = 'in_progress'
+               ORDER BY sort_order ASC LIMIT 1`,
+              [projectId],
+            );
+            if (inProgressStatus) {
+              await this.dataSource.query(
+                `UPDATE work_items SET status_id = $1, completed_at = NULL WHERE id = $2`,
+                [inProgressStatus.id, parent.id],
+              );
+              this.eventEmitter.emit('board.moved', {
+                projectId,
+                itemId: parent.id,
+                statusId: inProgressStatus.id,
+                sortOrder: null,
+                completedAt: null,
+                actorId: userId,
+              });
+            }
+          }
+        }
       }
     }
 

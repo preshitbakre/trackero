@@ -40,6 +40,8 @@ interface CreateItemDialogProps {
   defaultParentId?: number;
   /** When true, renders content without its own Drawer wrapper (caller provides the Drawer). */
   bare?: boolean;
+  /** Item types to hide from the type selector. */
+  excludeTypes?: ItemType[];
 }
 
 interface ParentOption {
@@ -56,6 +58,7 @@ export function CreateItemDialog({
   defaultType = 'task',
   defaultParentId,
   bare = false,
+  excludeTypes = [],
 }: CreateItemDialogProps) {
   const [itemType, setItemType] = useState<ItemType>(defaultType);
   const [title, setTitle] = useState('');
@@ -262,7 +265,7 @@ export function CreateItemDialog({
           <div>
             <label className={labelClass}>Type</label>
             <div className="flex gap-2">
-              {ITEM_TYPES.map((t) => (
+              {ITEM_TYPES.filter((t) => !excludeTypes.includes(t.value)).map((t) => (
                 <button key={t.value} type="button" onClick={() => setItemType(t.value)}
                   className={`flex items-center gap-1.5 px-3 h-[30px] rounded-md text-[14px] font-medium transition-all ${itemType === t.value ? 'ring-2 ring-offset-1 shadow-sm' : 'opacity-60 hover:opacity-80'}`}
                   style={{ backgroundColor: itemType === t.value ? `${t.color}18` : 'transparent', color: t.color, border: `1px solid ${itemType === t.value ? t.color : '#D1CCC7'}` }}>

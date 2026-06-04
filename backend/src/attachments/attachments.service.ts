@@ -26,6 +26,27 @@ export class AttachmentsService {
     this.maxSizeMb = this.configService.get<number>('MAX_UPLOAD_SIZE_MB', 10);
   }
 
+  private detectByMagicBytes(buffer: Buffer): string | null {
+    if (!buffer || buffer.length < 4) return null;
+    // PDF: %PDF
+    if (buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46) {
+      return 'application/pdf';
+    }
+    // JPEG: FF D8 FF
+    if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) {
+      return 'image/jpeg';
+    }
+    // PNG: 89 50 4E 47
+    if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
+      return 'image/png';
+    }
+    // GIF: GIF8
+    if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x38) {
+      return 'image/gif';
+    }
+    return null;
+  }
+
   // Phase 10 — exclude soft-deleted work items so a `GET attachments` on a
   // freshly-deleted item returns 404 (its parent is invisible from this point
   // forward, even though the row survives for the retention grace window).
@@ -85,13 +106,22 @@ export class AttachmentsService {
         effectiveMime = detected.mime;
       }
     } else {
-      // No magic-byte signature. Only text/plain and text/csv legitimately
-      // have no signature — anything else with undetectable bytes is spoofed
-      // or corrupt and must be rejected.
-      if (file.mimetype !== 'text/plain' && file.mimetype !== 'text/csv') {
+      // file-type returned nothing. Try manual magic-byte detection for
+      // well-known signatures before falling back to text types.
+      const manualMime = this.detectByMagicBytes(file.buffer);
+      if (manualMime) {
+        this.logger.warn(
+          `file-type returned undefined for ${file.originalname} (${file.size} bytes, claimed ${file.mimetype}), manual detection: ${manualMime}`,
+        );
+        effectiveMime = manualMime;
+      } else if (file.mimetype === 'text/plain' || file.mimetype === 'text/csv') {
+        effectiveMime = file.mimetype;
+      } else {
+        this.logger.warn(
+          `Rejecting ${file.originalname}: file-type=undefined, manual=undefined, claimed=${file.mimetype}, size=${file.size}, buffer.length=${file.buffer?.length ?? 0}`,
+        );
         throw new AppLogicException('FILE_TYPE_NOT_ALLOWED', HttpStatus.BAD_REQUEST);
       }
-      effectiveMime = file.mimetype;
     }
 
     if (!ALLOWED_MIMES.includes(effectiveMime)) {

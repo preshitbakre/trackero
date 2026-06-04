@@ -745,7 +745,7 @@ export class SprintsService {
        FROM work_items t
        JOIN project_statuses ps ON t.status_id = ps.id
        JOIN projects p ON t.project_id = p.id
-       WHERE t.sprint_id = $1 AND ps.category != 'done'
+       WHERE t.sprint_id = $1 AND ps.category != 'done' AND t.deleted_at IS NULL
        ORDER BY t.item_number`,
       [sprintId],
     );
@@ -782,7 +782,7 @@ export class SprintsService {
       const incompleteTasks: { id: number }[] = await manager.query(
         `SELECT t.id FROM work_items t
          JOIN project_statuses ps ON t.status_id = ps.id
-         WHERE t.sprint_id = $1 AND ps.category != 'done'`,
+         WHERE t.sprint_id = $1 AND ps.category != 'done' AND t.deleted_at IS NULL`,
         [sprintId],
       );
 

@@ -768,6 +768,23 @@ export class WorkItemsService {
         item.completedAt = new Date();
       } else if (newStatus.category !== 'done' && oldStatus?.category === 'done') {
         item.completedAt = null;
+
+        // Subtask leaving done — cascade: revert parent to in_progress if it's done
+        if (item.itemType === 'subtask' && item.parentId) {
+          const [parent] = await this.dataSource.query(
+            `SELECT wi.id, ps.category FROM work_items wi
+             JOIN project_statuses ps ON ps.id = wi.status_id
+             WHERE wi.id = $1 AND wi.deleted_at IS NULL`,
+            [item.parentId],
+          );
+          if (parent?.category === 'done') {
+            const inProgressStatus = await this.firstStatusOfCategory(projectId, 'in_progress');
+            await this.dataSource.query(
+              `UPDATE work_items SET status_id = $1, completed_at = NULL WHERE id = $2`,
+              [inProgressStatus.id, parent.id],
+            );
+          }
+        }
       }
 
       item.statusId = dto.statusId;

@@ -192,7 +192,7 @@ export function BacklogPage() {
     setLoading(true);
     setError(false);
     try {
-      const { data: taskData } = await apiClient.get(`/projects/${projectId}/items?itemType=epic,story,task,bug,subtask&backlog=true&limit=300`);
+      const { data: taskData } = await apiClient.get(`/projects/${projectId}/items?itemType=story,task,bug,subtask&backlog=true&limit=300`);
       const backlogTasks: BacklogTask[] = taskData.data.list || [];
       setTasks(backlogTasks);
 
@@ -584,6 +584,7 @@ export function BacklogPage() {
             onClose={() => setShowCreate(false)}
             onCreated={handleCreated}
             bare
+            excludeTypes={['epic']}
           />
         ) : selectedTaskId && projectId ? (
           <TaskDetailPanel

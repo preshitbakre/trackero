@@ -398,9 +398,7 @@ export function TaskDetailPage() {
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const { data } = await apiClient.post(`/projects/${pid}/items/${tid}/attachments`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const { data } = await apiClient.post(`/projects/${pid}/items/${tid}/attachments`, formData);
       setAttachments(data.data.list || []);
       loadActivity();
     } catch (err: any) {

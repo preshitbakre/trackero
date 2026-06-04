@@ -48,9 +48,7 @@ export function StoryHeaderActions(props: Props) {
     const form = new FormData();
     form.append('file', file);
     try {
-      await apiClient.post(`/projects/${projectId}/items/${story.id}/attachments`, form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      await apiClient.post(`/projects/${projectId}/items/${story.id}/attachments`, form);
       toast('Attachment uploaded');
       onChanged();
     } catch {
