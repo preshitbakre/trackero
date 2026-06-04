@@ -289,6 +289,15 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
     };
   }, [taskId, projectId]);
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.itemId === taskId) loadTask();
+    };
+    document.addEventListener('board:item-moved', handler);
+    return () => document.removeEventListener('board:item-moved', handler);
+  }, [taskId, projectId]);
+
   const loadTask = async () => {
     try {
       const { data } = await apiClient.get(`/projects/${projectId}/items/${taskId}`);

@@ -3,7 +3,6 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import {
   DndContext,
   DragEndEvent,
-  DragOverEvent,
   DragStartEvent,
   DragOverlay,
   closestCorners,
@@ -12,7 +11,6 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { apiClient } from '../../api/client';
 import { getSocket } from '../../lib/socket';
 import { useAuthStore } from '../../store/auth.store';
@@ -131,7 +129,7 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(KeyboardSensor),
   );
   const dragRequestSeq = useRef<number>(0);
 
@@ -341,6 +339,7 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
         statusId: targetStatusId,
         sortOrder: newSortOrder,
       });
+      document.dispatchEvent(new CustomEvent('board:item-moved', { detail: { itemId: taskId } }));
       if (myReq === dragRequestSeq.current) {
         loadBoard();
       }
@@ -352,10 +351,6 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
     } finally {
       setActiveTask(null);
     }
-  };
-
-  const handleDragOver = (_event: DragOverEvent) => {
-    // Could implement cross-column preview here
   };
 
   const findTask = (taskId: number): BoardTask | undefined => {
@@ -545,7 +540,6 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
         collisionDetection={closestCorners}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
-        onDragOver={handleDragOver}
       >
         <div className="flex-1 overflow-x-auto p-4 bg-[var(--paper-2)]">
           <div className="flex gap-3 h-full">
