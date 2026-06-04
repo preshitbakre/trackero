@@ -20,7 +20,6 @@ function makeRefreshError(message: string, authInvalid: boolean): RefreshError {
 
 const apiClient = axios.create({
   baseURL: '/api',
-  headers: { 'Content-Type': 'application/json' },
 });
 
 apiClient.interceptors.request.use((config) => {
