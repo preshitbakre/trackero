@@ -24,16 +24,17 @@ interface Props {
   onUpdateStatus: () => void;
   onOpenChild: (id: number) => void;
   onSeeAll: () => void;
+  reloadKey?: number;
 }
 
 const PREVIEW_LIMIT = 6;
 
-export function OverviewTab({ epic, projectId, onUpdateStatus, onOpenChild, onSeeAll }: Props) {
+export function OverviewTab({ epic, projectId, onUpdateStatus, onOpenChild, onSeeAll, reloadKey }: Props) {
   const [children, setChildren] = useState<EpicChildrenGroups | null>(null);
 
   useEffect(() => {
     getEpicChildren(projectId, epic.id, 'status').then(setChildren).catch(() => {});
-  }, [projectId, epic.id]);
+  }, [projectId, epic.id, reloadKey]);
 
   const blocked = epic.displayState === 'blocked';
   let shown = 0;

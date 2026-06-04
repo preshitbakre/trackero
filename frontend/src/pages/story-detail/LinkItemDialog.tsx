@@ -73,7 +73,7 @@ export function LinkItemDialog({ projectId, storyId, onLinked, onClose }: Props)
   const link = async (itemId: number) => {
     setLinking(itemId);
     try {
-      if (linkType === 'contains') {
+      if (linkType === 'contains' || linkType === 'belongs_to') {
         await apiClient.post(`/projects/${projectId}/items/${itemId}/associations`, {
           linkedItemId: storyId,
           linkType: 'belongs_to',

@@ -136,7 +136,7 @@ export function TicketsTab({ epicId, projectId, canEdit, onOpenChild, reloadKey,
     setLinking(true);
     try {
       for (const itemId of selectedLinkIds) {
-        if (linkType === 'contains') {
+        if (linkType === 'contains' || linkType === 'belongs_to') {
           await apiClient.post(`/projects/${projectId}/items/${itemId}/associations`, {
             linkedItemId: epicId,
             linkType: 'belongs_to',

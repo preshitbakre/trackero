@@ -19,7 +19,6 @@ import { StoryRightRail } from './story-detail/StoryRightRail';
 import type { RailPatch } from './story-detail/StoryRightRail';
 import { StoryHeaderActions } from './story-detail/StoryHeaderActions';
 import { ReleaseNotesDrawer } from './story-detail/ReleaseNotesDrawer';
-import { LinkItemDialog } from './story-detail/LinkItemDialog';
 import type { StoryDetail, DetailUser, TaskRow } from './story-detail/types';
 
 interface StatusOption { id: number; name: string; category: string }
@@ -44,7 +43,6 @@ export function StoryDetailPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [showReleaseNotes, setShowReleaseNotes] = useState(false);
   const [createType, setCreateType] = useState<'task' | 'bug' | null>(null);
-  const [showLinkItem, setShowLinkItem] = useState(false);
   const [topLevel, setTopLevel] = useState<TaskRow[]>([]);
   const [subtasksByParent, setSubtasksByParent] = useState<Map<number, TaskRow[]>>(new Map());
 
@@ -304,10 +302,11 @@ export function StoryDetailPage() {
           <>
             <TasksTab
               topLevel={topLevel} subtasksByParent={subtasksByParent} statuses={statuses} canEdit={canEdit}
+              projectId={pid} storyId={story.id}
               onOpenItem={setSelectedTaskId}
               onAddTask={() => setCreateType('task')}
               onReportBug={() => setCreateType('bug')}
-              onLinkItem={() => setShowLinkItem(true)}
+              onLinked={loadStory}
             />
             <StoryRightRail
               story={story} canEdit={canEdit} members={members} sprints={sprints} statuses={statuses}
@@ -352,14 +351,6 @@ export function StoryDetailPage() {
         onClose={() => setShowReleaseNotes(false)}
       />
 
-      {showLinkItem && (
-        <LinkItemDialog
-          projectId={pid}
-          storyId={story.id}
-          onLinked={() => { setShowLinkItem(false); loadStory(); }}
-          onClose={() => setShowLinkItem(false)}
-        />
-      )}
     </div>
   );
 }

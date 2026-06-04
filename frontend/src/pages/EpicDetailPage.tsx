@@ -167,6 +167,7 @@ export function EpicDetailPage() {
               onUpdateStatus={() => setTab('settings')}
               onOpenChild={setSelectedTaskId}
               onSeeAll={() => setTab('tickets')}
+              reloadKey={reloadKey}
             />
           )}
           {tab === 'tickets' && (
