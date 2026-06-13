@@ -977,7 +977,8 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
             </div>
           )}
 
-          {/* Checklist */}
+          {/* Checklist — tasks/subtasks only (HIERARCHY-RULES §8) */}
+          {(task.itemType || 'task') === 'task' || task.itemType === 'subtask' ? (
           <div>
             <div className="flex items-center justify-between mb-2">
               <h3 className="smallcaps">
@@ -1024,6 +1025,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
               </form>
             )}
           </div>
+          ) : null}
 
           {/* Attachments */}
           <div>

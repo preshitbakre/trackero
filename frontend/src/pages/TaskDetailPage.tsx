@@ -691,7 +691,8 @@ export function TaskDetailPage() {
             )}
           </div>}
 
-          {/* Checklist */}
+          {/* Checklist — tasks/subtasks only (HIERARCHY-RULES §8) */}
+          {((task.itemType || 'task') === 'task' || task.itemType === 'subtask') && (
           <div style={{ marginTop: 22 }}>
             <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
               <div className="smallcaps">
@@ -739,6 +740,7 @@ export function TaskDetailPage() {
               </form>
             )}
           </div>
+          )}
 
           {/* Comments / Activity — tabbed */}
           <div style={{ marginTop: 24, marginBottom: 24, display: 'flex', flexDirection: 'column', height: 420, flexShrink: 0, border: '1px solid var(--line-2)', borderRadius: 0, overflow: 'hidden' }}>
