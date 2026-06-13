@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
-import { createTestApp, clearDatabase, registerInvitedUser } from './setup';
+import { createTestApp, clearDatabase } from './setup';
 
 async function registerStrongAdmin(app: INestApplication) {
   const res = await request(app.getHttpServer())
@@ -171,48 +171,6 @@ describe('Epics (e2e)', () => {
     expect(res.body.data.totalPoints).toBe(5);
     const doneGroup = res.body.data.groups.find((g: any) => g.key === 'done');
     expect(doneGroup.count).toBe(1);
-  });
-
-  it('milestones CRUD + synthesized target row', async () => {
-    const epic = await createItem({ itemType: 'epic', title: 'Milestone Epic' });
-    await request(app.getHttpServer())
-      .patch(`/api/projects/${projectId}/epics/${epic.id}`)
-      .set(auth())
-      .send({ endDate: '2026-06-13' });
-
-    await request(app.getHttpServer())
-      .post(`/api/projects/${projectId}/epics/${epic.id}/milestones`)
-      .set(auth())
-      .send({ kind: 'kickoff', body: 'Epic kicked off', occurredOn: '2026-05-05' })
-      .expect(201);
-
-    const res = await request(app.getHttpServer())
-      .get(`/api/projects/${projectId}/epics/${epic.id}/milestones`)
-      .set(auth())
-      .expect(200);
-    // curated kickoff + synthesized target
-    expect(res.body.data.length).toBe(2);
-    const target = res.body.data.find((m: any) => m.kind === 'target');
-    expect(target.synthesized).toBe(true);
-    expect(target.author).toBeNull();
-  });
-
-  it('rejects milestone writes from a viewer', async () => {
-    // Invite a viewer (registration is invite-only after the first admin) and
-    // add them to the project with the viewer role.
-    const viewer = await registerInvitedUser(app, token, 'viewer@test.com', 'viewer', 'Password1!');
-    await request(app.getHttpServer())
-      .post(`/api/projects/${projectId}/members`)
-      .set(auth())
-      .send({ userId: viewer.id, role: 'viewer' });
-    const viewerToken = viewer.token;
-
-    const epic = await createItem({ itemType: 'epic', title: 'Guarded Epic' });
-    await request(app.getHttpServer())
-      .post(`/api/projects/${projectId}/epics/${epic.id}/milestones`)
-      .set({ Authorization: `Bearer ${viewerToken}` })
-      .send({ kind: 'note', body: 'nope', occurredOn: '2026-05-05' })
-      .expect(403);
   });
 
   it('ship guard: 409 with open children, success when all done, then reopen', async () => {

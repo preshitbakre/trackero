@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Plus, Search, Lock, Inbox } from 'lucide-react';
+import { Plus, Search, Lock, Inbox, Copy, Check, Mail, Link2, CheckCheck, Clock } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/auth.store';
 import { Select } from '../components/ui/Select';
@@ -9,7 +9,17 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { toast } from '../components/common/Toast';
 import { AVATAR_COLORS } from '../lib/colors';
+import { validatePassword, passwordStrength } from '../lib/password';
 import EllipsisDots from '@/assets/icons/ellipsis.svg?react';
+
+interface InviteResult {
+  email: string;
+  role: string;
+  token: string;
+  inviteUrl: string;
+  expiresAt: string;
+  emailSent: boolean;
+}
 
 interface UserRow {
   id: number;
@@ -72,10 +82,15 @@ export function SettingsPage() {
   const [invitationFilter, setInvitationFilter] = useState<'pending' | 'accepted' | 'expired' | 'invite'>('pending');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('member');
+  const [inviteSendEmail, setInviteSendEmail] = useState(true);
+  const [inviteResult, setInviteResult] = useState<InviteResult | null>(null);
+  const [inviting, setInviting] = useState(false);
+  const [emailEnabled, setEmailEnabled] = useState(false);
   const [memberSearch, setMemberSearch] = useState('');
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [confirmRoleChange, setConfirmRoleChange] = useState<{ userId: number; role: string; displayName: string } | null>(null);
   const [confirmDeactivate, setConfirmDeactivate] = useState<{ userId: number; displayName: string } | null>(null);
+  const [setPasswordFor, setSetPasswordFor] = useState<{ userId: number; displayName: string } | null>(null);
   const [projectCount, setProjectCount] = useState<number | null>(null);
   const user = useAuthStore((s) => s.user);
 
@@ -84,6 +99,9 @@ export function SettingsPage() {
     loadInvitations();
     apiClient.get('/projects?limit=1').then((res) => {
       setProjectCount(res.data.data?.total ?? res.data.data?.list?.length ?? null);
+    }).catch(() => {});
+    apiClient.get('/auth/setup-status').then((res) => {
+      setEmailEnabled(!!res.data.data?.emailEnabled);
     }).catch(() => {});
   }, []);
 
@@ -130,15 +148,30 @@ export function SettingsPage() {
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteEmail.trim()) return;
+    if (!inviteEmail.trim() || inviting) return;
+    setInviting(true);
     try {
-      await apiClient.post('/users/invite', { email: inviteEmail, role: inviteRole });
+      const { data } = await apiClient.post('/users/invite', {
+        email: inviteEmail.trim(),
+        role: inviteRole,
+        // Only ever request email when SMTP is configured AND the admin opted in.
+        sendEmail: emailEnabled && inviteSendEmail,
+      });
+      const item = data.data.item as InviteResult;
+      setInviteResult(item);
       setInviteEmail('');
-      toast('Invitation sent');
+      toast(item.emailSent ? 'Invitation created and emailed' : 'Invitation created');
       loadInvitations();
     } catch (err: any) {
-      toast(err.response?.data?.message || 'Failed to send invitation', 'error');
+      toast(err.response?.data?.message || 'Failed to create invitation', 'error');
+    } finally {
+      setInviting(false);
     }
+  };
+
+  const handleSetUserPassword = async (userId: number, newPassword: string) => {
+    await apiClient.post(`/users/${userId}/set-password`, { newPassword });
+    loadUsers();
   };
 
   const activeUsers = users.filter((u) => u.isActive);
@@ -153,6 +186,9 @@ export function SettingsPage() {
   const pendingInvitations = invitations.filter((i) => i.status === 'pending');
   const acceptedInvitations = invitations.filter((i) => i.status === 'accepted');
   const expiredInvitations = invitations.filter((i) => i.status === 'expired');
+  // When SMTP is configured the admin picks one delivery path per invite:
+  // email it, or generate a link to share manually. Never both.
+  const emailMode = emailEnabled && inviteSendEmail;
   const visibleInvitations =
     invitationFilter === 'pending' ? pendingInvitations :
     invitationFilter === 'accepted' ? acceptedInvitations :
@@ -292,6 +328,7 @@ export function SettingsPage() {
                     isActive={u.isActive}
                     onDeactivate={() => setConfirmDeactivate({ userId: u.id, displayName: u.displayName })}
                     onReactivate={() => handleReactivate(u.id)}
+                    onSetPassword={() => setSetPasswordFor({ userId: u.id, displayName: u.displayName })}
                   />
                 </div>
               );
@@ -306,48 +343,120 @@ export function SettingsPage() {
         <aside className="flex flex-col bg-[var(--paper-2)] min-h-0">
           <div className="pt-4 px-5">
             <h2 className="font-serif text-[20px] text-text mb-0.5">Invitations</h2>
-            <div className="text-[12px] text-mute mb-3">Sent via email · expire in 7 days.</div>
-
-            {/* Filter tabs — pill style, "Send invite" as last tab */}
-            <div className="flex gap-1.5 mb-4 flex-wrap">
-              <FilterTab active={invitationFilter === 'pending'} onClick={() => setInvitationFilter('pending')} count={pendingInvitations.length}>Pending</FilterTab>
-              <FilterTab active={invitationFilter === 'accepted'} onClick={() => setInvitationFilter('accepted')} count={acceptedInvitations.length}>Accepted</FilterTab>
-              <FilterTab active={invitationFilter === 'expired'} onClick={() => setInvitationFilter('expired')} count={expiredInvitations.length}>Expired</FilterTab>
-              <button
-                onClick={() => setInvitationFilter('invite')}
-                className={`px-3 py-1 text-[12px] font-medium rounded-full border transition-colors ${
-                  invitationFilter === 'invite'
-                    ? 'bg-ink text-white border-ink'
-                    : 'bg-transparent text-mute border-rule hover:text-text hover:border-text'
-                }`}
-              >
-                + Send invite
-              </button>
+            <div className="text-[12px] text-mute mb-3">
+              {emailEnabled
+                ? 'Share the link or send by email · expire in 7 days.'
+                : 'Share the invite link · expire in 7 days.'}
             </div>
+
+            <nav className="flex gap-0 border-b border-rule mb-4" role="tablist">
+              {([
+                { key: 'pending', label: 'Pending', Icon: Inbox, badge: pendingInvitations.length },
+                { key: 'accepted', label: 'Accepted', Icon: CheckCheck, badge: acceptedInvitations.length },
+                { key: 'expired', label: 'Expired', Icon: Clock, badge: expiredInvitations.length },
+                { key: 'invite', label: 'Invite', Icon: Plus, badge: 0 },
+              ] as const).map(({ key, label, Icon, badge }) => {
+                const isActive = invitationFilter === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    title={label}
+                    onClick={() => setInvitationFilter(key)}
+                    className={`flex items-center gap-1 whitespace-nowrap px-3 py-2 border-b-2 -mb-px transition-colors ${
+                      isActive
+                        ? 'border-lilac text-text'
+                        : 'border-transparent text-mute hover:text-text'
+                    }`}
+                  >
+                    <Icon size={16} />
+                    {badge > 0 && (
+                      <span className="text-[11px] text-faint tabular-nums">{badge}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
           </div>
 
           {/* Content area — fills remaining height, scrollable */}
           <div className="flex-1 overflow-y-auto custom-scrollbar px-5 pb-5">
             {invitationFilter === 'invite' ? (
-              <form id="invite-form" onSubmit={handleInvite} className="space-y-3">
-                <Input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="email@org.com" required />
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <Select
-                      value={inviteRole}
-                      onChange={setInviteRole}
-                      options={[
-                        { value: 'admin', label: 'Admin' },
-                        { value: 'project_manager', label: 'PM' },
-                        { value: 'member', label: 'Member' },
-                        { value: 'viewer', label: 'Viewer' },
-                      ]}
-                    />
+              <div className="space-y-4">
+                <form id="invite-form" onSubmit={handleInvite} className="space-y-3">
+                  <Input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="email@org.com" required />
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Select
+                        value={inviteRole}
+                        onChange={setInviteRole}
+                        options={[
+                          { value: 'admin', label: 'Admin' },
+                          { value: 'project_manager', label: 'PM' },
+                          { value: 'member', label: 'Member' },
+                          { value: 'viewer', label: 'Viewer' },
+                        ]}
+                      />
+                    </div>
+                    <Button type="submit" disabled={inviting}>
+                      {inviting ? (emailMode ? 'Sending…' : 'Creating…') : (emailMode ? 'Send email' : 'Create invite')}
+                    </Button>
                   </div>
-                  <Button type="submit">Send</Button>
-                </div>
-                <p className="text-[11px] text-faint">Paste a line per row for bulk invites.</p>
-              </form>
+                  {emailEnabled ? (
+                    <div className="space-y-1.5">
+                      <label className="block smallcaps text-faint">Delivery</label>
+                      <div className="inline-flex border border-rule text-[12px] font-medium" role="radiogroup" aria-label="Invite delivery method">
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={inviteSendEmail}
+                          onClick={() => setInviteSendEmail(true)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 transition-colors ${
+                            inviteSendEmail ? 'bg-ink text-white' : 'bg-transparent text-mute hover:text-text'
+                          }`}
+                        >
+                          <Mail size={13} /> Send email
+                        </button>
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={!inviteSendEmail}
+                          onClick={() => setInviteSendEmail(false)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 border-l border-rule transition-colors ${
+                            !inviteSendEmail ? 'bg-ink text-white' : 'bg-transparent text-mute hover:text-text'
+                          }`}
+                        >
+                          <Link2 size={13} /> Manual link
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-faint">
+                        {inviteSendEmail
+                          ? 'We’ll email the invite link directly to them.'
+                          : 'You’ll get a link to copy and share manually.'}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-faint">
+                      Email delivery isn&rsquo;t configured — share the generated link manually.
+                    </p>
+                  )}
+                </form>
+
+                {inviteResult && (
+                  inviteResult.emailSent ? (
+                    <div className="border border-rule bg-card p-3 flex items-center gap-2">
+                      <Mail size={14} className="text-green-700 flex-shrink-0" />
+                      <span className="text-[12px] text-text">
+                        Invitation emailed to <span className="font-mono">{inviteResult.email}</span>
+                      </span>
+                    </div>
+                  ) : (
+                    <InviteLinkCard result={inviteResult} />
+                  )
+                )}
+              </div>
             ) : (
               <>
                 {visibleInvitations.length === 0 && (
@@ -425,6 +534,14 @@ export function SettingsPage() {
           onCancel={() => setConfirmDeactivate(null)}
         />
       )}
+
+      {setPasswordFor && (
+        <SetPasswordDialog
+          displayName={setPasswordFor.displayName}
+          onConfirm={(password) => handleSetUserPassword(setPasswordFor.userId, password)}
+          onCancel={() => setSetPasswordFor(null)}
+        />
+      )}
     </div>
   );
 }
@@ -455,26 +572,12 @@ function RoleBadge({ role }: { role: string }) {
   );
 }
 
-function FilterTab({ active, onClick, count, children }: { active: boolean; onClick: () => void; count: number; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-3 py-1 text-[12px] font-medium rounded-full border transition-colors ${
-        active
-          ? 'bg-ink text-white border-ink'
-          : 'bg-transparent text-mute border-rule hover:text-text hover:border-text'
-      }`}
-    >
-      {children} · {count}
-    </button>
-  );
-}
-
-function RowMenu({ isSelf, isActive, onDeactivate, onReactivate }: {
+function RowMenu({ isSelf, isActive, onDeactivate, onReactivate, onSetPassword }: {
   isSelf: boolean;
   isActive: boolean;
   onDeactivate: () => void;
   onReactivate: () => void;
+  onSetPassword: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -499,7 +602,15 @@ function RowMenu({ isSelf, isActive, onDeactivate, onReactivate }: {
         <EllipsisDots className="w-[14px] h-[14px]" aria-hidden />
       </button>
       {open && (
-        <div className="dropdown-panel absolute right-0 mt-1 w-36 bg-card z-50 py-1">
+        <div className="dropdown-panel absolute right-0 mt-1 w-40 bg-card z-50 py-1">
+          {isActive && (
+            <button
+              onClick={() => { setOpen(false); onSetPassword(); }}
+              className="w-full text-left px-3 py-1.5 text-[13px] text-text hover:bg-paper"
+            >
+              Set password
+            </button>
+          )}
           {isActive && (
             <button
               onClick={() => { setOpen(false); onDeactivate(); }}
@@ -518,6 +629,120 @@ function RowMenu({ isSelf, isActive, onDeactivate, onReactivate }: {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function InviteLinkCard({ result }: { result: InviteResult }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(result.inviteUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast('Could not copy to clipboard', 'error');
+    }
+  };
+
+  const ms = new Date(result.expiresAt).getTime() - Date.now();
+  const days = Math.max(0, Math.floor(ms / 86_400_000));
+
+  return (
+    <div className="border border-rule bg-card p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <Check size={13} className="text-green-700 flex-shrink-0" />
+        <span className="text-[12px] text-text">
+          Invite ready for <span className="font-mono">{result.email}</span>
+        </span>
+      </div>
+      <label className="block smallcaps text-faint mb-1">Invite link</label>
+      <div className="flex gap-2">
+        <Input readOnly value={result.inviteUrl} className="!text-[12px] !font-mono flex-1" onFocus={(e) => e.currentTarget.select()} />
+        <Button variant="ghost" onClick={copy} className="!px-2.5" aria-label="Copy invite link">
+          {copied ? <Check size={14} /> : <Copy size={14} />}
+        </Button>
+      </div>
+      <div className="mt-2">
+        <span className="text-[11px] text-faint font-mono uppercase tracking-wider">
+          Expires in {days}d
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function SetPasswordDialog({ displayName, onConfirm, onCancel }: {
+  displayName: string;
+  onConfirm: (password: string) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [password, setPassword] = useState('');
+  const [touched, setTouched] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const passwordError = validatePassword(password);
+  const { segments, label: strengthLabel } = passwordStrength(password);
+  const segmentColor = segments <= 1 ? 'bg-red-600' : segments <= 3 ? 'bg-amber-500' : 'bg-green-700';
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTouched(true);
+    if (passwordError || saving) return;
+    setSaving(true);
+    try {
+      await onConfirm(password);
+      toast(`Temporary password set for ${displayName}`);
+      onCancel();
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to set password', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 px-4" onClick={onCancel}>
+      <div className="w-full max-w-md bg-card p-6" onClick={(e) => e.stopPropagation()}>
+        <h2 className="font-serif text-[20px] text-text">Set password</h2>
+        <p className="mt-1 text-[13px] text-mute">
+          Set a temporary password for <strong>{displayName}</strong>. They&rsquo;ll be required
+          to choose a new one the next time they sign in.
+        </p>
+        <form onSubmit={submit} className="mt-5 space-y-4">
+          <div>
+            <label htmlFor="temp-password" className="block smallcaps text-faint mb-1">Temporary password</label>
+            <Input
+              id="temp-password"
+              type="text"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onBlur={() => setTouched(true)}
+              autoFocus
+              className="w-full !font-mono"
+              placeholder="Temp#Pass1"
+            />
+            {touched && passwordError && (
+              <p className="text-[11px] text-[#E05252] mt-1">{passwordError}</p>
+            )}
+            {password.length > 0 && (
+              <div className="flex items-center gap-2 mt-2">
+                <div className="flex gap-[3px]">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div key={i} className={`h-[5px] w-[28px] ${i < segments ? segmentColor : 'bg-[var(--line-2)]'}`} />
+                  ))}
+                </div>
+                {strengthLabel && <span className="text-[12px] font-semibold text-[var(--ink-2)]">{strengthLabel}</span>}
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Setting…' : 'Set password'}</Button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

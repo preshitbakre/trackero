@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, Navigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { apiClient } from '../../api/client';
@@ -160,6 +160,13 @@ export function AppShell() {
     const match = location.pathname.match(/\/projects\/(\d+)/);
     return match ? parseInt(match[1]) : null;
   })();
+
+  // Forced-password-change gate. Once the user is loaded and still flagged,
+  // block the entire shell and route them to the set-password screen — the
+  // backend rejects every other authenticated route with 403 anyway.
+  if (user?.mustChangePassword) {
+    return <Navigate to="/set-password" replace />;
+  }
 
   // Design layout (frame 1): the Sidebar runs floor-to-ceiling and the
   // TopBar sits *to the right of* the sidebar inside the main column.

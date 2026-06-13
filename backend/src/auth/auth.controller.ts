@@ -13,6 +13,7 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { Public } from '../common/decorators/public.decorator';
+import { AllowPasswordChangePending } from '../common/decorators/allow-password-change-pending.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ResponseCode } from '../common/decorators/response-code.decorator';
 import { RegisterDto } from './dto/register.dto';
@@ -22,6 +23,7 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { SetNewPasswordDto } from './dto/set-new-password.dto';
 import { SetupDto } from './dto/setup.dto';
 import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 
@@ -89,6 +91,7 @@ export class AuthController {
 
   @Post('logout')
   @UseGuards(JwtAuthGuard)
+  @AllowPasswordChangePending()
   @HttpCode(HttpStatus.OK)
   @ResponseCode('AUTH_LOGOUT')
   async logout(@Body() dto: RefreshTokenDto) {
@@ -98,9 +101,22 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
+  @AllowPasswordChangePending()
   @ResponseCode('AUTH_PROFILE_FETCHED')
   async getProfile(@CurrentUser() user: JwtPayload) {
     return this.authService.getProfile(user.userId);
+  }
+
+  @Post('set-new-password')
+  @UseGuards(JwtAuthGuard)
+  @AllowPasswordChangePending()
+  @HttpCode(HttpStatus.OK)
+  @ResponseCode('AUTH_NEW_PASSWORD_SET')
+  async setNewPassword(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: SetNewPasswordDto,
+  ) {
+    return this.authService.setNewPassword(user.userId, dto.newPassword);
   }
 
   @Put('me')

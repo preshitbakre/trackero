@@ -4,12 +4,14 @@ const LINE_COLORS: Record<string, string> = {
   Ideal: '#ADA3BA',
   Actual: '#1A1424',
   Projection: '#7C3AED',
+  Scope: '#C4A882',
 };
 
 /**
- * Custom line layer: renders Actual as a black step line and Ideal /
- * Projection as straight dashed lines. nivo applies one curve/style to all
- * series, so we draw the paths ourselves from each point's pixel position.
+ * Custom line layer: renders Actual and Scope as step lines (they change on
+ * discrete days) and Ideal / Projection as straight dashed lines. nivo applies
+ * one curve/style to all series, so we draw the paths ourselves from each
+ * point's pixel position.
  */
 function BurndownLines({ series }: any) {
   return (
@@ -21,12 +23,21 @@ function BurndownLines({ series }: any) {
         if (pts.length === 0) return null;
         const color = LINE_COLORS[s.id] ?? '#ADA3BA';
 
-        if (s.id === 'Actual') {
+        if (s.id === 'Actual' || s.id === 'Scope') {
           let d = `M ${pts[0].x},${pts[0].y}`;
           for (let i = 1; i < pts.length; i++) {
             d += ` L ${pts[i].x},${pts[i - 1].y} L ${pts[i].x},${pts[i].y}`;
           }
-          return <path key={s.id} d={d} fill="none" stroke={color} strokeWidth={2} />;
+          return (
+            <path
+              key={s.id}
+              d={d}
+              fill="none"
+              stroke={color}
+              strokeWidth={s.id === 'Scope' ? 1.5 : 2}
+              strokeDasharray={s.id === 'Scope' ? '2 4' : undefined}
+            />
+          );
         }
 
         const d = `M ${pts.map((p) => `${p.x},${p.y}`).join(' L ')}`;
@@ -87,10 +98,17 @@ export function BurndownChart({
   const lastPoint = dataPoints[dataPoints.length - 1];
   const projectedRemaining = Math.max(0, totalPoints - projectedShip);
 
+  // Scope (total committed points) only earns a line when it actually moved —
+  // a flat scope adds noise, but a rising one explains a rising Actual.
+  const scopeMoved = dataPoints.some((p) => p.scope !== dataPoints[0]?.scope);
+
   const series: Array<{ id: string; data: Array<{ x: string; y: number }> }> = [
     { id: 'Ideal', data: dataPoints.map((p) => ({ x: p.date, y: p.ideal })) },
     { id: 'Actual', data: dataPoints.filter((p) => p.date <= today).map((p) => ({ x: p.date, y: p.actual })) },
   ];
+  if (scopeMoved) {
+    series.push({ id: 'Scope', data: dataPoints.map((p) => ({ x: p.date, y: p.scope })) });
+  }
   if (todayPoint && lastPoint && todayPoint.date !== lastPoint.date) {
     series.push({
       id: 'Projection',
@@ -161,6 +179,11 @@ export function BurndownChart({
         <span className="inline-flex items-center gap-1">
           <span className="inline-block w-3 h-0.5 border-t border-dashed border-lilac" /> Projection
         </span>
+        {scopeMoved && (
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block w-3 h-0.5 border-t border-dashed" style={{ borderColor: '#C4A882' }} /> Scope
+          </span>
+        )}
         <span className="inline-flex items-center gap-1">
           <span className="inline-block w-2 h-2 rounded-full bg-lilac" /> Today
         </span>

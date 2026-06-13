@@ -10,6 +10,8 @@ import { ResponseCode } from '../common/decorators/response-code.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 import { ChangeRoleDto } from './dto/change-role.dto';
+import { SetUserPasswordDto } from './dto/set-user-password.dto';
+import { SendInviteEmailDto } from './dto/send-invite-email.dto';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -66,12 +68,37 @@ export class UsersController {
   @Post('invite')
   @Roles('admin')
   @HttpCode(HttpStatus.CREATED)
-  @ResponseCode('INVITATION_SENT')
+  @ResponseCode('INVITATION_CREATED')
   async invite(
-    @Body() body: { email: string; role: string; projectId?: number },
+    @Body() body: { email: string; role: string; projectId?: number; sendEmail?: boolean },
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.usersService.invite(body.email, body.role, user.userId, body.projectId);
+    return this.usersService.invite(
+      body.email,
+      body.role,
+      user.userId,
+      body.projectId,
+      body.sendEmail,
+    );
+  }
+
+  @Post('invitations/send-email')
+  @Roles('admin')
+  @HttpCode(HttpStatus.OK)
+  @ResponseCode('INVITATION_EMAIL_SENT')
+  async sendInviteEmail(@Body() dto: SendInviteEmailDto) {
+    return this.usersService.sendInviteEmail(dto.token);
+  }
+
+  @Post(':id/set-password')
+  @Roles('admin')
+  @HttpCode(HttpStatus.OK)
+  @ResponseCode('USER_PASSWORD_SET')
+  async setUserPassword(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SetUserPasswordDto,
+  ) {
+    return this.usersService.setUserPassword(id, dto.newPassword);
   }
 
   // Phase 8 — bulk invite. Accepts a newline-separated string OR an array

@@ -31,6 +31,13 @@ export class EmailService {
     }
   }
 
+  /** Whether SMTP is configured (host + user + pass present). When false,
+   *  email delivery is unavailable and callers should fall back to the
+   *  manual (no-email) paths — sendEmail() itself degrades to a safe no-op. */
+  isEmailEnabled(): boolean {
+    return this.transporter !== null;
+  }
+
   async sendEmail(to: string, subject: string, html: string): Promise<void> {
     if (!this.transporter) {
       // SECURITY: never log the HTML body — invitation/password-reset bodies
@@ -137,8 +144,15 @@ export class EmailService {
 
   // --- Public send methods --------------------------------------------------
 
+  /** The registration link an invitee follows to accept their invite. Built
+   *  from APP_URL so the manual (no-email) flow surfaces the exact same link
+   *  the invitation email would contain. */
+  buildInviteUrl(token: string): string {
+    return `${this.appUrl}/register?token=${token}`;
+  }
+
   async sendInvitation(email: string, token: string, role: string): Promise<void> {
-    const registerUrl = `${this.appUrl}/register?token=${token}`;
+    const registerUrl = this.buildInviteUrl(token);
     const html = this.buildInvitationHtml(registerUrl, role);
     await this.sendEmail(email, 'You\'re invited to Trackero', html);
   }

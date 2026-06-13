@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { FileText, ListChecks, Settings2 } from 'lucide-react';
 import { apiClient } from '../api/client';
+import { getSocket } from '../lib/socket';
 import { useRole } from '../hooks/useRole';
 import { toast } from '../components/common/Toast';
 import { PageHeader } from '../components/ui/PageHeader';
@@ -102,13 +103,31 @@ export function StoryDetailPage() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
+  // Reload the story when an item is created anywhere (global create dialog,
+  // another user, etc.) so newly added tasks/subtasks appear without a manual
+  // refresh. Reloading the story rebuilds the Tasks tab rows. Mirrors the
+  // KanbanBoard / epic TicketsTab refresh pattern.
+  useEffect(() => {
+    const socket = getSocket();
+    const handleCreated = () => loadStory();
+    document.addEventListener('item-created', handleCreated);
+    socket.on('work-item:created', handleCreated);
+    return () => {
+      document.removeEventListener('item-created', handleCreated);
+      socket.off('work-item:created', handleCreated);
+    };
+  }, [loadStory]);
+
   // Build the Tasks-tab rows: top-level tasks/bugs (via belongs_to) + the
   // story's direct subtasks, then fetch each task's own subtasks to nest.
   useEffect(() => {
     if (!story || !projectId) { setTopLevel([]); setSubtasksByParent(new Map()); return; }
     let cancelled = false;
     (async () => {
-      const tl: TaskRow[] = [
+      // An item can reach the story two ways at once — a `belongs_to`
+      // association (surfaced as `contains`) AND a `parent_id` (surfaced as
+      // `children`). Merge both sources but dedupe by id so it renders once.
+      const rawRows: TaskRow[] = [
         ...story.associations.contains.map((a) => ({
           id: a.item.id,
           itemKey: a.item.itemKey,
@@ -130,6 +149,8 @@ export function StoryDetailPage() {
           isSubtask: true,
         })),
       ];
+      const seen = new Set<number>();
+      const tl: TaskRow[] = rawRows.filter((r) => (seen.has(r.id) ? false : seen.add(r.id)));
       const byParent = new Map<number, TaskRow[]>();
       const tasks = tl.filter((r) => r.itemType === 'task');
       await Promise.all(tasks.map(async (t) => {

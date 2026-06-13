@@ -173,11 +173,12 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
     apiClient.get(`/projects/${projectId}/sprints?limit=100`).then((r) => {
       const list = (r.data.data.list || []).filter((s: any) => s.status === 'active' || s.status === 'planning');
       setSprints(list);
-      // When the URL doesn't pin a sprint, default to the active sprint (if any).
-      // Falls back to "All sprints" when no active sprint exists.
+      // When the URL doesn't pin a sprint, default to the active sprint, then
+      // the first available sprint, then the backlog — never an empty value
+      // (the "All sprints"/"All items" options were removed).
       if (!sprintDefaultApplied) {
         const active = list.find((s: any) => s.status === 'active');
-        if (active) setSprintId(String(active.id));
+        setSprintId(active ? String(active.id) : list[0] ? String(list[0].id) : 'backlog');
         setSprintDefaultApplied(true);
       }
     }).catch((err) => { console.error(err); });
@@ -408,8 +409,6 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
           value={sprintId}
           onChange={setSprintId}
           options={[
-            { value: '', label: 'All sprints' },
-            { value: 'all', label: 'All items' },
             { value: 'backlog', label: 'Backlog' },
             ...sprints.map((s) => ({ value: String(s.id), label: `${s.name} (${s.status})` })),
           ]}
@@ -584,7 +583,6 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
           projectId={parseInt(projectId)}
           onClose={() => setShowCreateDialog(false)}
           onCreated={() => { loadBoard(); }}
-          excludeTypes={['epic']}
         />
       )}
     </div>

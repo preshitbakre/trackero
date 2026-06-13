@@ -61,8 +61,6 @@ export class Baseline1780382923512 implements MigrationInterface {
         await queryRunner.query(`CREATE TABLE "integration_deliveries" ("id" BIGSERIAL NOT NULL, "integration_id" bigint NOT NULL, "event_type" character varying(40) NOT NULL, "payload" jsonb NOT NULL, "status" character varying(20) NOT NULL DEFAULT 'pending', "http_status" integer, "attempts" integer NOT NULL DEFAULT '0', "next_attempt_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(), "delivered_at" TIMESTAMP WITH TIME ZONE, "last_error" text, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_d8ccb7a6e471cdb4ec5a3972ed6" PRIMARY KEY ("id"))`);
         await queryRunner.query(`CREATE INDEX "IDX_deliveries_integration" ON "integration_deliveries" ("integration_id", "created_at") `);
         await queryRunner.query(`CREATE INDEX "IDX_deliveries_pickup" ON "integration_deliveries" ("next_attempt_at") `);
-        await queryRunner.query(`CREATE TABLE "epic_milestones" ("id" SERIAL NOT NULL, "project_id" integer NOT NULL, "epic_id" integer NOT NULL, "author_id" integer, "kind" character varying(16) NOT NULL DEFAULT 'note', "body" text NOT NULL, "occurred_on" date NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_2b8bcca355d7c8f8546bb9f0773" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_epic_milestone_epic" ON "epic_milestones" ("epic_id", "occurred_on") `);
         await queryRunner.query(`CREATE TABLE "comment_reactions" ("id" BIGSERIAL NOT NULL, "comment_id" integer NOT NULL, "user_id" integer NOT NULL, "emoji" character varying(8) NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_d10c03282d5280fe55f0bb67563" PRIMARY KEY ("id"))`);
         await queryRunner.query(`CREATE INDEX "IDX_comment_reactions_comment" ON "comment_reactions" ("comment_id") `);
         await queryRunner.query(`CREATE UNIQUE INDEX "UQ_comment_reactions" ON "comment_reactions" ("comment_id", "user_id", "emoji") `);
@@ -127,8 +125,6 @@ export class Baseline1780382923512 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE "project_integrations" ADD CONSTRAINT "FK_b4dbc08660e1c1fb75911d9448e" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
         await queryRunner.query(`ALTER TABLE "project_integrations" ADD CONSTRAINT "FK_7d330f76da76fd961341c597b11" FOREIGN KEY ("created_by") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE NO ACTION`);
         await queryRunner.query(`ALTER TABLE "integration_deliveries" ADD CONSTRAINT "FK_b966bceaaa1eb5c17c6bcfd8388" FOREIGN KEY ("integration_id") REFERENCES "project_integrations"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "epic_milestones" ADD CONSTRAINT "FK_546ee71af02261eb3e155560b20" FOREIGN KEY ("epic_id") REFERENCES "work_items"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "epic_milestones" ADD CONSTRAINT "FK_13b795649671995ced4451b2d24" FOREIGN KEY ("author_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE NO ACTION`);
         await queryRunner.query(`ALTER TABLE "comment_reactions" ADD CONSTRAINT "FK_dc714054fc62b698018fcb0ae37" FOREIGN KEY ("comment_id") REFERENCES "comments"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
         await queryRunner.query(`ALTER TABLE "comment_reactions" ADD CONSTRAINT "FK_481c40600b2ee590adb27abb0e6" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
         await queryRunner.query(`ALTER TABLE "comment_mentions" ADD CONSTRAINT "FK_9ac3fac766fa09176e5c53e4d3f" FOREIGN KEY ("comment_id") REFERENCES "comments"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
@@ -172,8 +168,6 @@ export class Baseline1780382923512 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE "comment_mentions" DROP CONSTRAINT "FK_9ac3fac766fa09176e5c53e4d3f"`);
         await queryRunner.query(`ALTER TABLE "comment_reactions" DROP CONSTRAINT "FK_481c40600b2ee590adb27abb0e6"`);
         await queryRunner.query(`ALTER TABLE "comment_reactions" DROP CONSTRAINT "FK_dc714054fc62b698018fcb0ae37"`);
-        await queryRunner.query(`ALTER TABLE "epic_milestones" DROP CONSTRAINT "FK_13b795649671995ced4451b2d24"`);
-        await queryRunner.query(`ALTER TABLE "epic_milestones" DROP CONSTRAINT "FK_546ee71af02261eb3e155560b20"`);
         await queryRunner.query(`ALTER TABLE "integration_deliveries" DROP CONSTRAINT "FK_b966bceaaa1eb5c17c6bcfd8388"`);
         await queryRunner.query(`ALTER TABLE "project_integrations" DROP CONSTRAINT "FK_7d330f76da76fd961341c597b11"`);
         await queryRunner.query(`ALTER TABLE "project_integrations" DROP CONSTRAINT "FK_b4dbc08660e1c1fb75911d9448e"`);
@@ -234,8 +228,6 @@ export class Baseline1780382923512 implements MigrationInterface {
         await queryRunner.query(`DROP INDEX "public"."UQ_comment_reactions"`);
         await queryRunner.query(`DROP INDEX "public"."IDX_comment_reactions_comment"`);
         await queryRunner.query(`DROP TABLE "comment_reactions"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_epic_milestone_epic"`);
-        await queryRunner.query(`DROP TABLE "epic_milestones"`);
         await queryRunner.query(`DROP INDEX "public"."IDX_deliveries_pickup"`);
         await queryRunner.query(`DROP INDEX "public"."IDX_deliveries_integration"`);
         await queryRunner.query(`DROP TABLE "integration_deliveries"`);

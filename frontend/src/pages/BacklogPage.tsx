@@ -60,8 +60,6 @@ function SortableTaskRow({ task, selected, highlighted, onSelect, onClick, subta
     transform: transform && !isDragging ? `translate3d(0, ${transform.y}px, 0)` : undefined,
     transition,
     opacity: isDragging ? 0.4 : undefined,
-    borderLeftColor: PRIORITY_BORDER_COLORS[task.priority] || PRIORITY_BORDER_COLORS.none,
-    borderLeftWidth: 4,
   };
   const badge = PRIORITY_BADGE_COLORS[task.priority];
 
@@ -128,12 +126,16 @@ function SortableTaskRow({ task, selected, highlighted, onSelect, onClick, subta
         <LabelList labels={task.labels || []} max={2} />
       </div>
 
-      {/* Priority — dot + label */}
+      {/* Priority — solid pill in the priority colour with white uppercase text */}
       {badge ? (
-        <div className="flex items-center gap-1.5 flex-shrink-0 w-[70px]">
-          <span className="w-1.5 h-1.5 rounded-full" style={{ background: badge.color }} />
-          <span className="text-[12px] text-mute">{task.priority.toLowerCase()}</span>
-        </div>
+        <span className="w-[70px] flex-shrink-0 flex">
+          <span
+            className="inline-flex items-center px-2 py-0.5 rounded-[2px] text-[10px] font-semibold uppercase tracking-[0.06em] text-white"
+            style={{ backgroundColor: PRIORITY_BORDER_COLORS[task.priority] }}
+          >
+            {task.priority}
+          </span>
+        </span>
       ) : (
         <span className="w-[70px] flex-shrink-0 text-[12px] text-faint">—</span>
       )}
@@ -457,16 +459,6 @@ export function BacklogPage() {
           </div>
         )}
 
-        {/* "Unsorted" group header — wraps all ungrouped backlog items. Full
-            epic-grouping is a follow-up that needs association data joined
-            in on the backend; until then everything lives under Unsorted. */}
-        {parentTasks.length > 0 && (
-          <div className="flex items-center gap-2 px-4 py-2 border-b border-rule">
-            <span className="font-serif italic text-[16px] text-text">Unsorted</span>
-            <span className="text-faint text-[13px]">· {parentTasks.length} items</span>
-          </div>
-        )}
-
         <SortableContext items={parentTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           <div>
             {parentTasks.map((task) => {
@@ -515,10 +507,14 @@ export function BacklogPage() {
                             </span>
                             <span onClick={() => selectTask(st.id)} className="flex-1 min-w-0 text-[13px] text-text truncate cursor-pointer hover:text-lilac-dark">{st.title}</span>
                             {stBadge ? (
-                              <div className="flex items-center gap-1.5 flex-shrink-0 w-[70px]">
-                                <span className="w-1.5 h-1.5 rounded-full" style={{ background: stBadge.color }} />
-                                <span className="text-[11px] text-mute">{st.priority.toLowerCase()}</span>
-                              </div>
+                              <span className="w-[70px] flex-shrink-0 flex">
+                                <span
+                                  className="inline-flex items-center px-2 py-0.5 rounded-[2px] text-[10px] font-semibold uppercase tracking-[0.06em] text-white"
+                                  style={{ backgroundColor: PRIORITY_BORDER_COLORS[st.priority] }}
+                                >
+                                  {st.priority}
+                                </span>
+                              </span>
                             ) : (
                               <span className="w-[70px] flex-shrink-0 text-[11px] text-faint">—</span>
                             )}
@@ -561,8 +557,7 @@ export function BacklogPage() {
 
     <DragOverlay dropAnimation={null}>
       {activeTask && (
-        <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-white shadow-xl opacity-90"
-             style={{ borderLeft: `3px solid ${PRIORITY_BORDER_COLORS[activeTask.priority] || PRIORITY_BORDER_COLORS.none}` }}>
+        <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-white shadow-xl opacity-90">
           <span className="text-[14px] font-mono text-neutral-400">#{activeTask.itemNumber}</span>
           <span className="text-[16px] text-neutral-700 truncate">{activeTask.title}</span>
           {activeTask.storyPoints != null && activeTask.storyPoints > 0 && (
@@ -584,7 +579,6 @@ export function BacklogPage() {
             onClose={() => setShowCreate(false)}
             onCreated={handleCreated}
             bare
-            excludeTypes={['epic']}
           />
         ) : selectedTaskId && projectId ? (
           <TaskDetailPanel

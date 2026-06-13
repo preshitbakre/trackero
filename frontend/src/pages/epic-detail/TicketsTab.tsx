@@ -1,13 +1,20 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Filter, Search, X } from 'lucide-react';
-import type { EpicChildrenGroups } from '../../api/epics';
+import { Search, X, ChevronDown } from 'lucide-react';
+import type { EpicChildItem } from '../../api/epics';
 import { getEpicChildren } from '../../api/epics';
 import { apiClient } from '../../api/client';
+import { getSocket } from '../../lib/socket';
+import { useAuthStore } from '../../store/auth.store';
+import { PRIORITY_BADGE_COLORS, PRIORITY_BORDER_COLORS } from '../../lib/colors';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { TypeTag } from '../../components/ui/TypeTag';
-import { EpicChildRow } from '../../components/epics/EpicChildRow';
+import type { TypeTagKind } from '../../components/ui/TypeTag';
+import { Avatar } from '../../components/ui/Avatar';
+import { LabelList } from '../../components/ui/LabelBadge';
+import { RowStatusSelect } from '../../components/epics/RowStatusSelect';
+import type { StatusOption } from '../../components/epics/RowStatusSelect';
 import { toast } from '../../components/common/Toast';
 
 const LINK_OPTIONS = [
@@ -17,18 +24,6 @@ const LINK_OPTIONS = [
   { value: 'blocks', label: 'Blocks' },
   { value: 'blocked_by', label: 'Blocked by' },
   { value: 'caused_by', label: 'Caused by' },
-];
-
-const GROUP_DOT: Record<string, string> = {
-  in_progress: '#D6B588',
-  in_review: '#D688D0',
-  open: '#A8A1B5',
-  done: '#88D68E',
-};
-
-const GROUP_OPTIONS: { value: 'status' | 'sprint'; label: string }[] = [
-  { value: 'status', label: 'By status' },
-  { value: 'sprint', label: 'By sprint' },
 ];
 
 interface SearchItem {
@@ -52,10 +47,10 @@ interface Props {
 }
 
 export function TicketsTab({ epicId, projectId, canEdit, onOpenChild, reloadKey, onLinked }: Props) {
-  const [groupBy, setGroupBy] = useState<'status' | 'sprint'>('status');
-  const [data, setData] = useState<EpicChildrenGroups | null>(null);
-  const [filterOpen, setFilterOpen] = useState(false);
-  const filterRef = useRef<HTMLDivElement>(null);
+  const [items, setItems] = useState<EpicChildItem[]>([]);
+  const [totals, setTotals] = useState<{ totalItems: number; totalPoints: number }>({ totalItems: 0, totalPoints: 0 });
+  const [statuses, setStatuses] = useState<StatusOption[]>([]);
+  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
 
   const [showLinkPicker, setShowLinkPicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -67,30 +62,68 @@ export function TicketsTab({ epicId, projectId, canEdit, onOpenChild, reloadKey,
   const searchSeqRef = useRef(0);
 
   const load = useCallback(() => {
-    getEpicChildren(projectId, epicId, groupBy).then(setData).catch(() => {});
-  }, [projectId, epicId, groupBy]);
+    getEpicChildren(projectId, epicId, 'none')
+      .then((data) => {
+        setItems(data.groups[0]?.items ?? []);
+        setTotals({ totalItems: data.totalItems, totalPoints: data.totalPoints });
+      })
+      .catch(() => {});
+  }, [projectId, epicId]);
 
   useEffect(() => {
     load();
   }, [load, reloadKey]);
 
+  // Project statuses for the inline dropdown — these are the board-settings
+  // statuses (project_statuses) with their real colours, ordered by sortOrder.
   useEffect(() => {
-    if (!filterOpen) return;
-    const onClickOutside = (e: MouseEvent) => {
-      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
-        setFilterOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
-  }, [filterOpen]);
+    apiClient
+      .get(`/projects/${projectId}/statuses`)
+      .then((res) => {
+        const list = res.data.data?.list || res.data.data || [];
+        setStatuses(list.map((s: any) => ({ id: s.id, name: s.name, color: s.color })));
+      })
+      .catch(() => {});
+  }, [projectId]);
 
-  const existingChildIds = new Set<number>();
-  if (data) {
-    for (const g of data.groups) {
-      for (const item of g.items) existingChildIds.add(item.id);
-    }
-  }
+  // Live sync — reload when a listed item changes elsewhere (board drag or
+  // another user's edit). Same pattern as TaskDetailPanel.
+  useEffect(() => {
+    const socket = getSocket();
+    const currentUserId = useAuthStore.getState().user?.id;
+    const inList = (id: number) => items.some((it) => it.id === id);
+
+    const handleMoved = (data: { itemId: number; actorId?: number }) => {
+      if (data.actorId === currentUserId) return;
+      if (inList(data.itemId)) load();
+    };
+    const handleUpdated = (data: { itemId: number }) => {
+      if (inList(data.itemId)) load();
+    };
+
+    socket.on('board:moved', handleMoved);
+    socket.on('work-item:updated', handleUpdated);
+    return () => {
+      socket.off('board:moved', handleMoved);
+      socket.off('work-item:updated', handleUpdated);
+    };
+  }, [items, load]);
+
+  // Reload when an item is created anywhere (global create dialog, another
+  // user, etc.). The children query is epic-scoped, so a creation that isn't
+  // part of this epic just no-ops. Mirrors the KanbanBoard refresh pattern.
+  useEffect(() => {
+    const socket = getSocket();
+    const handleCreated = () => load();
+    document.addEventListener('item-created', handleCreated);
+    socket.on('work-item:created', handleCreated);
+    return () => {
+      document.removeEventListener('item-created', handleCreated);
+      socket.off('work-item:created', handleCreated);
+    };
+  }, [load]);
+
+  const existingChildIds = new Set<number>(items.map((it) => it.id));
 
   const runSearch = useCallback(async (q: string) => {
     const seq = ++searchSeqRef.current;
@@ -131,6 +164,14 @@ export function TicketsTab({ epicId, projectId, canEdit, onOpenChild, reloadKey,
     });
   };
 
+  const toggleCollapse = (id: number) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
   const handleLinkSelected = async () => {
     if (selectedLinkIds.size === 0) return;
     setLinking(true);
@@ -164,50 +205,131 @@ export function TicketsTab({ epicId, projectId, canEdit, onOpenChild, reloadKey,
     setLinking(false);
   };
 
-  const filterLabel = GROUP_OPTIONS.find((o) => o.value === groupBy)?.label ?? 'By status';
+  const handleStatusChange = async (itemId: number, statusId: number) => {
+    const newStatus = statuses.find((s) => s.id === statusId);
+    if (!newStatus) return;
+    const prev = items;
+    // Optimistic update.
+    setItems((cur) =>
+      cur.map((it) =>
+        it.id === itemId
+          ? { ...it, status: { ...it.status, id: newStatus.id, name: newStatus.name, color: newStatus.color } }
+          : it,
+      ),
+    );
+    try {
+      await apiClient.put(`/projects/${projectId}/items/${itemId}`, { statusId });
+      load();
+    } catch (err: any) {
+      setItems(prev);
+      toast(err.response?.data?.message || 'Failed to update status', 'error');
+    }
+  };
+
+  // Top-level rows = everything that isn't a subtask; subtasks nest one level
+  // under their parent. Subtasks whose parent isn't in the list fall back to
+  // top level so they're never hidden.
+  const subtasksByParent = new Map<number, EpicChildItem[]>();
+  for (const it of items) {
+    if (it.itemType === 'subtask' && it.parentId != null && existingChildIds.has(it.parentId)) {
+      if (!subtasksByParent.has(it.parentId)) subtasksByParent.set(it.parentId, []);
+      subtasksByParent.get(it.parentId)!.push(it);
+    }
+  }
+  const topLevel = items.filter(
+    (it) => !(it.itemType === 'subtask' && it.parentId != null && existingChildIds.has(it.parentId)),
+  );
+
+  const renderRow = (item: EpicChildItem, opts: { nested: boolean; hasSubs?: boolean; isCollapsed?: boolean }) => {
+    const { nested, hasSubs, isCollapsed } = opts;
+    const badge = PRIORITY_BADGE_COLORS[item.priority];
+    return (
+      <div
+        key={item.id}
+        role="button"
+        tabIndex={0}
+        onClick={() => onOpenChild(item.id)}
+        onKeyDown={(e) => { if (e.key === 'Enter') onOpenChild(item.id); }}
+        className="flex items-center gap-3 px-4 py-2 border-b border-rule transition-colors cursor-pointer hover:bg-paper/50"
+      >
+        {/* Leading cell — fixed width (chevron/connector + type tag). Subtasks
+            indent the type tag inside this cell so the start reads as nested,
+            while ID / Title / right columns stay column-aligned for every row. */}
+        <div className="flex items-center flex-shrink-0" style={{ width: 56 }}>
+          {nested && <span className="flex-shrink-0" style={{ width: 18 }} />}
+          <span className="w-[16px] flex-shrink-0 flex items-center justify-center">
+            {nested ? (
+              <span className="text-faint text-[12px] leading-none">└</span>
+            ) : hasSubs ? (
+              <button
+                onClick={(e) => { e.stopPropagation(); toggleCollapse(item.id); }}
+                className="text-faint hover:text-text flex items-center"
+                aria-label={isCollapsed ? 'Expand subtasks' : 'Collapse subtasks'}
+              >
+                <ChevronDown size={12} className={`transition-transform duration-150 ${isCollapsed ? '-rotate-90' : ''}`} />
+              </button>
+            ) : null}
+          </span>
+          <span className="flex items-center">
+            <TypeTag kind={(item.itemType || 'task') as TypeTagKind} size="sm" />
+          </span>
+        </div>
+
+        <span className="text-[12px] font-mono text-faint flex-shrink-0 w-[90px]">{item.itemKey}</span>
+
+        <span className="flex-1 min-w-0 text-[14px] text-text truncate">{item.title}</span>
+
+        <div className="flex-shrink-0 w-[140px] min-w-0">
+          <LabelList labels={item.labels || []} max={2} />
+        </div>
+
+        {/* Priority — solid pill in the priority colour with white uppercase
+            text (matches StatusPill's solid treatment). Shown for subtasks too. */}
+        {badge ? (
+          <span className="w-[70px] flex-shrink-0 flex">
+            <span
+              className="inline-flex items-center px-2 py-0.5 rounded-[2px] text-[10px] font-semibold uppercase tracking-[0.06em] text-white"
+              style={{ backgroundColor: PRIORITY_BORDER_COLORS[item.priority] }}
+            >
+              {item.priority}
+            </span>
+          </span>
+        ) : (
+          <span className="w-[70px] flex-shrink-0 text-[12px] text-faint">—</span>
+        )}
+
+        {/* Status — editable dropdown with board colours */}
+        <span className="w-[150px] flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+          <RowStatusSelect
+            value={item.status.id}
+            options={statuses}
+            onChange={(sid) => handleStatusChange(item.id, sid)}
+            disabled={!canEdit || statuses.length === 0}
+          />
+        </span>
+
+        <span className="text-[13px] tabular-nums text-text w-[40px] text-right flex-shrink-0">
+          {item.storyPoints != null && item.storyPoints > 0 ? item.storyPoints : '—'}
+        </span>
+
+        <div className="flex-shrink-0 w-[50px] flex justify-center" title={item.assignee?.displayName}>
+          {item.assignee ? <Avatar user={item.assignee} size="xs" /> : <span className="text-faint text-[13px]">—</span>}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
         <p className="text-[20px] text-text font-serif italic">
-          Tickets <span className="text-mute font-sans not-italic text-[14px]">· {data?.totalItems ?? 0} items · {data?.totalPoints ?? 0} pts total</span>
+          Tickets <span className="text-mute font-sans not-italic text-[14px]">· {totals.totalItems} items · {totals.totalPoints} pts total</span>
         </p>
-        <div className="flex items-center gap-2">
-          <div ref={filterRef} className="relative">
-            <button
-              type="button"
-              onClick={() => setFilterOpen((v) => !v)}
-              className={`btn-ghost inline-flex items-center gap-2 ${filterOpen ? 'bg-shade' : ''}`}
-            >
-              <Filter size={14} aria-hidden />
-              {filterLabel}
-            </button>
-            {filterOpen && (
-              <div className="absolute right-0 top-full mt-1 bg-card shadow-[0_4px_14px_rgba(0,0,0,0.10)] border border-rule min-w-[160px] z-10 py-1">
-                {GROUP_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => {
-                      setGroupBy(opt.value);
-                      setFilterOpen(false);
-                    }}
-                    className={`block w-full text-left px-3 py-1.5 text-[13px] hover:bg-shade ${
-                      groupBy === opt.value ? 'bg-shade font-medium' : ''
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          {canEdit && (
-            <Button variant="ink" onClick={() => setShowLinkPicker(true)} className="inline-flex items-center gap-2">
-              + Link tickets
-            </Button>
-          )}
-        </div>
+        {canEdit && (
+          <Button variant="ink" onClick={() => setShowLinkPicker(true)} className="inline-flex items-center gap-2">
+            + Link tickets
+          </Button>
+        )}
       </div>
 
       {/* Link picker panel */}
@@ -286,23 +408,33 @@ export function TicketsTab({ epicId, projectId, canEdit, onOpenChild, reloadKey,
         </div>
       )}
 
-      {data && data.groups.length > 0 ? (
-        <div className="bg-card border-y border-rule">
-          {data.groups.map((g) => (
-            <div key={g.key}>
-              <div className="flex items-center gap-2 px-4 py-2.5 bg-paper-2 text-[12px] tracking-[0.1em] uppercase text-faint">
-                {GROUP_DOT[g.key] && (
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: GROUP_DOT[g.key] }} />
-                )}
-                <span>{g.label}</span>
-                <span>{g.count}</span>
-                <span className="ml-auto normal-case tracking-normal">{g.points} pts</span>
+      {topLevel.length > 0 ? (
+        <div>
+          {/* Column header — widths mirror the rows below */}
+          <div
+            className="flex items-center gap-3 px-4 h-[26px] border-b border-rule-2 text-mute text-[10px] font-semibold tracking-[0.1em] uppercase"
+            role="row"
+          >
+            <span className="flex-shrink-0" style={{ width: 56 }} />{/* chevron + type tag */}
+            <span className="w-[90px] flex-shrink-0" role="columnheader">ID</span>
+            <span className="flex-1 min-w-0" role="columnheader">Title</span>
+            <span className="w-[140px] flex-shrink-0" role="columnheader">Labels</span>
+            <span className="w-[70px] flex-shrink-0" role="columnheader">Priority</span>
+            <span className="w-[150px] flex-shrink-0" role="columnheader">Status</span>
+            <span className="w-[40px] flex-shrink-0 text-right" role="columnheader">Pts</span>
+            <span className="w-[50px] flex-shrink-0 text-center" role="columnheader">Owner</span>
+          </div>
+
+          {topLevel.map((item) => {
+            const subs = subtasksByParent.get(item.id) ?? [];
+            const isCollapsed = collapsed.has(item.id);
+            return (
+              <div key={item.id}>
+                {renderRow(item, { nested: false, hasSubs: subs.length > 0, isCollapsed })}
+                {subs.length > 0 && !isCollapsed && subs.map((sub) => renderRow(sub, { nested: true }))}
               </div>
-              {g.items.map((it) => (
-                <EpicChildRow key={it.id} item={it} onClick={onOpenChild} />
-              ))}
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <p className="text-[14px] text-faint py-10 text-center">No tickets linked to this epic yet.</p>

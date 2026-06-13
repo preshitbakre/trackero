@@ -40,7 +40,7 @@ We built it in two weeks to prove a point: that a small studio with the right en
 - **Burndown and velocity charts** with cumulative flow diagrams
 
 ### Work Item Hierarchy
-- **Epics** with 7 display states, milestone tracking, and progress rollup
+- **Epics** with 7 display states and progress rollup
 - **Stories** with acceptance criteria, approval workflows, and epic grouping
 - **Tasks and bugs** with checklists, subtasks, and point estimation (Fibonacci)
 - **Associations** — belongs_to, relates_to, blocks, caused_by — with virtual reciprocals and cycle detection
@@ -220,7 +220,7 @@ trackero/
 │   │   ├── auth/            JWT auth, setup wizard, password reset
 │   │   ├── users/           User management, invitations
 │   │   ├── projects/        Projects, members, statuses, labels
-│   │   ├── epics/           Epic lifecycle with milestones
+│   │   ├── epics/           Epic lifecycle
 │   │   ├── sprints/         Sprint planning, scope tracking, auto-retro
 │   │   ├── tasks/           Work items, subtasks, checklists, watchers
 │   │   ├── board/           Kanban with lexorank ordering

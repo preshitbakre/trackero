@@ -15,15 +15,13 @@ import { TaskDetailPanel } from '../components/tasks/TaskDetailPanel';
 import { toast } from '../components/common/Toast';
 import { OverviewTab } from './epic-detail/OverviewTab';
 import { TicketsTab } from './epic-detail/TicketsTab';
-import { TimelineTab } from './epic-detail/TimelineTab';
 import { SettingsTab } from './epic-detail/SettingsTab';
 import { EpicSidebar } from './epic-detail/EpicSidebar';
 import { EpicIdentitySidebar } from './epic-detail/EpicIdentitySidebar';
 import OverviewIcon from '../assets/icons/overview.svg?react';
-import TimelineIcon from '../assets/icons/timeline.svg?react';
 import SettingsIcon from '../assets/icons/settings.svg?react';
 
-type TabKey = 'overview' | 'tickets' | 'timeline' | 'settings';
+type TabKey = 'overview' | 'tickets' | 'settings';
 
 export function EpicDetailPage() {
   const { id: projectId, epicId } = useParams();
@@ -153,7 +151,6 @@ export function EpicDetailPage() {
         tabs={[
           { key: 'overview', label: 'Overview', icon: <OverviewIcon className="w-[14px] h-[14px]" /> },
           { key: 'tickets', label: 'Tickets', icon: <TypeTag kind="task" size="xs" />, badge: childCount },
-          { key: 'timeline', label: 'Timeline', icon: <TimelineIcon className="w-[14px] h-[14px]" /> },
           { key: 'settings', label: 'Settings', icon: <SettingsIcon className="w-[14px] h-[14px]" /> },
         ]}
       />
@@ -163,11 +160,7 @@ export function EpicDetailPage() {
           {tab === 'overview' && (
             <OverviewTab
               epic={epic}
-              projectId={projectId!}
               onUpdateStatus={() => setTab('settings')}
-              onOpenChild={setSelectedTaskId}
-              onSeeAll={() => setTab('tickets')}
-              reloadKey={reloadKey}
             />
           )}
           {tab === 'tickets' && (
@@ -181,7 +174,6 @@ export function EpicDetailPage() {
               onLinked={reload}
             />
           )}
-          {tab === 'timeline' && <TimelineTab epic={epic} projectId={projectId!} canEdit={canEdit} />}
           {tab === 'settings' && (
             <SettingsTab
               epic={epic}

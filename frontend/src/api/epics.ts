@@ -126,6 +126,7 @@ export interface EpicChildItem {
   priority: string;
   storyPoints: number | null;
   sprintId: number | null;
+  parentId: number | null;
   status: { id: number; name: string; category: string; color: string };
   assignee: EpicUser | null;
   labels: EpicLabel[];
@@ -136,15 +137,6 @@ export interface EpicChildrenGroups {
   totalItems: number;
   totalPoints: number;
   groups: { key: string; label: string; count: number; points: number; items: EpicChildItem[] }[];
-}
-
-export interface EpicMilestone {
-  id: number;
-  kind: 'note' | 'risk' | 'target' | 'shipped' | 'kickoff';
-  body: string;
-  occurredOn: string;
-  author: EpicUser | null;
-  synthesized: boolean;
 }
 
 const base = (projectId: number | string) => `/projects/${projectId}/epics`;
@@ -170,7 +162,7 @@ export async function getEpic(projectId: number | string, epicId: number | strin
 export async function getEpicChildren(
   projectId: number | string,
   epicId: number | string,
-  groupBy: 'status' | 'sprint' = 'status',
+  groupBy: 'status' | 'sprint' | 'none' = 'status',
 ): Promise<EpicChildrenGroups> {
   const { data } = await apiClient.get(`${base(projectId)}/${epicId}/children`, { params: { groupBy } });
   return data.data;
@@ -197,40 +189,6 @@ export async function getEpicRecent(
   return data.data ?? [];
 }
 
-export async function getEpicMilestones(
-  projectId: number | string,
-  epicId: number | string,
-): Promise<EpicMilestone[]> {
-  const { data } = await apiClient.get(`${base(projectId)}/${epicId}/milestones`);
-  return data.data ?? [];
-}
-
-export async function createEpicMilestone(
-  projectId: number | string,
-  epicId: number | string,
-  body: { kind: string; body: string; occurredOn: string },
-) {
-  const { data } = await apiClient.post(`${base(projectId)}/${epicId}/milestones`, body);
-  return data.data;
-}
-
-export async function updateEpicMilestone(
-  projectId: number | string,
-  epicId: number | string,
-  milestoneId: number,
-  body: { kind?: string; body?: string; occurredOn?: string },
-) {
-  const { data } = await apiClient.patch(`${base(projectId)}/${epicId}/milestones/${milestoneId}`, body);
-  return data.data;
-}
-
-export async function deleteEpicMilestone(
-  projectId: number | string,
-  epicId: number | string,
-  milestoneId: number,
-) {
-  await apiClient.delete(`${base(projectId)}/${epicId}/milestones/${milestoneId}`);
-}
 
 export interface UpdateEpicBody {
   title?: string;

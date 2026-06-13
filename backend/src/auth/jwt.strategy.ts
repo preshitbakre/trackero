@@ -23,6 +23,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user) {
       throw new UnauthorizedException();
     }
-    return payload;
+    // Surface the live must-change-password flag (read fresh from the DB on
+    // every request) so the password-change gate reflects the current state
+    // even if an admin set it after this token was issued.
+    return { ...payload, mustChangePassword: user.mustChangePassword };
   }
 }

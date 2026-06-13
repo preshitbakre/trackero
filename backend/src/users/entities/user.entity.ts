@@ -41,6 +41,9 @@ export class User {
   @Column({ name: 'password_reset_expires', type: 'timestamptz', nullable: true, select: false })
   passwordResetExpires: Date | null;
 
+  @Column({ name: 'must_change_password', type: 'boolean', default: false })
+  mustChangePassword: boolean;
+
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 

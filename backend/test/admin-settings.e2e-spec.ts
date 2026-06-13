@@ -159,14 +159,14 @@ describe('Admin, Settings & Invitations (e2e)', () => {
   });
 
   describe('Invite Flow', () => {
-    it('sends invitation -> 201', async () => {
+    it('creates invitation -> 201', async () => {
       const res = await request(app.getHttpServer())
         .post('/api/users/invite')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ email: 'newuser@test.com', role: 'member' })
         .expect(201);
 
-      expect(res.body.code).toBe('S-0013');
+      expect(res.body.code).toBe('S-0016');
       expect(res.body.data.item.email).toBe('newuser@test.com');
       expect(res.body.data.item.status).toBe('pending');
     });

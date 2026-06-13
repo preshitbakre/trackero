@@ -26,6 +26,7 @@ import { ProjectsPage } from './pages/ProjectsPage';
 import { SetupWizardPage } from './pages/SetupWizardPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { SetPasswordPage } from './pages/SetPasswordPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AdminRoute } from './components/AdminRoute';
 import { AppShell } from './components/layout/AppShell';
@@ -40,6 +41,7 @@ export function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/set-password" element={<SetPasswordPage />} />
           <Route path="/setup" element={<Navigate to="/setup/1" replace />} />
           <Route path="/setup/:step" element={<SetupWizardPage />} />
           <Route

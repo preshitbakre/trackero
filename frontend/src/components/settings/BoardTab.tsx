@@ -10,7 +10,7 @@ import { toast } from '../common/Toast';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import DragHandleDots from '@/assets/icons/drag-handle.svg?react';
-import EllipsisDots from '@/assets/icons/ellipsis.svg?react';
+import { Tags, Trash2 } from 'lucide-react';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { Modal } from '../common/Modal';
 import { Button } from '../ui/Button';
@@ -25,6 +25,7 @@ interface Status {
   sortOrder: number;
   isDefault: boolean;
   wipLimit: number;
+  isFixed: boolean;
 }
 
 const PRESET_COLORS = [
@@ -105,7 +106,7 @@ function SortableStatusRow({ status, onUpdate, onDelete, onSaveWip }: {
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(status.name);
   const [wipVal, setWipVal] = useState(String(status.wipLimit || 0));
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [catOpen, setCatOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -113,13 +114,13 @@ function SortableStatusRow({ status, onUpdate, onDelete, onSaveWip }: {
   }, [status.wipLimit]);
 
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!catOpen) return;
     const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setCatOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [menuOpen]);
+  }, [catOpen]);
 
   const handleSaveName = () => {
     if (editName.trim() && editName !== status.name) {
@@ -134,7 +135,7 @@ function SortableStatusRow({ status, onUpdate, onDelete, onSaveWip }: {
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="grid grid-cols-[20px_16px_1fr_auto_auto_28px] gap-3 items-center py-3 border-b border-rule last:border-b-0">
+    <div ref={setNodeRef} style={style} className="grid grid-cols-[20px_16px_1fr_auto_64px] gap-3 items-center py-3 border-b border-rule last:border-b-0">
       <span {...listeners} {...attributes} className="cursor-grab text-faint hover:text-mute text-[12px] flex-shrink-0 flex items-center justify-center">
         <DragHandleDots width={8} height={14} aria-hidden />
       </span>
@@ -170,28 +171,42 @@ function SortableStatusRow({ status, onUpdate, onDelete, onSaveWip }: {
         />
       </div>
 
-      <div className="relative" ref={menuRef}>
-        <button
-          onClick={() => setMenuOpen((v) => !v)}
-          className="w-7 h-7 flex items-center justify-center rounded hover:bg-paper text-faint hover:text-text"
-        >
-          <EllipsisDots className="w-[14px] h-[14px]" aria-hidden />
-        </button>
-        {menuOpen && (
-          <div className="dropdown-panel absolute right-0 mt-1 w-36 bg-card z-50 py-1">
+      <div className="flex items-center gap-1 justify-end" ref={menuRef}>
+        {!status.isFixed && (
+          <>
+            <div className="relative">
+              <button
+                onClick={() => setCatOpen((v) => !v)}
+                title="Change category"
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-paper text-faint hover:text-text"
+              >
+                <Tags className="w-[14px] h-[14px]" aria-hidden />
+              </button>
+              {catOpen && (
+                <div className="dropdown-panel absolute right-0 mt-1 w-36 bg-card z-50 py-1">
+                  {CATEGORY_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => {
+                    setCatOpen(false);
+                    if (opt.value !== status.category) onUpdate(status.id, { category: opt.value });
+                  }}
+                  className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-paper ${opt.value === status.category ? 'text-text font-medium' : 'text-mute'}`}
+                >
+                  {opt.value === status.category ? '✓ ' : '   '}{opt.label}
+                </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <button
-              onClick={() => { setMenuOpen(false); onUpdate(status.id, { category: status.category === 'backlog' ? 'in_progress' : status.category === 'in_progress' ? 'done' : 'backlog' }); }}
-              className="w-full text-left px-3 py-1.5 text-[12px] text-text hover:bg-paper"
+              onClick={() => onDelete(status.id)}
+              title="Delete status"
+              className="w-7 h-7 flex items-center justify-center rounded hover:bg-danger/10 text-faint hover:text-danger"
             >
-              Change category
+              <Trash2 className="w-[14px] h-[14px]" aria-hidden />
             </button>
-            <button
-              onClick={() => { setMenuOpen(false); onDelete(status.id); }}
-              className="w-full text-left px-3 py-1.5 text-[12px] text-danger hover:bg-danger/10"
-            >
-              Delete
-            </button>
-          </div>
+          </>
         )}
       </div>
     </div>

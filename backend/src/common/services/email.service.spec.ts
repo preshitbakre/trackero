@@ -25,7 +25,43 @@ function noSmtpConfig(): ConfigService {
   } as unknown as ConfigService;
 }
 
+/** A ConfigService stub with a full SMTP config (transporter is created). */
+function withSmtpConfig(): ConfigService {
+  return {
+    get: (key: string, fallback?: unknown) => {
+      const values: Record<string, unknown> = {
+        SMTP_HOST: 'smtp.example.com',
+        SMTP_PORT: 587,
+        SMTP_USER: 'user',
+        SMTP_PASS: 'pass',
+        SMTP_FROM: 'noreply@trackero.dev',
+        APP_URL: 'http://localhost:5173',
+      };
+      return key in values ? values[key] : fallback;
+    },
+  } as unknown as ConfigService;
+}
+
 describe('EmailService', () => {
+  describe('isEmailEnabled', () => {
+    it('is false when SMTP host/user/pass are missing', () => {
+      expect(new EmailService(noSmtpConfig()).isEmailEnabled()).toBe(false);
+    });
+
+    it('is true when SMTP host/user/pass are all configured', () => {
+      expect(new EmailService(withSmtpConfig()).isEmailEnabled()).toBe(true);
+    });
+  });
+
+  describe('buildInviteUrl', () => {
+    it('builds the register link from APP_URL with the raw token', () => {
+      const service = new EmailService(noSmtpConfig());
+      expect(service.buildInviteUrl('tok123')).toBe(
+        'http://localhost:5173/register?token=tok123',
+      );
+    });
+  });
+
   describe('sendEmail with SMTP not configured', () => {
     it('logs only the recipient and subject, never the body or token', async () => {
       const service = new EmailService(noSmtpConfig());

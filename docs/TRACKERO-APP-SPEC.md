@@ -314,12 +314,11 @@ Derived display states (computed at query time):
 | Reopen | Moves shipped epic back to `in_flight`, clears completion state |
 | Archive / Unarchive | Soft-archive with `archivedAt` |
 | Detach children | Removes all `belongs_to` associations + nulls sprint on affected children |
-| Milestones | Timeline entries on the epic: kinds are `note`, `risk`, `target`, `shipped`, `kickoff`. Each has a body and `occurredOn` date |
 | Forecast | Velocity-based finish-sprint prediction. Calculates projected completion sprint based on historical velocity |
 | Across-sprints view | Shows how the epic's work is distributed across sprints |
 | Descendant stats | Recursive CTE computes total/done/in-progress/open items and points across the full belongs_to tree (depth <= 4) |
 
-### Endpoints (13)
+### Endpoints (12)
 
 | Endpoint | Purpose |
 |----------|---------|
@@ -334,7 +333,6 @@ Derived display states (computed at query time):
 | `POST /projects/:id/epics/:id/archive` | Archive |
 | `POST /projects/:id/epics/:id/unarchive` | Unarchive |
 | `POST /projects/:id/epics/:id/detach-children` | Detach all children |
-| CRUD | `/projects/:id/epics/:id/milestones` | Milestone management |
 
 ### Frontend
 
@@ -1263,11 +1261,6 @@ Currently supports the `assignees` type: returns all project members plus instan
 | `notifications` | User notifications |
 | `notification_preferences` | Per-user notification settings |
 
-### Epics
-| Table | Purpose |
-|-------|---------|
-| `epic_milestones` | Epic timeline entries |
-
 ### Auth & Admin
 | Table | Purpose |
 |-------|---------|
@@ -1484,7 +1477,6 @@ Currently supports the `assignees` type: returns all project members plus instan
 | **EpicForecast** | Velocity-based forecast visualization for epic completion |
 | **EpicsEmptyState** | Empty state for epics listing |
 | **AcrossSprintsTimeline** | Timeline visualization showing epic work distributed across sprints |
-| **MilestoneFeed** | Milestone CRUD feed for epic detail timeline tab |
 
 #### Notifications (`components/notifications/` — 1 file)
 
@@ -1570,7 +1562,7 @@ Currently supports the `assignees` type: returns all project members plus instan
 | Module | Purpose |
 |--------|---------|
 | **client.ts** | Axios instance at `/api`. Request interceptor injects Bearer token. Response interceptor handles 401 with deduplicated refresh. Updates socket auth on refresh |
-| **epics.ts** | Typed Epic API module. 7 display states, full CRUD functions (`getEpics`, `getEpicsSummary`, `getEpic`, `getEpicChildren`, `getEpicRecent`, `getEpicMilestones`, CRUD milestones, `updateEpic`, `shipEpic`, `reopenEpic`, `archiveEpic`, `unarchiveEpic`, `detachEpicChildren`), `epicStateToPill` mapping |
+| **epics.ts** | Typed Epic API module. 7 display states, full CRUD functions (`getEpics`, `getEpicsSummary`, `getEpic`, `getEpicChildren`, `getEpicRecent`, `updateEpic`, `shipEpic`, `reopenEpic`, `archiveEpic`, `unarchiveEpic`, `detachEpicChildren`), `epicStateToPill` mapping |
 
 ### State Management (`store/` — 1 file)
 

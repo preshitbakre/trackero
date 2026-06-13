@@ -3,12 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { WorkItem } from '../work-items/entities/work-item.entity';
-import { EpicMilestone } from './entities/epic-milestone.entity';
 import { WorkItemsService } from '../work-items/work-items.service';
 import { PaginatedResponse } from '../common/dto/paginated-response.dto';
 import { clampLimit } from '../common/helpers/pagination.helper';
 import { AppLogicException } from '../common/exceptions/app-exceptions';
-import { CreateMilestoneDto, UpdateMilestoneDto } from './dto/milestone.dto';
 import { UpdateEpicDto } from './dto/update-epic.dto';
 
 export type EpicDisplayState =
@@ -43,8 +41,6 @@ export class EpicsService {
   constructor(
     @InjectRepository(WorkItem)
     private readonly workItemRepo: Repository<WorkItem>,
-    @InjectRepository(EpicMilestone)
-    private readonly milestoneRepo: Repository<EpicMilestone>,
     private readonly dataSource: DataSource,
     private readonly workItemsService: WorkItemsService,
     private readonly eventEmitter: EventEmitter2,
@@ -380,6 +376,7 @@ export class EpicsService {
       SELECT
         wi.id, wi.item_number AS "itemNumber", wi.item_type AS "itemType", wi.title,
         wi.priority, wi.story_points AS "storyPoints", wi.sprint_id AS "sprintId",
+        wi.parent_id AS "parentId",
         ps.id AS "statusId", ps.name AS "statusName", ps.category AS "statusCategory", ps.color AS "statusColor",
         u.id AS "assigneeId", u.display_name AS "assigneeName", u.avatar_url AS "assigneeAvatar",
         d.depth
@@ -418,6 +415,7 @@ export class EpicsService {
       priority: r.priority,
       storyPoints: r.storyPoints,
       sprintId: r.sprintId,
+      parentId: r.parentId,
       status: { id: r.statusId, name: r.statusName, category: r.statusCategory, color: r.statusColor },
       assignee: r.assigneeId
         ? { id: r.assigneeId, displayName: r.assigneeName, avatarUrl: r.assigneeAvatar }
@@ -480,18 +478,14 @@ export class EpicsService {
       epic.endDate,
     );
 
-    // blockedBy note/owner — latest risk milestone body + blocker source assignee.
+    // blockedBy note/owner — blocker source title + assignee.
     let blockedBy: any = null;
     if (blocker) {
-      const [riskRow] = await this.milestoneRepo.query(
-        `SELECT body FROM epic_milestones WHERE epic_id = $1 AND kind = 'risk' ORDER BY occurred_on DESC LIMIT 1`,
-        [epicId],
-      );
       blockedBy = {
         key: blocker.key,
         title: blocker.title,
         since: blocker.since,
-        note: riskRow?.body ?? blocker.title,
+        note: blocker.title,
         owner: blocker.owner,
       };
     }
@@ -778,14 +772,18 @@ export class EpicsService {
   // Read: grouped children
   // ===========================================================================
 
-  async getEpicChildren(projectId: number, epicId: number, groupBy: 'status' | 'sprint') {
+  async getEpicChildren(projectId: number, epicId: number, groupBy: 'status' | 'sprint' | 'none') {
     const prefix = await this.getProjectPrefix(projectId);
     const rows = await this.getDescendantRows(epicId, prefix);
     const totalItems = rows.length;
     const totalPoints = rows.reduce((sum, r) => sum + (r.storyPoints || 0), 0);
 
     let groups: any[];
-    if (groupBy === 'sprint') {
+    if (groupBy === 'none') {
+      // Single ungrouped list in natural (depth → sort_order) order. The
+      // frontend nests subtasks under their parent client-side.
+      groups = [{ key: 'all', label: 'All', count: rows.length, points: totalPoints, items: rows }];
+    } else if (groupBy === 'sprint') {
       const sprints: any[] = await this.dataSource.query(
         `SELECT id, name, sprint_number AS "sprintNumber" FROM sprints WHERE project_id = $1 ORDER BY sprint_number ASC`,
         [projectId],
@@ -826,81 +824,6 @@ export class EpicsService {
     }
 
     return { totalItems, totalPoints, groups };
-  }
-
-  // ===========================================================================
-  // Milestones CRUD
-  // ===========================================================================
-
-  async listMilestones(projectId: number, epicId: number) {
-    const epic = await this.requireEpic(projectId, epicId);
-    const rows = await this.milestoneRepo
-      .createQueryBuilder('m')
-      .leftJoin('m.author', 'author')
-      .addSelect(['author.id', 'author.displayName', 'author.avatarUrl'])
-      .where('m.epicId = :epicId', { epicId })
-      .orderBy('m.occurredOn', 'ASC')
-      .addOrderBy('m.id', 'ASC')
-      .getMany();
-
-    const milestones = rows.map((m) => ({
-      id: m.id,
-      kind: m.kind,
-      body: m.body,
-      occurredOn: m.occurredOn,
-      author: (m as any).author
-        ? { id: (m as any).author.id, displayName: (m as any).author.displayName, avatarUrl: (m as any).author.avatarUrl }
-        : null,
-      synthesized: false,
-    }));
-
-    // Append a synthesized target row from the epic's end_date when there is
-    // no curated target milestone.
-    const hasTarget = milestones.some((m) => m.kind === 'target');
-    if (!hasTarget && epic.endDate) {
-      milestones.push({
-        id: -1,
-        kind: 'target',
-        body: 'Target ship date.',
-        occurredOn: epic.endDate,
-        author: null,
-        synthesized: true,
-      } as any);
-    }
-    return milestones;
-  }
-
-  async createMilestone(projectId: number, epicId: number, userId: number, dto: CreateMilestoneDto) {
-    await this.requireEpic(projectId, epicId);
-    const saved = await this.milestoneRepo.save(
-      this.milestoneRepo.create({
-        projectId,
-        epicId,
-        authorId: userId,
-        kind: dto.kind,
-        body: dto.body,
-        occurredOn: dto.occurredOn,
-      }),
-    );
-    return { id: saved.id };
-  }
-
-  async updateMilestone(projectId: number, epicId: number, milestoneId: number, dto: UpdateMilestoneDto) {
-    await this.requireEpic(projectId, epicId);
-    const m = await this.milestoneRepo.findOne({ where: { id: milestoneId, epicId, projectId } });
-    if (!m) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND, 'Milestone not found');
-    if (dto.kind !== undefined) m.kind = dto.kind;
-    if (dto.body !== undefined) m.body = dto.body;
-    if (dto.occurredOn !== undefined) m.occurredOn = dto.occurredOn;
-    await this.milestoneRepo.save(m);
-    return { id: m.id };
-  }
-
-  async deleteMilestone(projectId: number, epicId: number, milestoneId: number) {
-    await this.requireEpic(projectId, epicId);
-    const res = await this.milestoneRepo.delete({ id: milestoneId, epicId, projectId });
-    if (!res.affected) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND, 'Milestone not found');
-    return { id: milestoneId };
   }
 
   // ===========================================================================

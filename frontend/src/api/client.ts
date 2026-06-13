@@ -88,6 +88,25 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // Forced password change — the server gates every authenticated route with
+    // 403 PASSWORD_CHANGE_REQUIRED (F-L-0011) until the user sets a new
+    // password. This backstops the case where an admin sets the flag mid-
+    // session: flag the store (so AppShell redirects) and hard-route to the
+    // set-password screen if we aren't already there.
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.code === 'F-L-0011'
+    ) {
+      const store = useAuthStore.getState();
+      if (store.user && !store.user.mustChangePassword) {
+        store.setUser({ ...store.user, mustChangePassword: true });
+      }
+      if (typeof window !== 'undefined' && window.location.pathname !== '/set-password') {
+        window.location.assign('/set-password');
+      }
+      return Promise.reject(error);
+    }
+
     // The retried request came back with another 401 — the brand-new access
     // token is already being rejected (server-side tokenVersion bump,
     // account deactivated, etc.). User is genuinely unauthenticated.

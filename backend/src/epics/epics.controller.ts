@@ -3,7 +3,6 @@ import {
   Get,
   Post,
   Patch,
-  Delete,
   Body,
   Param,
   Query,
@@ -19,7 +18,6 @@ import { ResponseCode } from '../common/decorators/response-code.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
-import { CreateMilestoneDto, UpdateMilestoneDto } from './dto/milestone.dto';
 import { UpdateEpicDto } from './dto/update-epic.dto';
 
 /**
@@ -62,7 +60,8 @@ export class EpicsController {
     @Param('epicId', ParseIntPipe) epicId: number,
     @Query('groupBy') groupBy?: string,
   ) {
-    return this.epicsService.getEpicChildren(projectId, epicId, groupBy === 'sprint' ? 'sprint' : 'status');
+    const mode = groupBy === 'sprint' ? 'sprint' : groupBy === 'none' ? 'none' : 'status';
+    return this.epicsService.getEpicChildren(projectId, epicId, mode);
   }
 
   @Get(':epicId/recent')
@@ -74,16 +73,6 @@ export class EpicsController {
     @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
   ) {
     return this.epicsService.getRecent(projectId, epicId, limit ?? 8);
-  }
-
-  @Get(':epicId/milestones')
-  @Roles('admin', 'project_manager', 'member', 'viewer')
-  @ResponseCode('EPIC_MILESTONES_LISTED')
-  async milestones(
-    @Param('projectId', ParseIntPipe) projectId: number,
-    @Param('epicId', ParseIntPipe) epicId: number,
-  ) {
-    return this.epicsService.listMilestones(projectId, epicId);
   }
 
   @Get(':epicId')
@@ -108,41 +97,6 @@ export class EpicsController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.epicsService.updateEpic(projectId, epicId, user.userId, dto);
-  }
-
-  @Post(':epicId/milestones')
-  @Roles('admin', 'project_manager', 'member')
-  @ResponseCode('EPIC_MILESTONE_CREATED')
-  async createMilestone(
-    @Param('projectId', ParseIntPipe) projectId: number,
-    @Param('epicId', ParseIntPipe) epicId: number,
-    @Body() dto: CreateMilestoneDto,
-    @CurrentUser() user: JwtPayload,
-  ) {
-    return this.epicsService.createMilestone(projectId, epicId, user.userId, dto);
-  }
-
-  @Patch(':epicId/milestones/:milestoneId')
-  @Roles('admin', 'project_manager', 'member')
-  @ResponseCode('EPIC_MILESTONE_UPDATED')
-  async updateMilestone(
-    @Param('projectId', ParseIntPipe) projectId: number,
-    @Param('epicId', ParseIntPipe) epicId: number,
-    @Param('milestoneId', ParseIntPipe) milestoneId: number,
-    @Body() dto: UpdateMilestoneDto,
-  ) {
-    return this.epicsService.updateMilestone(projectId, epicId, milestoneId, dto);
-  }
-
-  @Delete(':epicId/milestones/:milestoneId')
-  @Roles('admin', 'project_manager', 'member')
-  @ResponseCode('EPIC_MILESTONE_DELETED')
-  async deleteMilestone(
-    @Param('projectId', ParseIntPipe) projectId: number,
-    @Param('epicId', ParseIntPipe) epicId: number,
-    @Param('milestoneId', ParseIntPipe) milestoneId: number,
-  ) {
-    return this.epicsService.deleteMilestone(projectId, epicId, milestoneId);
   }
 
   @Post(':epicId/ship')

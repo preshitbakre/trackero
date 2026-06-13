@@ -34,6 +34,7 @@ import { PreferencesModule } from './preferences/preferences.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { RetentionModule } from './retention/retention.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { PasswordChangeGuard } from './common/guards/password-change.guard';
 
 @Module({
   imports: [
@@ -93,6 +94,12 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      // Runs after JwtAuthGuard so request.user is populated; blocks all
+      // authenticated routes when the user must change their password.
+      provide: APP_GUARD,
+      useClass: PasswordChangeGuard,
     },
   ],
 })

@@ -165,7 +165,7 @@ export function CreateItemDialog({
 
   const showParent = itemType === 'subtask';
   const showLinkTo = itemType === 'story' || itemType === 'task' || itemType === 'bug';
-  const showSprint = itemType !== 'subtask';
+  const showSprint = itemType !== 'subtask' && itemType !== 'epic';
   const parentRequired = itemType === 'subtask';
 
   const parentComboOptions = [

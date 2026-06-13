@@ -7,6 +7,9 @@ interface User {
   displayName: string;
   role: 'admin' | 'project_manager' | 'member' | 'viewer';
   avatarUrl: string | null;
+  /** When true, the user was given a temporary password and is gated to the
+   *  set-password screen until they choose a new one. */
+  mustChangePassword?: boolean;
 }
 
 export type AuthStatus = 'loading' | 'authed' | 'anon';

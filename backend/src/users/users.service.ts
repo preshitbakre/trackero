@@ -2,6 +2,7 @@ import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import * as crypto from 'crypto';
+import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
 import { Invitation } from '../auth/entities/invitation.entity';
 import { AppLogicException } from '../common/exceptions/app-exceptions';
@@ -163,10 +164,32 @@ export class UsersService {
     );
   }
 
-  async invite(email: string, role: string, invitedBy: number, projectId?: number) {
+  /**
+   * Creates a pending invitation and always returns the raw token + register
+   * link + expiry so the admin can copy/share it manually — this path works
+   * with or without SMTP. Email delivery is layered on top:
+   *   - sendEmail === true  → email the link, but fail loudly (EMAIL_NOT_CONFIGURED)
+   *                           if SMTP is unavailable so the admin isn't misled.
+   *   - sendEmail === false → never email (manual-link-only).
+   *   - sendEmail undefined → send only if SMTP is configured. Preserves the
+   *                           pre-existing auto-email behaviour for callers
+   *                           (e.g. bulk invite) that don't pass the flag.
+   */
+  async invite(
+    email: string,
+    role: string,
+    invitedBy: number,
+    projectId?: number,
+    sendEmail?: boolean,
+  ) {
     const VALID_ROLES = ['admin', 'project_manager', 'member', 'viewer'];
     if (!VALID_ROLES.includes(role)) {
       throw new AppLogicException('FORBIDDEN', HttpStatus.BAD_REQUEST);
+    }
+
+    const emailEnabled = this.emailService.isEmailEnabled();
+    if (sendEmail === true && !emailEnabled) {
+      throw new AppLogicException('EMAIL_NOT_CONFIGURED', HttpStatus.BAD_REQUEST);
     }
 
     // Block if active user exists with this email
@@ -207,14 +230,80 @@ export class UsersService {
       rethrowAsDuplicate(error);
     }
 
-    // Send invitation email
-    await this.emailService.sendInvitation(email, token, role);
+    const shouldSend = sendEmail === undefined ? emailEnabled : sendEmail;
+    let emailSent = false;
+    if (shouldSend) {
+      await this.emailService.sendInvitation(email, token, role);
+      emailSent = true;
+    }
 
+    const inviteUrl = this.emailService.buildInviteUrl(token);
     const invitations = await this.listInvitations();
     return {
-      item: { email, token, role, status: 'pending', expiresAt },
+      item: {
+        email,
+        token,
+        inviteUrl,
+        role,
+        status: 'pending',
+        expiresAt,
+        emailEnabled,
+        emailSent,
+      },
       ...invitations.toEnvelopeData(),
     };
+  }
+
+  /**
+   * Re-sends (or first-sends) the invitation email for an existing pending
+   * invite. Because only the SHA-256 hash of the token is stored, the raw
+   * token can't be reconstructed server-side — the caller (admin UI) holds it
+   * from the original create response and passes it back here.
+   */
+  async sendInviteEmail(token: string) {
+    if (!this.emailService.isEmailEnabled()) {
+      throw new AppLogicException('EMAIL_NOT_CONFIGURED', HttpStatus.BAD_REQUEST);
+    }
+
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+    const invitation = await this.invitationRepo.findOne({
+      where: { token: hashedToken, status: 'pending' },
+    });
+    if (!invitation) {
+      throw new AppLogicException('INVITATION_EXPIRED', HttpStatus.BAD_REQUEST);
+    }
+    if (new Date() > invitation.expiresAt) {
+      throw new AppLogicException('INVITATION_EXPIRED', HttpStatus.BAD_REQUEST);
+    }
+
+    await this.emailService.sendInvitation(invitation.email, token, invitation.role);
+    return { email: invitation.email };
+  }
+
+  /**
+   * Admin sets a user's password directly (no email round-trip). The new
+   * password is treated as temporary: must_change_password is set so the gate
+   * forces the user to choose their own on next login. tokenVersion is bumped
+   * and all refresh tokens revoked so any existing sessions are invalidated.
+   */
+  async setUserPassword(id: number, newPassword: string) {
+    const user = await this.userRepo.findOne({ where: { id } });
+    if (!user) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, 12);
+    user.mustChangePassword = true;
+    user.tokenVersion += 1;
+    await this.userRepo.save(user);
+
+    // Revoke all refresh tokens so existing sessions can't bypass the gate.
+    await this.dataSource.query(
+      `UPDATE refresh_tokens SET is_revoked = true WHERE user_id = $1 AND is_revoked = false`,
+      [id],
+    );
+
+    return { id: user.id, email: user.email };
   }
 
   async listInvitations() {

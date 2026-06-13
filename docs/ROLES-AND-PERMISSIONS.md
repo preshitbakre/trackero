@@ -76,7 +76,6 @@ The instance-wide superuser. Has implicit full access to every project without n
 - Upload and delete attachments
 - Create, update, delete acceptance criteria
 - Upsert release notes
-- Create, update, delete epic milestones
 - Ship, reopen, archive, unarchive epics
 - Detach children from epics
 - Create, update, delete, vote on retro cards
@@ -135,7 +134,6 @@ A project-level leadership role. Can manage a project's configuration, members, 
 - Upload and delete attachments
 - Create, update, delete acceptance criteria
 - Upsert release notes
-- Create, update, delete epic milestones
 - Ship, reopen, archive, unarchive epics
 - Detach children from epics
 - Create, update, delete, vote on retro cards
@@ -176,7 +174,6 @@ The standard contributor role. Can create and modify content but cannot change p
 - Upload and delete attachments
 - Create, update, delete acceptance criteria
 - Upsert release notes
-- Create, update, delete epic milestones
 - Ship, reopen, archive, unarchive epics
 - Detach children from epics
 - Create retrospectives
@@ -352,7 +349,6 @@ These endpoints are accessible to any authenticated user regardless of role, or 
 | **Epics** | | | | |
 | Update epic | Y | Y | Y | - |
 | Ship/reopen/archive epic | Y | Y | Y | - |
-| Milestone CRUD | Y | Y | Y | - |
 | Detach children | Y | Y | Y | - |
 | View epics | Y | Y | Y | Y |
 | **Comments** | | | | |

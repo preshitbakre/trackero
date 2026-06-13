@@ -1,4 +1,4 @@
-import type { AcrossSprints, EpicDisplayState, EpicMilestone } from '../../api/epics';
+import type { AcrossSprints, EpicDisplayState } from '../../api/epics';
 
 function Tip({ text, children, className = '', style }: {
   text: string;
@@ -529,7 +529,6 @@ function Density({ data, buckets }: { data: AcrossSprints; buckets: Story[][] })
 interface Props {
   data: AcrossSprints;
   displayState?: EpicDisplayState;
-  milestones?: EpicMilestone[];
 }
 
 export function AcrossSprintsTimeline({ data }: Props) {

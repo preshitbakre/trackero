@@ -10,6 +10,7 @@ export const ResponseCodes = {
   AUTH_PASSWORD_RESET_SENT: { code: 'S-0008', message: 'Password reset email sent' },
   AUTH_PASSWORD_RESET:    { code: 'S-0009', message: 'Password reset successful' },
   AUTH_SETUP_COMPLETE:    { code: 'S-0010A', message: 'Instance setup complete' },
+  AUTH_NEW_PASSWORD_SET:  { code: 'S-0010B', message: 'Password set successfully' },
 
   // Users (S-0010 – S-0019)
   USERS_LISTED:           { code: 'S-0010', message: 'Users retrieved' },
@@ -18,6 +19,9 @@ export const ResponseCodes = {
   USER_REACTIVATED:       { code: 'S-0015', message: 'User reactivated' },
   INVITATION_SENT:        { code: 'S-0013', message: 'Invitation sent' },
   INVITATION_ACCEPTED:    { code: 'S-0014', message: 'Invitation accepted' },
+  INVITATION_CREATED:     { code: 'S-0016', message: 'Invitation created' },
+  INVITATION_EMAIL_SENT:  { code: 'S-0017', message: 'Invitation email sent' },
+  USER_PASSWORD_SET:      { code: 'S-0018', message: 'Password set' },
 
   // Projects (S-0020 – S-0029)
   PROJECTS_LISTED:        { code: 'S-0020', message: 'Projects retrieved' },
@@ -202,10 +206,6 @@ export const ResponseCodes = {
   EPICS_SUMMARY:          { code: 'S-0600', message: 'Epics summary retrieved' },
   EPIC_DETAIL:            { code: 'S-0601', message: 'Epic detail retrieved' },
   EPIC_CHILDREN:          { code: 'S-0602', message: 'Epic children retrieved' },
-  EPIC_MILESTONES_LISTED: { code: 'S-0603', message: 'Epic milestones retrieved' },
-  EPIC_MILESTONE_CREATED: { code: 'S-0604', message: 'Epic milestone created' },
-  EPIC_MILESTONE_UPDATED: { code: 'S-0605', message: 'Epic milestone updated' },
-  EPIC_MILESTONE_DELETED: { code: 'S-0606', message: 'Epic milestone deleted' },
   EPIC_SHIPPED:           { code: 'S-0607', message: 'Epic marked as shipped' },
   EPIC_REOPENED:          { code: 'S-0608', message: 'Epic reopened' },
   EPIC_ARCHIVED:          { code: 'S-0609', message: 'Epic archived' },
@@ -229,6 +229,8 @@ export const ResponseCodes = {
   ACCOUNT_DEACTIVATED:    { code: 'F-L-0008', message: 'Account is deactivated' },
   INVITATION_EXPIRED:     { code: 'F-L-0009', message: 'Invitation has expired' },
   EMAIL_ALREADY_REGISTERED: { code: 'F-L-0010', message: 'Email already registered' },
+  PASSWORD_CHANGE_REQUIRED: { code: 'F-L-0011', message: 'You must set a new password before continuing' },
+  EMAIL_NOT_CONFIGURED:   { code: 'F-L-0012', message: 'Email delivery is not configured on this instance' },
 
   // Business rule failures
   SPRINT_ALREADY_ACTIVE:  { code: 'F-L-0020', message: 'A sprint is already active in this project' },

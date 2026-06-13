@@ -38,8 +38,9 @@ export class AuthService {
   async getSetupStatus() {
     const userCount = await this.userRepo.count();
     const isSetup = userCount > 0;
+    const emailEnabled = this.emailService.isEmailEnabled();
     if (!isSetup) {
-      return { isSetup };
+      return { isSetup, emailEnabled };
     }
     const instanceNameRow = await this.dataSource
       .getRepository(InstanceSetting)
@@ -48,6 +49,7 @@ export class AuthService {
       isSetup,
       instanceName: instanceNameRow?.value ?? null,
       appUrl: this.configService.get<string>('APP_URL', ''),
+      emailEnabled,
     };
   }
 
@@ -411,6 +413,46 @@ export class AuthService {
     );
   }
 
+  /**
+   * Sets a brand-new password for a user who was forced to change it (no
+   * current-password challenge). Only valid while mustChangePassword is true,
+   * so this no-current-password path can't be abused outside the forced-change
+   * context. Clears the flag, bumps tokenVersion (invalidating the old access
+   * token), revokes refresh tokens, then issues a fresh token pair so the
+   * client regains full access immediately.
+   */
+  async setNewPassword(userId: number, newPassword: string) {
+    const user = await this.userRepo
+      .createQueryBuilder('user')
+      .addSelect('user.passwordHash')
+      .where('user.id = :id', { id: userId })
+      .getOne();
+    if (!user) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    if (!user.mustChangePassword) {
+      throw new AppLogicException('FORBIDDEN', HttpStatus.FORBIDDEN);
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, 12);
+    user.mustChangePassword = false;
+    user.tokenVersion += 1;
+    await this.userRepo.save(user);
+
+    // Revoke all refresh tokens for this user
+    await this.refreshTokenRepo.update(
+      { userId, isRevoked: false },
+      { isRevoked: true },
+    );
+
+    const tokens = await this.generateTokens(user);
+    return {
+      user: this.sanitizeUser(user),
+      ...tokens,
+    };
+  }
+
   async forgotPassword(email: string) {
     // Always return success for security (don't reveal if email exists)
     const user = await this.userRepo
@@ -514,6 +556,7 @@ export class AuthService {
       avatarUrl: user.avatarUrl,
       lastLoginAt: user.lastLoginAt,
       createdAt: user.createdAt,
+      mustChangePassword: user.mustChangePassword,
     };
   }
 }
