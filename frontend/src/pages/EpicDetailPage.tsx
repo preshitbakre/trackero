@@ -2,13 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { useRole } from '../hooks/useRole';
-import { getEpic, reopenEpic, epicStateToPill } from '../api/epics';
+import { getEpic, reopenEpic } from '../api/epics';
 import type { EpicDetail } from '../api/epics';
 import { Button } from '../components/ui/Button';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Tabs } from '../components/ui/Tabs';
-import { StatusPill } from '../components/ui/StatusPill';
-import type { StatusKey } from '../components/ui/StatusPill';
+import { EpicStatusSelect } from '../components/epics/EpicStatusSelect';
 import { TypeTag } from '../components/ui/TypeTag';
 import { ErrorState } from '../components/common/ErrorState';
 import { TaskDetailPanel } from '../components/tasks/TaskDetailPanel';
@@ -118,7 +117,7 @@ export function EpicDetailPage() {
           <div className="flex items-center gap-2.5 min-w-0">
             <TypeTag kind="epic" size="md" />
             <h1 className="font-serif text-[32px] leading-none tracking-[-0.8px] text-text truncate">{epic.title}</h1>
-            <StatusPill status={epicStateToPill(epic.displayState) as StatusKey} dot caps />
+            <EpicStatusSelect epic={epic} projectId={projectId!} canEdit={canEdit} onChanged={reload} variant="pill" />
             {epic.displayState === 'blocked' && epic.priority === 'urgent' && (
               <span className="text-[10px] px-1.5 py-0.5 font-semibold bg-[#E05252] text-white">P0</span>
             )}
@@ -160,7 +159,9 @@ export function EpicDetailPage() {
           {tab === 'overview' && (
             <OverviewTab
               epic={epic}
-              onUpdateStatus={() => setTab('settings')}
+              projectId={projectId!}
+              canEdit={canEdit}
+              onChanged={reload}
             />
           )}
           {tab === 'tickets' && (

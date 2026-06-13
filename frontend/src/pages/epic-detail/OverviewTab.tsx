@@ -1,6 +1,6 @@
 import { Ban } from 'lucide-react';
 import type { EpicDetail } from '../../api/epics';
-import { Button } from '../../components/ui/Button';
+import { EpicStatusSelect } from '../../components/epics/EpicStatusSelect';
 import { EpicDetailStatStrip } from '../../components/epics/EpicDetailStatStrip';
 import { EpicForecast } from '../../components/epics/EpicForecast';
 import { AcrossSprintsTimeline } from '../../components/epics/AcrossSprintsTimeline';
@@ -11,10 +11,12 @@ function fmtDate(d: string): string {
 
 interface Props {
   epic: EpicDetail;
-  onUpdateStatus: () => void;
+  projectId: string;
+  canEdit: boolean;
+  onChanged: () => void;
 }
 
-export function OverviewTab({ epic, onUpdateStatus }: Props) {
+export function OverviewTab({ epic, projectId, canEdit, onChanged }: Props) {
   const blocked = epic.displayState === 'blocked';
 
   return (
@@ -41,9 +43,7 @@ export function OverviewTab({ epic, onUpdateStatus }: Props) {
               </>
             )}
           </p>
-          <Button size="sm" variant="outline" onClick={onUpdateStatus} className="text-lilac border-lilac hover:bg-lilac-tint">
-            Update status
-          </Button>
+          <EpicStatusSelect epic={epic} projectId={projectId} canEdit={canEdit} onChanged={onChanged} variant="button" />
         </div>
       )}
 
