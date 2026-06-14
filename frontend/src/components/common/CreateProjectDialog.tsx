@@ -61,6 +61,8 @@ export function CreateProjectDialog({ onClose, onCreated }: { onClose: () => voi
   };
 
   const titleId = 'create-project-dialog-title';
+  const methodologyLabelId = 'create-project-methodology-label';
+  const methodologyHintId = 'create-project-methodology-hint';
 
   return (
     <Modal
@@ -73,8 +75,13 @@ export function CreateProjectDialog({ onClose, onCreated }: { onClose: () => voi
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <div className="text-[16px] text-danger">{error}</div>}
         <div>
-          <label className="block text-[16px] font-medium text-neutral-600 mb-1">Methodology</label>
-          <div className="grid grid-cols-2 gap-2">
+          <label id={methodologyLabelId} className="block text-[16px] font-medium text-neutral-600 mb-1">Methodology</label>
+          <div
+            role="radiogroup"
+            aria-labelledby={methodologyLabelId}
+            aria-describedby={methodologyHintId}
+            className="grid grid-cols-2 gap-2"
+          >
             {([
               { value: 'scrum' as const, title: 'Scrum', blurb: 'Sprints, planning & retros, burndown/velocity.' },
               { value: 'kanban' as const, title: 'Kanban', blurb: 'Continuous flow, WIP limits, no sprints.' },
@@ -84,7 +91,8 @@ export function CreateProjectDialog({ onClose, onCreated }: { onClose: () => voi
                 <button
                   key={opt.value}
                   type="button"
-                  aria-pressed={selected}
+                  role="radio"
+                  aria-checked={selected}
                   onClick={() => setMethodology(opt.value)}
                   className={`flex flex-col items-start text-left border p-3 transition-colors ${
                     selected
@@ -98,7 +106,7 @@ export function CreateProjectDialog({ onClose, onCreated }: { onClose: () => voi
               );
             })}
           </div>
-          <p className="text-[16px] text-neutral-400 mt-1">This can't be changed later.</p>
+          <p id={methodologyHintId} className="text-[16px] text-neutral-400 mt-1">This can't be changed later.</p>
         </div>
         <div>
           <label className="block text-[16px] font-medium text-neutral-600 mb-1">Name</label>
