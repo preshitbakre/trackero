@@ -11,9 +11,11 @@ export function ChartsPage() {
   const { id: projectId } = useParams();
   const { methodology } = useProjectMethodology(projectId);
   const isKanban = methodology === 'kanban';
-  const [tab, setTab] = useState<'burndown' | 'velocity' | 'flow'>('velocity');
+  const [tab, setTab] = useState<'burndown' | 'velocity' | 'flow' | 'throughput' | 'cycle'>('velocity');
   const [velocityData, setVelocityData] = useState<any[]>([]);
   const [flowData, setFlowData] = useState<any[]>([]);
+  const [throughputData, setThroughputData] = useState<any[]>([]);
+  const [cycleTimeData, setCycleTimeData] = useState<any[]>([]);
   const [sprints, setSprints] = useState<any[]>([]);
   const [selectedSprintId, setSelectedSprintId] = useState<string>('');
   const [burndownData, setBurndownData] = useState<any>(null);
@@ -46,6 +48,13 @@ export function ChartsPage() {
   }, [projectId, isKanban]);
 
   useEffect(() => {
+    if (!projectId) return;
+    if (!isKanban) return;
+    apiClient.get(`/projects/${projectId}/throughput`).then((r) => setThroughputData(r.data.data)).catch((err) => { console.error(err); });
+    apiClient.get(`/projects/${projectId}/cycle-time`).then((r) => setCycleTimeData(r.data.data)).catch((err) => { console.error(err); });
+  }, [projectId, isKanban]);
+
+  useEffect(() => {
     if (isKanban) return;
     if (selectedSprintId && projectId) {
       apiClient.get(`/projects/${projectId}/sprints/${selectedSprintId}/burndown`)
@@ -56,12 +65,16 @@ export function ChartsPage() {
   }, [selectedSprintId, projectId, isKanban]);
 
   const tabs = (isKanban
-    ? [{ key: 'flow', label: 'Cumulative Flow' }]
+    ? [
+        { key: 'flow', label: 'Cumulative Flow' },
+        { key: 'throughput', label: 'Throughput' },
+        { key: 'cycle', label: 'Cycle Time' },
+      ]
     : [
         { key: 'velocity', label: 'Velocity' },
         { key: 'burndown', label: 'Burndown' },
         { key: 'flow', label: 'Cumulative Flow' },
-      ]) as { key: 'velocity' | 'burndown' | 'flow'; label: string }[];
+      ]) as { key: 'velocity' | 'burndown' | 'flow' | 'throughput' | 'cycle'; label: string }[];
 
   return (
     <>
@@ -255,6 +268,76 @@ export function ChartsPage() {
                 {!hasSprints
                   ? 'Create sprints and move tasks through statuses to see how work flows over time.'
                   : 'Task counts per status over time will appear here as work moves through your workflow.'}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'throughput' && (
+        <div className="h-[400px]">
+          {throughputData.length > 0 ? (
+            <ResponsiveBar
+              data={throughputData.map((d: any) => ({ week: d.week, count: d.count }))}
+              keys={['count']}
+              indexBy="week"
+              margin={{ top: 20, right: 20, bottom: 60, left: 50 }}
+              padding={0.3}
+              colors={['#5A83A8']}
+              axisLeft={{ legend: 'Items Completed', legendPosition: 'middle', legendOffset: -40 }}
+              axisBottom={{
+                tickRotation: -30,
+                format: (value: string) => {
+                  const d = new Date(value);
+                  if (isNaN(d.getTime())) return value;
+                  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                },
+              }}
+              enableLabel={true}
+              theme={{ text: { fill: '#6B7280' } }}
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <p className="text-[15px] text-mute">
+                The number of items completed each week will appear here as work gets done.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'cycle' && (
+        <div className="h-[400px]">
+          {cycleTimeData.length > 0 ? (
+            <ResponsiveBar
+              data={cycleTimeData.map((d: any) => ({ week: d.week, days: d.avgCycleTimeDays, count: d.count }))}
+              keys={['days']}
+              indexBy="week"
+              margin={{ top: 20, right: 20, bottom: 60, left: 50 }}
+              padding={0.3}
+              colors={['#5A83A8']}
+              axisLeft={{ legend: 'Avg Cycle Time (days)', legendPosition: 'middle', legendOffset: -40 }}
+              axisBottom={{
+                tickRotation: -30,
+                format: (value: string) => {
+                  const d = new Date(value);
+                  if (isNaN(d.getTime())) return value;
+                  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                },
+              }}
+              enableLabel={true}
+              theme={{ text: { fill: '#6B7280' } }}
+              tooltip={({ value, data }: any) => (
+                <div className="bg-paper border border-neutral-200 px-3 py-2 text-[13px] text-text">
+                  <div className="font-medium">{Number(value).toFixed(1)} days avg</div>
+                  <div className="text-mute">{data.count} item{data.count === 1 ? '' : 's'} completed</div>
+                </div>
+              )}
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <p className="text-[15px] text-mute">
+                The average time items take from start to done each week will appear here.
               </p>
             </div>
           )}
