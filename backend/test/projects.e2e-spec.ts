@@ -112,6 +112,32 @@ describe('Projects Module (e2e)', () => {
 
       expect(res.body.code).toBe('F-V-0001');
     });
+
+    it('defaults methodology to scrum when omitted', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/projects')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Default Method', prefix: 'DEFM' })
+        .expect(201);
+      expect(res.body.data.item.methodology).toBe('scrum');
+    });
+
+    it('persists kanban methodology when provided', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/projects')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Flow Project', prefix: 'FLOW', methodology: 'kanban' })
+        .expect(201);
+      expect(res.body.data.item.methodology).toBe('kanban');
+    });
+
+    it('rejects an invalid methodology value', async () => {
+      await request(app.getHttpServer())
+        .post('/api/projects')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Bad Method', prefix: 'BADM', methodology: 'waterfall' })
+        .expect(400);
+    });
   });
 
   describe('GET /api/projects', () => {
@@ -917,6 +943,30 @@ describe('Projects Module (e2e)', () => {
         .expect(400);
 
       expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe('PUT /api/projects/:projectId (methodology immutability)', () => {
+    it('ignores attempts to change methodology on update', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/api/projects')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Immutable Method', prefix: 'IMMU', methodology: 'kanban' })
+        .expect(201);
+      const id = created.body.data.item.id;
+
+      await request(app.getHttpServer())
+        .put(`/api/projects/${id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Renamed', methodology: 'scrum' })
+        .expect(200);
+
+      const fetched = await request(app.getHttpServer())
+        .get(`/api/projects/${id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(fetched.body.data.methodology).toBe('kanban');
+      expect(fetched.body.data.name).toBe('Renamed');
     });
   });
 

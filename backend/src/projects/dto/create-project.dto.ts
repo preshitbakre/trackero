@@ -1,4 +1,4 @@
-import { IsString, MaxLength, IsOptional, Matches, IsInt } from 'class-validator';
+import { IsString, MaxLength, IsOptional, Matches, IsInt, IsIn } from 'class-validator';
 
 export class CreateProjectDto {
   @IsString()
@@ -17,4 +17,8 @@ export class CreateProjectDto {
   @IsOptional()
   @IsInt()
   leadId?: number;
+
+  @IsOptional()
+  @IsIn(['scrum', 'kanban'])
+  methodology?: 'scrum' | 'kanban';
 }

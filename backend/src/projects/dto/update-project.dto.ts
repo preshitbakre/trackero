@@ -27,4 +27,11 @@ export class UpdateProjectDto {
   @IsString()
   @IsIn(['free', 'fibonacci', 'tshirt'])
   estimationScale?: 'free' | 'fibonacci' | 'tshirt';
+
+  // Accepted by the DTO so the ValidationPipe does not reject the request,
+  // but intentionally never assigned in update() — methodology is immutable
+  // after creation.
+  @IsOptional()
+  @IsIn(['scrum', 'kanban'])
+  methodology?: 'scrum' | 'kanban';
 }

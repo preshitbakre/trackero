@@ -59,6 +59,7 @@ export class ProjectsService {
           prefix: dto.prefix,
           description: dto.description || null,
           leadId: dto.leadId || null,
+          methodology: dto.methodology ?? 'scrum',
         });
         const savedProject = await manager.save(Project, project);
 
