@@ -242,6 +242,7 @@ export const ResponseCodes = {
   MISSING_ITEM_ACTIONS:   { code: 'F-L-0025', message: 'Actions are missing for some items' },
   INVALID_ITEM_IDS:       { code: 'F-L-0026', message: 'Some item IDs are invalid for this sprint' },
   NO_NEXT_SPRINT_FOR_ROLL: { code: 'F-L-0027', message: 'No next sprint available for rolling over items' },
+  SPRINTS_NOT_AVAILABLE:  { code: 'F-L-0028', message: 'Sprints are not available on kanban projects' },
 
   TASK_BLOCKED:           { code: 'F-L-0030', message: 'Task is blocked by a dependency. Resolve the blocker first.' },
   CIRCULAR_DEPENDENCY:    { code: 'F-L-0031', message: 'This dependency would create a circular chain' },

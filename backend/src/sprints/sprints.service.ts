@@ -116,6 +116,15 @@ export class SprintsService {
   }
 
   async create(projectId: number, dto: CreateSprintDto, userId: number) {
+    // Kanban projects have no sprints — block creation before any other work.
+    const [proj] = await this.dataSource.query(
+      `SELECT methodology FROM projects WHERE id = $1`,
+      [projectId],
+    );
+    if (proj?.methodology === 'kanban') {
+      throw new AppLogicException('SPRINTS_NOT_AVAILABLE', HttpStatus.BAD_REQUEST);
+    }
+
     // Date validation — compare against server-side CURRENT_DATE so the
     // node process timezone can't disagree with the Postgres `date` columns.
     const [{ is_past: startIsPast }] = await this.dataSource.query(

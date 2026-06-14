@@ -106,6 +106,21 @@ describe('Sprints entity columns (e2e)', () => {
       expect(row[0].carry_over_policy).toBe(policy);
     }
   });
+
+  it('rejects sprint creation on a kanban project', async () => {
+    const proj = await request(app.getHttpServer())
+      .post('/api/projects')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Kanban Proj', prefix: 'KANB', methodology: 'kanban' })
+      .expect(201);
+    const kanbanId = proj.body.data.item.id;
+
+    await request(app.getHttpServer())
+      .post(`/api/projects/${kanbanId}/sprints`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Sprint 1', goal: 'Should be rejected', startDate: futureDate(1), endDate: futureDate(15) })
+      .expect(400);
+  });
 });
 
 describe('Sprints UpdateSprintDto carryOverPolicy + capacity (e2e)', () => {
