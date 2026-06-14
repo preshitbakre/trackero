@@ -5,9 +5,12 @@ import { ResponsiveLine } from '@nivo/line';
 import { ResponsiveBar } from '@nivo/bar';
 import { Select } from '../components/ui/Select';
 import { PageHeader } from '../components/ui/PageHeader';
+import { useProjectMethodology } from '../hooks/useProjectMethodology';
 
 export function ChartsPage() {
   const { id: projectId } = useParams();
+  const { methodology } = useProjectMethodology(projectId);
+  const isKanban = methodology === 'kanban';
   const [tab, setTab] = useState<'burndown' | 'velocity' | 'flow'>('velocity');
   const [velocityData, setVelocityData] = useState<any[]>([]);
   const [flowData, setFlowData] = useState<any[]>([]);
@@ -21,9 +24,14 @@ export function ChartsPage() {
   const hasEligibleSprints = eligibleSprints.length > 0;
 
   useEffect(() => {
+    if (isKanban) setTab('flow');
+  }, [isKanban]);
+
+  useEffect(() => {
     if (!projectId) return;
-    apiClient.get(`/projects/${projectId}/velocity`).then((r) => setVelocityData(r.data.data)).catch((err) => { console.error(err); });
     apiClient.get(`/projects/${projectId}/cumulative-flow`).then((r) => setFlowData(r.data.data)).catch((err) => { console.error(err); });
+    if (isKanban) return;
+    apiClient.get(`/projects/${projectId}/velocity`).then((r) => setVelocityData(r.data.data)).catch((err) => { console.error(err); });
     apiClient.get(`/projects/${projectId}/sprints?limit=100`).then((r) => {
       const list = r.data.data.list || [];
       setSprints(list);
@@ -35,22 +43,25 @@ export function ChartsPage() {
         if (defaultSprint) setSelectedSprintId(String(defaultSprint.id));
       }
     }).catch((err) => { console.error(err); });
-  }, [projectId]);
+  }, [projectId, isKanban]);
 
   useEffect(() => {
+    if (isKanban) return;
     if (selectedSprintId && projectId) {
       apiClient.get(`/projects/${projectId}/sprints/${selectedSprintId}/burndown`)
         .then((r) => setBurndownData(r.data.data)).catch((err) => { console.error(err); });
     } else {
       setBurndownData(null);
     }
-  }, [selectedSprintId, projectId]);
+  }, [selectedSprintId, projectId, isKanban]);
 
-  const tabs = [
-    { key: 'velocity', label: 'Velocity' },
-    { key: 'burndown', label: 'Burndown' },
-    { key: 'flow', label: 'Cumulative Flow' },
-  ] as const;
+  const tabs = (isKanban
+    ? [{ key: 'flow', label: 'Cumulative Flow' }]
+    : [
+        { key: 'velocity', label: 'Velocity' },
+        { key: 'burndown', label: 'Burndown' },
+        { key: 'flow', label: 'Cumulative Flow' },
+      ]) as { key: 'velocity' | 'burndown' | 'flow'; label: string }[];
 
   return (
     <>
