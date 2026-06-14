@@ -71,9 +71,10 @@ describe('T0.12 — GET /api/health/migrations', () => {
     );
     expect(typeof data.consistent).toBe('boolean');
 
-    // The registry must contain every migration shipped to date.
-    expect(data.expected).toContain('AuthTables1716000000000');
-    expect(data.expected).toContain('ReconcileMigrationsTable1716000024000');
-    expect(data.expected).toContain('DropLegacyTables1716000029000');
+    // The registry must contain every migration shipped to date. The pre-1.0
+    // history was squashed into Baseline; post-baseline migrations follow.
+    expect(data.expected).toContain('Baseline1780382923512');
+    expect(data.expected).toContain('AddMustChangePassword1781349329957');
+    expect(data.expected).toContain('AddProjectMethodology1781439447500');
   });
 });
