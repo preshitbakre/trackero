@@ -61,12 +61,12 @@ describe('WorkItems Sprints (e2e)', () => {
       await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 1', startDate: futureDate(1), endDate: futureDate(15) });
+        .send({ name: 'Sprint 1', goal: 'Sprint goal', startDate: futureDate(1), endDate: futureDate(15) });
 
       const res = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 2', startDate: futureDate(1), endDate: futureDate(15) })
+        .send({ name: 'Sprint 2', goal: 'Sprint goal', startDate: futureDate(1), endDate: futureDate(15) })
         .expect(201);
 
       expect(res.body.data.item.sprintNumber).toBe(2);
@@ -76,7 +76,7 @@ describe('WorkItems Sprints (e2e)', () => {
       const createRes = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Empty Sprint', startDate: futureDate(1), endDate: futureDate(15) });
+        .send({ name: 'Empty Sprint', goal: 'Sprint goal', startDate: futureDate(1), endDate: futureDate(15) });
 
       const sprintId = createRes.body.data.item.id;
       const res = await request(app.getHttpServer())
@@ -92,11 +92,11 @@ describe('WorkItems Sprints (e2e)', () => {
       const s1Res = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 1', startDate: futureDate(1), endDate: futureDate(15) });
+        .send({ name: 'Sprint 1', goal: 'Sprint goal', startDate: futureDate(1), endDate: futureDate(15) });
       const s2Res = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 2', startDate: futureDate(1), endDate: futureDate(15) });
+        .send({ name: 'Sprint 2', goal: 'Sprint goal', startDate: futureDate(1), endDate: futureDate(15) });
 
       const sprint1Id = s1Res.body.data.item.id;
       const sprint2Id = s2Res.body.data.item.id;
@@ -126,7 +126,7 @@ describe('WorkItems Sprints (e2e)', () => {
       const createRes = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 1', startDate: futureDate(1), endDate: futureDate(15) });
+        .send({ name: 'Sprint 1', goal: 'Sprint goal', startDate: futureDate(1), endDate: futureDate(15) });
       const sprintId = createRes.body.data.item.id;
 
       // Add a task
@@ -145,14 +145,14 @@ describe('WorkItems Sprints (e2e)', () => {
       const s1Res = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 1', startDate: futureDate(1), endDate: futureDate(15) });
+        .send({ name: 'Sprint 1', goal: 'Sprint goal', startDate: futureDate(1), endDate: futureDate(15) });
       const sprint1Id = s1Res.body.data.item.id;
 
       // Create sprint 2 (planning) to receive incomplete tasks
       const s2Res = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 2', startDate: futureDate(1), endDate: futureDate(15) });
+        .send({ name: 'Sprint 2', goal: 'Sprint goal', startDate: futureDate(1), endDate: futureDate(15) });
       const sprint2Id = s2Res.body.data.item.id;
 
       // Add task to sprint 1
@@ -162,12 +162,15 @@ describe('WorkItems Sprints (e2e)', () => {
       // Start sprint 1
       await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints/${sprint1Id}/start`)
-        .set('Authorization', `Bearer ${adminToken}`);
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
 
-      // Complete sprint 1
+      // Complete sprint 1 — default 'ask' carry-over policy requires an
+      // explicit action per incomplete item; roll the one task to Sprint 2.
       const res = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints/${sprint1Id}/complete`)
         .set('Authorization', `Bearer ${adminToken}`)
+        .send({ itemActions: { [taskId]: 'roll' } })
         .expect(200);
 
       expect(res.body.code).toBe('S-0056');
@@ -187,7 +190,7 @@ describe('WorkItems Sprints (e2e)', () => {
       const createRes = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Not Active', startDate: futureDate(1), endDate: futureDate(15) });
+        .send({ name: 'Not Active', goal: 'Sprint goal', startDate: futureDate(1), endDate: futureDate(15) });
 
       const sprintId = createRes.body.data.item.id;
       const res = await request(app.getHttpServer())
@@ -230,7 +233,7 @@ describe('WorkItems Sprints (e2e)', () => {
           const r = await request(app.getHttpServer())
             .post(`/api/projects/${raceProjectId}/sprints`)
             .set('Authorization', `Bearer ${adminToken}`)
-            .send({ name, startDate: futureDate(1), endDate: futureDate(15) });
+            .send({ name, goal: 'Sprint goal', startDate: futureDate(1), endDate: futureDate(15) });
           return r.body.data.item.id as number;
         };
         const sprintAId = await mkSprint('Sprint A');
@@ -294,7 +297,7 @@ describe('WorkItems Sprints (e2e)', () => {
           .send({ name: `SN Race ${round}`, prefix: `SN${round}` });
         const raceProjectId = projRes.body.data.item.id;
 
-        const dto = { name: 'S', startDate: futureDate(1), endDate: futureDate(15) };
+        const dto = { name: 'S', goal: 'Sprint goal', startDate: futureDate(1), endDate: futureDate(15) };
         const settled = await Promise.allSettled([
           service.create(raceProjectId, { ...dto }, adminId),
           service.create(raceProjectId, { ...dto }, adminId),
@@ -322,7 +325,7 @@ describe('WorkItems Sprints (e2e)', () => {
       await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 1', startDate: futureDate(1), endDate: futureDate(15) });
+        .send({ name: 'Sprint 1', goal: 'Sprint goal', startDate: futureDate(1), endDate: futureDate(15) });
 
       const res = await request(app.getHttpServer())
         .get(`/api/projects/${projectId}/sprints`)

@@ -81,7 +81,7 @@ describe('Board Module (e2e)', () => {
       const sprintRes = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 1', startDate: futureDate(1), endDate: futureDate(15) });
+        .send({ name: 'Sprint 1', goal: 'Sprint goal', startDate: futureDate(1), endDate: futureDate(15) });
       const sprintId = sprintRes.body.data.item.id;
 
       // Create tasks - one in sprint, one without

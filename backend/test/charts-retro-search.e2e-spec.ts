@@ -567,7 +567,7 @@ describe('Charts, Retro, Search (e2e)', () => {
       const sprintRes = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint 1', startDate: futureDate(1), endDate: futureDate(15) });
+        .send({ name: 'Sprint 1', goal: 'Sprint goal', startDate: futureDate(1), endDate: futureDate(15) });
       sprintId = sprintRes.body.data.item.id;
     });
 
@@ -641,7 +641,7 @@ describe('Charts, Retro, Search (e2e)', () => {
       const sprintBres = await request(app.getHttpServer())
         .post(`/api/projects/${projBId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'B Sprint', startDate: futureDate(1), endDate: futureDate(15) });
+        .send({ name: 'B Sprint', goal: 'Sprint goal', startDate: futureDate(1), endDate: futureDate(15) });
       const sprintBId = sprintBres.body.data.item.id;
 
       // Cross-link: create a retro under project A pointing at project B's sprint.

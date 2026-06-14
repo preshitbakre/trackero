@@ -300,7 +300,7 @@ describe('Dashboard (e2e)', () => {
       const sprintRes = await request(app.getHttpServer())
         .post(`/api/projects/${projectId}/sprints`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Sprint A', startDate: today, endDate });
+        .send({ name: 'Sprint A', goal: 'Sprint goal', startDate: today, endDate });
       expect(sprintRes.status).toBe(201);
       const sprintId = sprintRes.body.data.item.id;
 

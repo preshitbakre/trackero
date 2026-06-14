@@ -69,8 +69,8 @@ describe('Board Endpoint (e2e)', () => {
       .send({ linkedItemId, linkType });
 
   describe('GET board', () => {
-    it('returns columns with tasks, bugs, and subtasks only', async () => {
-      // Create items of all types — board should only show tasks + bugs + subtasks
+    it('returns columns with tasks, bugs, subtasks, and stories but not epics', async () => {
+      // Create items of all types — board shows everything except epics
       await createItem({ itemType: 'epic', title: 'E1' });
       await createItem({ itemType: 'story', title: 'S1' });
       const taskRes = await createItem({ itemType: 'task', title: 'T1' });
@@ -88,7 +88,7 @@ describe('Board Endpoint (e2e)', () => {
       const allItems = res.body.data.columns.flatMap((c: any) => c.tasks);
       const types = allItems.map((t: any) => t.itemType);
       expect(types).not.toContain('epic');
-      expect(types).not.toContain('story');
+      expect(types).toContain('story');
       expect(types).toContain('task');
       expect(types).toContain('subtask');
       expect(types).toContain('bug');
