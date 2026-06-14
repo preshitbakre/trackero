@@ -24,4 +24,11 @@ export class ChartsController {
   async cumulativeFlow(@Param('projectId', ParseIntPipe) projectId: number) {
     return this.chartsService.getCumulativeFlow(projectId);
   }
+
+  @Get('throughput')
+  @Roles('admin', 'project_manager', 'member', 'viewer')
+  @ResponseCode('THROUGHPUT_FETCHED')
+  async throughput(@Param('projectId', ParseIntPipe) projectId: number) {
+    return this.chartsService.getThroughput(projectId);
+  }
 }

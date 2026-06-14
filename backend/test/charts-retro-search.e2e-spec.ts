@@ -225,6 +225,79 @@ describe('Charts, Retro, Search (e2e)', () => {
     });
   });
 
+  describe('Throughput', () => {
+    it('returns throughput data -> 200', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/throughput`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.code).toBe('S-0182');
+      expect(Array.isArray(res.body.data)).toBe(true);
+    });
+
+    it('reflects a completed item in the weekly counts', async () => {
+      // Fetch the project's default statuses (Open=backlog, In Progress=in_progress, Done=done)
+      const statusRes = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/statuses`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      const statuses = statusRes.body.data.list ?? statusRes.body.data;
+      const inProgressStatus = statuses.find((s: any) => s.category === 'in_progress');
+      const doneStatus = statuses.find((s: any) => s.category === 'done');
+      expect(inProgressStatus).toBeDefined();
+      expect(doneStatus).toBeDefined();
+
+      // Create a task (starts in the default backlog status)
+      const taskRes = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/items`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ itemType: 'task', title: 'Throughput task' })
+        .expect(201);
+      const taskId = taskRes.body.data.item.id;
+
+      // Move it through backlog -> in_progress -> done
+      await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/items/${taskId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ statusId: inProgressStatus.id })
+        .expect(200);
+      await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/items/${taskId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ statusId: doneStatus.id })
+        .expect(200);
+
+      // Poll until the async @OnEvent handler commits the move-to-done row.
+      const dataSource = app.get(DataSource);
+      await pollUntil(
+        () => dataSource.query(
+          `SELECT new_value FROM activity_logs
+           WHERE work_item_id = $1 AND field_changed = 'status' AND new_value = $2`,
+          [taskId, String(doneStatus.id)],
+        ),
+        (rows: any[]) => rows.length >= 1,
+      );
+
+      const res = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/throughput`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.code).toBe('S-0182');
+      const series = res.body.data;
+      expect(Array.isArray(series)).toBe(true);
+      for (const bucket of series) {
+        expect(bucket).toHaveProperty('week');
+        expect(bucket).toHaveProperty('count');
+      }
+      const total = series.reduce((sum: number, b: any) => sum + b.count, 0);
+      expect(total).toBeGreaterThanOrEqual(1);
+    });
+  });
+
   describe('Retrospectives', () => {
     let sprintId: number;
 

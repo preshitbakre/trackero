@@ -149,6 +149,7 @@ export const ResponseCodes = {
   // Charts (S-0180 – S-0184)
   VELOCITY_FETCHED:       { code: 'S-0180', message: 'Velocity data retrieved' },
   CUMULATIVE_FLOW:        { code: 'S-0181', message: 'Cumulative flow data retrieved' },
+  THROUGHPUT_FETCHED:     { code: 'S-0182', message: 'Throughput data retrieved' },
 
   // Retrospectives (S-0190 – S-0196)
   RETRO_CREATED:          { code: 'S-0190', message: 'Retrospective created' },

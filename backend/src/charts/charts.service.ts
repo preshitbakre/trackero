@@ -56,4 +56,24 @@ export class ChartsService {
 
     return data;
   }
+
+  async getThroughput(projectId: number) {
+    // Weekly counts of tasks that transitioned INTO a done-category status,
+    // over the last 12 ISO weeks. Each completed item is counted once per week.
+    const data = await this.dataSource.query(`
+      SELECT date_trunc('week', al.created_at)::date AS week,
+             COUNT(DISTINCT al.work_item_id)::int AS count
+      FROM activity_logs al
+      JOIN work_items wi ON wi.id = al.work_item_id AND wi.item_type IN ('task') AND wi.project_id = $1
+      JOIN project_statuses ps ON ps.id = CAST(al.new_value AS INTEGER)
+      WHERE al.project_id = $1
+        AND al.field_changed = 'status'
+        AND ps.category = 'done'
+        AND al.created_at >= (CURRENT_DATE - INTERVAL '12 weeks')
+      GROUP BY date_trunc('week', al.created_at)
+      ORDER BY week ASC
+    `, [projectId]);
+
+    return data;
+  }
 }
