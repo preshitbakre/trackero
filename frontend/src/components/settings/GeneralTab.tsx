@@ -16,6 +16,7 @@ interface ProjectData {
   defaultAssigneeId: number | null;
   defaultSprintDuration: number;
   estimationScale: 'free' | 'fibonacci' | 'tshirt';
+  methodology: 'scrum' | 'kanban';
 }
 
 interface Member {
@@ -148,6 +149,16 @@ export function GeneralTab({ canEdit }: { canEdit: boolean }) {
             </label>
             <div className="relative">
               <Input value={project.prefix} disabled className="!bg-neutral-100 !cursor-not-allowed pr-8" />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 text-[16px]">&#x1F512;</span>
+            </div>
+          </div>
+          <div>
+            <label className="block text-[16px] font-medium text-neutral-500 mb-1">
+              Methodology
+              <span className="ml-2 text-neutral-400 font-normal">Set at creation, cannot be changed</span>
+            </label>
+            <div className="relative">
+              <Input value={(project.methodology ?? 'scrum').replace(/^\w/, (c) => c.toUpperCase())} disabled className="!bg-neutral-100 !cursor-not-allowed pr-8" />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 text-[16px]">&#x1F512;</span>
             </div>
           </div>
