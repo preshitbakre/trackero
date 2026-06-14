@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { TypeTag } from '../components/ui/TypeTag';
 import type { TypeTagKind } from '../components/ui/TypeTag';
+import { useProjectMethodology } from '../hooks/useProjectMethodology';
 
 interface TodayPayload {
   greeting: {
@@ -109,6 +110,8 @@ export function TodayPage() {
   const { id: idFromRoute } = useParams<{ id?: string }>();
   const [search] = useSearchParams();
   const projectId = idFromRoute ?? search.get('projectId');
+  const { methodology } = useProjectMethodology(projectId ?? undefined);
+  const isKanban = methodology === 'kanban';
   const tz = typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC';
 
   const { data, isLoading, isError } = useQuery<TodayPayload>({
@@ -161,6 +164,7 @@ export function TodayPage() {
             greeting={data.greeting}
             summary={data.summary}
             sprintName={data.currentSprint?.name ?? null}
+            isKanban={isKanban}
           />
         </section>
         <section className="px-9 py-8 border-t border-[var(--line)]">
@@ -177,7 +181,9 @@ export function TodayPage() {
         </section>
       </main>
       <aside className="bg-[var(--paper-2)] border-l border-[var(--line)] overflow-y-auto">
-        <SprintCard sprint={data.currentSprint} summary={data.summary} projectId={projectId} />
+        {!isKanban && (
+          <SprintCard sprint={data.currentSprint} summary={data.summary} projectId={projectId} />
+        )}
         <LiveRail presence={data.presence} />
         <ActivityRail activity={data.activity} />
       </aside>
@@ -185,10 +191,11 @@ export function TodayPage() {
   );
 }
 
-function GreetingHero({ greeting, summary, sprintName }: {
+function GreetingHero({ greeting, summary, sprintName, isKanban }: {
   greeting: TodayPayload['greeting'];
   summary: TodayPayload['summary'];
   sprintName: string | null;
+  isKanban: boolean;
 }) {
   const partOfDayWord =
     greeting.partOfDay === 'morning' ? 'morning' :
@@ -203,7 +210,9 @@ function GreetingHero({ greeting, summary, sprintName }: {
   // pace word is serif italic.
   const hasReview = summary.reviewCardCount > 0;
   const hasBlocker = summary.blockingBugCount > 0;
-  const hasPace = summary.pointsTotal !== null && summary.pointsTotal !== undefined && summary.pointsTotal > 0;
+  // The pace clause ("X of Y points through Sprint N — on pace") is
+  // sprint-scoped, so it's hidden for kanban projects.
+  const hasPace = !isKanban && summary.pointsTotal !== null && summary.pointsTotal !== undefined && summary.pointsTotal > 0;
 
   return (
     <section>
