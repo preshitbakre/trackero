@@ -163,6 +163,75 @@ describe('Charts, Retro, Search (e2e)', () => {
       expect(today.backlog).toBe(0);
     });
 
+    it('does not 500 when activity_logs hold non-numeric new_value rows (legacy status)', async () => {
+      const statusRes = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/statuses`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      const statuses = statusRes.body.data.list ?? statusRes.body.data;
+      const inProgressStatus = statuses.find((s: any) => s.category === 'in_progress');
+      const doneStatus = statuses.find((s: any) => s.category === 'done');
+      expect(inProgressStatus).toBeDefined();
+      expect(doneStatus).toBeDefined();
+
+      // Create a task and move it backlog -> in_progress -> done.
+      const taskRes = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/items`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ itemType: 'task', title: 'CFD non-numeric task' })
+        .expect(201);
+      const taskId = taskRes.body.data.item.id;
+
+      await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/items/${taskId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ statusId: inProgressStatus.id })
+        .expect(200);
+      await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/items/${taskId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ statusId: doneStatus.id })
+        .expect(200);
+
+      const dataSource = app.get(DataSource);
+      // Poll until the async @OnEvent handler commits the move-to-done row.
+      await pollUntil(
+        () => dataSource.query(
+          `SELECT new_value FROM activity_logs
+           WHERE work_item_id = $1 AND field_changed = 'status' AND new_value = $2`,
+          [taskId, String(doneStatus.id)],
+        ),
+        (rows: any[]) => rows.length >= 1,
+      );
+
+      // Inject a LEGACY/corrupt status row whose new_value is a status NAME, not
+      // an id. Its created_at is the newest, so the cumulative-flow subquery's
+      // `ORDER BY created_at DESC LIMIT 1` would pick it as the effective status —
+      // and an unguarded CAST(al.new_value AS INTEGER) would 500. The regex guard
+      // skips it, leaving the valid done transition as the effective status.
+      await dataSource.query(
+        `INSERT INTO activity_logs (project_id, work_item_id, user_id, action, field_changed, new_value, created_at)
+         VALUES ($1, $2, $3, 'updated', 'status', $4, now())`,
+        [projectId, taskId, adminId, 'Done'],
+      );
+
+      const res = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/cumulative-flow`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.code).toBe('S-0181');
+      const series = res.body.data;
+      expect(Array.isArray(series)).toBe(true);
+      // The legacy non-numeric row is ignored: today's bucket still shows the
+      // task as done, identical to the clean-data case.
+      const today = series[series.length - 1];
+      expect(today.done).toBe(1);
+      expect(today.in_progress).toBe(0);
+      expect(today.backlog).toBe(0);
+    });
+
     it('a no-op status PUT does NOT create an extra status-change row (D-C6)', async () => {
       const statusRes = await request(app.getHttpServer())
         .get(`/api/projects/${projectId}/statuses`)

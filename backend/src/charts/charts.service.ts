@@ -36,10 +36,11 @@ export class ChartsService {
       LEFT JOIN LATERAL (
         SELECT t.id,
           COALESCE(
-            (SELECT CAST(al.new_value AS INTEGER)
+            (SELECT al.new_value::int
              FROM activity_logs al
              WHERE al.work_item_id = t.id
                AND al.field_changed = 'status'
+               AND al.new_value ~ '^[0-9]+$'
                AND al.created_at <= d.date + INTERVAL '1 day'
              ORDER BY al.created_at DESC LIMIT 1),
             t.status_id
