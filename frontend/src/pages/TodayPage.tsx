@@ -176,7 +176,7 @@ export function TodayPage() {
         <section className="px-9 pb-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8">
             <ReviewingPanel items={data.reviewing} />
-            <DueSoonPanel items={data.dueSoon} total={data.dueSoonTotalAssigned} />
+            <DueSoonPanel items={data.dueSoon} total={data.dueSoonTotalAssigned} isKanban={isKanban} />
           </div>
         </section>
       </main>
@@ -407,12 +407,12 @@ function ReviewingPanel({ items }: { items: TodayPayload['reviewing'] }) {
   );
 }
 
-function DueSoonPanel({ items, total }: { items: TodayPayload['dueSoon']; total: number }) {
+function DueSoonPanel({ items, total, isKanban }: { items: TodayPayload['dueSoon']; total: number; isKanban?: boolean }) {
   return (
     <section>
       <header className="mb-3 flex items-baseline gap-2">
         <h2 className="serif text-[20px] text-ink">Due soon</h2>
-        <span className="mono text-[12px] text-[var(--ink-3)]">· ends with sprint · {total} assigned</span>
+        <span className="mono text-[12px] text-[var(--ink-3)]">· {isKanban ? '' : 'ends with sprint · '}{total} assigned</span>
       </header>
       {items.length === 0 ? (
         <p className="text-[13px] text-[var(--ink-3)]">Nothing due this week.</p>
