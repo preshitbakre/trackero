@@ -33,6 +33,7 @@ export function CreateProjectDialog({ onClose, onCreated }: { onClose: () => voi
   const [prefix, setPrefix] = useState('');
   const [prefixTouched, setPrefixTouched] = useState(false);
   const [description, setDescription] = useState('');
+  const [methodology, setMethodology] = useState<'scrum' | 'kanban' | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -48,7 +49,7 @@ export function CreateProjectDialog({ onClose, onCreated }: { onClose: () => voi
     setError('');
     setLoading(true);
     try {
-      const res = await apiClient.post('/projects', { name, prefix: prefix.toUpperCase(), description: description || undefined });
+      const res = await apiClient.post('/projects', { name, prefix: prefix.toUpperCase(), description: description || undefined, methodology });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       const created = res.data?.data?.item as CreatedProject;
       onCreated(created);
@@ -71,6 +72,34 @@ export function CreateProjectDialog({ onClose, onCreated }: { onClose: () => voi
       <h2 id={titleId} className="text-[22px] font-bold mb-4 text-neutral-700">Create Project</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <div className="text-[16px] text-danger">{error}</div>}
+        <div>
+          <label className="block text-[16px] font-medium text-neutral-600 mb-1">Methodology</label>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { value: 'scrum' as const, title: 'Scrum', blurb: 'Sprints, planning & retros, burndown/velocity.' },
+              { value: 'kanban' as const, title: 'Kanban', blurb: 'Continuous flow, WIP limits, no sprints.' },
+            ]).map((opt) => {
+              const selected = methodology === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => setMethodology(opt.value)}
+                  className={`flex flex-col items-start text-left border p-3 transition-colors ${
+                    selected
+                      ? 'border-[var(--accent)] bg-[var(--accent-bg)]'
+                      : 'border-neutral-200 hover:border-neutral-400'
+                  }`}
+                >
+                  <span className="text-[15px] font-semibold text-text">{opt.title}</span>
+                  <span className="text-[13px] text-neutral-400 mt-0.5">{opt.blurb}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[16px] text-neutral-400 mt-1">This can't be changed later.</p>
+        </div>
         <div>
           <label className="block text-[16px] font-medium text-neutral-600 mb-1">Name</label>
           <Input
@@ -97,7 +126,7 @@ export function CreateProjectDialog({ onClose, onCreated }: { onClose: () => voi
         </div>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button type="submit" variant="primary" disabled={loading}>
+          <Button type="submit" variant="primary" disabled={loading || !methodology}>
             {loading ? 'Creating...' : 'Create'}
           </Button>
         </div>
