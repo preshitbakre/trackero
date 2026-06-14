@@ -30,6 +30,7 @@ import { SetPasswordPage } from './pages/SetPasswordPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AdminRoute } from './components/AdminRoute';
 import { AppShell } from './components/layout/AppShell';
+import { MethodologyGuard } from './components/layout/MethodologyGuard';
 
 export function App() {
   return (
@@ -65,16 +66,16 @@ export function App() {
             <Route path="/projects/:id/board" element={<BoardPage />} />
             <Route path="/projects/:id/tasks/:taskId" element={<TaskDetailPage />} />
             <Route path="/projects/:id/backlog" element={<BacklogPage />} />
-            <Route path="/projects/:id/sprints" element={<SprintsPage />} />
-            <Route path="/projects/:id/sprints/:sprintId" element={<SprintDetailPage />} />
+            <Route path="/projects/:id/sprints" element={<MethodologyGuard scrumOnly><SprintsPage /></MethodologyGuard>} />
+            <Route path="/projects/:id/sprints/:sprintId" element={<MethodologyGuard scrumOnly><SprintDetailPage /></MethodologyGuard>} />
             <Route path="/projects/:id/epics" element={<EpicsPage />} />
             <Route path="/projects/:id/stories" element={<StoriesPage />} />
             <Route path="/projects/:id/stories/:storyId" element={<StoryDetailPage />} />
             <Route path="/projects/:id/epics/:epicId" element={<EpicDetailPage />} />
             <Route path="/projects/:id/charts" element={<ChartsPage />} />
             <Route path="/projects/:id/settings" element={<ProjectSettingsPage />} />
-            <Route path="/projects/:id/sprints/:sprintId/retro" element={<RetroPage />} />
-            <Route path="/projects/:id/sprints/:sprintId/planning" element={<SprintPlanningPage />} />
+            <Route path="/projects/:id/sprints/:sprintId/retro" element={<MethodologyGuard scrumOnly><RetroPage /></MethodologyGuard>} />
+            <Route path="/projects/:id/sprints/:sprintId/planning" element={<MethodologyGuard scrumOnly><SprintPlanningPage /></MethodologyGuard>} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
           </Route>
