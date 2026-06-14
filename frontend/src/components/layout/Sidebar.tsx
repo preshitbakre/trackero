@@ -25,6 +25,7 @@ interface Project {
   name: string;
   prefix: string;
   memberCount?: number;
+  methodology?: 'scrum' | 'kanban';
 }
 
 interface RecentProject {
@@ -170,7 +171,7 @@ export function Sidebar({ projects, currentProjectId, onNavigate }: SidebarProps
   // Fetch active sprint summary for footer card
   const { data: activeSprint } = useQuery({
     queryKey: ['active-sprint-footer', currentProjectId],
-    enabled: !!currentProjectId,
+    enabled: !!currentProjectId && currentProject?.methodology !== 'kanban',
     queryFn: async () => {
       try {
         const res = await apiClient.get(`/projects/${currentProjectId}/sprints/active`);
@@ -429,16 +430,18 @@ export function Sidebar({ projects, currentProjectId, onNavigate }: SidebarProps
               this list with a "pick a project" nudge. */}
           <SectionHeader>Work</SectionHeader>
           {currentProject ? (
-            WORK_LINKS.map((item) => (
-              <NavItem
-                key={item.key}
-                to={link(currentProject, item.key)}
-                iconKey={item.iconKey}
-                label={item.label}
-                active={isLinkActive(item.key)}
-                onClick={onNavigate}
-              />
-            ))
+            WORK_LINKS
+              .filter((item) => !(item.key === 'sprints' && currentProject.methodology === 'kanban'))
+              .map((item) => (
+                <NavItem
+                  key={item.key}
+                  to={link(currentProject, item.key)}
+                  iconKey={item.iconKey}
+                  label={item.label}
+                  active={isLinkActive(item.key)}
+                  onClick={onNavigate}
+                />
+              ))
           ) : (
             <p className="px-3 py-2 text-[12px] text-[var(--ink-4)] italic">
               Pick a project to see Today and the rest.
