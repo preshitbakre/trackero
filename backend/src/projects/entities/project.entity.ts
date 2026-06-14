@@ -38,6 +38,9 @@ export class Project {
   @Column({ name: 'estimation_scale', type: 'varchar', length: 10, default: 'free' })
   estimationScale: 'free' | 'fibonacci' | 'tshirt';
 
+  @Column({ name: 'methodology', type: 'varchar', length: 16, default: 'scrum' })
+  methodology: 'scrum' | 'kanban';
+
   @Column({ name: 'last_activity_at', type: 'timestamptz', nullable: true })
   lastActivityAt: Date | null;
 
