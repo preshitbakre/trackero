@@ -78,4 +78,64 @@ export class ChartsService {
 
     return data;
   }
+
+  async getCycleTime(projectId: number) {
+    // Weekly average cycle time (in days) of tasks that COMPLETED in the last
+    // 12 ISO weeks, bucketed by the week they entered a done-category status.
+    // Cycle time = (first done-category transition) - (first in_progress-category
+    // transition, or the item's created_at when it never had an in_progress step).
+    // All activity_logs->status_id casts are guarded against non-numeric
+    // new_value rows (legacy/migrated data) to avoid `invalid input syntax for
+    // integer` 500s — same hardening as getThroughput.
+    const data = await this.dataSource.query(`
+      WITH done_transitions AS (
+        -- First done-category transition per item, in the last 12 weeks.
+        SELECT al.work_item_id,
+               MIN(al.created_at) AS done_time
+        FROM activity_logs al
+        JOIN work_items wi ON wi.id = al.work_item_id AND wi.item_type IN ('task') AND wi.project_id = $1
+        JOIN project_statuses ps
+          ON al.field_changed = 'status'
+          AND ps.id = CASE WHEN al.new_value ~ '^[0-9]+$' THEN al.new_value::int ELSE NULL END
+        WHERE al.project_id = $1
+          AND al.field_changed = 'status'
+          AND ps.category = 'done'
+          AND al.created_at >= (CURRENT_DATE - INTERVAL '12 weeks')
+        GROUP BY al.work_item_id
+      ),
+      start_transitions AS (
+        -- First in_progress-category transition per item.
+        SELECT al.work_item_id,
+               MIN(al.created_at) AS in_progress_time
+        FROM activity_logs al
+        JOIN project_statuses ps
+          ON al.field_changed = 'status'
+          AND ps.id = CASE WHEN al.new_value ~ '^[0-9]+$' THEN al.new_value::int ELSE NULL END
+        WHERE al.project_id = $1
+          AND al.field_changed = 'status'
+          AND ps.category = 'in_progress'
+        GROUP BY al.work_item_id
+      ),
+      per_item AS (
+        SELECT dt.work_item_id,
+               dt.done_time,
+               COALESCE(st.in_progress_time, wi.created_at) AS start_time
+        FROM done_transitions dt
+        JOIN work_items wi ON wi.id = dt.work_item_id
+        LEFT JOIN start_transitions st ON st.work_item_id = dt.work_item_id
+      )
+      SELECT date_trunc('week', done_time)::date AS week,
+             ROUND(AVG(EXTRACT(EPOCH FROM (done_time - start_time)) / 86400)::numeric, 2) AS "avgCycleTimeDays",
+             COUNT(*)::int AS count
+      FROM per_item
+      GROUP BY date_trunc('week', done_time)
+      ORDER BY week ASC
+    `, [projectId]);
+
+    return data.map((row: { week: string; avgCycleTimeDays: string; count: number }) => ({
+      week: row.week,
+      avgCycleTimeDays: Number(row.avgCycleTimeDays),
+      count: row.count,
+    }));
+  }
 }

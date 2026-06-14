@@ -31,4 +31,11 @@ export class ChartsController {
   async throughput(@Param('projectId', ParseIntPipe) projectId: number) {
     return this.chartsService.getThroughput(projectId);
   }
+
+  @Get('cycle-time')
+  @Roles('admin', 'project_manager', 'member', 'viewer')
+  @ResponseCode('CYCLE_TIME_FETCHED')
+  async cycleTime(@Param('projectId', ParseIntPipe) projectId: number) {
+    return this.chartsService.getCycleTime(projectId);
+  }
 }
