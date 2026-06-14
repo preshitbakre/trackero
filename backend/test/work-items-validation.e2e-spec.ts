@@ -64,13 +64,13 @@ describe('WorkItems Validation (e2e)', () => {
     const [{ item_counter }] = await ds.query(`SELECT item_counter FROM projects WHERE id = $1`, [projectId]);
 
     const [row] = await ds.query(`
-      INSERT INTO work_items (project_id, item_type, parent_id, item_number, title, description, status_id, priority, sprint_id, story_points, assignee_id, reporter_id, sort_order, color)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      INSERT INTO work_items (project_id, item_type, parent_id, item_number, title, description, status_id, priority, sprint_id, story_points, assignee_id, reporter_id, sort_order)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING id, project_id AS "projectId", item_type AS "itemType", parent_id AS "parentId",
                 item_number AS "itemNumber", title, description,
                 status_id AS "statusId", priority, sprint_id AS "sprintId",
                 story_points AS "storyPoints", assignee_id AS "assigneeId",
-                reporter_id AS "reporterId", sort_order AS "sortOrder", color,
+                reporter_id AS "reporterId", sort_order AS "sortOrder",
                 completed_at AS "completedAt", added_mid_sprint AS "addedMidSprint",
                 created_at AS "createdAt", updated_at AS "updatedAt"
     `, [
@@ -87,7 +87,6 @@ describe('WorkItems Validation (e2e)', () => {
       overrides.assigneeId ?? null,
       overrides.reporterId ?? adminId,
       overrides.sortOrder ?? 'n',
-      overrides.color ?? '#7C5CFC',
     ]);
     return row as WorkItem;
   }
@@ -325,8 +324,8 @@ describe('WorkItems Validation (e2e)', () => {
       await ds.query(`UPDATE projects SET item_counter = item_counter + 1 WHERE id = $1`, [proj2.id]);
       const [{ item_counter }] = await ds.query(`SELECT item_counter FROM projects WHERE id = $1`, [proj2.id]);
       const [otherTask] = await ds.query(`
-        INSERT INTO work_items (project_id, item_type, item_number, title, status_id, reporter_id, color)
-        VALUES ($1, 'task', $2, 'Other Task', $3, $4, '#7C5CFC') RETURNING *
+        INSERT INTO work_items (project_id, item_type, item_number, title, status_id, reporter_id)
+        VALUES ($1, 'task', $2, 'Other Task', $3, $4) RETURNING *
       `, [proj2.id, item_counter, otherStatus.id, adminId]);
 
       const task = await insertItem({ itemType: 'task', title: 'T1' });
