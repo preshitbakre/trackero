@@ -24,6 +24,7 @@ import { TypeTag } from '../components/ui';
 import { calculateMidpoint } from '../lib/lexorank';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { Drawer } from '../components/common/Drawer';
+import { useProjectMethodology } from '../hooks/useProjectMethodology';
 
 interface BacklogTask {
   id: number;
@@ -180,6 +181,8 @@ export function BacklogPage() {
   const [error, setError] = useState(false);
   const user = useAuthStore((s) => s.user);
   const { canEdit, canAdminister } = useRole();
+  const { methodology } = useProjectMethodology(projectId);
+  const isKanban = methodology === 'kanban';
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: canEdit ? 5 : Infinity } }));
   const [activeTask, setActiveTask] = useState<BacklogTask | null>(null);
@@ -198,14 +201,16 @@ export function BacklogPage() {
       const backlogTasks: BacklogTask[] = taskData.data.list || [];
       setTasks(backlogTasks);
 
-      const { data: sprintData } = await apiClient.get(`/projects/${projectId}/sprints?limit=100`);
-      const planSprints = (sprintData.data.list || []).filter((s: any) => s.status === 'planning' || s.status === 'active');
-      setSprints(planSprints);
+      if (!isKanban) {
+        const { data: sprintData } = await apiClient.get(`/projects/${projectId}/sprints?limit=100`);
+        const planSprints = (sprintData.data.list || []).filter((s: any) => s.status === 'planning' || s.status === 'active');
+        setSprints(planSprints);
+      }
     } catch {
       setError(true);
     }
     setLoading(false);
-  }, [projectId]);
+  }, [projectId, isKanban]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -373,7 +378,7 @@ export function BacklogPage() {
               Backlog
             </h1>
             <Eyebrow>
-              {tasks.length} items · {totalPoints} pts · {inSprintCount} in sprint
+              {tasks.length} items · {totalPoints} pts{!isKanban && ` · ${inSprintCount} in sprint`}
             </Eyebrow>
           </div>
           {canEdit && (
@@ -417,7 +422,7 @@ export function BacklogPage() {
                 </div>
               )}
             </div>
-            {moveTargetSprint && (
+            {!isKanban && moveTargetSprint && (
               <Button
                 size="sm"
                 variant="primary"
@@ -546,7 +551,7 @@ export function BacklogPage() {
               <CheckCircle size={32} style={{ color: '#3E8E44' }} strokeWidth={1.5} />
             </div>
             <h3 className="text-[16px] font-medium text-neutral-500 mb-1">Backlog is clear</h3>
-            <p className="text-[14px] text-neutral-400">All tasks have been assigned to sprints. Nice work!</p>
+            <p className="text-[14px] text-neutral-400">{isKanban ? 'Backlog is empty. Add items to start the flow.' : 'All tasks have been assigned to sprints. Nice work!'}</p>
           </div>
         )}
         </div>
