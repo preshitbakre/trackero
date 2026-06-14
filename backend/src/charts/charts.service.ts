@@ -65,7 +65,9 @@ export class ChartsService {
              COUNT(DISTINCT al.work_item_id)::int AS count
       FROM activity_logs al
       JOIN work_items wi ON wi.id = al.work_item_id AND wi.item_type IN ('task') AND wi.project_id = $1
-      JOIN project_statuses ps ON ps.id = CAST(al.new_value AS INTEGER)
+      JOIN project_statuses ps
+        ON al.field_changed = 'status'
+        AND ps.id = CASE WHEN al.new_value ~ '^[0-9]+$' THEN al.new_value::int ELSE NULL END
       WHERE al.project_id = $1
         AND al.field_changed = 'status'
         AND ps.category = 'done'

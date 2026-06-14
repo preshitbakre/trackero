@@ -296,6 +296,100 @@ describe('Charts, Retro, Search (e2e)', () => {
       const total = series.reduce((sum: number, b: any) => sum + b.count, 0);
       expect(total).toBeGreaterThanOrEqual(1);
     });
+
+    it('does not 500 when activity_logs hold non-numeric new_value rows (non-status edits)', async () => {
+      // Fetch the project's default statuses.
+      const statusRes = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/statuses`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      const statuses = statusRes.body.data.list ?? statusRes.body.data;
+      const inProgressStatus = statuses.find((s: any) => s.category === 'in_progress');
+      const doneStatus = statuses.find((s: any) => s.category === 'done');
+      expect(inProgressStatus).toBeDefined();
+      expect(doneStatus).toBeDefined();
+
+      // Create a task (starts in the default backlog status).
+      const taskRes = await request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/items`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ itemType: 'task', title: 'Throughput non-numeric task' })
+        .expect(201);
+      const taskId = taskRes.body.data.item.id;
+
+      // Perform NON-status edits that write activity_logs rows whose new_value is
+      // free-form text (a title, then a description). On real-world data these
+      // rows live alongside status rows, and an unguarded CAST(new_value AS INTEGER)
+      // in the throughput JOIN would throw `invalid input syntax for integer` when
+      // Postgres evaluates the cast against them — yielding a 500.
+      await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/items/${taskId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ title: 'Throughput renamed (non-numeric activity row)' })
+        .expect(200);
+      await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/items/${taskId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ description: 'A free-form description — clearly not an integer.' })
+        .expect(200);
+
+      // Move it through backlog -> in_progress -> done so there is one valid
+      // completed transition to count.
+      await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/items/${taskId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ statusId: inProgressStatus.id })
+        .expect(200);
+      await request(app.getHttpServer())
+        .put(`/api/projects/${projectId}/items/${taskId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ statusId: doneStatus.id })
+        .expect(200);
+
+      const dataSource = app.get(DataSource);
+      // Poll until the async @OnEvent handler commits the move-to-done row.
+      await pollUntil(
+        () => dataSource.query(
+          `SELECT new_value FROM activity_logs
+           WHERE work_item_id = $1 AND field_changed = 'status' AND new_value = $2`,
+          [taskId, String(doneStatus.id)],
+        ),
+        (rows: any[]) => rows.length >= 1,
+      );
+      // Sanity: the non-status edits really did persist non-numeric new_value rows.
+      const nonNumericRows = await dataSource.query(
+        `SELECT COUNT(*)::int AS cnt FROM activity_logs
+         WHERE work_item_id = $1 AND new_value IS NOT NULL AND new_value !~ '^[0-9]+$'`,
+        [taskId],
+      );
+      expect(nonNumericRows[0].cnt).toBeGreaterThanOrEqual(1);
+
+      // Inject a LEGACY/corrupt status row: field_changed = 'status' but new_value
+      // is a status NAME, not an id (non-numeric). Real-world / migrated datasets
+      // carry such rows. These DO pass the WHERE `field_changed = 'status'` filter,
+      // so an unguarded CAST(al.new_value AS INTEGER) in the JOIN runs on them and
+      // throws `invalid input syntax for integer` -> 500. The regex guard skips them.
+      await dataSource.query(
+        `INSERT INTO activity_logs (project_id, work_item_id, user_id, action, field_changed, new_value, created_at)
+         VALUES ($1, $2, $3, 'updated', 'status', $4, now())`,
+        [projectId, taskId, adminId, 'In Progress'],
+      );
+
+      // The endpoint must still succeed (200, never 500) and count the one done
+      // transition — the legacy non-numeric status row is ignored, so the result
+      // is identical to the clean-data case.
+      const res = await request(app.getHttpServer())
+        .get(`/api/projects/${projectId}/throughput`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.code).toBe('S-0182');
+      const series = res.body.data;
+      expect(Array.isArray(series)).toBe(true);
+      const total = series.reduce((sum: number, b: any) => sum + b.count, 0);
+      expect(total).toBe(1);
+    });
   });
 
   describe('Retrospectives', () => {
