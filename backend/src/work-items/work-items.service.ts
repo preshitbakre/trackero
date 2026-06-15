@@ -1712,9 +1712,11 @@ export class WorkItemsService {
       }
     }
 
-    // Second: link subtasks via parentId
+    // Second: link subtasks via parentId. Creating a subtask also writes a
+    // belongs_to association to the same parent, so skip any already linked
+    // above to avoid listing the subtask twice under its parent.
     for (const item of itemMap.values()) {
-      if (item.itemType === 'subtask' && item.parentId && itemMap.has(item.parentId)) {
+      if (item.itemType === 'subtask' && !item._linked && item.parentId && itemMap.has(item.parentId)) {
         itemMap.get(item.parentId)!.children.push(item);
         item._linked = true;
       }
