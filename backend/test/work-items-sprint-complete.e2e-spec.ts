@@ -52,8 +52,8 @@ describe('Sprint Completion with WorkItems (e2e)', () => {
   it('moves incomplete tasks to next planning sprint on completion', async () => {
     // Create active sprint with tasks
     const [sprint1] = await ds.query(
-      `INSERT INTO sprints (project_id, name, status, sprint_number, created_by, start_date, end_date)
-       VALUES ($1, 'Sprint 1', 'active', 1, $2, CURRENT_DATE - 14, CURRENT_DATE) RETURNING id`,
+      `INSERT INTO sprints (project_id, name, status, sprint_number, created_by, start_date, end_date, carry_over_policy)
+       VALUES ($1, 'Sprint 1', 'active', 1, $2, CURRENT_DATE - 14, CURRENT_DATE, 'roll') RETURNING id`,
       [projectId, adminId],
     );
     // Create next planning sprint
@@ -83,8 +83,8 @@ describe('Sprint Completion with WorkItems (e2e)', () => {
 
   it('moves incomplete tasks to backlog if no next sprint', async () => {
     const [sprint1] = await ds.query(
-      `INSERT INTO sprints (project_id, name, status, sprint_number, created_by, start_date, end_date)
-       VALUES ($1, 'Sprint 1', 'active', 1, $2, CURRENT_DATE - 14, CURRENT_DATE) RETURNING id`,
+      `INSERT INTO sprints (project_id, name, status, sprint_number, created_by, start_date, end_date, carry_over_policy)
+       VALUES ($1, 'Sprint 1', 'active', 1, $2, CURRENT_DATE - 14, CURRENT_DATE, 'roll') RETURNING id`,
       [projectId, adminId],
     );
 
@@ -102,8 +102,8 @@ describe('Sprint Completion with WorkItems (e2e)', () => {
 
   it('subtasks are not directly affected (they have null sprint_id)', async () => {
     const [sprint1] = await ds.query(
-      `INSERT INTO sprints (project_id, name, status, sprint_number, created_by, start_date, end_date)
-       VALUES ($1, 'Sprint 1', 'active', 1, $2, CURRENT_DATE - 14, CURRENT_DATE) RETURNING id`,
+      `INSERT INTO sprints (project_id, name, status, sprint_number, created_by, start_date, end_date, carry_over_policy)
+       VALUES ($1, 'Sprint 1', 'active', 1, $2, CURRENT_DATE - 14, CURRENT_DATE, 'roll') RETURNING id`,
       [projectId, adminId],
     );
 
@@ -124,8 +124,8 @@ describe('Sprint Completion with WorkItems (e2e)', () => {
 
   it('creates SprintScopeChange records with work_item_id', async () => {
     const [sprint1] = await ds.query(
-      `INSERT INTO sprints (project_id, name, status, sprint_number, created_by, start_date, end_date)
-       VALUES ($1, 'Sprint 1', 'active', 1, $2, CURRENT_DATE - 14, CURRENT_DATE) RETURNING id`,
+      `INSERT INTO sprints (project_id, name, status, sprint_number, created_by, start_date, end_date, carry_over_policy)
+       VALUES ($1, 'Sprint 1', 'active', 1, $2, CURRENT_DATE - 14, CURRENT_DATE, 'roll') RETURNING id`,
       [projectId, adminId],
     );
 
@@ -148,8 +148,8 @@ describe('Sprint Completion with WorkItems (e2e)', () => {
 
   it('two concurrent completes: exactly one succeeds, scope-change rows not duplicated', async () => {
     const [sprint1] = await ds.query(
-      `INSERT INTO sprints (project_id, name, status, sprint_number, created_by, start_date, end_date)
-       VALUES ($1, 'Sprint 1', 'active', 1, $2, CURRENT_DATE - 14, CURRENT_DATE) RETURNING id`,
+      `INSERT INTO sprints (project_id, name, status, sprint_number, created_by, start_date, end_date, carry_over_policy)
+       VALUES ($1, 'Sprint 1', 'active', 1, $2, CURRENT_DATE - 14, CURRENT_DATE, 'roll') RETURNING id`,
       [projectId, adminId],
     );
 
