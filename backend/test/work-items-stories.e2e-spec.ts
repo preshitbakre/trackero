@@ -92,20 +92,18 @@ describe('Stories List Endpoint (e2e)', () => {
     expect(story.itemType).toBe('story');
     expect(story.title).toBe('Login Flow');
 
-    // Descendants via associations: T1(done), T2(backlog) = 2 total, 1 done
-    // Note: subtask is a child of T1 via parentId, not via association — it may not appear in belongs_to CTE
-    // The CTE only follows belongs_to associations, so subtask won't be counted unless
-    // it also has a belongs_to to T1. Let's check what the CTE returns.
-    // Actually the CTE does: belongs_to from storyId -> gets T1, T2
-    // Then recursively: belongs_to from T1 -> nothing (subtask has parentId, not association)
-    // So descendants = T1 + T2 = 2 items
-    expect(story.progress.totalItems).toBe(2);
-    expect(story.progress.completedItems).toBe(1);
-    expect(story.progress.progressPercent).toBe(50);
-    expect(story.progress.totalPoints).toBe(8);
-    expect(story.progress.completedPoints).toBe(3);
+    // Descendants via belongs_to: story -> T1, T2; and T1 -> ST1, because
+    // creating a subtask under T1 also writes a belongs_to association to it.
+    // So the recursive CTE counts T1(done), T2(backlog), ST1(done) = 3 items,
+    // 2 done. Points: 3 + 5 + 1 = 9 total, 3 + 1 = 4 completed.
+    expect(story.progress.totalItems).toBe(3);
+    expect(story.progress.completedItems).toBe(2);
+    expect(story.progress.progressPercent).toBe(67);
+    expect(story.progress.totalPoints).toBe(9);
+    expect(story.progress.completedPoints).toBe(4);
 
     expect(story.childBreakdown.tasks).toBe(2);
+    expect(story.childBreakdown.subtasks).toBe(1);
   });
 
   it('does not return non-story items', async () => {

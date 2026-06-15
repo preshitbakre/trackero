@@ -1033,10 +1033,13 @@ describe('Sprints getScopeChanges (e2e)', () => {
       .post(`/api/projects/${projectId}/items`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
+        // No sprintId: creating it on the active sprint would fire the
+        // work_item.created listener and write an auto 'added' scope-change
+        // inside the commit-batch window, inflating the commit batch. The
+        // manual +60s 'added' INSERT below simulates its post-commit addition.
         itemType: 'bug',
         title: 'Late bug',
         statusId: statusOpenId,
-        sprintId,
         storyPoints: 2,
         assigneeId: userBId,
       })

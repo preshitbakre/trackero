@@ -104,7 +104,7 @@ describe('Bug ItemType (e2e)', () => {
     expect(res.body.code).toBe('F-L-0091');
   });
 
-  it('create subtask under bug → 400 (bugs cannot have children)', async () => {
+  it('create subtask under bug → 201 (bugs can have subtasks)', async () => {
     const bugRes = await createItem({ itemType: 'bug', title: 'B1' });
     const bugId = bugRes.body.data.item.id;
 
@@ -112,9 +112,10 @@ describe('Bug ItemType (e2e)', () => {
       itemType: 'subtask',
       title: 'Subtask under bug',
       parentId: bugId,
-    }).expect(400);
+    }).expect(201);
 
-    expect(res.body.code).toBe('F-L-0091');
+    expect(res.body.data.item.itemType).toBe('subtask');
+    expect(res.body.data.item.parentId).toBe(bugId);
   });
 
   // =========================================================================
