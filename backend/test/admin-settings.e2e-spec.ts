@@ -185,7 +185,7 @@ describe('Admin, Settings & Invitations (e2e)', () => {
         .post('/api/auth/register')
         .send({
           email: 'invited@test.com',
-          password: 'password123',
+          password: 'Password1!',
           displayName: 'Invited User',
           inviteToken: token,
         })

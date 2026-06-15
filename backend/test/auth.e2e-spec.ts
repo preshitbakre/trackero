@@ -25,7 +25,7 @@ describe('Auth Module (e2e)', () => {
         .post('/api/auth/register')
         .send({
           email: 'test@example.com',
-          password: 'password123',
+          password: 'Password1!',
           displayName: 'Test User',
         })
         .expect(201);
@@ -48,7 +48,7 @@ describe('Auth Module (e2e)', () => {
         .post('/api/auth/register')
         .send({
           email: 'dup@example.com',
-          password: 'password123',
+          password: 'Password1!',
           displayName: 'First User',
         })
         .expect(201);
@@ -57,7 +57,7 @@ describe('Auth Module (e2e)', () => {
         .post('/api/auth/register')
         .send({
           email: 'dup@example.com',
-          password: 'password456',
+          password: 'Password2@',
           displayName: 'Second User',
         })
         .expect(409);
@@ -100,7 +100,7 @@ describe('Auth Module (e2e)', () => {
         .post('/api/auth/register')
         .send({
           email: 'login@example.com',
-          password: 'password123',
+          password: 'Password1!',
           displayName: 'Login User',
         });
     });
@@ -110,7 +110,7 @@ describe('Auth Module (e2e)', () => {
         .post('/api/auth/login')
         .send({
           email: 'login@example.com',
-          password: 'password123',
+          password: 'Password1!',
         })
         .expect(200);
 
@@ -139,7 +139,7 @@ describe('Auth Module (e2e)', () => {
         .post('/api/auth/login')
         .send({
           email: 'nobody@example.com',
-          password: 'password123',
+          password: 'Password1!',
         })
         .expect(401);
 
@@ -159,7 +159,7 @@ describe('Auth Module (e2e)', () => {
         .post('/api/auth/login')
         .send({
           email: 'login@example.com',
-          password: 'password123',
+          password: 'Password1!',
         })
         .expect(403);
 
@@ -182,7 +182,7 @@ describe('Auth Module (e2e)', () => {
         .post('/api/auth/register')
         .send({
           email: 'me@example.com',
-          password: 'password123',
+          password: 'Password1!',
           displayName: 'Me User',
         });
 
@@ -206,7 +206,7 @@ describe('Auth Module (e2e)', () => {
         .post('/api/auth/register')
         .send({
           email: 'refresh@example.com',
-          password: 'password123',
+          password: 'Password1!',
           displayName: 'Refresh User',
         });
 
@@ -240,7 +240,7 @@ describe('Auth Module (e2e)', () => {
         .post('/api/auth/register')
         .send({
           email: 'rotate@example.com',
-          password: 'password123',
+          password: 'Password1!',
           displayName: 'Rotate User',
         });
 
@@ -269,7 +269,7 @@ describe('Auth Module (e2e)', () => {
         .post('/api/auth/register')
         .send({
           email: 'logout@example.com',
-          password: 'password123',
+          password: 'Password1!',
           displayName: 'Logout User',
         });
 
@@ -298,7 +298,7 @@ describe('Auth Module (e2e)', () => {
         .post('/api/auth/register')
         .send({
           email: 'pwchange@example.com',
-          password: 'oldpassword1',
+          password: 'Password1!',
           displayName: 'PW User',
         });
 
@@ -309,8 +309,8 @@ describe('Auth Module (e2e)', () => {
         .put('/api/auth/me/password')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
-          currentPassword: 'oldpassword1',
-          newPassword: 'newpassword1',
+          currentPassword: 'Password1!',
+          newPassword: 'Password2@',
         })
         .expect(200);
 
@@ -328,7 +328,7 @@ describe('Auth Module (e2e)', () => {
         .post('/api/auth/login')
         .send({
           email: 'pwchange@example.com',
-          password: 'newpassword1',
+          password: 'Password2@',
         })
         .expect(200);
 
@@ -340,7 +340,7 @@ describe('Auth Module (e2e)', () => {
         .post('/api/auth/register')
         .send({
           email: 'pwfail@example.com',
-          password: 'password123',
+          password: 'Password1!',
           displayName: 'PW Fail User',
         });
 
@@ -351,7 +351,7 @@ describe('Auth Module (e2e)', () => {
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           currentPassword: 'wrongcurrent',
-          newPassword: 'newpassword1',
+          newPassword: 'Password2@',
         })
         .expect(401);
 
@@ -366,7 +366,7 @@ describe('Auth Module (e2e)', () => {
         .post('/api/auth/register')
         .send({
           email: 'profile@example.com',
-          password: 'password123',
+          password: 'Password1!',
           displayName: 'Original Name',
         });
 
@@ -431,7 +431,7 @@ describe('Auth Module (e2e)', () => {
         .post('/api/auth/register')
         .send({
           email: 'firstuser@example.com',
-          password: 'password123',
+          password: 'Password1!',
           displayName: 'First User',
         })
         .expect(201);
@@ -443,14 +443,14 @@ describe('Auth Module (e2e)', () => {
       // Register first user (admin)
       await request(app.getHttpServer())
         .post('/api/auth/register')
-        .send({ email: 'first@example.com', password: 'password123', displayName: 'First' });
+        .send({ email: 'first@example.com', password: 'Password1!', displayName: 'First' });
 
       // Second user without invite → rejected
       const res = await request(app.getHttpServer())
         .post('/api/auth/register')
         .send({
           email: 'uninvited@example.com',
-          password: 'password123',
+          password: 'Password1!',
           displayName: 'Uninvited',
         })
         .expect(403);
@@ -462,7 +462,7 @@ describe('Auth Module (e2e)', () => {
       // Register a user first so isSetup is true
       await request(app.getHttpServer())
         .post('/api/auth/register')
-        .send({ email: 'setup@example.com', password: 'password123', displayName: 'Setup' });
+        .send({ email: 'setup@example.com', password: 'Password1!', displayName: 'Setup' });
 
       const res = await request(app.getHttpServer())
         .get('/api/auth/setup-status')
@@ -482,7 +482,7 @@ describe('Auth Module (e2e)', () => {
         // First user becomes admin.
         const adminRes = await request(app.getHttpServer())
           .post('/api/auth/register')
-          .send({ email: `admin${round}@example.com`, password: 'password123', displayName: 'Admin' });
+          .send({ email: `admin${round}@example.com`, password: 'Password1!', displayName: 'Admin' });
         const adminToken = adminRes.body.data.accessToken;
 
         // Create a single invitation.
@@ -496,10 +496,10 @@ describe('Auth Module (e2e)', () => {
         const results = await Promise.allSettled([
           request(app.getHttpServer())
             .post('/api/auth/register')
-            .send({ email: `racea1-${round}@example.com`, password: 'password123', displayName: 'A1', inviteToken }),
+            .send({ email: `racea1-${round}@example.com`, password: 'Password1!', displayName: 'A1', inviteToken }),
           request(app.getHttpServer())
             .post('/api/auth/register')
-            .send({ email: `racea2-${round}@example.com`, password: 'password123', displayName: 'A2', inviteToken }),
+            .send({ email: `racea2-${round}@example.com`, password: 'Password1!', displayName: 'A2', inviteToken }),
         ]);
 
         const statuses = results.map((r) =>
@@ -538,10 +538,10 @@ describe('Auth Module (e2e)', () => {
         const results = await Promise.allSettled([
           request(app.getHttpServer())
             .post('/api/auth/register')
-            .send({ email: `raceb1-${round}@example.com`, password: 'password123', displayName: 'B1' }),
+            .send({ email: `raceb1-${round}@example.com`, password: 'Password1!', displayName: 'B1' }),
           request(app.getHttpServer())
             .post('/api/auth/register')
-            .send({ email: `raceb2-${round}@example.com`, password: 'password123', displayName: 'B2' }),
+            .send({ email: `raceb2-${round}@example.com`, password: 'Password1!', displayName: 'B2' }),
         ]);
 
         const fulfilled = results
