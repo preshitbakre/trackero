@@ -2,76 +2,35 @@
  * T0.2 — restoration of CHECK constraints on work_items / work_item_associations.
  *
  * Migration 14 (`AssociationsRedesign`) declared chk_link_type,
- * chk_no_self_link, and chk_item_type. The audit observed them missing
- * from drifted dev databases — synchronize would create the table but
- * sometimes lose the constraints across schema edits. Migration 025
- * restores them idempotently.
+ * chk_no_self_link, and chk_item_type; migration 025 restored them
+ * idempotently. Both are now folded into the squashed Baseline migration.
  *
- * The two tests below cover:
- *   1. Fresh-DB happy path: all three constraints exist after the full
- *      migration run, and reject every illegal value documented in the
- *      audit.
- *   2. Drift recovery: schema is in place but the constraints are gone;
- *      running migration 025 alone puts them back.
+ * Fresh-DB happy path: all three constraints exist after the full migration
+ * run, and reject every illegal value documented in the audit. (The former
+ * drift-recovery test re-ran the standalone migration 025, which no longer
+ * exists post-squash, so it was removed.)
  */
 import { DataSource, type MigrationInterface, type MixedList } from 'typeorm';
 import { Client } from 'pg';
 import { randomBytes } from 'crypto';
 
-import { AuthTables1716000000000 } from '../../../migrations/1716000000000-auth-tables';
-import { ProjectsTables1716000001000 } from '../../../migrations/1716000001000-projects-tables';
-import { EpicsSprintsTasks1716000002000 } from '../../../migrations/1716000002000-epics-sprints-tasks';
-import { ChecklistDependencies1716000003000 } from '../../../migrations/1716000003000-checklist-dependencies';
-import { TaskSearchVector1716000004000 } from '../../../migrations/1716000004000-task-search-vector';
-import { TaskLabels1716000005000 } from '../../../migrations/1716000005000-task-labels';
-import { PasswordResets1716000006000 } from '../../../migrations/1716000006000-password-resets';
-import { CommentsAttachmentsActivity1716000007000 } from '../../../migrations/1716000007000-comments-attachments-activity';
-import { Notifications1716000008000 } from '../../../migrations/1716000008000-notifications';
-import { NotificationProjectId1716000009000 } from '../../../migrations/1716000009000-notification-project-id';
-import { RetroTables1716000010000 } from '../../../migrations/1716000010000-retro-tables';
-import { SettingsTable1716000011000 } from '../../../migrations/1716000011000-settings-table';
-import { HierarchyMigration1716000012000 } from '../../../migrations/1716000012000-hierarchy-migration';
-import { DateFieldsRename1716000013000 } from '../../../migrations/1716000013000-date-fields-rename';
-import { AssociationsRedesign1716000014000 } from '../../../migrations/1716000014000-associations-redesign';
-import { SprintOneActivePerProject1716000015000 } from '../../../migrations/1716000015000-sprint-one-active-per-project';
-import { SprintNumberUniquePerProject1716000016000 } from '../../../migrations/1716000016000-sprint-number-unique-per-project';
-import { InvitationPendingEmailUnique1716000017000 } from '../../../migrations/1716000017000-invitation-pending-email-unique';
-import { NotificationDailyDedupUnique1716000018000 } from '../../../migrations/1716000018000-notification-daily-dedup-unique';
-import { WorkItemSearchVector1716000019000 } from '../../../migrations/1716000019000-work-item-search-vector';
-import { StatusFixedWipEstimation1716000020000 } from '../../../migrations/1716000020000-status-fixed-wip-estimation';
-import { FkRestrictOnUserDelete1716000021000 } from '../../../migrations/1716000021000-fk-restrict-on-user-delete';
-import { AssociationsCreatedByFk1716000022000 } from '../../../migrations/1716000022000-associations-created-by-fk';
-import { AlignColumnLengths1716000023000 } from '../../../migrations/1716000023000-align-column-lengths';
-import { ReconcileMigrationsTable1716000024000 } from '../../../migrations/1716000024000-reconcile-migrations-table';
-import { RestoreCheckConstraints1716000025000 } from '../../../migrations/1716000025000-restore-check-constraints';
+import { Baseline1780382923512 } from '../../../migrations/1780382923512-Baseline';
+import { AddMustChangePassword1781349329957 } from '../../../migrations/1781349329957-AddMustChangePassword';
+import { AddProjectMethodology1781439447500 } from '../../../migrations/1781439447500-AddProjectMethodology';
+import { InstanceSettingsValueJsonb1781500000000 } from '../../../migrations/1781500000000-InstanceSettingsValueJsonb';
+import { RestoreAuditHardening1781600000000 } from '../../../migrations/1781600000000-RestoreAuditHardening';
 
+// The pre-1.0 numbered migrations (including 025, which restored these CHECK
+// constraints) were squashed into a single Baseline migration. The hardening
+// 025 carried lived only in raw SQL, so the entity-generated Baseline lost it;
+// RestoreAuditHardening re-applies it. This spec runs the post-squash set and
+// asserts the resulting final schema.
 const ALL: MixedList<new () => MigrationInterface> = [
-  AuthTables1716000000000,
-  ProjectsTables1716000001000,
-  EpicsSprintsTasks1716000002000,
-  ChecklistDependencies1716000003000,
-  TaskSearchVector1716000004000,
-  TaskLabels1716000005000,
-  PasswordResets1716000006000,
-  CommentsAttachmentsActivity1716000007000,
-  Notifications1716000008000,
-  NotificationProjectId1716000009000,
-  RetroTables1716000010000,
-  SettingsTable1716000011000,
-  HierarchyMigration1716000012000,
-  DateFieldsRename1716000013000,
-  AssociationsRedesign1716000014000,
-  SprintOneActivePerProject1716000015000,
-  SprintNumberUniquePerProject1716000016000,
-  InvitationPendingEmailUnique1716000017000,
-  NotificationDailyDedupUnique1716000018000,
-  WorkItemSearchVector1716000019000,
-  StatusFixedWipEstimation1716000020000,
-  FkRestrictOnUserDelete1716000021000,
-  AssociationsCreatedByFk1716000022000,
-  AlignColumnLengths1716000023000,
-  ReconcileMigrationsTable1716000024000,
-  RestoreCheckConstraints1716000025000,
+  Baseline1780382923512,
+  AddMustChangePassword1781349329957,
+  AddProjectMethodology1781439447500,
+  InstanceSettingsValueJsonb1781500000000,
+  RestoreAuditHardening1781600000000,
 ];
 
 function uniqueDbName(): string {
@@ -218,50 +177,6 @@ describe('CHECK constraints (T0.2)', () => {
          VALUES ($1, $2, 'blocks', $3)`,
         [a.id, b.id, userId],
       );
-    } finally {
-      if (ds.isInitialized) await ds.destroy();
-      await dropDb(dbName);
-    }
-  });
-
-  it('drift recovery: dropped constraints come back after running migration 025', async () => {
-    const dbName = uniqueDbName();
-    await createDb(dbName);
-    const ds = buildDataSource(dbName, ALL);
-    try {
-      await ds.initialize();
-      await ds.runMigrations();
-
-      // Simulate the audited drift: constraints were removed by a long-ago
-      // schema edit that never made it into a migration.
-      await ds.query(`ALTER TABLE work_items DROP CONSTRAINT IF EXISTS chk_item_type`);
-      await ds.query(
-        `ALTER TABLE work_item_associations DROP CONSTRAINT IF EXISTS chk_link_type`,
-      );
-      await ds.query(
-        `ALTER TABLE work_item_associations DROP CONSTRAINT IF EXISTS chk_no_self_link`,
-      );
-      await ds.query(
-        `DELETE FROM migrations WHERE name = 'RestoreCheckConstraints1716000025000'`,
-      );
-      await ds.destroy();
-
-      // Re-run only migration 025; it must reinstate the constraints.
-      const dsAgain = buildDataSource(dbName, [RestoreCheckConstraints1716000025000]);
-      try {
-        await dsAgain.initialize();
-        await dsAgain.runMigrations();
-        const names: Array<{ conname: string }> = await dsAgain.query(
-          `SELECT conname FROM pg_constraint
-           WHERE conrelid IN ('work_items'::regclass, 'work_item_associations'::regclass)
-             AND contype = 'c'
-             AND conname IN ('chk_link_type', 'chk_no_self_link', 'chk_item_type')`,
-        );
-        const set = names.map((c) => c.conname).sort();
-        expect(set).toEqual(['chk_item_type', 'chk_link_type', 'chk_no_self_link']);
-      } finally {
-        if (dsAgain.isInitialized) await dsAgain.destroy();
-      }
     } finally {
       if (ds.isInitialized) await ds.destroy();
       await dropDb(dbName);

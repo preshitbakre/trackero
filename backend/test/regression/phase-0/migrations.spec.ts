@@ -19,6 +19,7 @@ import { Baseline1780382923512 } from '../../../migrations/1780382923512-Baselin
 import { AddMustChangePassword1781349329957 } from '../../../migrations/1781349329957-AddMustChangePassword';
 import { AddProjectMethodology1781439447500 } from '../../../migrations/1781439447500-AddProjectMethodology';
 import { InstanceSettingsValueJsonb1781500000000 } from '../../../migrations/1781500000000-InstanceSettingsValueJsonb';
+import { RestoreAuditHardening1781600000000 } from '../../../migrations/1781600000000-RestoreAuditHardening';
 import { EXPECTED_MIGRATION_NAMES } from '../../../src/database/migrations-registry';
 
 const ALL_MIGRATIONS: MixedList<new () => MigrationInterface> = [
@@ -26,6 +27,7 @@ const ALL_MIGRATIONS: MixedList<new () => MigrationInterface> = [
   AddMustChangePassword1781349329957,
   AddProjectMethodology1781439447500,
   InstanceSettingsValueJsonb1781500000000,
+  RestoreAuditHardening1781600000000,
 ];
 
 function uniqueDbName(): string {
