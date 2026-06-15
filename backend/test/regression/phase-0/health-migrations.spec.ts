@@ -76,5 +76,6 @@ describe('T0.12 — GET /api/health/migrations', () => {
     expect(data.expected).toContain('Baseline1780382923512');
     expect(data.expected).toContain('AddMustChangePassword1781349329957');
     expect(data.expected).toContain('AddProjectMethodology1781439447500');
+    expect(data.expected).toContain('InstanceSettingsValueJsonb1781500000000');
   });
 });

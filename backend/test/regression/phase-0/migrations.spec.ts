@@ -18,12 +18,14 @@ import { randomBytes } from 'crypto';
 import { Baseline1780382923512 } from '../../../migrations/1780382923512-Baseline';
 import { AddMustChangePassword1781349329957 } from '../../../migrations/1781349329957-AddMustChangePassword';
 import { AddProjectMethodology1781439447500 } from '../../../migrations/1781439447500-AddProjectMethodology';
+import { InstanceSettingsValueJsonb1781500000000 } from '../../../migrations/1781500000000-InstanceSettingsValueJsonb';
 import { EXPECTED_MIGRATION_NAMES } from '../../../src/database/migrations-registry';
 
 const ALL_MIGRATIONS: MixedList<new () => MigrationInterface> = [
   Baseline1780382923512,
   AddMustChangePassword1781349329957,
   AddProjectMethodology1781439447500,
+  InstanceSettingsValueJsonb1781500000000,
 ];
 
 function uniqueDbName(): string {
