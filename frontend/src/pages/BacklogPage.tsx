@@ -574,18 +574,10 @@ export function BacklogPage() {
     </DndContext>
 
       <Drawer
-        open={!!(selectedTaskId || showCreate)}
-        onClose={() => { selectTask(null); setShowCreate(false); }}
+        open={!!selectedTaskId}
+        onClose={() => selectTask(null)}
       >
-        {showCreate && projectId ? (
-          <CreateItemDialog
-            projectId={parseInt(projectId)}
-            defaultType="task"
-            onClose={() => setShowCreate(false)}
-            onCreated={handleCreated}
-            bare
-          />
-        ) : selectedTaskId && projectId ? (
+        {selectedTaskId && projectId ? (
           <TaskDetailPanel
             projectId={parseInt(projectId)}
             taskId={selectedTaskId}
@@ -597,6 +589,15 @@ export function BacklogPage() {
           />
         ) : null}
       </Drawer>
+
+      {showCreate && projectId && (
+        <CreateItemDialog
+          projectId={parseInt(projectId)}
+          defaultType="task"
+          onClose={() => setShowCreate(false)}
+          onCreated={handleCreated}
+        />
+      )}
 
       {showBulkDeleteConfirm && (
         <ConfirmDialog
