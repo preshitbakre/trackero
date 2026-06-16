@@ -3,6 +3,7 @@ import { apiClient } from '../../api/client';
 import { queryClient } from '../../lib/query-client';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { NumberInput } from '../ui/NumberInput';
 import { Textarea } from '../ui/Textarea';
 import { Select } from '../ui/Select';
 import { Combobox } from '../ui/Combobox';
@@ -68,7 +69,7 @@ export function CreateItemDialog({
   const [sprintId, setSprintId] = useState('');
   const [statusId, setStatusId] = useState('');
   const [assigneeId, setAssigneeId] = useState('');
-  const [storyPoints, setStoryPoints] = useState('');
+  const [storyPoints, setStoryPoints] = useState<number | null>(null);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [labelIds, setLabelIds] = useState<number[]>([]);
@@ -195,7 +196,7 @@ export function CreateItemDialog({
       if (showSprint && sprintId) body.sprintId = parseInt(sprintId);
       if (statusId) body.statusId = parseInt(statusId);
       if (assigneeId) body.assigneeId = parseInt(assigneeId);
-      if (storyPoints) body.storyPoints = parseInt(storyPoints);
+      if (storyPoints != null) body.storyPoints = storyPoints;
       if (startDate) body.startDate = startDate;
       if (endDate) body.endDate = endDate;
       if (labelIds.length > 0) body.labelIds = labelIds;
@@ -298,7 +299,7 @@ export function CreateItemDialog({
             </div>
             <div>
               <label className={labelClass}>Points</label>
-              <Input value={storyPoints} onChange={(e) => setStoryPoints(e.target.value)} placeholder="0" className="[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+              <NumberInput value={storyPoints} onChange={setStoryPoints} placeholder="0" />
             </div>
           </div>
 
