@@ -29,6 +29,9 @@ export class Comment {
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
 
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true })
+  deletedAt: Date | null;
+
   @ManyToOne(() => WorkItem, (wi) => wi.comments, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'work_item_id' })
   workItem: WorkItem;

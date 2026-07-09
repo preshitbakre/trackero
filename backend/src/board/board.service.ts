@@ -138,7 +138,7 @@ export class BoardService {
     if (allIds.length > 0) {
       const rows = await this.dataSource.query(
         `SELECT work_item_id, COUNT(*)::int AS count
-         FROM comments WHERE work_item_id = ANY($1) GROUP BY work_item_id`,
+         FROM comments WHERE work_item_id = ANY($1) AND deleted_at IS NULL GROUP BY work_item_id`,
         [allIds],
       );
       for (const r of rows) commentCounts.set(r.work_item_id, r.count);
@@ -149,7 +149,7 @@ export class BoardService {
     if (allIds.length > 0) {
       const rows = await this.dataSource.query(
         `SELECT work_item_id, COUNT(*)::int AS count
-         FROM attachments WHERE work_item_id = ANY($1) GROUP BY work_item_id`,
+         FROM attachments WHERE work_item_id = ANY($1) AND deleted_at IS NULL GROUP BY work_item_id`,
         [allIds],
       );
       for (const r of rows) attachmentCounts.set(r.work_item_id, r.count);

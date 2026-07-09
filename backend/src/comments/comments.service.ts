@@ -1,6 +1,6 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, IsNull } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Comment } from './entities/comment.entity';
 import { AppLogicException } from '../common/exceptions/app-exceptions';
@@ -123,6 +123,7 @@ export class CommentsService {
       .leftJoin('c.author', 'author')
       .addSelect(['author.id', 'author.displayName', 'author.avatarUrl'])
       .where('c.workItemId = :workItemId', { workItemId })
+      .andWhere('c.deletedAt IS NULL')
       .orderBy('c.createdAt', 'ASC');
 
     const total = await qb.getCount();
@@ -134,7 +135,7 @@ export class CommentsService {
   async update(projectId: number, workItemId: number, commentId: number, body: string, userId: number) {
     await this.verifyItemInProject(projectId, workItemId);
     body = stripHtml(body);
-    const comment = await this.commentRepo.findOne({ where: { id: commentId, workItemId } });
+    const comment = await this.commentRepo.findOne({ where: { id: commentId, workItemId, deletedAt: IsNull() } });
     if (!comment) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
@@ -154,18 +155,16 @@ export class CommentsService {
     effectiveRole: string | undefined,
   ) {
     await this.verifyItemInProject(projectId, workItemId);
-    const comment = await this.commentRepo.findOne({ where: { id: commentId, workItemId } });
+    const comment = await this.commentRepo.findOne({ where: { id: commentId, workItemId, deletedAt: IsNull() } });
     if (!comment) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
-    // `effectiveRole` is the caller's PROJECT-scoped role ('admin' for global
-    // admins). Only project_managers and admins may delete others' comments;
-    // a project member may delete only their own.
     const canDeleteOthers = effectiveRole === 'admin' || effectiveRole === 'project_manager';
     if (!canDeleteOthers && comment.authorId !== userId) {
       throw new AppLogicException('FORBIDDEN', HttpStatus.FORBIDDEN);
     }
-    await this.commentRepo.remove(comment);
+    comment.deletedAt = new Date();
+    await this.commentRepo.save(comment);
   }
 
   /**
@@ -235,7 +234,7 @@ export class CommentsService {
 
   async toggleReaction(projectId: number, workItemId: number, commentId: number, emoji: string, userId: number) {
     await this.verifyItemInProject(projectId, workItemId);
-    const comment = await this.commentRepo.findOne({ where: { id: commentId, workItemId } });
+    const comment = await this.commentRepo.findOne({ where: { id: commentId, workItemId, deletedAt: IsNull() } });
     if (!comment) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }

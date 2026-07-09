@@ -545,11 +545,11 @@ export class WorkItemsService {
 
     // Comment and attachment counts
     const [commentRow] = await this.dataSource.query(
-      `SELECT COUNT(*) as cnt FROM comments WHERE work_item_id = $1`,
+      `SELECT COUNT(*) as cnt FROM comments WHERE work_item_id = $1 AND deleted_at IS NULL`,
       [id],
     );
     const [attachmentRow] = await this.dataSource.query(
-      `SELECT COUNT(*) as cnt FROM attachments WHERE work_item_id = $1`,
+      `SELECT COUNT(*) as cnt FROM attachments WHERE work_item_id = $1 AND deleted_at IS NULL`,
       [id],
     );
 

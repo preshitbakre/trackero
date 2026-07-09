@@ -4,4 +4,5 @@ export const EXPECTED_MIGRATION_NAMES: ReadonlyArray<string> = [
   'AddProjectMethodology1781439447500',
   'InstanceSettingsValueJsonb1781500000000',
   'RestoreAuditHardening1781600000000',
+  'AddSoftDeleteColumns1781700000000',
 ];

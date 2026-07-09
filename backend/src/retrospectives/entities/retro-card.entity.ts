@@ -45,6 +45,9 @@ export class RetroCard {
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
 
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true })
+  deletedAt: Date | null;
+
   @ManyToOne(() => Retrospective, (r) => r.cards, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'retrospective_id' })
   retrospective: Retrospective;

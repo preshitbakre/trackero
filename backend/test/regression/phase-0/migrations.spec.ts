@@ -20,6 +20,7 @@ import { AddMustChangePassword1781349329957 } from '../../../migrations/17813493
 import { AddProjectMethodology1781439447500 } from '../../../migrations/1781439447500-AddProjectMethodology';
 import { InstanceSettingsValueJsonb1781500000000 } from '../../../migrations/1781500000000-InstanceSettingsValueJsonb';
 import { RestoreAuditHardening1781600000000 } from '../../../migrations/1781600000000-RestoreAuditHardening';
+import { AddSoftDeleteColumns1781700000000 } from '../../../migrations/1781700000000-AddSoftDeleteColumns';
 import { EXPECTED_MIGRATION_NAMES } from '../../../src/database/migrations-registry';
 
 const ALL_MIGRATIONS: MixedList<new () => MigrationInterface> = [
@@ -28,6 +29,7 @@ const ALL_MIGRATIONS: MixedList<new () => MigrationInterface> = [
   AddProjectMethodology1781439447500,
   InstanceSettingsValueJsonb1781500000000,
   RestoreAuditHardening1781600000000,
+  AddSoftDeleteColumns1781700000000,
 ];
 
 function uniqueDbName(): string {

@@ -1,6 +1,6 @@
 import { Injectable, HttpStatus, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, IsNull } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { Attachment } from './entities/attachment.entity';
@@ -168,7 +168,7 @@ export class AttachmentsService {
   async listAttachments(projectId: number, workItemId: number) {
     await this.verifyItemInProject(projectId, workItemId);
     const attachments = await this.attachmentRepo.find({
-      where: { workItemId },
+      where: { workItemId, deletedAt: IsNull() },
       order: { createdAt: 'ASC' },
     });
     return new PaginatedResponse(attachments, attachments.length, 1, attachments.length || 1);
@@ -176,7 +176,7 @@ export class AttachmentsService {
 
   async getPresignedUrl(projectId: number, workItemId: number, attachmentId: number) {
     await this.verifyItemInProject(projectId, workItemId);
-    const attachment = await this.attachmentRepo.findOne({ where: { id: attachmentId, workItemId } });
+    const attachment = await this.attachmentRepo.findOne({ where: { id: attachmentId, workItemId, deletedAt: IsNull() } });
     if (!attachment) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
@@ -185,14 +185,12 @@ export class AttachmentsService {
 
   async remove(projectId: number, workItemId: number, attachmentId: number) {
     await this.verifyItemInProject(projectId, workItemId);
-    const attachment = await this.attachmentRepo.findOne({ where: { id: attachmentId, workItemId } });
+    const attachment = await this.attachmentRepo.findOne({ where: { id: attachmentId, workItemId, deletedAt: IsNull() } });
     if (!attachment) {
       throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     }
-    await this.attachmentRepo.remove(attachment);
-    // FileStorageService.delete swallows storage errors internally (logged via
-    // console.error). A failed object delete here leaves an orphan but must not
-    // fail the request — the DB row is already gone.
+    attachment.deletedAt = new Date();
+    await this.attachmentRepo.save(attachment);
     await this.fileStorage.delete(attachment.storageKey);
   }
 

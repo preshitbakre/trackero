@@ -1,6 +1,6 @@
 import { Injectable, HttpStatus, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, IsNull, Repository } from 'typeorm';
 import { OnEvent } from '@nestjs/event-emitter';
 import { Retrospective } from './entities/retrospective.entity';
 import { RetroCard, RetroCardColumn } from './entities/retro-card.entity';
@@ -142,7 +142,7 @@ export class RetrospectivesService {
   async findBySprintId(projectId: number, sprintId: number, viewerUserId?: number) {
     const retro = await this.retroRepo
       .createQueryBuilder('retro')
-      .leftJoinAndSelect('retro.cards', 'card')
+      .leftJoinAndSelect('retro.cards', 'card', 'card.deleted_at IS NULL')
       .where('retro.projectId = :projectId AND retro.sprintId = :sprintId', { projectId, sprintId })
       .orderBy('card.column', 'ASC')
       .addOrderBy('card.votes', 'DESC')
@@ -171,7 +171,7 @@ export class RetrospectivesService {
       `SELECT COUNT(DISTINCT rv.user_id)::int AS count
        FROM retro_votes rv
        JOIN retro_cards rc ON rc.id = rv.card_id
-       WHERE rc.retrospective_id = $1`,
+       WHERE rc.retrospective_id = $1 AND rc.deleted_at IS NULL`,
       [retro.id],
     );
     const uniqueVoters: number = uniqueVotersResult[0]?.count ?? 0;
@@ -182,7 +182,7 @@ export class RetrospectivesService {
         `SELECT COUNT(*)::int AS count
          FROM retro_votes rv
          JOIN retro_cards rc ON rc.id = rv.card_id
-         WHERE rc.retrospective_id = $1 AND rv.user_id = $2`,
+         WHERE rc.retrospective_id = $1 AND rv.user_id = $2 AND rc.deleted_at IS NULL`,
         [retro.id, viewerUserId],
       );
       currentUserVotesUsed = userVotesResult[0]?.count ?? 0;
@@ -239,7 +239,7 @@ export class RetrospectivesService {
   async updateCard(projectId: number, retroId: number, cardId: number, content?: string, isActionItem?: boolean) {
     const retro = await this.findRetroForProject(projectId, retroId);
     this.assertOpen(retro);
-    const card = await this.cardRepo.findOne({ where: { id: cardId, retrospectiveId: retroId } });
+    const card = await this.cardRepo.findOne({ where: { id: cardId, retrospectiveId: retroId, deletedAt: IsNull() } });
     if (!card) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
     if (content !== undefined) card.content = stripHtml(content);
     if (isActionItem !== undefined) card.isActionItem = isActionItem;
@@ -250,15 +250,16 @@ export class RetrospectivesService {
   async deleteCard(projectId: number, retroId: number, cardId: number) {
     const retro = await this.findRetroForProject(projectId, retroId);
     this.assertOpen(retro);
-    const card = await this.cardRepo.findOne({ where: { id: cardId, retrospectiveId: retroId } });
+    const card = await this.cardRepo.findOne({ where: { id: cardId, retrospectiveId: retroId, deletedAt: IsNull() } });
     if (!card) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
-    await this.cardRepo.remove(card);
+    card.deletedAt = new Date();
+    await this.cardRepo.save(card);
   }
 
   async toggleVote(projectId: number, retroId: number, cardId: number, userId: number) {
     const retro = await this.findRetroForProject(projectId, retroId);
     this.assertOpen(retro);
-    const card = await this.cardRepo.findOne({ where: { id: cardId, retrospectiveId: retroId } });
+    const card = await this.cardRepo.findOne({ where: { id: cardId, retrospectiveId: retroId, deletedAt: IsNull() } });
     if (!card) throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
 
     const existingVote = await this.voteRepo.findOne({ where: { cardId, userId } });
@@ -266,7 +267,7 @@ export class RetrospectivesService {
       const userVoteCount = await this.dataSource.query(
         `SELECT COUNT(*)::int AS count FROM retro_votes rv
          JOIN retro_cards rc ON rc.id = rv.card_id
-         WHERE rc.retrospective_id = $1 AND rv.user_id = $2`,
+         WHERE rc.retrospective_id = $1 AND rv.user_id = $2 AND rc.deleted_at IS NULL`,
         [retroId, userId],
       );
       if (userVoteCount[0].count >= retro.maxVotesPerUser) {
@@ -306,6 +307,6 @@ export class RetrospectivesService {
       [cardId],
     );
 
-    return this.cardRepo.findOne({ where: { id: cardId, retrospectiveId: retroId } });
+    return this.cardRepo.findOne({ where: { id: cardId, retrospectiveId: retroId, deletedAt: IsNull() } });
   }
 }

@@ -32,6 +32,9 @@ export class Attachment {
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true })
+  deletedAt: Date | null;
+
   @ManyToOne(() => WorkItem, (wi) => wi.attachments, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'work_item_id' })
   workItem: WorkItem;
