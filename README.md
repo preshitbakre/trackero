@@ -119,7 +119,7 @@ npm run start:dev           # API at http://localhost:3001
 # Frontend (separate terminal)
 cd frontend
 npm install
-npm run dev                 # App at http://localhost:5173
+npm run dev                 # App at http://localhost:5174
 
 # Swagger docs at http://localhost:3001/api/docs
 ```
@@ -139,7 +139,7 @@ The sample files are annotated — here's the full reference:
 |----------|----------|---------|-------------|
 | `NODE_ENV` | No | `production` | `production` requires migrations (run by the Docker `migrate` service). `development` enables auto-sync of DB schema. |
 | `PORT` | No | `3001` | Port the backend listens on. In Docker, nginx proxies to this internally. |
-| `APP_URL` | No | `http://localhost:3000` | Base URL used in email links and CORS origin. Docker: `http://localhost:3000`. Local dev: `http://localhost:5173`. |
+| `APP_URL` | No | `http://localhost:3000` | Base URL used in email links and CORS origin. Docker: `http://localhost:3000`. Local dev: `http://localhost:5174`. |
 
 **Docker Infrastructure (Postgres container + migrate service)**
 

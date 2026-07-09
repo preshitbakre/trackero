@@ -38,7 +38,7 @@ cd ..
 ./dev.sh
 # Or run them separately:
 #   cd backend  && npm run start:dev   (API at http://localhost:3001)
-#   cd frontend && npm run dev         (App at http://localhost:5173)
+#   cd frontend && npm run dev         (App at http://localhost:5174)
 ```
 
 Swagger docs are at http://localhost:3001/docs (or `/api/docs` behind nginx in Docker).
