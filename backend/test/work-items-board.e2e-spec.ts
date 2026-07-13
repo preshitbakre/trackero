@@ -125,6 +125,33 @@ describe('Board Endpoint (e2e)', () => {
       expect(allItems[0].title).toBe('In sprint');
     });
 
+    it('includes subtasks whose parent story is in the sprint, not just task parents', async () => {
+      const [sprint] = await ds.query(
+        `INSERT INTO sprints (project_id, name, status, sprint_number, created_by)
+         VALUES ($1, 'S1', 'planning', 1, $2) RETURNING id`,
+        [projectId, adminId],
+      );
+
+      // Story in the sprint with a subtask directly under it. Subtasks always
+      // have sprint_id = null and inherit the sprint from their parent.
+      const storyRes = await createItem({ itemType: 'story', title: 'Story in sprint', sprintId: sprint.id });
+      const storyId = storyRes.body.data.item.id;
+      const storySubRes = await createItem({ itemType: 'subtask', title: 'Story subtask', parentId: storyId });
+      const storySubId = storySubRes.body.data.item.id;
+
+      // Task in the sprint with a subtask — the case that already worked.
+      const taskRes = await createItem({ itemType: 'task', title: 'Task in sprint', sprintId: sprint.id });
+      const taskId = taskRes.body.data.item.id;
+      const taskSubRes = await createItem({ itemType: 'subtask', title: 'Task subtask', parentId: taskId });
+      const taskSubId = taskSubRes.body.data.item.id;
+
+      const res = await getBoard(`sprintId=${sprint.id}`).expect(200);
+      const ids = res.body.data.columns.flatMap((c: any) => c.tasks).map((t: any) => t.id);
+
+      expect(ids).toContain(taskSubId);
+      expect(ids).toContain(storySubId);
+    });
+
     it('includes subtaskCount and subtaskDoneCount', async () => {
       const taskRes = await createItem({ itemType: 'task', title: 'T1' });
       const taskId = taskRes.body.data.item.id;

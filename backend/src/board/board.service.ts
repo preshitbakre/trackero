@@ -55,25 +55,29 @@ export class BoardService {
         .andWhere('wi.statusId = :statusId', { statusId: status.id })
         .andWhere("wi.itemType IN ('task', 'bug', 'subtask', 'story')");
 
+      // Subtasks always have sprint_id = null and inherit their sprint from
+      // the parent. A parent can be a task, story, or bug (see
+      // validateParentChildType), so the parent lookups must not restrict to
+      // item_type = 'task' — doing so hid subtasks nested under stories/bugs.
       if (filters.sprintId) {
         qb.andWhere(`(
           wi.sprintId = :sprintId
           OR (wi.itemType = 'subtask' AND wi.parentId IN (
-            SELECT id FROM work_items WHERE sprint_id = :sprintId AND item_type = 'task'
+            SELECT id FROM work_items WHERE sprint_id = :sprintId
           ))
         )`, { sprintId: filters.sprintId });
       } else if (filters.backlog) {
         qb.andWhere(`(
           wi.sprintId IS NULL
           AND (wi.itemType != 'subtask' OR wi.parentId IN (
-            SELECT id FROM work_items WHERE sprint_id IS NULL AND item_type = 'task'
+            SELECT id FROM work_items WHERE sprint_id IS NULL
           ))
         )`);
       } else if (filters.hasSprint) {
         qb.andWhere(`(
           wi.sprintId IS NOT NULL
           OR (wi.itemType = 'subtask' AND wi.parentId IN (
-            SELECT id FROM work_items WHERE sprint_id IS NOT NULL AND item_type = 'task'
+            SELECT id FROM work_items WHERE sprint_id IS NOT NULL
           ))
         )`);
       }
