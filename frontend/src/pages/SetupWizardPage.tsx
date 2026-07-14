@@ -623,7 +623,7 @@ export function SetupWizardPage() {
               </div>
               <div className="border border-[var(--line-2)] px-[16px] py-[14px]">
                 <div className="font-serif text-[28px] leading-none text-[var(--ink)]">
-                  {Intl.DateTimeFormat().resolvedOptions().timeZone.split('/')[0]?.slice(0, 2).toUpperCase() || 'UTC'}
+                  {new Date().toLocaleTimeString('en-US', { timeZoneName: 'short' }).split(' ').pop() || 'UTC'}
                 </div>
                 <div className="smallcaps mt-[8px] text-[10px]">Time zone</div>
                 <div className="text-[12px] text-[var(--ink-3)] mt-[2px]">{Intl.DateTimeFormat().resolvedOptions().timeZone}</div>
