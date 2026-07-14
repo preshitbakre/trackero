@@ -17,7 +17,6 @@ export interface TodayPayload {
     localTime: string;
   };
   summary: {
-    reviewCardCount: number;
     blockingBugCount: number;
     blockingBugItemKey: string | null;
     pointsDone: number | null;
@@ -36,23 +35,22 @@ export interface TodayPayload {
     priorityTier: 'p0' | 'p1' | 'p2' | 'p3';
     reasonChips: string[];
   }>;
-  reviewing: Array<{
+  blocked: Array<{
     id: number;
     itemKey: string;
     title: string;
-    reviewerOf: 'reporter' | 'watcher';
-    author: UserRef;
+    blockerKey: string;
+    blockerTitle: string;
     lastTouchedAt: string;
   }>;
-  dueSoon: Array<{
+  backlog: Array<{
     id: number;
     itemKey: string;
     title: string;
-    dueAt: string;
-    dueInDays: number;
+    points: number | null;
     sprintId: number | null;
   }>;
-  dueSoonTotalAssigned: number;
+  backlogTotalAssigned: number;
   currentSprint: {
     id: number;
     projectId: number;
@@ -65,7 +63,7 @@ export interface TodayPayload {
     pointsTotal: number;
     pointsInProgress: number;
     pointsBlocked: number;
-    pointsAwaitingReview: number;
+    pointsTodo: number;
     endDate: string;
     burndown: Array<{ day: string; completed: number; ideal: number; scope: number }>;
   } | null;
@@ -143,22 +141,22 @@ export class TodayService {
     if (memberProjectIds.length === 0) {
       return {
         greeting,
-        summary: { reviewCardCount: 0, blockingBugCount: 0, blockingBugItemKey: null, pointsDone: null, pointsTotal: null, pace: null },
+        summary: { blockingBugCount: 0, blockingBugItemKey: null, pointsDone: null, pointsTotal: null, pace: null },
         triage: [],
-        reviewing: [],
-        dueSoon: [],
-        dueSoonTotalAssigned: 0,
+        blocked: [],
+        backlog: [],
+        backlogTotalAssigned: 0,
         currentSprint: null,
         presence: { count: 0, users: [] },
         activity: [],
       };
     }
 
-    const [triage, reviewing, dueSoon, dueSoonTotal, currentSprint, activity] = await Promise.all([
+    const [triage, blocked, backlog, backlogTotal, currentSprint, activity] = await Promise.all([
       this.triageTop3(userId, memberProjectIds),
-      this.reviewingFor(userId, memberProjectIds),
-      this.dueSoonFor(userId, memberProjectIds),
-      this.dueSoonTotal(userId, memberProjectIds),
+      this.blockedFor(userId, memberProjectIds),
+      this.backlogFor(userId, memberProjectIds),
+      this.backlogTotal(userId, memberProjectIds),
       this.currentSprintFor(memberProjectIds, opts.projectId),
       this.activityFeed(memberProjectIds),
     ]);
@@ -166,7 +164,7 @@ export class TodayService {
     const blockingBug = triage.find((t: TodayPayload['triage'][number]) =>
       t.priorityTier === 'p0' && t.itemType === 'bug',
     ) ?? null;
-    const summary = this.summaryFor(reviewing.length, blockingBug, currentSprint);
+    const summary = this.summaryFor(blockingBug, currentSprint);
     const presence = opts.projectId
       ? this.snapshotPresence(opts.projectId)
       : { count: 0, users: [] };
@@ -175,9 +173,9 @@ export class TodayService {
       greeting,
       summary,
       triage,
-      reviewing,
-      dueSoon,
-      dueSoonTotalAssigned: dueSoonTotal,
+      blocked,
+      backlog,
+      backlogTotalAssigned: backlogTotal,
       currentSprint,
       presence,
       activity,
@@ -280,23 +278,35 @@ export class TodayService {
     return chips;
   }
 
-  private async reviewingFor(userId: number, projectIds: number[]) {
-    // Back-compat (pre-Phase 7): the caller is "reviewing" an item if
-    // they're the reporter or watcher and the item is in an in_review-
-    // category status. Phase 7 adds a dedicated reviewer_id column +
-    // tightens this query to filter on it.
+  private async blockedFor(userId: number, projectIds: number[]) {
+    // Items assigned to the caller that are still open and have an
+    // unresolved blocker. "Blocked" mirrors assertNoOpenBlockers: an item
+    // is blocked when it has an outgoing `blocks` association whose linked
+    // item is not yet done. We surface the first such blocker for context.
     const rows = await this.dataSource.query(
-      `SELECT wi.id, wi.item_number, wi.title, wi.updated_at,
-              p.prefix, u.id AS author_id, u.display_name AS author_name,
-              u.avatar_url AS author_avatar
+      `SELECT wi.id, wi.item_number, wi.title, wi.updated_at, p.prefix,
+              blk.item_number AS blocker_number, blk.title AS blocker_title,
+              bp.prefix AS blocker_prefix
          FROM work_items wi
          JOIN projects p ON p.id = wi.project_id
          JOIN project_statuses ps ON ps.id = wi.status_id
-         LEFT JOIN users u ON u.id = wi.reporter_id
-        WHERE wi.project_id = ANY($1::int[])
-          AND ps.category = 'in_review'
-          AND wi.reporter_id = $2
-          AND (wi.assignee_id IS NULL OR wi.assignee_id != $2)
+         JOIN LATERAL (
+           SELECT wi2.item_number, wi2.title, wi2.project_id
+             FROM work_item_associations a
+             JOIN work_items wi2 ON wi2.id = a.linked_item_id
+             JOIN project_statuses ps2 ON ps2.id = wi2.status_id
+            WHERE a.item_id = wi.id
+              AND a.link_type = 'blocks'
+              AND ps2.category != 'done'
+              AND wi2.deleted_at IS NULL
+            ORDER BY wi2.id ASC
+            LIMIT 1
+         ) blk ON true
+         JOIN projects bp ON bp.id = blk.project_id
+        WHERE wi.assignee_id = $2
+          AND wi.project_id = ANY($1::int[])
+          AND ps.category != 'done'
+          AND wi.deleted_at IS NULL
         ORDER BY wi.updated_at DESC
         LIMIT 5`,
       [projectIds, userId],
@@ -305,54 +315,44 @@ export class TodayService {
       id: r.id,
       itemKey: `${r.prefix}-${r.item_number}`,
       title: r.title,
-      reviewerOf: 'reporter' as const,
-      author: {
-        id: r.author_id,
-        displayName: r.author_name ?? '',
-        avatarUrl: r.author_avatar ?? null,
-        initials: initialsFor(r.author_name ?? ''),
-      },
+      blockerKey: `${r.blocker_prefix}-${r.blocker_number}`,
+      blockerTitle: r.blocker_title,
       lastTouchedAt: r.updated_at,
     }));
   }
 
-  private async dueSoonFor(userId: number, projectIds: number[]) {
+  private async backlogFor(userId: number, projectIds: number[]) {
     const rows = await this.dataSource.query(
-      `SELECT wi.id, wi.item_number, wi.title, wi.end_date, wi.sprint_id, p.prefix
+      `SELECT wi.id, wi.item_number, wi.title, wi.story_points, wi.sprint_id, p.prefix
          FROM work_items wi
          JOIN projects p ON p.id = wi.project_id
          JOIN project_statuses ps ON ps.id = wi.status_id
         WHERE wi.assignee_id = $1
           AND wi.project_id = ANY($2::int[])
-          AND ps.category != 'done'
-          AND wi.end_date IS NOT NULL
-          AND wi.end_date <= (CURRENT_DATE + INTERVAL '7 days')
-        ORDER BY wi.end_date ASC
+          AND ps.category = 'backlog'
+          AND wi.deleted_at IS NULL
+        ORDER BY wi.updated_at DESC
         LIMIT 5`,
       [userId, projectIds],
     );
-    return rows.map((r: any) => {
-      const due = new Date(r.end_date);
-      const dueInDays = Math.ceil((due.getTime() - Date.now()) / 86_400_000);
-      return {
-        id: r.id,
-        itemKey: `${r.prefix}-${r.item_number}`,
-        title: r.title,
-        dueAt: r.end_date,
-        dueInDays,
-        sprintId: r.sprint_id ?? null,
-      };
-    });
+    return rows.map((r: any) => ({
+      id: r.id,
+      itemKey: `${r.prefix}-${r.item_number}`,
+      title: r.title,
+      points: r.story_points ?? null,
+      sprintId: r.sprint_id ?? null,
+    }));
   }
 
-  private async dueSoonTotal(userId: number, projectIds: number[]): Promise<number> {
+  private async backlogTotal(userId: number, projectIds: number[]): Promise<number> {
     const [row] = await this.dataSource.query(
       `SELECT count(*)::int AS c
          FROM work_items wi
          JOIN project_statuses ps ON ps.id = wi.status_id
         WHERE wi.assignee_id = $1
           AND wi.project_id = ANY($2::int[])
-          AND ps.category != 'done'`,
+          AND ps.category = 'backlog'
+          AND wi.deleted_at IS NULL`,
       [userId, projectIds],
     );
     return row?.c ?? 0;
@@ -388,7 +388,8 @@ export class TodayService {
       `SELECT
          coalesce(sum(wi.story_points), 0)::int AS total,
          coalesce(sum(CASE WHEN ps.category = 'done' THEN wi.story_points ELSE 0 END), 0)::int AS done,
-         coalesce(sum(CASE WHEN ps.category = 'in_progress' THEN wi.story_points ELSE 0 END), 0)::int AS in_progress
+         coalesce(sum(CASE WHEN ps.category = 'in_progress' THEN wi.story_points ELSE 0 END), 0)::int AS in_progress,
+         coalesce(sum(CASE WHEN ps.category = 'backlog' THEN wi.story_points ELSE 0 END), 0)::int AS todo
         FROM work_items wi
         JOIN project_statuses ps ON ps.id = wi.status_id
         WHERE wi.sprint_id = $1`,
@@ -429,7 +430,7 @@ export class TodayService {
       pointsTotal: pts.total,
       pointsInProgress: pts.in_progress,
       pointsBlocked: 0,
-      pointsAwaitingReview: 0,
+      pointsTodo: pts.todo,
       endDate: sprint.end_date,
       burndown,
     };
@@ -524,7 +525,6 @@ export class TodayService {
   }
 
   private summaryFor(
-    reviewCount: number,
     blockingBug: TodayPayload['triage'][number] | null,
     sprint: TodayPayload['currentSprint'],
   ): TodayPayload['summary'] {
@@ -540,7 +540,6 @@ export class TodayService {
         : 'on pace';
     }
     return {
-      reviewCardCount: reviewCount,
       blockingBugCount: blockingBug ? 1 : 0,
       blockingBugItemKey: blockingBug?.itemKey ?? null,
       pointsDone: sprint?.pointsDone ?? null,

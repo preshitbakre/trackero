@@ -13,7 +13,6 @@ interface TodayPayload {
     localTime: string;
   };
   summary: {
-    reviewCardCount: number;
     blockingBugCount: number;
     blockingBugItemKey: string | null;
     pointsDone: number | null;
@@ -32,21 +31,22 @@ interface TodayPayload {
     priorityTier: string;
     reasonChips: string[];
   }>;
-  reviewing: Array<{
+  blocked: Array<{
     id: number;
     itemKey: string;
     title: string;
-    author: { id: number; displayName: string; avatarUrl: string | null };
+    blockerKey: string;
+    blockerTitle: string;
     lastTouchedAt: string;
   }>;
-  dueSoon: Array<{
+  backlog: Array<{
     id: number;
     itemKey: string;
     title: string;
-    dueInDays: number;
+    points: number | null;
     sprintId: number | null;
   }>;
-  dueSoonTotalAssigned: number;
+  backlogTotalAssigned: number;
   currentSprint: {
     id: number;
     projectId: number;
@@ -58,6 +58,7 @@ interface TodayPayload {
     pointsDone: number;
     pointsTotal: number;
     pointsInProgress: number;
+    pointsTodo: number;
     endDate: string;
     // Phase 5 — snapshot-backed burndown, one entry per sprint day.
     burndown?: Array<{ day: string; completed: number; ideal: number; scope: number }>;
@@ -163,6 +164,7 @@ export function TodayPage() {
           <GreetingHero
             greeting={data.greeting}
             summary={data.summary}
+            backlogTotal={data.backlogTotalAssigned}
             sprintName={data.currentSprint?.name ?? null}
             isKanban={isKanban}
           />
@@ -175,8 +177,8 @@ export function TodayPage() {
         </section>
         <section className="px-9 pb-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8">
-            <ReviewingPanel items={data.reviewing} />
-            <DueSoonPanel items={data.dueSoon} total={data.dueSoonTotalAssigned} isKanban={isKanban} />
+            <BlockedPanel items={data.blocked} />
+            <BacklogPanel items={data.backlog} total={data.backlogTotalAssigned} />
           </div>
         </section>
       </main>
@@ -191,9 +193,10 @@ export function TodayPage() {
   );
 }
 
-function GreetingHero({ greeting, summary, sprintName, isKanban }: {
+function GreetingHero({ greeting, summary, backlogTotal, sprintName, isKanban }: {
   greeting: TodayPayload['greeting'];
   summary: TodayPayload['summary'];
+  backlogTotal: number;
   sprintName: string | null;
   isKanban: boolean;
 }) {
@@ -208,7 +211,7 @@ function GreetingHero({ greeting, summary, sprintName, isKanban }: {
   //   points</span> through Sprint 27 — <span class="serif-i">on pace</span>.
   // Each `<span>` is bold-weight ink; the mono is the item key; the closing
   // pace word is serif italic.
-  const hasReview = summary.reviewCardCount > 0;
+  const hasBacklog = backlogTotal > 0;
   const hasBlocker = summary.blockingBugCount > 0;
   // The pace clause ("X of Y points through Sprint N — on pace") is
   // sprint-scoped, so it's hidden for kanban projects.
@@ -232,15 +235,15 @@ function GreetingHero({ greeting, summary, sprintName, isKanban }: {
         <span className="text-[var(--accent)] ml-2 align-middle" style={{ fontSize: 50 }}>—</span>
       </h1>
       <p className="mt-5 text-[16px] text-ink max-w-2xl leading-relaxed">
-        {hasReview ? (
+        {hasBacklog ? (
           <>
             <span className="font-semibold">
-              {summary.reviewCardCount} {summary.reviewCardCount === 1 ? 'card' : 'cards'}
+              {backlogTotal} {backlogTotal === 1 ? 'item' : 'items'}
             </span>{' '}
-            need your review
+            in your backlog
           </>
         ) : (
-          <span className="serif-i text-ink-2">nothing waits for your review</span>
+          <span className="serif-i text-ink-2">your backlog is clear</span>
         )}
         {hasBlocker && (
           <>
@@ -379,25 +382,27 @@ function ThreeThings({ items, assignedCount }: { items: TodayPayload['triage']; 
   );
 }
 
-function ReviewingPanel({ items }: { items: TodayPayload['reviewing'] }) {
+function BlockedPanel({ items }: { items: TodayPayload['blocked'] }) {
   return (
     <section>
       <header className="mb-3 flex items-baseline gap-2">
-        <h2 className="serif text-[20px] text-ink">Reviewing</h2>
+        <h2 className="serif text-[20px] text-ink">Blocked</h2>
         <span className="mono text-[12px] text-[var(--ink-3)]">
-          · {items.length} {items.length === 1 ? 'PR' : 'PRs'}
+          · {items.length} {items.length === 1 ? 'item' : 'items'}
         </span>
       </header>
       {items.length === 0 ? (
-        <p className="text-[13px] text-[var(--ink-3)]">Nothing to review right now.</p>
+        <p className="text-[13px] text-[var(--ink-3)]">Nothing blocked right now.</p>
       ) : (
         <ul className="divide-y divide-dashed divide-[var(--line)]">
           {items.map((r) => (
-            <li key={r.id} className="flex items-center gap-3 py-2 text-[13px]">
-              <span className="mono num text-[12px] text-[var(--ink-3)] w-[64px] flex-shrink-0">{r.itemKey}</span>
-              <span className="flex-1 truncate text-ink">{r.title}</span>
-              <span className="avatar" style={{ background: 'var(--c-sky)' }} title={r.author.displayName}>
-                {(r.author.displayName?.[0] ?? '?').toUpperCase()}
+            <li key={r.id} className="flex items-start gap-3 py-2 text-[13px]">
+              <span className="mono num text-[12px] text-[var(--ink-3)] w-[64px] flex-shrink-0 pt-[1px]">{r.itemKey}</span>
+              <span className="flex-1 min-w-0">
+                <span className="block truncate text-ink">{r.title}</span>
+                <span className="block truncate text-[12px] text-[var(--ink-3)]">
+                  blocked by <span className="mono num">{r.blockerKey}</span> · {r.blockerTitle}
+                </span>
               </span>
             </li>
           ))}
@@ -407,27 +412,26 @@ function ReviewingPanel({ items }: { items: TodayPayload['reviewing'] }) {
   );
 }
 
-function DueSoonPanel({ items, total, isKanban }: { items: TodayPayload['dueSoon']; total: number; isKanban?: boolean }) {
+function BacklogPanel({ items, total }: { items: TodayPayload['backlog']; total: number }) {
   return (
     <section>
       <header className="mb-3 flex items-baseline gap-2">
-        <h2 className="serif text-[20px] text-ink">Due soon</h2>
-        <span className="mono text-[12px] text-[var(--ink-3)]">· {isKanban ? '' : 'ends with sprint · '}{total} assigned</span>
+        <h2 className="serif text-[20px] text-ink">Your backlog</h2>
+        <span className="mono text-[12px] text-[var(--ink-3)]">· {total} assigned</span>
       </header>
       {items.length === 0 ? (
-        <p className="text-[13px] text-[var(--ink-3)]">Nothing due this week.</p>
+        <p className="text-[13px] text-[var(--ink-3)]">Your backlog is clear.</p>
       ) : (
         <ul className="divide-y divide-dashed divide-[var(--line)]">
-          {items.map((d) => {
-            const label = d.dueInDays <= 0 ? `${-d.dueInDays}d over` : d.dueInDays === 0 ? 'today' : `${d.dueInDays}d`;
-            return (
-              <li key={d.id} className="flex items-center gap-3 py-2 text-[13px]">
-                <span className="mono num text-[12px] text-[var(--ink-3)] w-[64px] flex-shrink-0">{d.itemKey}</span>
-                <span className="flex-1 truncate text-ink">{d.title}</span>
-                <span className="mono num text-[12px] text-[var(--ink-3)]">{label}</span>
-              </li>
-            );
-          })}
+          {items.map((d) => (
+            <li key={d.id} className="flex items-center gap-3 py-2 text-[13px]">
+              <span className="mono num text-[12px] text-[var(--ink-3)] w-[64px] flex-shrink-0">{d.itemKey}</span>
+              <span className="flex-1 truncate text-ink">{d.title}</span>
+              {d.points != null && (
+                <span className="mono num text-[12px] text-[var(--ink-3)]">{d.points} pt</span>
+              )}
+            </li>
+          ))}
         </ul>
       )}
     </section>
@@ -525,8 +529,8 @@ function SprintCard({ sprint, summary, projectId }: {
           className="border-r border-[var(--line)]"
         />
         <MetricCell
-          label="Awaiting review"
-          value={summary.reviewCardCount ?? 0}
+          label="To do"
+          value={sprint.pointsTodo ?? 0}
           muted
         />
       </section>
