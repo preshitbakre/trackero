@@ -1,7 +1,13 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { apiClient } from '../api/client';
+import { toast } from '../components/common/Toast';
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
+function reportSaveError(err: unknown) {
+  const message = (err as any)?.response?.data?.message;
+  toast(message || 'Save failed', 'error');
+}
 
 interface UseTaskAutoSaveOptions {
   projectId: number;
@@ -48,8 +54,9 @@ export function useTaskAutoSave({ projectId, taskId, onUpdated }: UseTaskAutoSav
       await reloadTask?.();
       onUpdated?.();
       showSaved();
-    } catch {
+    } catch (err) {
       setSaveStatus('error');
+      reportSaveError(err);
       await reloadTask?.();
     }
   }, [projectId, taskId, onUpdated, showSaved]);
@@ -62,8 +69,9 @@ export function useTaskAutoSave({ projectId, taskId, onUpdated }: UseTaskAutoSav
       await apiClient.put(`/projects/${projectId}/items/${taskId}`, { [field]: value });
       onUpdated?.();
       showSaved();
-    } catch {
+    } catch (err) {
       setSaveStatus('error');
+      reportSaveError(err);
       await reloadTask?.();
     }
   }, [projectId, taskId, onUpdated, showSaved]);
@@ -93,8 +101,9 @@ export function useTaskAutoSave({ projectId, taskId, onUpdated }: UseTaskAutoSav
       await reloadTask?.();
       onUpdated?.();
       showSaved();
-    } catch {
+    } catch (err) {
       setSaveStatus('error');
+      reportSaveError(err);
       await reloadTask?.();
     }
   }, [projectId, taskId, onUpdated, showSaved]);
