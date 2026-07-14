@@ -113,6 +113,7 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
   const [assigneeOptions, setAssigneeOptions] = useState<{ value: string; label: string }[]>([]);
   const [parentOptions, setParentOptions] = useState<{ value: string; label: string; data?: any }[]>([]);
   const [sprintOptions, setSprintOptions] = useState<{ value: string; label: string }[]>([]);
+  const [statusOptions, setStatusOptions] = useState<{ value: string; label: string }[]>([]);
   const [parentSprintName, setParentSprintName] = useState<string>('');
   const [associations, setAssociations] = useState<any>(null);
   const [showAddAssociation, setShowAddAssociation] = useState(false);
@@ -193,6 +194,11 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
       if (ignored) return;
       const list = res.data.data.list || [];
       setSprintOptions([{ value: '', label: 'Backlog' }, ...list.map((s: any) => ({ value: String(s.id), label: `${s.name} (${s.status})` }))]);
+    }).catch((err) => { console.error(err); });
+    apiClient.get(`/projects/${projectId}/statuses`).then((res) => {
+      if (ignored) return;
+      const list = res.data.data?.list || res.data.data || [];
+      setStatusOptions(list.map((s: any) => ({ value: String(s.id), label: s.name })));
     }).catch((err) => { console.error(err); });
     return () => { ignored = true; };
   }, [projectId]);
@@ -635,6 +641,23 @@ export function TaskDetailPanel({ projectId, taskId, projectPrefix, onClose, onU
           {/* Properties — 2 columns. Labels use .smallcaps (10px / 600 /
               tracking 0.12em / uppercase / --ink-3) per the design canon. */}
           <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-[14px]">
+            <div>
+              <span className="smallcaps block mb-1.5">Status</span>
+              {canEdit ? (
+                <Select
+                  value={task.statusId != null ? String(task.statusId) : ''}
+                  onChange={(val) => handleFieldChange('statusId', parseInt(val), loadTask)}
+                  options={statusOptions}
+                  className="w-full"
+                />
+              ) : (
+                <div className="h-[30px] flex items-center gap-1.5 text-[16px]">
+                  {task.status && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: task.status.color }} />}
+                  <span>{task.status?.name || 'Unknown'}</span>
+                </div>
+              )}
+            </div>
+
             <div>
               <span className="smallcaps block mb-1.5">Priority</span>
               <Select
