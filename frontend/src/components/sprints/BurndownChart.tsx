@@ -102,9 +102,22 @@ export function BurndownChart({
   // a flat scope adds noise, but a rising one explains a rising Actual.
   const scopeMoved = dataPoints.some((p) => p.scope !== dataPoints[0]?.scope);
 
+  // Actual remaining, one point per elapsed day. Short sprints (start == today,
+  // e.g. a sprint opened and shipped the same day) yield a single snapshot, so
+  // the step line has nothing to connect and disappears. In that case, anchor
+  // the line from the start (full committed scope) to the sprint end (current
+  // remaining) so the burndown still renders. Multi-day sprints are unaffected.
+  let actualData = dataPoints.filter((p) => p.date <= today).map((p) => ({ x: p.date, y: p.actual }));
+  if (actualData.length < 2 && lastPoint && lastPoint.date !== dataPoints[0].date) {
+    actualData = [
+      { x: dataPoints[0].date, y: totalPoints },
+      { x: lastPoint.date, y: Math.max(0, totalPoints - completedPoints) },
+    ];
+  }
+
   const series: Array<{ id: string; data: Array<{ x: string; y: number }> }> = [
     { id: 'Ideal', data: dataPoints.map((p) => ({ x: p.date, y: p.ideal })) },
-    { id: 'Actual', data: dataPoints.filter((p) => p.date <= today).map((p) => ({ x: p.date, y: p.actual })) },
+    { id: 'Actual', data: actualData },
   ];
   if (scopeMoved) {
     series.push({ id: 'Scope', data: dataPoints.map((p) => ({ x: p.date, y: p.scope })) });
