@@ -8,6 +8,7 @@ export default new DataSource({
   username: process.env.DATABASE_USERNAME,
   password: process.env.DATABASE_PASSWORD || '',
   database: process.env.DATABASE_NAME || 'trackero',
+  ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
   entities: [path.join(__dirname, '..', '**', '*.entity.js')],
   migrations: [path.join(__dirname, '..', '..', 'migrations', '*.js')],
   synchronize: false,
