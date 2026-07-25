@@ -11,6 +11,7 @@ PGPASSWORD="$POSTGRES_PASSWORD" psql \
   -U "$POSTGRES_USER" \
   -d "$POSTGRES_DB" \
   -c "
+    CREATE EXTENSION IF NOT EXISTS pg_trgm;
     DO \$\$
     BEGIN
       IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${APP_DB_USER:-trackero_app}') THEN

@@ -1,64 +1,70 @@
 services:
-  nginx:
+  frontend:
     build:
       context: .
       target: nginx
-    ports:
-      - "3000:80"
-    depends_on:
-      trackero:
-        condition: service_healthy
+    container_name: trackero-frontend
     restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      # --- OPERATOR: edit host(s) + cert resolver below ---
+      - "traefik.http.routers.trackero-frontend.rule=(Host(`trackero.local`) || Host(`trackero.blueagate.co.in`)) && !PathPrefix(`/api`) && !PathPrefix(`/socket.io`)"
+      - "traefik.http.routers.trackero-frontend.entrypoints=websecure"
+      - "traefik.http.routers.trackero-frontend.tls=true"
+      - "traefik.http.routers.trackero-frontend.tls.certresolver=le"
+      - "traefik.http.routers.trackero-frontend.service=trackero-frontend-svc"
+      - "traefik.http.services.trackero-frontend-svc.loadbalancer.server.port=80"
+    networks:
+      - proxy
 
-  trackero:
+  # Requires backend/.env populated with (see .docs/specs/2026-07-25-external-services-deploy-design.md):
+  #   DB:      DATABASE_HOST DATABASE_PORT DATABASE_NAME DATABASE_USERNAME DATABASE_PASSWORD DATABASE_SSL
+  #            POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB APP_DB_USER APP_DB_PASSWORD
+  #            NOTE: POSTGRES_DB MUST equal DATABASE_NAME (migrate provisions POSTGRES_DB; app+migrations use DATABASE_NAME).
+  #            NOTE: if external Postgres enforces TLS, set DATABASE_SSL=true AND export PGSSLMODE=require for migrate's psql.
+  #   MinIO:   MINIO_ENDPOINT MINIO_PORT MINIO_USE_SSL MINIO_ROOT_USER MINIO_ROOT_PASSWORD MINIO_BUCKET MINIO_PUBLIC_URL
+  #   Origin:  APP_URL (https://<public-host>, required — backs socket.io handshake + CORS), optional CORS_ORIGINS
+  backend:
     build:
       context: .
       target: backend
-    expose:
-      - "3001"
+    container_name: trackero-backend
+    restart: unless-stopped
     env_file: backend/.env
     depends_on:
       migrate:
         condition: service_completed_successfully
-      minio:
-        condition: service_started
-    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      # REST (/api) and websockets (/socket.io) both go to the backend.
+      - "traefik.http.routers.trackero-api.rule=(Host(`trackero.local`) || Host(`trackero.blueagate.co.in`)) && (PathPrefix(`/api`) || PathPrefix(`/socket.io`))"
+      - "traefik.http.routers.trackero-api.entrypoints=websecure"
+      - "traefik.http.routers.trackero-api.tls=true"
+      - "traefik.http.routers.trackero-api.tls.certresolver=le"
+      - "traefik.http.routers.trackero-api.service=trackero-backend-svc"
+      - "traefik.http.services.trackero-backend-svc.loadbalancer.server.port=3001"
+    networks:
+      - proxy
+      - infra
 
   migrate:
     build:
       context: .
       target: backend
+    container_name: trackero-migrate
     env_file: backend/.env
-    depends_on:
-      postgres:
-        condition: service_healthy
     command: ["sh", "./migrate.sh"]
+    networks:
+      - infra
     restart: "no"
 
-  postgres:
-    image: postgres:15-alpine
-    env_file: backend/.env
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./docker/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    env_file: backend/.env
-    volumes:
-      - miniodata:/data
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    restart: unless-stopped
-
-volumes:
-  pgdata:
-  miniodata:
+networks:
+  proxy:
+    external: true
+  infra:
+    external: true
