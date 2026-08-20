@@ -22,6 +22,7 @@ export const ResponseCodes = {
   INVITATION_CREATED:     { code: 'S-0016', message: 'Invitation created' },
   INVITATION_EMAIL_SENT:  { code: 'S-0017', message: 'Invitation email sent' },
   USER_PASSWORD_SET:      { code: 'S-0018', message: 'Password set' },
+  INVITATION_DELETED:     { code: 'S-0019', message: 'Invitation deleted' },
 
   // Projects (S-0020 – S-0029)
   PROJECTS_LISTED:        { code: 'S-0020', message: 'Projects retrieved' },
@@ -233,6 +234,7 @@ export const ResponseCodes = {
   EMAIL_ALREADY_REGISTERED: { code: 'F-L-0010', message: 'Email already registered' },
   PASSWORD_CHANGE_REQUIRED: { code: 'F-L-0011', message: 'You must set a new password before continuing' },
   EMAIL_NOT_CONFIGURED:   { code: 'F-L-0012', message: 'Email delivery is not configured on this instance' },
+  INVITATION_ALREADY_ACCEPTED: { code: 'F-L-0013', message: 'Cannot delete an accepted invitation' },
 
   // Business rule failures
   SPRINT_ALREADY_ACTIVE:  { code: 'F-L-0020', message: 'A sprint is already active in this project' },

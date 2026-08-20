@@ -284,6 +284,102 @@ describe('Admin, Settings & Invitations (e2e)', () => {
         .send({ email: 'reinvite@test.com', role: 'member' })
         .expect(201);
     });
+
+    it('deletes a pending invitation -> 200 and drops from list', async () => {
+      await request(app.getHttpServer())
+        .post('/api/users/invite')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ email: 'deleteme@test.com', role: 'member' })
+        .expect(201);
+
+      const dataSource = app.get(DataSource);
+      const [row] = await dataSource.query(
+        `SELECT id FROM invitations WHERE email = $1`,
+        ['deleteme@test.com'],
+      );
+
+      const res = await request(app.getHttpServer())
+        .delete(`/api/users/invitations/${row.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(res.body.code).toBe('S-0019');
+      expect(res.body.data.list.some((i: any) => i.email === 'deleteme@test.com')).toBe(false);
+    });
+
+    it('deletes an expired invitation -> 200', async () => {
+      await request(app.getHttpServer())
+        .post('/api/users/invite')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ email: 'expireddel@test.com', role: 'member' })
+        .expect(201);
+
+      const dataSource = app.get(DataSource);
+      await dataSource.query(
+        `UPDATE invitations SET status = 'expired' WHERE email = $1`,
+        ['expireddel@test.com'],
+      );
+      const [row] = await dataSource.query(
+        `SELECT id FROM invitations WHERE email = $1`,
+        ['expireddel@test.com'],
+      );
+
+      await request(app.getHttpServer())
+        .delete(`/api/users/invitations/${row.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+    });
+
+    it('refuses to delete an accepted invitation -> 400', async () => {
+      await request(app.getHttpServer())
+        .post('/api/users/invite')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ email: 'accepteddel@test.com', role: 'member' })
+        .expect(201);
+
+      const dataSource = app.get(DataSource);
+      await dataSource.query(
+        `UPDATE invitations SET status = 'accepted' WHERE email = $1`,
+        ['accepteddel@test.com'],
+      );
+      const [row] = await dataSource.query(
+        `SELECT id FROM invitations WHERE email = $1`,
+        ['accepteddel@test.com'],
+      );
+
+      const res = await request(app.getHttpServer())
+        .delete(`/api/users/invitations/${row.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(400);
+
+      expect(res.body.code).toBe('F-L-0013');
+    });
+
+    it('non-admin cannot delete an invitation -> 403', async () => {
+      await request(app.getHttpServer())
+        .post('/api/users/invite')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ email: 'noauthdel@test.com', role: 'member' })
+        .expect(201);
+
+      const dataSource = app.get(DataSource);
+      const [row] = await dataSource.query(
+        `SELECT id FROM invitations WHERE email = $1`,
+        ['noauthdel@test.com'],
+      );
+
+      await request(app.getHttpServer())
+        .delete(`/api/users/invitations/${row.id}`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .expect(403);
+    });
+
+    it('deleting a missing invitation -> 404', async () => {
+      await request(app.getHttpServer())
+        .delete('/api/users/invitations/999999')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(404);
+    });
   });
 
   describe('Health', () => {
