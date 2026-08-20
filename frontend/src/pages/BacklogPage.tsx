@@ -19,6 +19,7 @@ import { RowSkeleton } from '../components/common/Skeleton';
 import { ErrorState } from '../components/common/ErrorState';
 import { PRIORITY_BORDER_COLORS, PRIORITY_BADGE_COLORS } from '../lib/colors';
 import { CreateItemDialog } from '../components/common/CreateItemDialog';
+import { ExportDialog } from '../components/common/ExportDialog';
 import { TypeMultiSelect } from '../components/common/TypeMultiSelect';
 import { LabelList } from '../components/ui/LabelBadge';
 import { TypeTag } from '../components/ui';
@@ -63,6 +64,7 @@ function SortableTaskRow({ task, selected, highlighted, onSelect, onClick, subta
     transform: transform && !isDragging ? `translate3d(0, ${transform.y}px, 0)` : undefined,
     transition,
     opacity: isDragging ? 0.4 : undefined,
+    borderLeft: `3px solid ${PRIORITY_BORDER_COLORS[task.priority] || PRIORITY_BORDER_COLORS.none}`,
   };
   const badge = PRIORITY_BADGE_COLORS[task.priority];
 
@@ -185,6 +187,7 @@ export function BacklogPage() {
     }, { replace: true });
   }, [setSearchParams]);
   const [showCreate, setShowCreate] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -385,6 +388,9 @@ export function BacklogPage() {
           </div>
           <div className="flex items-center gap-3">
             <TypeMultiSelect selected={selectedTypes} onChange={setSelectedTypes} />
+            <Button variant="outline" onClick={() => setShowExport(true)}>
+              Export
+            </Button>
             {canEdit && (
               <Button variant="ink" onClick={() => setShowCreate(true)} className="inline-flex items-center gap-2">
                 + Create Task <KbdKey tone="on-accent">C</KbdKey>
@@ -453,6 +459,7 @@ export function BacklogPage() {
         {/* Editorial column header — widths mirror SortableTaskRow exactly */}
         {parentTasks.length > 0 && (
           <div
+            style={{ borderLeft: '3px solid transparent' }}
             className="sticky top-0 z-10 bg-paper flex items-center gap-3 px-4 h-[26px] border-b border-rule-2 text-mute text-[10px] font-semibold tracking-[0.1em] uppercase"
             role="row"
           >
@@ -497,6 +504,7 @@ export function BacklogPage() {
                         return (
                           <div
                             key={st.id}
+                            style={{ borderLeft: `3px solid ${PRIORITY_BORDER_COLORS[st.priority] || PRIORITY_BORDER_COLORS.none}` }}
                             className={`flex items-center gap-3 px-4 py-1.5 border-b border-rule/60 transition-colors ${
                               selectedTaskId === st.id ? 'bg-lilac-tint/60' : 'hover:bg-paper/50'
                             }`}
@@ -611,6 +619,10 @@ export function BacklogPage() {
           onClose={() => setShowCreate(false)}
           onCreated={handleCreated}
         />
+      )}
+
+      {showExport && projectId && (
+        <ExportDialog projectId={projectId} onClose={() => setShowExport(false)} />
       )}
 
       {showBulkDeleteConfirm && (

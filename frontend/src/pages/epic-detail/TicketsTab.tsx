@@ -250,6 +250,7 @@ export function TicketsTab({ epicId, projectId, canEdit, onOpenChild, reloadKey,
         tabIndex={0}
         onClick={() => onOpenChild(item.id)}
         onKeyDown={(e) => { if (e.key === 'Enter') onOpenChild(item.id); }}
+        style={{ borderLeft: `3px solid ${PRIORITY_BORDER_COLORS[item.priority] || PRIORITY_BORDER_COLORS.none}` }}
         className="flex items-center gap-3 px-4 py-2 border-b border-rule transition-colors cursor-pointer hover:bg-paper/50"
       >
         {/* Leading cell — fixed width (chevron/connector + type tag). Subtasks
@@ -412,6 +413,7 @@ export function TicketsTab({ epicId, projectId, canEdit, onOpenChild, reloadKey,
         <div>
           {/* Column header — widths mirror the rows below */}
           <div
+            style={{ borderLeft: '3px solid transparent' }}
             className="flex items-center gap-3 px-4 h-[26px] border-b border-rule-2 text-mute text-[10px] font-semibold tracking-[0.1em] uppercase"
             role="row"
           >
