@@ -24,6 +24,7 @@ import { CardSkeleton } from '../common/Skeleton';
 import { ErrorState } from '../common/ErrorState';
 import { CreateItemDialog } from '../common/CreateItemDialog';
 import { AssigneeMultiSelect } from '../common/AssigneeMultiSelect';
+import { TypeMultiSelect } from '../common/TypeMultiSelect';
 
 interface BoardTask {
   id: number;
@@ -61,6 +62,13 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
   const [sprintId, setSprintId] = useState<string>(sprintParam ?? '');
   const [sprintDefaultApplied, setSprintDefaultApplied] = useState<boolean>(sprintParam !== null);
   const [selectedAssignees, setSelectedAssignees] = useState<number[]>([]);
+  const typeParam = searchParams.get('type');
+  const selectedTypes = typeParam ? typeParam.split(',').filter(Boolean) : [];
+  const setSelectedTypes = (types: string[]) => setSearchParams((prev) => {
+    const p = new URLSearchParams(prev);
+    if (types.length) p.set('type', types.join(',')); else p.delete('type');
+    return p;
+  });
   const [assigneeOptions, setAssigneeOptions] = useState<{ id: number; name: string }[]>([]);
   const [sprints, setSprints] = useState<{
     id: number; name: string; status: string;
@@ -381,6 +389,13 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
     return parts.join(' · ');
   })();
 
+  const displayColumns = selectedTypes.length
+    ? columns.map((col) => {
+        const tasks = col.tasks.filter((t) => selectedTypes.includes(t.itemType));
+        return { ...col, tasks, taskCount: tasks.length };
+      })
+    : columns;
+
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
@@ -421,6 +436,9 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
           selected={selectedAssignees}
           onChange={setSelectedAssignees}
         />
+
+        {/* Type filter */}
+        <TypeMultiSelect selected={selectedTypes} onChange={setSelectedTypes} />
         {selectedAssignees.length > 0 && (
           <div className="flex items-center">
             {assigneeOptions
@@ -542,7 +560,7 @@ export function KanbanBoard({ epicFilter, headerSlot }: { epicFilter?: number; h
       >
         <div className="flex-1 overflow-x-auto p-4 bg-[var(--paper-2)]">
           <div className="flex gap-3 h-full">
-            {columns.map((col) => (
+            {displayColumns.map((col) => (
               <StatusColumn
                 key={col.status.id}
                 status={col.status}
