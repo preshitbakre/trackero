@@ -19,9 +19,11 @@ import { RowSkeleton } from '../components/common/Skeleton';
 import { ErrorState } from '../components/common/ErrorState';
 import { PRIORITY_BORDER_COLORS, PRIORITY_BADGE_COLORS } from '../lib/colors';
 import { CreateItemDialog } from '../components/common/CreateItemDialog';
+import { TypeMultiSelect } from '../components/common/TypeMultiSelect';
 import { LabelList } from '../components/ui/LabelBadge';
 import { TypeTag } from '../components/ui';
 import { calculateMidpoint } from '../lib/lexorank';
+import { groupByParent } from '../lib/backlogGrouping';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { Drawer } from '../components/common/Drawer';
 import { useProjectMethodology } from '../hooks/useProjectMethodology';
@@ -167,6 +169,13 @@ export function BacklogPage() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedTaskId = searchParams.get('task') ? Number(searchParams.get('task')) : null;
+  const typeParam = searchParams.get('type');
+  const selectedTypes = typeParam ? typeParam.split(',').filter(Boolean) : [];
+  const setSelectedTypes = (types: string[]) => setSearchParams((prev) => {
+    const next = new URLSearchParams(prev);
+    if (types.length) next.set('type', types.join(',')); else next.delete('type');
+    return next;
+  }, { replace: true });
   const selectTask = useCallback((id: number | null) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
@@ -337,23 +346,16 @@ export function BacklogPage() {
     });
   };
 
-  const subtaskMap = new Map<number, BacklogTask[]>();
-  const parentTasks: BacklogTask[] = [];
-  for (const t of tasks) {
-    if (t.parentId) {
-      const list = subtaskMap.get(t.parentId) || [];
-      list.push(t);
-      subtaskMap.set(t.parentId, list);
-    } else {
-      parentTasks.push(t);
-    }
-  }
+  const visibleTasks = selectedTypes.length
+    ? tasks.filter((t) => selectedTypes.includes(t.itemType || t.type))
+    : tasks;
+  const { parentTasks, subtaskMap } = groupByParent(visibleTasks);
 
   // Summary metrics. `inSprintCount` reflects items currently held in a sprint
   // — useful context even on a "backlog" view that may include items that have
   // been pulled into a sprint but not yet completed.
-  const totalPoints = tasks.reduce((sum, t) => sum + (t.storyPoints || 0), 0);
-  const inSprintCount = tasks.filter((t) => t.sprintId != null).length;
+  const totalPoints = visibleTasks.reduce((sum, t) => sum + (t.storyPoints || 0), 0);
+  const inSprintCount = visibleTasks.filter((t) => t.sprintId != null).length;
 
   // Points sum for the currently selected items — drives the bulk action bar.
   const selectedPoints = parentTasks
@@ -378,14 +380,17 @@ export function BacklogPage() {
               Backlog
             </h1>
             <Eyebrow>
-              {tasks.length} items · {totalPoints} pts{!isKanban && ` · ${inSprintCount} in sprint`}
+              {visibleTasks.length} items · {totalPoints} pts{!isKanban && ` · ${inSprintCount} in sprint`}
             </Eyebrow>
           </div>
-          {canEdit && (
-            <Button variant="ink" onClick={() => setShowCreate(true)} className="inline-flex items-center gap-2">
-              + Create Task <KbdKey tone="on-accent">C</KbdKey>
-            </Button>
-          )}
+          <div className="flex items-center gap-3">
+            <TypeMultiSelect selected={selectedTypes} onChange={setSelectedTypes} />
+            {canEdit && (
+              <Button variant="ink" onClick={() => setShowCreate(true)} className="inline-flex items-center gap-2">
+                + Create Task <KbdKey tone="on-accent">C</KbdKey>
+              </Button>
+            )}
+          </div>
         </PageHeader>
 
         <div className="flex-1 flex flex-col overflow-hidden min-h-0 px-[28px] pt-4">
@@ -545,13 +550,22 @@ export function BacklogPage() {
         </SortableContext>
 
         {/* Empty state */}
-        {tasks.length === 0 && !showCreate && !loading && (
+        {parentTasks.length === 0 && !showCreate && !loading && (
           <div className="text-center py-16">
             <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: '#88D68E40' }}>
               <CheckCircle size={32} style={{ color: '#3E8E44' }} strokeWidth={1.5} />
             </div>
-            <h3 className="text-[16px] font-medium text-neutral-500 mb-1">Backlog is clear</h3>
-            <p className="text-[14px] text-neutral-400">{isKanban ? 'Backlog is empty. Add items to start the flow.' : 'All tasks have been assigned to sprints. Nice work!'}</p>
+            {selectedTypes.length > 0 && tasks.length > 0 ? (
+              <>
+                <h3 className="text-[16px] font-medium text-neutral-500 mb-1">No matching items</h3>
+                <p className="text-[14px] text-neutral-400">No backlog items match the selected type filter.</p>
+              </>
+            ) : (
+              <>
+                <h3 className="text-[16px] font-medium text-neutral-500 mb-1">Backlog is clear</h3>
+                <p className="text-[14px] text-neutral-400">{isKanban ? 'Backlog is empty. Add items to start the flow.' : 'All tasks have been assigned to sprints. Nice work!'}</p>
+              </>
+            )}
           </div>
         )}
         </div>
