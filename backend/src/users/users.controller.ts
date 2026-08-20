@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Put, Post, Param, Body, Query,
+  Controller, Get, Put, Post, Delete, Param, Body, Query,
   UseGuards, ParseIntPipe, HttpCode, HttpStatus,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
@@ -80,6 +80,13 @@ export class UsersController {
       body.projectId,
       body.sendEmail,
     );
+  }
+
+  @Delete('invitations/:id')
+  @Roles('admin')
+  @ResponseCode('INVITATION_DELETED')
+  async deleteInvitation(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.deleteInvitation(id);
   }
 
   @Post('invitations/send-email')

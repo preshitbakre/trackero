@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Plus, Search, Lock, Inbox, Copy, Check, Mail, Link2, CheckCheck, Clock } from 'lucide-react';
+import { Plus, Search, Lock, Inbox, Copy, Check, Mail, Link2, CheckCheck, Clock, Trash2 } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/auth.store';
 import { Select } from '../components/ui/Select';
@@ -91,6 +91,7 @@ export function SettingsPage() {
   const [confirmRoleChange, setConfirmRoleChange] = useState<{ userId: number; role: string; displayName: string } | null>(null);
   const [confirmDeactivate, setConfirmDeactivate] = useState<{ userId: number; displayName: string } | null>(null);
   const [setPasswordFor, setSetPasswordFor] = useState<{ userId: number; displayName: string } | null>(null);
+  const [confirmDeleteInvite, setConfirmDeleteInvite] = useState<{ id: number; email: string } | null>(null);
   const [projectCount, setProjectCount] = useState<number | null>(null);
   const user = useAuthStore((s) => s.user);
 
@@ -166,6 +167,16 @@ export function SettingsPage() {
       toast(err.response?.data?.message || 'Failed to create invitation', 'error');
     } finally {
       setInviting(false);
+    }
+  };
+
+  const handleDeleteInvitation = async (id: number) => {
+    try {
+      const { data } = await apiClient.delete(`/users/invitations/${id}`);
+      setInvitations(data?.data?.list || []);
+      toast('Invitation deleted');
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to delete invitation', 'error');
     }
   };
 
@@ -481,6 +492,16 @@ export function SettingsPage() {
                         <Inbox size={13} className="text-mute flex-shrink-0" />
                         <span className="text-[13px] font-mono text-text truncate flex-1">{inv.email}</span>
                         <RoleBadge role={inv.role} />
+                        {inv.status !== 'accepted' && (
+                          <button
+                            onClick={() => setConfirmDeleteInvite({ id: inv.id, email: inv.email })}
+                            className="text-faint hover:text-danger flex-shrink-0 p-0.5"
+                            aria-label={`Delete invitation for ${inv.email}`}
+                            title="Delete invitation"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
                       </div>
                       <div className="mt-1.5 flex items-center gap-2 text-[11px] text-faint ml-[21px]">
                         {inv.invitedByName && (
@@ -540,6 +561,21 @@ export function SettingsPage() {
           displayName={setPasswordFor.displayName}
           onConfirm={(password) => handleSetUserPassword(setPasswordFor.userId, password)}
           onCancel={() => setSetPasswordFor(null)}
+        />
+      )}
+
+      {confirmDeleteInvite && (
+        <ConfirmDialog
+          title="Delete invitation"
+          message={`Delete the invitation for ${confirmDeleteInvite.email}? They will no longer be able to accept it.`}
+          confirmLabel="Delete"
+          danger
+          onConfirm={async () => {
+            const { id } = confirmDeleteInvite;
+            setConfirmDeleteInvite(null);
+            await handleDeleteInvitation(id);
+          }}
+          onCancel={() => setConfirmDeleteInvite(null)}
         />
       )}
     </div>

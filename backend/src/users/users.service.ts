@@ -318,4 +318,22 @@ export class UsersService {
     );
     return new PaginatedResponse(list, list.length, 1, list.length || 1);
   }
+
+  /**
+   * Delete an invitation that was never accepted (pending or expired). Accepted
+   * invites are refused — that person is a real user now and must be removed via
+   * the member controls (deactivate) instead. Returns the refreshed list so the
+   * admin UI can update in one round-trip, mirroring invite()'s response shape.
+   */
+  async deleteInvitation(id: number) {
+    const invitation = await this.invitationRepo.findOne({ where: { id } });
+    if (!invitation) {
+      throw new AppLogicException('NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    if (invitation.status === 'accepted') {
+      throw new AppLogicException('INVITATION_ALREADY_ACCEPTED', HttpStatus.BAD_REQUEST);
+    }
+    await this.invitationRepo.delete({ id });
+    return this.listInvitations();
+  }
 }
