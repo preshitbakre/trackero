@@ -21,6 +21,8 @@ import { QueryWorkItemsDto } from './dto/query-work-items.dto';
 import { AssignSprintDto } from './dto/assign-sprint.dto';
 import { AssignWorkItemDto } from './dto/assign-work-item.dto';
 import { clampLimit } from '../common/helpers/pagination.helper';
+import * as ExcelJS from 'exceljs';
+import { resolveAncestry, AncestryNode } from './export-ancestry';
 
 @Injectable()
 export class WorkItemsService {
@@ -443,6 +445,183 @@ export class WorkItemsService {
     const list = items.map(item => this.formatItemResponse(item, childCounts[item.id] || 0, projectPrefix));
     const paginated = new PaginatedResponse(list, total, page, limit);
     return paginated.toEnvelopeData();
+  }
+
+  /**
+   * Export the project's tickets as a styled .xlsx workbook (returned as a
+   * Buffer). Scope is `all`, `backlog` (unscheduled non-subtasks + their
+   * subtasks), or a specific sprint (its items + their subtasks). Each work
+   * item is one row; its checklist items are interleaved directly beneath it.
+   * The "Parent Path" column shows the full ancestry key chain to the top.
+   */
+  async exportToXlsx(
+    projectId: number,
+    scope: { sprintId?: number; backlog?: boolean },
+  ): Promise<Buffer> {
+    const [projectRow] = await this.dataSource.query(
+      `SELECT prefix FROM projects WHERE id = $1`,
+      [projectId],
+    );
+    const prefix: string = projectRow?.prefix ?? '';
+    const keyOf = (n: number) => (prefix ? `${prefix}-${n}` : `${n}`);
+
+    // All non-deleted items with their display relations. Ancestry parents
+    // (epics/stories) can live outside the chosen scope, so we load the whole
+    // project once, then narrow to the scoped rows in memory.
+    const allItems = await this.workItemRepo.createQueryBuilder('wi')
+      .leftJoinAndSelect('wi.status', 'status')
+      .leftJoinAndSelect('wi.assignee', 'assignee')
+      .leftJoinAndSelect('wi.reporter', 'reporter')
+      .leftJoinAndSelect('wi.sprint', 'sprint')
+      .leftJoinAndSelect('wi.labels', 'labels')
+      .where('wi.projectId = :projectId', { projectId })
+      .andWhere('wi.deletedAt IS NULL')
+      .getMany();
+
+    const itemMap = new Map<number, AncestryNode>();
+    for (const i of allItems) {
+      itemMap.set(i.id, { id: i.id, itemType: i.itemType, parentId: i.parentId });
+    }
+
+    // First belongs_to parent per item (item_id belongs_to linked_item_id).
+    const belongsToParent = new Map<number, number>();
+    const assocRows = await this.dataSource.query(
+      `SELECT item_id, linked_item_id FROM work_item_associations
+       WHERE link_type = 'belongs_to' AND item_id = ANY($1)
+       ORDER BY id ASC`,
+      [allItems.map((i) => i.id)],
+    );
+    for (const r of assocRows) {
+      if (!belongsToParent.has(r.item_id)) belongsToParent.set(r.item_id, r.linked_item_id);
+    }
+
+    // Blocked = has an outgoing 'blocks' association (matches board semantics).
+    const blockedIds = new Set<number>();
+    const blockRows = await this.dataSource.query(
+      `SELECT DISTINCT item_id FROM work_item_associations
+       WHERE link_type = 'blocks' AND item_id = ANY($1)`,
+      [allItems.map((i) => i.id)],
+    );
+    for (const r of blockRows) blockedIds.add(r.item_id);
+
+    // Narrow to scope. Non-subtasks match the scope predicate; subtasks come
+    // along when their parent is in scope (mirrors the board's inheritance).
+    const inScope = (i: WorkItem) => {
+      if (scope.sprintId) return i.sprintId === scope.sprintId;
+      if (scope.backlog) return i.sprintId == null;
+      return true;
+    };
+    const scopedParents = allItems.filter((i) => i.itemType !== 'subtask' && inScope(i));
+    const scopedIds = new Set(scopedParents.map((i) => i.id));
+    const scopedSubs = allItems.filter(
+      (i) => i.itemType === 'subtask' && i.parentId != null && scopedIds.has(i.parentId),
+    );
+    const scoped = [...scopedParents, ...scopedSubs];
+
+    const pathString = (id: number) =>
+      resolveAncestry(id, itemMap, belongsToParent).map(keyOf).join(' › ');
+
+    // Sort work items by parent path, then key, so siblings group together.
+    scoped.sort((a, b) => {
+      const pa = pathString(a.id);
+      const pb = pathString(b.id);
+      if (pa !== pb) return pa < pb ? -1 : 1;
+      return a.itemNumber - b.itemNumber;
+    });
+
+    // Checklist items for the scoped work items, grouped by owner.
+    const checklistByItem = new Map<number, Array<{ title: string; isCompleted: boolean }>>();
+    if (scoped.length > 0) {
+      const clRows = await this.dataSource.query(
+        `SELECT work_item_id, title, is_completed FROM checklist_items
+         WHERE work_item_id = ANY($1) ORDER BY sort_order ASC, id ASC`,
+        [scoped.map((i) => i.id)],
+      );
+      for (const r of clRows) {
+        if (!checklistByItem.has(r.work_item_id)) checklistByItem.set(r.work_item_id, []);
+        checklistByItem.get(r.work_item_id)!.push({ title: r.title, isCompleted: r.is_completed });
+      }
+    }
+
+    const fmtDate = (d: Date | string | null) =>
+      d ? new Date(d).toISOString().slice(0, 10) : '';
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Tickets');
+    sheet.columns = [
+      { header: 'Parent Path', key: 'parentPath', width: 34 },
+      { header: 'Key', key: 'key', width: 12 },
+      { header: 'Type', key: 'type', width: 10 },
+      { header: 'Title', key: 'title', width: 48 },
+      { header: 'Status', key: 'status', width: 14 },
+      { header: 'Priority', key: 'priority', width: 10 },
+      { header: 'Story Points', key: 'points', width: 12 },
+      { header: 'Assignee', key: 'assignee', width: 18 },
+      { header: 'Sprint', key: 'sprint', width: 18 },
+      { header: 'Labels', key: 'labels', width: 24 },
+      { header: 'Blocked', key: 'blocked', width: 9 },
+      { header: 'Created By', key: 'createdBy', width: 18 },
+      { header: 'Created', key: 'created', width: 12 },
+      { header: 'Updated', key: 'updated', width: 12 },
+      { header: 'Completed', key: 'completed', width: 12 },
+      { header: 'Description', key: 'description', width: 60 },
+    ];
+
+    for (const item of scoped) {
+      const selfPath = pathString(item.id);
+      sheet.addRow({
+        parentPath: selfPath,
+        key: keyOf(item.itemNumber),
+        type: item.itemType,
+        title: item.title,
+        status: item.status?.name ?? '',
+        priority: item.priority,
+        points: item.storyPoints ?? '',
+        assignee: (item.assignee as any)?.displayName ?? '',
+        sprint: item.sprint?.name ?? '',
+        labels: (item.labels || []).map((l) => l.name).join(', '),
+        blocked: blockedIds.has(item.id) ? 'Yes' : 'No',
+        createdBy: (item.reporter as any)?.displayName ?? '',
+        created: fmtDate(item.createdAt),
+        updated: fmtDate(item.updatedAt),
+        completed: fmtDate(item.completedAt),
+        description: item.description ?? '',
+      });
+
+      // Checklist rows interleaved under their owning work item. Parent path
+      // includes the owning item's own key so they nest one level deeper.
+      const checklist = checklistByItem.get(item.id) ?? [];
+      const childPath = selfPath ? `${selfPath} › ${keyOf(item.itemNumber)}` : keyOf(item.itemNumber);
+      for (const cl of checklist) {
+        sheet.addRow({
+          parentPath: childPath,
+          key: '',
+          type: 'checklist',
+          title: cl.title,
+          status: cl.isCompleted ? 'Done' : 'Open',
+          priority: '',
+          points: '',
+          assignee: '',
+          sprint: item.sprint?.name ?? '',
+          labels: '',
+          blocked: '',
+          createdBy: '',
+          created: '',
+          updated: '',
+          completed: '',
+          description: '',
+        });
+      }
+    }
+
+    const header = sheet.getRow(1);
+    header.font = { bold: true };
+    header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFE7FD' } };
+    sheet.views = [{ state: 'frozen', ySplit: 1 }];
+    sheet.autoFilter = { from: 'A1', to: 'P1' };
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
   }
 
   async findOne(projectId: number, id: number) {

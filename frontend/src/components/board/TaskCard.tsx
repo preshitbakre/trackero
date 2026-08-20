@@ -2,6 +2,7 @@ import { useDraggable } from '@dnd-kit/core';
 import { Tooltip } from '../common/Tooltip';
 import { TypeTag, Avatar } from '../ui';
 import type { TypeTagKind } from '../ui';
+import { PRIORITY_BORDER_COLORS } from '../../lib/colors';
 
 interface BoardTask {
   id: number;
@@ -36,6 +37,9 @@ export function TaskCard({ task, isDragging, onClick, selected, onSelect, select
   });
 
   const style: React.CSSProperties = isBeingDragged ? { opacity: 0.4 } : {};
+  const cardStyle: React.CSSProperties = task.hasBlockers
+    ? style
+    : { ...style, borderLeftWidth: '3px', borderLeftColor: PRIORITY_BORDER_COLORS[task.priority] || PRIORITY_BORDER_COLORS.none };
 
   const typeName = task.itemType || 'task';
   const typeKind = (typeName as TypeTagKind) || 'task';
@@ -54,7 +58,7 @@ export function TaskCard({ task, isDragging, onClick, selected, onSelect, select
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={cardStyle}
       {...listeners}
       {...attributes}
       onClick={onClick}

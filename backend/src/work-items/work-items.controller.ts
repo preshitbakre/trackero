@@ -1,7 +1,8 @@
 import {
   Controller, Post, Get, Put, Delete, Body, Param, Query,
-  UseGuards, HttpCode, HttpStatus, ParseIntPipe,
+  UseGuards, HttpCode, HttpStatus, ParseIntPipe, Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { DataSource } from 'typeorm';
 import { WorkItemsService } from './work-items.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -48,6 +49,28 @@ export class WorkItemsController {
     @Query() query: QueryWorkItemsDto,
   ) {
     return this.workItemsService.findAll(projectId, query);
+  }
+
+  @Get('export')
+  @Roles('admin', 'project_manager', 'member', 'viewer')
+  async export(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Query('sprintId') sprintId: string | undefined,
+    @Query('backlog') backlog: string | undefined,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.workItemsService.exportToXlsx(projectId, {
+      sprintId: sprintId ? parseInt(sprintId, 10) : undefined,
+      backlog: backlog === 'true',
+    });
+    const scope = sprintId ? `sprint-${sprintId}` : backlog === 'true' ? 'backlog' : 'all';
+    const filename = `tickets-export-${scope}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
   }
 
   @Put('reorder')
